@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -75,6 +76,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -215,7 +217,7 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
             assertThat(results.get(0).clusterStateFetchException, nullValue());
             List<Map.Entry<Index, Exception>> entries = new ArrayList<>(results.get(0).autoFollowExecutionResults.entrySet());
             assertThat(entries.size(), equalTo(1));
-            assertThat(entries.get(0).getKey().getName(), equalTo(".ds-logs-foobar-000001"));
+            assertThat(entries.get(0).getKey().getName(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
             assertThat(entries.get(0).getValue(), nullValue());
         };
         AutoFollower autoFollower = new AutoFollower("remote", handler, localClusterStateSupplier(currentState), () -> 1L, Runnable::run) {
@@ -234,8 +236,8 @@ public class AutoFollowCoordinatorTests extends ESTestCase {
                                  Consumer<Exception> failureHandler) {
                 assertThat(headers, equalTo(autoFollowHeaders.get("remote")));
                 assertThat(followRequest.getRemoteCluster(), equalTo("remote"));
-                assertThat(followRequest.getLeaderIndex(), equalTo(".ds-logs-foobar-000001"));
-                assertThat(followRequest.getFollowerIndex(), equalTo(".ds-logs-foobar-000001"));
+                assertThat(followRequest.getLeaderIndex(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
+                assertThat(followRequest.getFollowerIndex(), matchesPattern(DataStreamTestHelper.backingIndexPattern("logs-foobar", 1)));
                 assertThat(followRequest.masterNodeTimeout(), equalTo(TimeValue.MAX_VALUE));
                 successHandler.run();
             }

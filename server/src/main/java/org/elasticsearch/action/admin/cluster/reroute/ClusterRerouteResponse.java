@@ -44,7 +44,7 @@ public class ClusterRerouteResponse extends AcknowledgedResponse implements ToXC
         explanations = RoutingExplanations.readFrom(in);
     }
 
-    ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
+    public ClusterRerouteResponse(boolean acknowledged, ClusterState state, RoutingExplanations explanations) {
         super(acknowledged);
         this.state = state;
         this.explanations = explanations;

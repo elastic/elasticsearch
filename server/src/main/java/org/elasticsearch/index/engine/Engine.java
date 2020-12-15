@@ -1077,6 +1077,13 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * Acquires the index commit that should be included in a snapshot.
+     */
+    public final IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+        return engineConfig.getSnapshotCommitSupplier().acquireIndexCommitForSnapshot(this);
+    }
+
+    /**
      * @return a summary of the contents of the current safe commit
      */
     public abstract SafeCommitInfo getSafeCommitInfo();
@@ -1206,6 +1213,15 @@ public abstract class Engine implements Closeable {
         protected abstract void doClose();
 
         protected abstract Searcher acquireSearcherInternal(String source);
+
+        /**
+         * Returns a commit id associated with this searcher if it's opened from an index commit; otherwise, return null. Two searchers
+         * with the same commit id must have identical Lucene level indices (i.e., identical segments with same docs using same doc-ids).
+         */
+        @Nullable
+        public String getCommitId() {
+            return null;
+        }
     }
 
     public static final class Searcher extends IndexSearcher implements Releasable {

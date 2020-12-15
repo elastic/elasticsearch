@@ -238,7 +238,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     /**
-     * Calculates the number of primary shards in the routing table the are in
+     * Calculates the number of primary shards in the routing tables that are in
      * {@link ShardRoutingState#UNASSIGNED} state.
      */
     public int primaryShardsUnassigned() {

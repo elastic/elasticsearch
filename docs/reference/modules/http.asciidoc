@@ -42,15 +42,15 @@ Used to set the `http.bind_host` and the `http.publish_host`.
 
 `http.max_content_length`::
 (<<static-cluster-setting,Static>>)
-Maximum length of an HTTP request body. Defaults to `100MB`.
+Maximum size of an HTTP request body. Defaults to `100mb`.
 
 `http.max_initial_line_length`::
 (<<static-cluster-setting,Static>>)
-The max length of an HTTP URL. Defaults to `4KB`.
+Maximum size of an HTTP URL. Defaults to `4kb`.
 
 `http.max_header_size`::
 (<<static-cluster-setting,Static>>)
-The max size of allowed headers. Defaults to `8KB`.
+Maximum size of allowed headers. Defaults to `8kb`.
 
 [[http-compression]]
 // tag::http-compression-tag[]

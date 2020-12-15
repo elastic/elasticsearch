@@ -97,7 +97,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private final Map<String, String> fieldMappings;
 
-    // the function of the transform, e.g. pivot
+    // the function of the transform, e.g. pivot or latest
     private Function function;
 
     // collects changes for continuous mode
@@ -631,7 +631,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     synchronized void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
-        Throwable unwrappedException = ExceptionRootCauseFinder.getRootCauseException(e);
+        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 
         if (unwrappedException instanceof CircuitBreakingException) {
             handleCircuitBreakingException((CircuitBreakingException) unwrappedException);
@@ -871,30 +871,30 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformIndexerPosition position = getPosition();
 
         TransformConfig config = getConfig();
-        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
 
-        // if its either the 1st run or not continuous, do not apply extra filters
-        if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
-            sourceBuilder.query(queryBuilder);
-            logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
+        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
-            return sourceBuilder;
+        if (isContinuous()) {
+            BoolQueryBuilder filteredQuery =
+                new BoolQueryBuilder()
+                    .filter(queryBuilder)
+                    .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+
+            // Only apply extra filter if it is the subsequent run of the continuous transform
+            if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
+                QueryBuilder filter =
+                    changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+                if (filter != null) {
+                    filteredQuery.filter(filter);
+                }
+            }
+
+            queryBuilder = filteredQuery;
         }
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
-            .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
-
-        QueryBuilder filter = changeCollector != null
-            ? changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound())
-            : null;
-
-        if (filter != null) {
-            filteredQuery.filter(filter);
-        }
-
-        sourceBuilder.query(filteredQuery);
+        sourceBuilder.query(queryBuilder);
         logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
 
         return sourceBuilder;
@@ -1013,14 +1013,14 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     private synchronized void startIndexerThreadShutdown() {
-        indexerThreadShuttingDown  = true;
+        indexerThreadShuttingDown = true;
         stopCalledDuringIndexerThreadShutdown = false;
     }
 
     private synchronized void finishIndexerThreadShutdown() {
-        indexerThreadShuttingDown  = false;
+        indexerThreadShuttingDown = false;
         if (stopCalledDuringIndexerThreadShutdown) {
-            doSaveState(IndexerState.STOPPED,  getPosition(), () -> {});
+            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
         }
     }
 

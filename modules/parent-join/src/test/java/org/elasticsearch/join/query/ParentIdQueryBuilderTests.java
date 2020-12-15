@@ -66,14 +66,6 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     }
 
     @Override
-    protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(super.createTestIndexSettings())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
-    }
-
-    @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
             .startObject("join_field")

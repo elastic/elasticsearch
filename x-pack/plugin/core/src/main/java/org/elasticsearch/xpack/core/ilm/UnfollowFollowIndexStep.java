@@ -24,6 +24,11 @@ final class UnfollowFollowIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     void innerPerformAction(String followerIndex, Listener listener) {
         UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(

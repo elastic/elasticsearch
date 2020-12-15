@@ -24,6 +24,11 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
         String followerIndex = indexMetadata.getIndex().getName();
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);

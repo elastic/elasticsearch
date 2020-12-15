@@ -18,6 +18,11 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     void innerPerformAction(String followerIndex, Listener listener) {
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(

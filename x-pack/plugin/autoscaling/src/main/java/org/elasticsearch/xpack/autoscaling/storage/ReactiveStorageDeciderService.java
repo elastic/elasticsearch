@@ -404,7 +404,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 return null;
             }
 
-            long avgSize = (totalSize - 1) / count + 1;
+            // round up
+            long avgSizeCeil = (totalSize - 1) / count + 1;
 
             long actualWindow = now - minCreationDate;
             if (actualWindow == 0) {
@@ -419,7 +420,8 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                     .multiply(BigInteger.valueOf(forecastWindow))
                     .divide(BigInteger.valueOf(actualWindow))
                     .longValueExact();
-                numberNewIndices = (int) Math.min((scaledTotalSize - 1) / avgSize + 1, indices.size());
+                // round up
+                numberNewIndices = (int) Math.min((scaledTotalSize - 1) / avgSizeCeil + 1, indices.size());
                 if (scaledTotalSize == 0) {
                     return null;
                 }
@@ -443,7 +445,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                         Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
                     )
                     .build();
-                long size = Math.min(avgSize, scaledTotalSize - (avgSize * i));
+                long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
                 assert size > 0;
                 newIndices.put(newIndex, size);
                 dataStream = dataStream.rollover(newIndex.getIndex());

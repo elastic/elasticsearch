@@ -59,6 +59,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
@@ -466,7 +467,7 @@ public abstract class PackagingTestCase extends Assert {
         if (heapSize == null) {
             FileUtils.rm(heapOptions);
         } else {
-            Files.writeString(heapOptions, "-Xmx" + heapSize + "\n-Xms" + heapSize);
+            Files.writeString(heapOptions, "-Xmx" + heapSize + "\n-Xms" + heapSize, StandardOpenOption.CREATE);
         }
     }
 }

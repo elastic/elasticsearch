@@ -267,6 +267,7 @@ public class ArchiveTests extends PackagingTestCase {
     public void test71CustomJvmOptionsDirectoryFile() throws Exception {
         final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
         try {
+            setHeap(null); // delete default options
             append(heapOptions, "-Xms512m\n-Xmx512m\n");
 
             startElasticsearch();
@@ -284,6 +285,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Path firstOptions = installation.config(Paths.get("jvm.options.d", "first.options"));
         final Path secondOptions = installation.config(Paths.get("jvm.options.d", "second.options"));
         try {
+            setHeap(null); // delete default options
             /*
              * We override the heap in the first file, and disable compressed oops, and override the heap in the second file. By doing this,
              * we can test that both files are processed by the JVM options parser, and also that they are processed in lexicographic order.

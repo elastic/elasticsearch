@@ -62,6 +62,8 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
+        // no license check, we will allow deleting policies even if the license is out of compliance, for cleanup purposes
+
         clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {

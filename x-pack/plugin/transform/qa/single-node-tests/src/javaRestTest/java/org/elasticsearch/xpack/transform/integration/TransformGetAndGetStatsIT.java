@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -380,7 +381,10 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
             int numberOfTransforms = randomIntBetween(1_500, 4_000);
             for (int i = 0; i < numberOfTransforms; ++i) {
                 AcknowledgedResponse response = restClient.transform()
-                    .putTransform(new PutTransformRequest(configBuilder.setId(String.format("t-%05d", i)).build()), RequestOptions.DEFAULT);
+                    .putTransform(
+                        new PutTransformRequest(configBuilder.setId(String.format(Locale.ROOT, "t-%05d", i)).build()),
+                        RequestOptions.DEFAULT
+                    );
                 assertTrue(response.isAcknowledged());
             }
 
@@ -405,21 +409,21 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
                 assertEquals(size, configs.size());
                 assertEquals(size, stats.size());
 
-                assertThat(configs.get(0).getId(), equalTo(String.format("t-%05d", from)));
-                assertThat(configs.get(configs.size() - 1).getId(), equalTo(String.format("t-%05d", from + size - 1)));
-                assertThat(stats.get(0).getId(), equalTo(String.format("t-%05d", from)));
-                assertThat(stats.get(stats.size() - 1).getId(), equalTo(String.format("t-%05d", from + size - 1)));
+                assertThat(configs.get(0).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
+                assertThat(configs.get(configs.size() - 1).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
+                assertThat(stats.get(0).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from)));
+                assertThat(stats.get(stats.size() - 1).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + size - 1)));
 
                 if (size > 2) {
                     int randomElement = randomIntBetween(1, size - 1);
-                    assertThat(configs.get(randomElement).getId(), equalTo(String.format("t-%05d", from + randomElement)));
-                    assertThat(stats.get(randomElement).getId(), equalTo(String.format("t-%05d", from + randomElement)));
+                    assertThat(configs.get(randomElement).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
+                    assertThat(stats.get(randomElement).getId(), equalTo(String.format(Locale.ROOT, "t-%05d", from + randomElement)));
                 }
             }
 
             for (int i = 0; i < numberOfTransforms; ++i) {
                 AcknowledgedResponse response = restClient.transform()
-                    .deleteTransform(new DeleteTransformRequest(String.format("t-%05d", i)), RequestOptions.DEFAULT);
+                    .deleteTransform(new DeleteTransformRequest(String.format(Locale.ROOT, "t-%05d", i)), RequestOptions.DEFAULT);
                 assertTrue(response.isAcknowledged());
             }
         }

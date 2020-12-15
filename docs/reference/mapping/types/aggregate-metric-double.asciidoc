@@ -6,9 +6,10 @@
 <titleabbrev>Aggregate metric</titleabbrev>
 ++++
 
-The `aggregate_metric_double` field stores pre-aggregated numeric values (`min`, `max`, `sum` and `value_count`) that can be directly
-accessed by metric aggregations. An `aggregate_metric_double` field is defined as an object with one ore more of the following sub-fields:
-`min`, `max`, `sum` and `value_count`.
+Stores pre-aggregated numeric values for <<search-aggregations-metrics,metric
+aggregations>>. An `aggregate_metric_double` field is an object containing one
+or more of the following metric sub-fields: `min`, `max`, `sum`, and
+`value_count`.
 
 When you run certain metric aggregations on an `aggregate_metric_double` field,
 the aggregation uses the related sub-field's values. For example, a

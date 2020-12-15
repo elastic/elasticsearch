@@ -97,8 +97,9 @@ you can re-use it by supplying its location when prompted.
 
 NOTE: The first question that the `elasticsearch-certutil` tool prompts you
 with is whether you want to generate a Certificate Signing Request (CSR).
-Answer `y` if you want to sign your own certificates, or `n` if you want to
-sign certificates with a central CA.
+Answer `y` if a trusted authority, such as in internal security team or a
+commercial certificate authority, will sign your certificates. Answer `n` if
+you have access to a trusted CA and will sign your own certificates.
 
 The output is a `.zip` file containing one directory each for both Elasticsearch
 and Kibana:

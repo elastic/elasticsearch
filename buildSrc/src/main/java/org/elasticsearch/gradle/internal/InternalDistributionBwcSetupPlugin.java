@@ -260,7 +260,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             this.name = name;
             this.checkoutDir = checkoutDir;
             this.projectPath = baseDir + "/" + name;
-            this.nativeExtractedSupport = version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"));
+            this.nativeExtractedSupport = version.onOrAfter("7.11.0") && (name.endsWith("zip") || name.endsWith("tar"));
             this.expectedBuildArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir,

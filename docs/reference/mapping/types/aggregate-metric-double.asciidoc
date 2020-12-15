@@ -146,12 +146,12 @@ You can run `min`, `max`, `sum`, `value_count`, and `avg` aggregations on a
 ----
 POST stats-index/_search?size=0
 {
-  "aggs" : {
-    "metric_min" : { "min" : { "field" : "agg_metric" } },
-    "metric_max" : { "max" : { "field" : "agg_metric" } },
-    "metric_value_count" : { "value_count" : { "field" : "agg_metric" } },
-    "metric_sum" : { "sum" : { "field" : "agg_metric" } },
-    "metric_avg" : { "avg" : { "field" : "agg_metric" } }
+  "aggs": {
+    "metric_min": { "min": { "field": "agg_metric" } },
+    "metric_max": { "max": { "field": "agg_metric" } },
+    "metric_value_count": { "value_count": { "field": "agg_metric" } },
+    "metric_sum": { "sum": { "field": "agg_metric" } },
+    "metric_avg": { "avg": { "field": "agg_metric" } }
   }
 }
 ----
@@ -163,21 +163,21 @@ The aggregation results are based on related metric sub-field values.
 ----
 {
 ...
-  "aggregations" : {
-    "metric_min" : {
-      "value" : -302.5
+  "aggregations": {
+    "metric_min": {
+      "value": -302.5
     },
-    "metric_max" : {
-      "value" : 1702.3
+    "metric_max": {
+      "value": 1702.3
     },
-    "metric_value_count" : {
-      "value" : 50
+    "metric_value_count": {
+      "value": 50
     },
-    "metric_sum" : {
-      "value" : 500.0
+    "metric_sum": {
+      "value": 500.0
     },
-    "metric_avg" : {
-      "value" : 10.0
+    "metric_avg": {
+      "value": 10.0
     }
   }
 }

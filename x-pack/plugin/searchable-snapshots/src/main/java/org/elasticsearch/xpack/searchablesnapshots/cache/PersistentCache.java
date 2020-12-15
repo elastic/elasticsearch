@@ -164,8 +164,7 @@ public class PersistentCache implements Closeable {
                         while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                             if (isLiveDoc.test(docIdSetIterator.docID())) {
                                 final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
-                                var ranges = buildCacheFileRanges(document);
-                                for (Tuple<Long, Long> range : ranges) {
+                                for (Tuple<Long, Long> range : buildCacheFileRanges(document)) {
                                     aggregateSize += range.v2() - range.v1();
                                 }
                             }

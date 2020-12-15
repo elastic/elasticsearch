@@ -29,14 +29,22 @@ a positive long number.
 
 We designed `aggregate_metric_double` fields for use with the following aggregations:
 
-* <<search-aggregations-metrics-min-aggregation,min>> aggregation returns the minimum value of all `min` sub-fields.
-* <<search-aggregations-metrics-max-aggregation,max>> aggregation returns the maximum value of all `max` sub-fields.
-* <<search-aggregations-metrics-sum-aggregation,sum>> aggregation returns the sum of the values of all `sum` sub-fields.
-* <<search-aggregations-metrics-valuecount-aggregation,value_count>> aggregation returns the sum of the values of all `value_count`
-sub-fields.
-* <<search-aggregations-metrics-avg-aggregation,avg>> aggregation. The result of the `avg` aggregation is computed using
-the `sum` and `value_count` metrics. Therefore, there is no `avg` metric. To support `avg` aggregations, both `sum` and
-`value_count` metrics must be present.
+* A <<search-aggregations-metrics-min-aggregation,`min`>> aggregation returns the
+minimum value of all `min` sub-fields.
+
+* A <<search-aggregations-metrics-max-aggregation,`max`>> aggregation returns the
+maximum value of all `max` sub-fields.
+
+* A <<search-aggregations-metrics-sum-aggregation,`sum`>> aggregation returns the
+sum of the values of all `sum` sub-fields.
+
+*A  <<search-aggregations-metrics-valuecount-aggregation,`value_count`>>
+aggregation returns the sum of the values of all `value_count` sub-fields.
+
+* A <<search-aggregations-metrics-avg-aggregation,`avg`>> aggregation. There is no
+`avg` sub-field; the result of the `avg` aggregation is computed using the `sum`
+and `value_count` metrics. To run an `avg` aggregation, the field must contain
+both `sum` and `value_count` metric sub-field.
 
 
 If you use an `aggregate_metric_double` field with other aggregations, the field

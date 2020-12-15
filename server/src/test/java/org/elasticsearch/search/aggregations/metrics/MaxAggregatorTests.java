@@ -97,9 +97,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MaxAggregatorTests extends AggregatorTestCase {
 
-    private final String SCRIPT_NAME = "script_name";
+    private static final String SCRIPT_NAME = "script_name";
 
-    private final long SCRIPT_VALUE = 19L;
+    private static final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
     public static final String SUM_FIELD_PARAMS_SCRIPT = "sum_field_params";
@@ -241,7 +241,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -253,7 +253,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(max.getValue(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testMissingFieldOptimization() throws IOException {
@@ -294,10 +294,14 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMax> verify,
-        MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalMax> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     public void testMaxShortcutRandom() throws Exception {

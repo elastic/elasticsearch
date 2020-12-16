@@ -65,6 +65,9 @@ public class RpmPreservationTests extends PackagingTestCase {
 
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());
+
+        // don't perform normal setup/teardown after this since we removed the install
+        installation = null;
     }
 
     public void test30PreserveConfig() throws Exception {

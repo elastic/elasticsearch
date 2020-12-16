@@ -409,6 +409,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return lookup().simpleMatchToFullName(pattern);
     }
 
+    /**
+     * {@code volatile} read a (mostly) immutable snapshot current mapping.
+     */
     public MappingLookup lookup() {
         DocumentMapper mapper = this.mapper;
         return mapper == null ? MappingLookup.EMPTY : mapper.mappers();

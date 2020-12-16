@@ -57,7 +57,7 @@ Operating system stats, load average, mem, swap.
 +
 --
 Details about the installed plugins and modules per node. The following
-information are available for each plugin and module:
+information is available for each plugin and module:
 
 * `name`: plugin name
 * `version`: version of Elasticsearch the plugin was built for

@@ -175,7 +175,7 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
-        if (installation != null) {
+        if (installation != null && distribution.isDocker() == false) {
             setHeap("1g");
         }
     }
@@ -231,7 +231,9 @@ public abstract class PackagingTestCase extends Assert {
         }
 
         // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
-        setHeap("1g");
+        if (distribution.isDocker() == false) {
+            setHeap("1g");
+        }
     }
 
     protected static void cleanup() throws Exception {
@@ -468,9 +470,6 @@ public abstract class PackagingTestCase extends Assert {
         if (heapSize == null) {
             FileUtils.rm(heapOptions);
         } else {
-            if (Files.exists(heapOptions.getParent()) == false) {
-                Files.createDirectory(heapOptions.getParent());
-            }
             Files.writeString(heapOptions, String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s", heapSize), StandardOpenOption.CREATE);
         }
     }

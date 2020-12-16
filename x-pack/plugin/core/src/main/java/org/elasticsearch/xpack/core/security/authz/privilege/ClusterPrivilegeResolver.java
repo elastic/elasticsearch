@@ -169,7 +169,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_WATCHER,
         MANAGE_IDX_TEMPLATES,
         MANAGE_INGEST_PIPELINES,
-        READ_INGEST_PIPELINES,
+        READ_PIPELINE,
         TRANSPORT_CLIENT,
         MANAGE_SECURITY,
         MANAGE_SAML,

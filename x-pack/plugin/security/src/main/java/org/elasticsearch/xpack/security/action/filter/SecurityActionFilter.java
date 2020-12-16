@@ -124,8 +124,8 @@ public class SecurityActionFilter implements ActionFilter {
         return Integer.MIN_VALUE;
     }
 
-    private <Request extends ActionRequest, Response extends ActionResponse> void applyInternal(Task task, ActionFilterChain<Request,
-            Response> chain, String action, Request request, ActionListener<Response> listener) {
+    private <Request extends ActionRequest, Response extends ActionResponse> void applyInternal(Task task,
+            ActionFilterChain<Request, Response> chain, String action, Request request, ActionListener<Response> listener) {
         if (CloseIndexAction.NAME.equals(action) || OpenIndexAction.NAME.equals(action) || DeleteIndexAction.NAME.equals(action)) {
             IndicesRequest indicesRequest = (IndicesRequest) request;
             try {

@@ -52,6 +52,7 @@ import java.util.Map;
 public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
+    public static final String NAME = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
     public static final Setting<SecureString> BOOTSTRAP_ELASTIC_PASSWORD = SecureSetting.secureString("bootstrap.password",
@@ -67,10 +68,10 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
-        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE),
+        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, NAME),
             Settings.builder()
                 .put(settings)
-                .put(RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier(TYPE, TYPE)) + "order", Integer.MIN_VALUE)
+                .put(RealmSettings.realmSettingPrefix(new RealmConfig.RealmIdentifier(TYPE, NAME)) + "order", Integer.MIN_VALUE)
                 .build(), env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);

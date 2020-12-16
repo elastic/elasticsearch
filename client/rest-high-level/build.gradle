@@ -79,7 +79,7 @@ tasks.named("integTest").configure {
 }
 
 // Requires https://github.com/elastic/elasticsearch/pull/64403 to have this moved to task avoidance api.
-RestIntegTestTask asyncIntegTest = tasks.create("asyncIntegTest", RestIntegTestTask) {
+TaskProvider<RestIntegTestTask> asyncIntegTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
     systemProperty 'tests.rest.async', 'true'
     systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
     systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')

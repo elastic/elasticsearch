@@ -179,7 +179,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         super(in);
         shardId = new ShardId(in);
         searchType = SearchType.fromId(in.readByte());
-        shardIndex = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readVInt() : -1;
+        shardIndex = in.getVersion().onOrAfter(Version.V_7_11_0) ? in.readVInt() : -1;
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
@@ -247,7 +247,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         shardId.writeTo(out);
         out.writeByte(searchType.id());
         if (asKey == false) {
-            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
                 out.writeVInt(shardIndex);
             }
             out.writeVInt(numberOfShards);

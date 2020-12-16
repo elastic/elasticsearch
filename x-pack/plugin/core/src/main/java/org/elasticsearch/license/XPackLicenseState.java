@@ -54,7 +54,7 @@ public class XPackLicenseState {
         SECURITY_ALL_REALMS(OperationMode.PLATINUM, false),
         SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
         SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
-        SECURITY_TOKEN_SERVICE(OperationMode.GOLD, false),
+        SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
         SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
@@ -108,7 +108,9 @@ public class XPackLicenseState {
 
         SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
 
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
+        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
+
+        AUTOSCALING(OperationMode.ENTERPRISE, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;

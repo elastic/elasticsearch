@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -66,6 +67,11 @@ public final class RuntimeFields extends Plugin implements MapperPlugin, ScriptP
             LongFieldScript.CONTEXT,
             StringFieldScript.CONTEXT
         );
+    }
+
+    @Override
+    public DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder() {
+        return org.elasticsearch.xpack.runtimefields.mapper.DynamicRuntimeFieldsBuilder.INSTANCE;
     }
 
     @Override

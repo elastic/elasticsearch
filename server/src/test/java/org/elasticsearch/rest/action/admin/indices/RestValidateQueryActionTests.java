@@ -40,6 +40,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -53,6 +54,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
@@ -83,7 +85,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, taskManager, () -> "local", null, new NamedWriteableRegistry(List.of()));
+        client.initialize(actions, taskManager, () -> "local",
+            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
         controller.registerHandler(action);
     }
 

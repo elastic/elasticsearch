@@ -375,6 +375,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
+        assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
 
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());

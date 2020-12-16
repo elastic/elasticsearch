@@ -59,10 +59,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
@@ -173,6 +175,9 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
+        if (installation != null && distribution.isDocker() == false) {
+            setHeap("1g");
+        }
     }
 
     @After
@@ -223,6 +228,11 @@ public abstract class PackagingTestCase extends Assert {
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
+
+        // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
+        if (distribution.isDocker() == false) {
+            setHeap("1g");
         }
     }
 
@@ -446,5 +456,26 @@ public abstract class PackagingTestCase extends Assert {
             sh.getEnv().remove("ES_PATH_CONF");
         }
         IOUtils.rm(tempDir);
+    }
+
+    /**
+     * Manually set the heap size with a jvm.options.d file. This will be reset before each test.
+     */
+    public static void setHeap(String heapSize) throws IOException {
+        setHeap(heapSize, installation.config);
+    }
+
+    public static void setHeap(String heapSize, Path config) throws IOException {
+        Path heapOptions = config.resolve("jvm.options.d").resolve("heap.options");
+        if (heapSize == null) {
+            FileUtils.rm(heapOptions);
+        } else {
+            Files.writeString(
+                heapOptions,
+                String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s%n", heapSize),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        }
     }
 }

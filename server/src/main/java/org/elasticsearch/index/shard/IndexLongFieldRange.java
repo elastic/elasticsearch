@@ -76,6 +76,13 @@ public class IndexLongFieldRange implements Writeable, ToXContentFragment {
         return shards == null;
     }
 
+    /**
+     * @return whether this range includes information from all shards and can be used meaningfully.
+     */
+    public boolean containsAllShardRanges() {
+        return isComplete() && this != IndexLongFieldRange.UNKNOWN;
+    }
+
     // exposed for testing
     int[] getShards() {
         return shards;

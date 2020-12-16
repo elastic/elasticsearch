@@ -70,6 +70,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
@@ -213,6 +214,7 @@ public final class Verifier {
                     return;
                 }
 
+                checkFilterConditionType(p, localFailures);
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
                 checkFilterOnGrouping(p, localFailures, attributeRefs);

@@ -107,8 +107,8 @@ public class ClusterPrivilegeResolver {
         new ActionClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INGEST_PIPELINES =
         new ActionClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_PATTERN);
-    public static final NamedClusterPrivilege READ_INGEST_PIPELINES =
-        new ActionClusterPrivilege("read_ingest_pipelines", READ_INGEST_PIPELINE_PATTERN);
+    public static final NamedClusterPrivilege READ_PIPELINES =
+        new ActionClusterPrivilege("read_pipelines", READ_INGEST_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", ALL_SECURITY_PATTERN,
@@ -157,7 +157,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_WATCHER,
         MANAGE_IDX_TEMPLATES,
         MANAGE_INGEST_PIPELINES,
-        READ_INGEST_PIPELINES,
+        READ_PIPELINES,
         TRANSPORT_CLIENT,
         MANAGE_SECURITY,
         MANAGE_SAML,

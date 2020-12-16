@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.monitoring.exporter.local;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -605,7 +606,7 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
                 logger.trace("pruning monitoring watch [{}]", uniqueWatchId);
 
                 asyncActions.add(() -> watcher.deleteWatch(new DeleteWatchRequest(uniqueWatchId),
-                    new ErrorCapturingResponseListener<>("watch", uniqueWatchId, pendingResponses, setupListener, errors)));
+                    new ErrorCapturingResponseListener<>("watch", uniqueWatchId, pendingResponses, setupListener, errors, this.name())));
             }
         }
     }
@@ -780,10 +781,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener, Cle
         private final List<Exception> errors;
 
         ErrorCapturingResponseListener(String type, String name, AtomicInteger countDown,
-                                              Consumer<ExporterResourceStatus> setupListener, List<Exception> errors) {
+                                              Consumer<ExporterResourceStatus> setupListener, List<Exception> errors, String configName) {
             super(type, name, countDown, () -> {
                 // Called on completion of all removal tasks
-                ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(LocalExporter.this.name(), TYPE, errors);
+                ExporterResourceStatus status = ExporterResourceStatus.determineReadiness(configName, TYPE, errors);
                 setupListener.accept(status);
             });
             this.errors = errors;

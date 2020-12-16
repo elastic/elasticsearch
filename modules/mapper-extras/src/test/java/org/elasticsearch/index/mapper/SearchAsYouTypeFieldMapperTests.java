@@ -328,7 +328,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testTermVectors() throws IOException {
-        for (String termVector :  new String[] { "yes", "with_positions", "with_offsets", "with_positions_offsets", "with_positions_payloads", "with_positions_offsets_payloads"}) {
+        for (String termVector :  new String[] { "yes", "with_positions", "with_offsets", "with_positions_offsets",
+                "with_positions_payloads", "with_positions_offsets_payloads"}) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type")
                 .field("term_vector", termVector)));
             ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));

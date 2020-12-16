@@ -43,10 +43,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
+import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
@@ -54,6 +59,8 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
     private final MetadataUpdateSettingsService updateSettingsService;
     private final SystemIndices systemIndices;
+
+    public static final String SNAPSHOT_DIRECTORY_FACTORY_KEY = "snapshot";
 
     @Inject
     public TransportUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
@@ -97,6 +104,19 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                     .stream()
                     .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
                     .collect(Collectors.joining(", "));
+            logger.warn(message);
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+
+        final Map<String, List<String>> searchableSnapshotsIndexViolations =
+            checkForSearchableSnapshotsIndexViolations(concreteIndices, state, requestSettings);
+        if (searchableSnapshotsIndexViolations.isEmpty() == false) {
+            final String message = "Cannot override settings on searchable snapshots indices: "
+                + searchableSnapshotsIndexViolations.entrySet()
+                .stream()
+                .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
+                .collect(Collectors.joining(", "));
             logger.warn(message);
             listener.onFailure(new IllegalArgumentException(message));
             return;
@@ -150,6 +170,44 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
 
                 if (failedKeys.isEmpty() == false) {
                     violations.put(descriptor.getIndexPattern(), failedKeys);
+                }
+            }
+        }
+        return violations;
+    }
+
+    /**
+     * Checks that if the request is trying to apply settings changes to any searchable snapshots indices, some settings of these indices
+     * cannot be updated.
+     *
+     * @param concreteIndices the indices being updated
+     * @param state Cluster state, used to get the settings of the indices
+     * @param requestSettings the settings to be applied
+     * @return a mapping from searchable snapshots index to the settings whose values cannot be changed. Empty if there are no violations.
+     */
+    private Map<String, List<String>> checkForSearchableSnapshotsIndexViolations(Index[] concreteIndices,
+                                                                                 ClusterState state, Settings requestSettings) {
+        final Map<String, List<String>> violations = new HashMap<>();
+
+        List<String> cannotUpdateSettings = Arrays.asList(IndexMetadata.SETTING_BLOCKS_WRITE,
+            INDEX_STORE_TYPE_SETTING.getKey(),
+            INDEX_RECOVERY_TYPE_SETTING.getKey());
+
+        Set<String> requestSettingsKeySet = requestSettings.keySet();
+        for (Index index : concreteIndices) {
+            IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+            List<String> failedKeys = new ArrayList<>();
+            if (SNAPSHOT_DIRECTORY_FACTORY_KEY.equals(INDEX_STORE_TYPE_SETTING.get(indexMetadata.getSettings()))) {
+                for (String setting : cannotUpdateSettings) {
+                    String newSettingValue = requestSettings.get(setting);
+                    String oldSettingValue = indexMetadata.getSettings().get(setting);
+                    if (requestSettingsKeySet.contains(setting) &&
+                        (newSettingValue == null || newSettingValue.equals(oldSettingValue) == false)) {
+                        failedKeys.add(setting);
+                    }
+                }
+                if (failedKeys.isEmpty() == false) {
+                    violations.put(index.getName(), failedKeys);
                 }
             }
         }

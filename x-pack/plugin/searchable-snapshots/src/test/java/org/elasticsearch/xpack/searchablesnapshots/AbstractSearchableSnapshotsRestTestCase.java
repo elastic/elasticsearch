@@ -117,8 +117,27 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
+        testInvalidUpdateOnRestoredIndex(restoredIndexName);
+
         logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
         deleteSnapshot(SNAPSHOT_NAME, false);
+    }
+
+    private void testInvalidUpdateOnRestoredIndex(String index) throws Exception {
+        String requestBody = "{ \"index.blocks.write\": \"false\", \"index.store.type\": \"invalid_store_type\","
+            + " \"index.recovery.type\": \"invalid_recovery_type\" }";
+        Request request = new Request("PUT", "/" + index + "/_settings");
+        request.setJsonEntity(requestBody);
+        try {
+            client().performRequest(request);
+        } catch (ResponseException e) {
+            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            final Map<String, Object> responseAsMap = responseAsMap(e.getResponse());
+            String errorReason = "Cannot override settings on searchable snapshots indices: ["
+                + index
+                + "] -> [index.blocks.write, index.store.type, index.recovery.type]";
+            assertThat(extractValue(responseAsMap, "error.reason"), equalTo(errorReason));
+        }
     }
 
     public void testSearchResults() throws Exception {

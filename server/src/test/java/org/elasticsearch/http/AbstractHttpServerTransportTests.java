@@ -21,6 +21,7 @@ package org.elasticsearch.http;
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -30,6 +31,7 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -46,6 +48,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportSettings;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -57,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static java.net.InetAddress.getByName;
 import static java.util.Arrays.asList;
@@ -356,6 +360,75 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 Loggers.removeAppender(LogManager.getLogger(traceLoggerName), appender);
                 appender.stop();
             }
+        }
+    }
+
+    public void testLogsSlowInboundProcessing() throws Exception {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        final String opaqueId = UUIDs.randomBase64UUID(random());
+        final String path = "/internal/test";
+        final RestRequest.Method method = randomFrom(RestRequest.Method.values());
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "expected message",
+                        AbstractHttpServerTransport.class.getCanonicalName(),
+                        Level.WARN,
+                        "handling request [" + opaqueId + "][" + method + "][" + path + "]"));
+        final Logger inboundHandlerLogger = LogManager.getLogger(AbstractHttpServerTransport.class);
+        Loggers.addAppender(inboundHandlerLogger, mockAppender);
+        final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        final Settings settings =
+                Settings.builder().put(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.getKey(), TimeValue.timeValueMillis(5)).build();
+        try (AbstractHttpServerTransport transport =
+                     new AbstractHttpServerTransport(settings, networkService, bigArrays, threadPool, xContentRegistry(),
+                             new HttpServerTransport.Dispatcher() {
+                                 @Override
+                                 public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
+                                     try {
+                                         TimeUnit.SECONDS.sleep(1L);
+                                     } catch (InterruptedException e) {
+                                         throw new AssertionError(e);
+                                     }
+                                     channel.sendResponse(emptyResponse(RestStatus.OK));
+                                 }
+
+                                 @Override
+                                 public void dispatchBadRequest(RestChannel channel, ThreadContext threadContext, Throwable cause) {
+                                     channel.sendResponse(emptyResponse(RestStatus.BAD_REQUEST));
+                                 }
+                             }, clusterSettings) {
+                         @Override
+                         protected HttpServerChannel bind(InetSocketAddress hostAddress) {
+                             return null;
+                         }
+
+                         @Override
+                         protected void doStart() {
+
+                         }
+
+                         @Override
+                         protected void stopInternal() {
+
+                         }
+
+                         @Override
+                         public HttpStats stats() {
+                             return null;
+                         }
+                     }) {
+
+            final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
+                    .withMethod(method)
+                    .withPath(path)
+                    .withHeaders(Collections.singletonMap(Task.X_OPAQUE_ID, Collections.singletonList(opaqueId)))
+                    .build();
+            transport.incomingRequest(fakeRestRequest.getHttpRequest(), fakeRestRequest.getHttpChannel());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(inboundHandlerLogger, mockAppender);
+            mockAppender.stop();
         }
     }
 

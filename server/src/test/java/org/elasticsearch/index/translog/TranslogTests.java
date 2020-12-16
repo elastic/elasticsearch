@@ -483,12 +483,13 @@ public class TranslogTests extends ESTestCase {
         translog.getDeletionPolicy().setLocalCheckpointOfSafeCommit(randomLongBetween(3, Long.MAX_VALUE));
         translog.trimUnreferencedReaders();
         {
+            long lastModifiedAge = System.currentTimeMillis() - translog.getCurrent().getLastModifiedTime();
             final TranslogStats stats = stats();
             assertThat(stats.estimatedNumberOfOperations(), equalTo(0));
             assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
             assertThat(stats.getUncommittedOperations(), equalTo(0));
             assertThat(stats.getUncommittedSizeInBytes(), equalTo(firstOperationPosition));
-            assertThat(stats.getEarliestLastModifiedAge(), greaterThan(0L));
+            assertThat(stats.getEarliestLastModifiedAge(), greaterThanOrEqualTo(lastModifiedAge));
         }
     }
 
@@ -515,9 +516,15 @@ public class TranslogTests extends ESTestCase {
     }
 
     public void testTotalTests() {
-        final TranslogStats total =
-            new TranslogStats();
-        final int n = randomIntBetween(0, 16);
+        final TranslogStats total = new TranslogStats();
+
+        assertThat(total.estimatedNumberOfOperations(), equalTo(0));
+        assertThat(total.getTranslogSizeInBytes(), equalTo(0L));
+        assertThat(total.getUncommittedOperations(), equalTo(0));
+        assertThat(total.getUncommittedSizeInBytes(), equalTo(0L));
+        assertThat(total.getEarliestLastModifiedAge(), equalTo(0L));
+
+        final int n = randomIntBetween(1, 16);
         final List<TranslogStats> statsList = new ArrayList<>(n);
         long earliestLastModifiedAge = Long.MAX_VALUE;
         for (int i = 0; i < n; i++) {

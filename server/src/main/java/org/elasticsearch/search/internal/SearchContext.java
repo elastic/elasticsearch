@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -210,8 +209,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract IndexShard indexShard();
 
-    public abstract BigArrays bigArrays();
-
     public abstract BitsetFilterCache bitsetFilterCache();
 
     public abstract TimeValue timeout();
@@ -329,7 +326,7 @@ public abstract class SearchContext implements Releasable {
     /**
      * Adds a releasable that will be freed when this context is closed.
      */
-    public void addReleasable(Releasable releasable) {
+    public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
         releasables.add(releasable);
     }
 

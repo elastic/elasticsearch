@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
 import org.elasticsearch.script.ScriptContext;
@@ -41,6 +42,29 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
     public interface LeafFactory {
         GeoPointFieldScript newInstance(LeafReaderContext ctx);
     }
+
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new GeoPointFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            Object v = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
+            if (v instanceof Map == false) {
+                return;
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, ?> vs = (Map<String, ?>) v;
+            Object lat = vs.get("lat");
+            Object lon = vs.get("lon");
+            if (lat instanceof Number == false || lon instanceof Number == false) {
+                return;
+            }
+            emit(((Number) lat).doubleValue(), ((Number) lon).doubleValue());
+        }
+    };
 
     public GeoPointFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);

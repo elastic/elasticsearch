@@ -131,10 +131,10 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
     private void registerGeoShapeCentroidAggregator(ValuesSourceRegistry.Builder builder) {
         builder.register(GeoCentroidAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
-            (name, valuesSourceConfig, aggregationContext, parent, metadata)
+            (name, valuesSourceConfig, context, parent, metadata)
                 -> {
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_CENTROID)) {
-                    return new GeoShapeCentroidAggregator(name, aggregationContext, parent, valuesSourceConfig, metadata);
+                    return new GeoShapeCentroidAggregator(name, context, parent, valuesSourceConfig, metadata);
                 }
                 throw LicenseUtils.newComplianceException("geo_centroid aggregation on geo_shape fields");
             },
@@ -167,7 +167,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
 
         builder.register(GeoTileGridAggregationBuilder.REGISTRY_KEY, GeoShapeValuesSourceType.instance(),
             (name, factories, valuesSource, precision, geoBoundingBox, requiredSize, shardSize,
-                                         aggregationContext, parent, collectsFromSingleBucket, metadata) -> {
+                                        context, parent, collectsFromSingleBucket, metadata) -> {
                 if (getLicenseState().checkFeature(XPackLicenseState.Feature.SPATIAL_GEO_GRID)) {
                     final GeoGridTiler tiler;
                     if (geoBoundingBox.isUnbounded()) {
@@ -177,7 +177,7 @@ public class SpatialPlugin extends GeoPlugin implements ActionPlugin, MapperPlug
                     }
                     GeoShapeCellIdSource cellIdSource = new GeoShapeCellIdSource((GeoShapeValuesSource) valuesSource, precision, tiler);
                     GeoShapeTileGridAggregator agg = new GeoShapeTileGridAggregator(name, factories, cellIdSource, requiredSize, shardSize,
-                        aggregationContext, parent, collectsFromSingleBucket, metadata);
+                        context, parent, collectsFromSingleBucket, metadata);
                     // this would ideally be something set in an immutable way on the ValuesSource
                     cellIdSource.setCircuitBreakerConsumer(agg::addRequestBytes);
                     return agg;

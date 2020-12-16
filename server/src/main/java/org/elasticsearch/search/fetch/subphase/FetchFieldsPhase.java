@@ -54,6 +54,7 @@ public final class FetchFieldsPhase implements FetchSubPhase {
         }
 
         FieldFetcher fieldFetcher = FieldFetcher.create(fetchContext.getQueryShardContext(), searchLookup, fetchFieldsContext.fields());
+
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {

@@ -70,6 +70,7 @@ import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -1076,6 +1077,13 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * Acquires the index commit that should be included in a snapshot.
+     */
+    public final IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+        return engineConfig.getSnapshotCommitSupplier().acquireIndexCommitForSnapshot(this);
+    }
+
+    /**
      * @return a summary of the contents of the current safe commit
      */
     public abstract SafeCommitInfo getSafeCommitInfo();
@@ -1205,6 +1213,15 @@ public abstract class Engine implements Closeable {
         protected abstract void doClose();
 
         protected abstract Searcher acquireSearcherInternal(String source);
+
+        /**
+         * Returns a commit id associated with this searcher if it's opened from an index commit; otherwise, return null. Two searchers
+         * with the same commit id must have identical Lucene level indices (i.e., identical segments with same docs using same doc-ids).
+         */
+        @Nullable
+        public String getCommitId() {
+            return null;
+        }
     }
 
     public static final class Searcher extends IndexSearcher implements Releasable {
@@ -1861,4 +1878,12 @@ public abstract class Engine implements Closeable {
      * to advance this marker to at least the given sequence number.
      */
     public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
+
+    /**
+     * @return a {@link ShardLongFieldRange} containing the min and max raw values of the given field for this shard if the engine
+     * guarantees these values never to change, or {@link ShardLongFieldRange#EMPTY} if this field is empty, or
+     * {@link ShardLongFieldRange#UNKNOWN} if this field's value range may change in future.
+     */
+    public abstract ShardLongFieldRange getRawFieldRange(String field) throws IOException;
+
 }

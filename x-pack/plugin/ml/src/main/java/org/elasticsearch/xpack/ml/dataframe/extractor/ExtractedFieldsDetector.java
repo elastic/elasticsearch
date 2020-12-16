@@ -368,6 +368,7 @@ public class ExtractedFieldsDetector {
                                                   List<ProcessedField> processedFields) {
         ExtractedFields extractedFields = ExtractedFields.build(fields,
             Collections.emptySet(),
+            Collections.emptySet(),
             fieldCapabilitiesResponse,
             cardinalitiesForFieldsWithConstraints,
             processedFields);

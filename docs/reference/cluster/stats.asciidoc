@@ -34,8 +34,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 [[cluster-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
 
 [role="child_attributes"]

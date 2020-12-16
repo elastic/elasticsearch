@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.xpack.analytics.rate;
 
-import java.io.IOException;
-import java.util.Map;
-
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.lease.Releasables;
@@ -17,9 +14,12 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.SizedBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
+
+import java.io.IOException;
+import java.util.Map;
 
 public abstract class AbstractRateAggregator extends NumericMetricsAggregator.SingleValue {
 
@@ -37,7 +37,7 @@ public abstract class AbstractRateAggregator extends NumericMetricsAggregator.Si
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
         RateMode rateMode,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException {

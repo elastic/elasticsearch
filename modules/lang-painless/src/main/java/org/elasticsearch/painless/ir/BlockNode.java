@@ -39,19 +39,7 @@ public class BlockNode extends StatementNode {
         return statementNodes;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    private boolean doAllEscape;
-
-    public void setAllEscape(boolean doAllEscape) {
-        this.doAllEscape = doAllEscape;
-    }
-
-    public boolean doAllEscape() {
-        return doAllEscape;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

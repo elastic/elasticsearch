@@ -48,6 +48,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     private static final long DEFAULT_NODE_SIZE = ByteSizeValue.ofGb(2).getBytes();
     private static final long DEFAULT_JVM_SIZE = ByteSizeValue.ofMb((long)(DEFAULT_NODE_SIZE * 0.25)).getBytes();
     private static final long DEFAULT_JOB_SIZE = ByteSizeValue.ofMb(200).getBytes();
+    private static final long OVERHEAD = ByteSizeValue.ofMb(30).getBytes();
     private NodeLoadDetector nodeLoadDetector;
     private ClusterService clusterService;
     private Settings settings;
@@ -66,7 +67,9 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         timeSupplier = System::currentTimeMillis;
         ClusterSettings cSettings = new ClusterSettings(
             Settings.EMPTY,
-            Set.of(MachineLearning.MAX_MACHINE_MEMORY_PERCENT, MachineLearning.MAX_OPEN_JOBS_PER_NODE));
+            Set.of(MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT));
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
     }
 
@@ -108,8 +111,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(12 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo((DEFAULT_JOB_SIZE + OVERHEAD) * 4));
+            assertThat(decision.get().requiredCapacity().total().memory().getBytes(), equalTo(12 * DEFAULT_JOB_SIZE));
         }
         { // we allow one job in the analytics queue
             Optional<AutoscalingDeciderResult> decision = service.checkForScaleUp(0, 1,
@@ -119,8 +122,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(8 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * (DEFAULT_JOB_SIZE + OVERHEAD)));
+            assertThat(decision.get().requiredCapacity().total().memory().getBytes(), equalTo(8 * DEFAULT_JOB_SIZE));
         }
         { // we allow one job in the anomaly queue and analytics queue
             Optional<AutoscalingDeciderResult> decision = service.checkForScaleUp(1, 1,
@@ -130,8 +133,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 NativeMemoryCapacity.ZERO,
                 reasonBuilder);
             assertFalse(decision.isEmpty());
-            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
+            assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(4 * (DEFAULT_JOB_SIZE + OVERHEAD)));
+            assertThat(decision.get().requiredCapacity().total().memory().getBytes(), equalTo(4 * DEFAULT_JOB_SIZE));
         }
     }
 
@@ -152,7 +155,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 reasonBuilder);
             assertFalse(decision.isEmpty());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
+            assertThat(decision.get().requiredCapacity().total().memory().getBytes(), equalTo(DEFAULT_JOB_SIZE * 4));
         }
         {
             Optional<AutoscalingDeciderResult> decision = service.checkForScaleUp(2, 1,
@@ -172,7 +175,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
                 reasonBuilder);
             assertFalse(decision.isEmpty());
             assertThat(decision.get().requiredCapacity().node().memory().getBytes(), equalTo(ByteSizeValue.ofGb(8).getBytes()));
-            assertThat(decision.get().requiredCapacity().tier().memory().getBytes(), equalTo(ByteSizeValue.ofMb(8992).getBytes()));
+            assertThat(decision.get().requiredCapacity().total().memory().getBytes(), equalTo(ByteSizeValue.ofMb(8992).getBytes()));
         }
     }
 
@@ -233,8 +236,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             assertThat(result.isEmpty(), is(false));
             AutoscalingDeciderResult autoscalingDeciderResult = result.get();
             assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
-                equalTo(ByteSizeValue.ofMb(400).getBytes()));
-            assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(),
+                equalTo((ByteSizeValue.ofMb(100).getBytes() + OVERHEAD) * 4));
+            assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(),
                 equalTo(ByteSizeValue.ofGb(12).getBytes()));
         }
         {// Current capacity allows for smaller tier
@@ -246,8 +249,8 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
             assertThat(result.isEmpty(), is(false));
             AutoscalingDeciderResult autoscalingDeciderResult = result.get();
             assertThat(autoscalingDeciderResult.requiredCapacity().node().memory().getBytes(),
-                equalTo(ByteSizeValue.ofMb(400).getBytes()));
-            assertThat(autoscalingDeciderResult.requiredCapacity().tier().memory().getBytes(),
+                equalTo((ByteSizeValue.ofMb(100).getBytes() + OVERHEAD) * 4));
+            assertThat(autoscalingDeciderResult.requiredCapacity().total().memory().getBytes(),
                 equalTo(ByteSizeValue.ofGb(12).getBytes()));
         }
         {// Scale down is not really possible

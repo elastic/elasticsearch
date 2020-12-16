@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
-    static final String NAME = "ml";
+    public static final String NAME = MlAutoscalingDeciderService.NAME;
     static final String WAITING_ANALYTICS_JOBS = "waiting_analytics_jobs";
     static final String WAITING_ANOMALY_JOBS = "waiting_anomaly_jobs";
     static final String CONFIGURATION = "configuration";

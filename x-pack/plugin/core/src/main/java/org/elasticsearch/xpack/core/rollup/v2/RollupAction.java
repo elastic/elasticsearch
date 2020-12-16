@@ -34,9 +34,13 @@ public class RollupAction extends ActionType<RollupAction.Response> {
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {
-        private RollupV2Config rollupConfig;
+        private String sourceIndex;
+        private String rollupIndex;
+        private RollupActionConfig rollupConfig;
 
-        public Request(RollupV2Config rollupConfig) {
+        public Request(String sourceIndex, String rollupIndex, RollupActionConfig rollupConfig) {
+            this.sourceIndex = sourceIndex;
+            this.rollupIndex = rollupIndex;
             this.rollupConfig = rollupConfig;
         }
 
@@ -44,21 +48,33 @@ public class RollupAction extends ActionType<RollupAction.Response> {
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            rollupConfig = new RollupV2Config(in);
+            sourceIndex = in.readString();
+            rollupIndex = in.readString();
+            rollupConfig = new RollupActionConfig(in);
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new RollupTask(id, type, action, parentTaskId, rollupConfig, headers);
+            return new RollupTask(id, type, action, parentTaskId, rollupIndex, rollupConfig, headers);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(sourceIndex);
+            out.writeString(rollupIndex);
             rollupConfig.writeTo(out);
         }
 
-        public RollupV2Config getRollupConfig() {
+        public String getSourceIndex() {
+            return sourceIndex;
+        }
+
+        public String getRollupIndex() {
+            return rollupIndex;
+        }
+
+        public RollupActionConfig getRollupConfig() {
             return rollupConfig;
         }
 
@@ -70,6 +86,8 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("source_index", sourceIndex);
+            builder.field("rollup_index", rollupIndex);
             rollupConfig.toXContent(builder, params);
             builder.endObject();
             return builder;
@@ -77,7 +95,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
 
         @Override
         public int hashCode() {
-            return Objects.hash(rollupConfig);
+            return Objects.hash(sourceIndex, rollupIndex, rollupConfig);
         }
 
         @Override
@@ -89,7 +107,9 @@ public class RollupAction extends ActionType<RollupAction.Response> {
                 return false;
             }
             Request other = (Request) obj;
-            return Objects.equals(rollupConfig, other.rollupConfig);
+            return Objects.equals(sourceIndex, other.sourceIndex)
+                && Objects.equals(rollupIndex, other.rollupIndex)
+                && Objects.equals(rollupConfig, other.rollupConfig);
         }
     }
 

@@ -38,6 +38,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 
@@ -96,6 +97,11 @@ public abstract class RestActionTestCase extends ESTestCase {
             reset();
         }
 
+        @Override
+        public String getLocalNodeId() {
+            return "test_node_id";
+        }
+
         /**
          * Clears any previously set verifier functions set by {@link #setExecuteVerifier(BiFunction)} and/or
          * {@link #setExecuteLocallyVerifier(BiFunction)}. These functions are replaced with functions which will throw an
@@ -132,15 +138,18 @@ public abstract class RestActionTestCase extends ESTestCase {
          * @param verifier A function which is called in place of {@link #executeLocally(ActionType, ActionRequest, TaskListener)}
          */
         public <Request extends ActionRequest, Response extends ActionResponse>
-        void setExecuteLocallyVerifier(BiFunction<ActionType<Response>, Request, Void> verifier) {
+        void setExecuteLocallyVerifier(BiFunction<ActionType<Response>, Request, Response> verifier) {
             executeLocallyVerifier.set(verifier);
         }
+
+        private static final AtomicLong taskIdGenerator = new AtomicLong(0L);
 
         @Override
         public <Request extends ActionRequest, Response extends ActionResponse>
         Task executeLocally(ActionType<Response> action, Request request, ActionListener<Response> listener) {
             listener.onResponse((Response) executeLocallyVerifier.get().apply(action, request));
-            return null;
+            return new Task(taskIdGenerator.incrementAndGet(), "transport", action.name(), "", request.getParentTask(),
+                    Collections.emptyMap());
         }
 
         @Override

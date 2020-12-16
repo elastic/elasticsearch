@@ -6,6 +6,14 @@
 
 Returns cluster-wide settings.
 
+[source,console]
+----
+GET /_cluster/settings
+----
+
+[[cluster-get-settings-api-request]]
+==== {api-request-title}
+
 `GET /_cluster/settings`
 
 [[cluster-get-settings-api-desc]]

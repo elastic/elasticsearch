@@ -104,8 +104,8 @@ public final class Messages {
         "Configuration [{0}] requires minimum node version [{1}] (current minimum node version [{2}]";
     public static final String MODEL_DEFINITION_NOT_FOUND = "Could not find trained model definition [{0}]";
     public static final String MODEL_METADATA_NOT_FOUND = "Could not find trained model metadata {0}";
-    public static final String INFERENCE_CANNOT_DELETE_MODEL =
-        "Unable to delete model [{0}]";
+    public static final String INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL =
+        "Unable to delete model [{0}] as it is required by machine learning";
     public static final String MODEL_DEFINITION_TRUNCATED =
         "Model definition truncated. Unable to deserialize trained model definition [{0}]";
     public static final String INFERENCE_FAILED_TO_DESERIALIZE = "Could not deserialize trained model [{0}]";
@@ -222,6 +222,8 @@ public final class Messages {
             "This job would cause a mapping clash with existing field [{0}] - avoid the clash by assigning a dedicated results index";
     public static final String JOB_CONFIG_TIME_FIELD_NOT_ALLOWED_IN_ANALYSIS_CONFIG =
             "data_description.time_field may not be used in the analysis_config";
+    public static final String JOB_CONFIG_TIME_FIELD_CANNOT_BE_RUNTIME =
+        "data_description.time_field [{0}] cannot be a runtime field";
     public static final String JOB_CONFIG_MODEL_SNAPSHOT_RETENTION_SETTINGS_INCONSISTENT =
             "The value of '" + Job.DAILY_MODEL_SNAPSHOT_RETENTION_AFTER_DAYS + "' [{0}] cannot be greater than '" +
                 Job.MODEL_SNAPSHOT_RETENTION_DAYS + "' [{1}]";

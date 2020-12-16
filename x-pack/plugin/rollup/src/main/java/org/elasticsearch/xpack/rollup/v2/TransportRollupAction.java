@@ -60,7 +60,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
     protected void doExecute(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
         RollupTask rollupTask = (RollupTask) task;
         RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, Rollup.TASK_THREAD_POOL_NAME,
-            rollupTask.config(), rollupTask.headers(), ActionListener.wrap(c -> {
+            request, rollupTask.headers(), ActionListener.wrap(c -> {
             // update Rollup metadata to include this index
             clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
 
@@ -71,12 +71,12 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    String rollupIndexName = rollupTask.config().getRollupIndex();
+                    String rollupIndexName = rollupTask.getRollupIndex();
                     IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                     Index rollupIndex = rollupIndexMetadata.getIndex();
                     // TODO(talevy): find better spot to get the original index name
                     // extract created rollup index original index name to be used as metadata key
-                    String originalIndexName = rollupTask.config().getSourceIndex();
+                    String originalIndexName = request.getSourceIndex();
                     Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
                         .getCustomData(RollupMetadata.TYPE);
                     String rollupGroupKeyName = (idxMetadata == null) ?
@@ -125,7 +125,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
                 }
             });
         }, e -> listener.onFailure(
-            new ElasticsearchException("Failed to rollup index [" + rollupTask.config().getSourceIndex() + "]", e))));
+            new ElasticsearchException("Failed to rollup index [" + request.getSourceIndex() + "]", e))));
         if (indexer.start() == IndexerState.STARTED) {
             indexer.maybeTriggerAsyncJob(Long.MAX_VALUE);
         } else {

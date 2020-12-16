@@ -164,6 +164,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),
+                new ReplaceSumWithStats(),
                 new PromoteStatsToExtendedStats(),
                 new ReplaceAggsWithPercentiles(),
                 new ReplaceAggsWithPercentileRanks()
@@ -980,6 +981,39 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
                 return e;
             });
+        }
+    }
+
+    // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // and SUM(all nulls)
+    // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
+    static class ReplaceSumWithStats extends OptimizerBasicRule {
+        
+        @Override 
+        public LogicalPlan apply(LogicalPlan plan) {
+            final Map<Expression, Stats> statsPerField = new LinkedHashMap<>();
+            
+            plan.forEachExpressionsUp(e -> {
+                if (e instanceof Sum) {
+                    statsPerField.computeIfAbsent(((Sum) e).field(), field -> {
+                        Source source = new Source(field.sourceLocation(), "STATS(" + field.sourceText() + ")");
+                        return new Stats(source, field);
+                    });
+                }
+            });
+            
+            if (statsPerField.isEmpty() == false) {
+                plan = plan.transformExpressionsUp(e -> {
+                    if (e instanceof Sum) {
+                        Sum sum = (Sum) e;
+                        return new InnerAggregate(sum, statsPerField.get(sum.field()));
+                    }
+                    return e;
+                });
+            }
+            
+            return plan;
         }
     }
 

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.datafeed;
 
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.util.Objects;
@@ -42,19 +43,19 @@ class ProblemTracker {
     /**
      * Reports as analysis problem if it is different than the last seen problem
      *
-     * @param problemMessage the problem message
+     * @param error the exception
      */
-    public void reportAnalysisProblem(String problemMessage) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, problemMessage);
+    public void reportAnalysisProblem(DatafeedJob.AnalysisProblemException error) {
+        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_ANALYSIS_ERROR, ExceptionsHelper.unwrapCause(error).getMessage());
     }
 
     /**
      * Reports as extraction problem if it is different than the last seen problem
      *
-     * @param problemMessage the problem message
+     * @param error the exception
      */
-    public void reportExtractionProblem(String problemMessage) {
-        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, problemMessage);
+    public void reportExtractionProblem(DatafeedJob.ExtractionProblemException error) {
+        reportProblem(Messages.JOB_AUDIT_DATAFEED_DATA_EXTRACTION_ERROR, ExceptionsHelper.findSearchExceptionRootCause(error).getMessage());
     }
 
     /**

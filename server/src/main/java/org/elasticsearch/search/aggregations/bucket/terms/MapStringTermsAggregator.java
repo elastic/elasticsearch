@@ -39,8 +39,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.terms.SignificanceLookup.BackgroundFrequencyForBytes;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -71,7 +71,7 @@ public class MapStringTermsAggregator extends AbstractStringTermsAggregator {
         DocValueFormat format,
         BucketCountThresholds bucketCountThresholds,
         IncludeExclude.StringFilter includeExclude,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         SubAggCollectionMode collectionMode,
         boolean showTermDocCountError,

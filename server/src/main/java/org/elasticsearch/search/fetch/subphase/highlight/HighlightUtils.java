@@ -58,6 +58,7 @@ public final class HighlightUtils {
             return Objects.requireNonNullElse(textsToHighlight, Collections.emptyList());
         }
         ValueFetcher fetcher = fieldType.valueFetcher(qsc, null);
+        fetcher.setNextReader(hitContext.readerContext());
         return fetcher.fetchValues(hitContext.sourceLookup());
     }
 

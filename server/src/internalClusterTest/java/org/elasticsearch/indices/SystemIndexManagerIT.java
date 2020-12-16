@@ -237,5 +237,15 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
             return List.of(new TestSystemIndexDescriptor());
         }
+
+        @Override
+        public String getFeatureName() {
+            return this.getClass().getSimpleName();
+        }
+
+        @Override
+        public String getFeatureDescription() {
+            return this.getClass().getCanonicalName();
+        }
     }
 }

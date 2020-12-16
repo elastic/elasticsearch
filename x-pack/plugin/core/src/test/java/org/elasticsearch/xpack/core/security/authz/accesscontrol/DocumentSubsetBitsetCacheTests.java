@@ -587,7 +587,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
         List<MappedFieldType> types = new ArrayList<>();
-        for (int i = 0; i < 7; i++) { // the tests use fields 1 to 6.
+        for (int i = 0; i < 11; i++) { // the tests use fields 1 to 10.
             // This field has a value.
             types.add(new KeywordFieldMapper.KeywordFieldType("field-" + i));
             // This field never has a value

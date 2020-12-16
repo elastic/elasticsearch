@@ -21,6 +21,7 @@ package org.elasticsearch.index.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.LuceneTestCase;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -214,6 +215,8 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(exception.getMessage(), equalTo("force merge is not supported on a read-only engine, " +
                     "target max number of segments[" + (numSegments-1) + "], current number of segments[" + numSegments + "]."));
 
+                readOnlyEngine.forceMerge(true, ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS,
+                    false, false, false, UUIDs.randomBase64UUID());
                 readOnlyEngine.forceMerge(true, numSegments, false, false, false, UUIDs.randomBase64UUID());
                 readOnlyEngine.forceMerge(true, numSegments+1, false, false, false, UUIDs.randomBase64UUID());
                 assertEquals(readOnlyEngine.getLastCommittedSegmentInfos().size(), numSegments);

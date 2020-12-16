@@ -29,6 +29,7 @@ import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -375,7 +376,9 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
-        if (maxNumSegments < lastCommittedSegmentInfos.size()) {
+        if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
+            // noop
+        } else if (maxNumSegments < lastCommittedSegmentInfos.size()) {
             throw new UnsupportedOperationException("force merge is not supported on a read-only engine, " +
                 "target max number of segments[" + maxNumSegments + "], " +
                 "current number of segments[" + lastCommittedSegmentInfos.size() + "].");

@@ -144,6 +144,14 @@ IMPORTANT: This setting assumes some external process is capable of adding {ml}
 nodes to the cluster. This setting is only useful when used in conjunction with
 such an external process.
 
+`xpack.ml.max_ml_node_size`::
+(<<cluster-update-settings,Dynamic>>)
+The maximum node size for {ml} nodes in a deployment that supports automatic
+cluster scaling. Defaults to `0b`, which means this value is ignored. If you set
+it to the maximum possible size of future {ml} nodes, when a {ml} job is
+assigned to a lazy node it can check (and fail quickly) when scaling cannot 
+support the size of the job. 
+
 `xpack.ml.process_connect_timeout`::
 (<<cluster-update-settings,Dynamic>>) The connection timeout for {ml} processes
 that run separately from the {es} JVM. Defaults to `10s`. Some {ml} processing

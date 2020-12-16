@@ -34,24 +34,36 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportUpdateSettingsAction.class);
 
     private final MetadataUpdateSettingsService updateSettingsService;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportUpdateSettingsAction(TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetadataUpdateSettingsService updateSettingsService,
-                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
+                                         SystemIndices systemIndices) {
         super(UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, UpdateSettingsRequest::new,
             indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.updateSettingsService = updateSettingsService;
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -75,9 +87,24 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
     protected void masterOperation(Task task, final UpdateSettingsRequest request, final ClusterState state,
                                    final ActionListener<AcknowledgedResponse> listener) {
         final Index[] concreteIndices = indexNameExpressionResolver.concreteIndices(state, request);
+        final Settings requestSettings = request.settings();
+
+
+        final Map<String, List<String>> systemIndexViolations = checkForSystemIndexViolations(concreteIndices, requestSettings);
+        if (systemIndexViolations.isEmpty() == false) {
+            final String message = "Cannot override settings on system indices: "
+                + systemIndexViolations.entrySet()
+                    .stream()
+                    .map(entry -> "[" + entry.getKey() + "] -> " + entry.getValue())
+                    .collect(Collectors.joining(", "));
+            logger.warn(message);
+            listener.onFailure(new IllegalArgumentException(message));
+            return;
+        }
+
         UpdateSettingsClusterStateUpdateRequest clusterStateUpdateRequest = new UpdateSettingsClusterStateUpdateRequest()
                 .indices(concreteIndices)
-                .settings(request.settings())
+                .settings(requestSettings)
                 .setPreserveExisting(request.isPreserveExisting())
                 .ackTimeout(request.timeout())
                 .masterNodeTimeout(request.masterNodeTimeout());
@@ -94,5 +121,38 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                 listener.onFailure(t);
             }
         });
+    }
+
+    /**
+     * Checks that if the request is trying to apply settings changes to any system indices, then the settings' values match those
+     * that the system index's descriptor expects.
+     *
+     * @param concreteIndices the indices being updated
+     * @param requestSettings the settings to be applied
+     * @return a mapping from system index pattern to the settings whose values would be overridden. Empty if there are no violations.
+     */
+    private Map<String, List<String>> checkForSystemIndexViolations(Index[] concreteIndices, Settings requestSettings) {
+        final Map<String, List<String>> violations = new HashMap<>();
+
+        for (Index index : concreteIndices) {
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
+            if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+                final Settings descriptorSettings = descriptor.getSettings();
+                List<String> failedKeys = new ArrayList<>();
+                for (String key : requestSettings.keySet()) {
+                    final String expectedValue = descriptorSettings.get(key);
+                    final String actualValue = requestSettings.get(key);
+
+                    if (expectedValue.equals(actualValue) == false) {
+                        failedKeys.add(key);
+                    }
+                }
+
+                if (failedKeys.isEmpty() == false) {
+                    violations.put(descriptor.getIndexPattern(), failedKeys);
+                }
+            }
+        }
+        return violations;
     }
 }

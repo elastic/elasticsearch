@@ -38,10 +38,18 @@ public class IndexingPressure {
     private final AtomicLong currentPrimaryBytes = new AtomicLong(0);
     private final AtomicLong currentReplicaBytes = new AtomicLong(0);
 
+    private final AtomicLong currentCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong currentPrimaryOps = new AtomicLong(0);
+    private final AtomicLong currentReplicaOps = new AtomicLong(0);
+
     private final AtomicLong totalCombinedCoordinatingAndPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalCoordinatingBytes = new AtomicLong(0);
     private final AtomicLong totalPrimaryBytes = new AtomicLong(0);
     private final AtomicLong totalReplicaBytes = new AtomicLong(0);
+
+    private final AtomicLong totalCoordinatingOps = new AtomicLong(0);
+    private final AtomicLong totalPrimaryOps = new AtomicLong(0);
+    private final AtomicLong totalReplicaOps = new AtomicLong(0);
 
     private final AtomicLong coordinatingRejections = new AtomicLong(0);
     private final AtomicLong primaryRejections = new AtomicLong(0);
@@ -55,7 +63,7 @@ public class IndexingPressure {
         this.replicaLimits = (long) (this.primaryAndCoordinatingLimits * 1.5);
     }
 
-    public Releasable markCoordinatingOperationStarted(long bytes, boolean forceExecution) {
+    public Releasable markCoordinatingOperationStarted(int operations, long bytes, boolean forceExecution) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
@@ -72,21 +80,29 @@ public class IndexingPressure {
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
         currentCoordinatingBytes.getAndAdd(bytes);
+        currentCoordinatingOps.getAndAdd(operations);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalCoordinatingBytes.getAndAdd(bytes);
+        totalCoordinatingOps.getAndAdd(operations);
         return () -> {
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.currentCoordinatingBytes.getAndAdd(-bytes);
+            this.currentCoordinatingOps.getAndAdd(-operations);
         };
     }
 
-    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(long bytes) {
+    public Releasable markPrimaryOperationLocalToCoordinatingNodeStarted(int operations, long bytes) {
         currentPrimaryBytes.getAndAdd(bytes);
+        currentPrimaryOps.getAndAdd(operations);
         totalPrimaryBytes.getAndAdd(bytes);
-        return () -> this.currentPrimaryBytes.getAndAdd(-bytes);
+        totalPrimaryOps.getAndAdd(operations);
+        return () -> {
+            this.currentPrimaryBytes.getAndAdd(-bytes);
+            this.currentPrimaryOps.getAndAdd(-operations);
+        };
     }
 
-    public Releasable markPrimaryOperationStarted(long bytes, boolean forceExecution) {
+    public Releasable markPrimaryOperationStarted(int operations, long bytes, boolean forceExecution) {
         long combinedBytes = this.currentCombinedCoordinatingAndPrimaryBytes.addAndGet(bytes);
         long replicaWriteBytes = this.currentReplicaBytes.get();
         long totalBytes = combinedBytes + replicaWriteBytes;
@@ -103,15 +119,18 @@ public class IndexingPressure {
                 "max_coordinating_and_primary_bytes=" + primaryAndCoordinatingLimits + "]", false);
         }
         currentPrimaryBytes.getAndAdd(bytes);
+        currentPrimaryOps.getAndAdd(operations);
         totalCombinedCoordinatingAndPrimaryBytes.getAndAdd(bytes);
         totalPrimaryBytes.getAndAdd(bytes);
+        totalPrimaryOps.getAndAdd(operations);
         return () -> {
             this.currentCombinedCoordinatingAndPrimaryBytes.getAndAdd(-bytes);
             this.currentPrimaryBytes.getAndAdd(-bytes);
+            this.currentPrimaryOps.getAndAdd(-operations);
         };
     }
 
-    public Releasable markReplicaOperationStarted(long bytes, boolean forceExecution) {
+    public Releasable markReplicaOperationStarted(int operations, long bytes, boolean forceExecution) {
         long replicaWriteBytes = this.currentReplicaBytes.addAndGet(bytes);
         if (forceExecution == false && replicaWriteBytes > replicaLimits) {
             long replicaBytesWithoutOperation = replicaWriteBytes - bytes;
@@ -122,30 +141,20 @@ public class IndexingPressure {
                 "replica_operation_bytes=" + bytes + ", " +
                 "max_replica_bytes=" + replicaLimits + "]", false);
         }
+        currentReplicaOps.getAndAdd(operations);
         totalReplicaBytes.getAndAdd(bytes);
-        return () -> this.currentReplicaBytes.getAndAdd(-bytes);
-    }
-
-    public long getCurrentCombinedCoordinatingAndPrimaryBytes() {
-        return currentCombinedCoordinatingAndPrimaryBytes.get();
-    }
-
-    public long getCurrentCoordinatingBytes() {
-        return currentCoordinatingBytes.get();
-    }
-
-    public long getCurrentPrimaryBytes() {
-        return currentPrimaryBytes.get();
-    }
-
-    public long getCurrentReplicaBytes() {
-        return currentReplicaBytes.get();
+        totalReplicaOps.getAndAdd(operations);
+        return () -> {
+            this.currentReplicaBytes.getAndAdd(-bytes);
+            this.currentReplicaOps.getAndAdd(-operations);
+        };
     }
 
     public IndexingPressureStats stats() {
         return new IndexingPressureStats(totalCombinedCoordinatingAndPrimaryBytes.get(), totalCoordinatingBytes.get(),
             totalPrimaryBytes.get(), totalReplicaBytes.get(), currentCombinedCoordinatingAndPrimaryBytes.get(),
             currentCoordinatingBytes.get(), currentPrimaryBytes.get(), currentReplicaBytes.get(), coordinatingRejections.get(),
-            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits);
+            primaryRejections.get(), replicaRejections.get(), primaryAndCoordinatingLimits, totalCoordinatingOps.get(),
+            totalPrimaryOps.get(), totalReplicaOps.get(), currentCoordinatingOps.get(), currentPrimaryOps.get(), currentReplicaOps.get());
     }
 }

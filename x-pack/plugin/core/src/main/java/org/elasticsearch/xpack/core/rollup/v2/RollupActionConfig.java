@@ -19,7 +19,6 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
@@ -31,7 +30,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
@@ -43,57 +41,39 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     private static final String NAME = "xpack/rollup/action/config";
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(20);
     private static final String TIMEOUT = "timeout";
-    private static final String ROLLUP_INDEX = "rollup_index";
 
     private final GroupConfig groupConfig;
     private final List<MetricConfig> metricsConfig;
     private final TimeValue timeout;
-    private String rollupIndex;
 
     private static final ConstructingObjectParser<RollupActionConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (args) -> {
-            String rollupIndex = (String) args[0];
-            GroupConfig groupConfig = (GroupConfig) args[1];
+            GroupConfig groupConfig = (GroupConfig) args[0];
             @SuppressWarnings("unchecked")
-            List<MetricConfig> metricsConfig = (List<MetricConfig>) args[2];
-            TimeValue timeout = (TimeValue) args[3];
-            return new RollupActionConfig(groupConfig, metricsConfig, timeout, rollupIndex);
+            List<MetricConfig> metricsConfig = (List<MetricConfig>) args[1];
+            TimeValue timeout = (TimeValue) args[2];
+            return new RollupActionConfig(groupConfig, metricsConfig, timeout);
         });
-        PARSER.declareString(constructorArg(), new ParseField(ROLLUP_INDEX));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> GroupConfig.fromXContent(p), new ParseField(GroupConfig.NAME));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
         PARSER.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
             new ParseField(TIMEOUT), ObjectParser.ValueType.STRING_OR_NULL);
     }
 
-    public RollupActionConfig(final GroupConfig groupConfig, final List<MetricConfig> metricsConfig,
-                              final @Nullable TimeValue timeout, final String rollupIndex) {
-        if (rollupIndex == null || rollupIndex.isEmpty()) {
-            throw new IllegalArgumentException("Rollup index must be a non-null, non-empty string");
-        }
+    public RollupActionConfig(final GroupConfig groupConfig, final List<MetricConfig> metricsConfig, final @Nullable TimeValue timeout) {
         if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
             throw new IllegalArgumentException("At least one grouping or metric must be configured");
         }
-        this.rollupIndex = rollupIndex;
         this.groupConfig = groupConfig;
         this.metricsConfig = metricsConfig != null ? metricsConfig : Collections.emptyList();
         this.timeout = timeout != null ? timeout : DEFAULT_TIMEOUT;
     }
 
     public RollupActionConfig(final StreamInput in) throws IOException {
-        rollupIndex = in.readString();
         groupConfig = in.readOptionalWriteable(GroupConfig::new);
         metricsConfig = in.readList(MetricConfig::new);
         timeout = in.readTimeValue();
-    }
-
-    public String getId() {
-        return RollupField.NAME + "_" + rollupIndex;
-    }
-
-    public void setRollupIndex(String rollupIndex) {
-        this.rollupIndex = rollupIndex;
     }
 
     public GroupConfig getGroupConfig() {
@@ -106,10 +86,6 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
 
     public TimeValue getTimeout() {
         return timeout;
-    }
-
-    public String getRollupIndex() {
-        return rollupIndex;
     }
 
     @Override
@@ -142,7 +118,6 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
         builder.startObject();
         {
-            builder.field(ROLLUP_INDEX, rollupIndex);
             if (groupConfig != null) {
                 builder.field(GroupConfig.NAME, groupConfig);
             }
@@ -163,7 +138,6 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
 
     @Override
     public void writeTo(final StreamOutput out) throws IOException {
-        out.writeString(rollupIndex);
         out.writeOptionalWriteable(groupConfig);
         out.writeList(metricsConfig);
         out.writeTimeValue(timeout);
@@ -179,27 +153,19 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         }
 
         final RollupActionConfig that = (RollupActionConfig) other;
-        return Objects.equals(this.rollupIndex, that.rollupIndex)
-                && Objects.equals(this.groupConfig, that.groupConfig)
+        return Objects.equals(this.groupConfig, that.groupConfig)
                 && Objects.equals(this.metricsConfig, that.metricsConfig)
                 && Objects.equals(this.timeout, that.timeout);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(rollupIndex, groupConfig, metricsConfig, timeout);
+        return Objects.hash(groupConfig, metricsConfig, timeout);
     }
 
     @Override
     public String toString() {
         return Strings.toString(this, true, true);
-    }
-
-    /**
-     * Same as toString() but more explicitly named so the caller knows this is turned into JSON
-     */
-    public String toJSONString() {
-        return toString();
     }
 
     public static RollupActionConfig fromXContent(final XContentParser parser) throws IOException {

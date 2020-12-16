@@ -27,6 +27,7 @@ import java.net.NetworkInterface;
 import java.util.List;
 import java.util.Optional;
 
+import static org.elasticsearch.common.network.NetworkUtils.getInterfaces;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -84,7 +85,7 @@ public class NetworkUtilsTests extends ESTestCase {
 
     // test that selecting by name is possible
     public void testMaybeGetInterfaceByName() throws Exception {
-        final List<NetworkInterface> networkInterfaces = NetworkUtils.getInterfaces();
+        final List<NetworkInterface> networkInterfaces = getInterfaces();
         for (NetworkInterface netIf : networkInterfaces) {
             final Optional<NetworkInterface> maybeNetworkInterface =
                 NetworkUtils.maybeGetInterfaceByName(networkInterfaces, netIf.getName());
@@ -94,8 +95,11 @@ public class NetworkUtilsTests extends ESTestCase {
     }
 
     public void testNonExistingInterface() throws Exception {
-        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
-                () -> NetworkUtils.getAddressesForInterface("non-existing"));
-        assertThat(exception.getMessage(), containsString("No interface named 'non-existing' found"));
+        final IllegalArgumentException exception = expectThrows(IllegalArgumentException.class,
+                () -> NetworkUtils.getAddressesForInterface("settingValue", ":suffix" , "non-existing"));
+        assertThat(exception.getMessage(), containsString("setting [settingValue] matched no network interfaces; valid values include"));
+        for (NetworkInterface anInterface : getInterfaces()) {
+            assertThat(exception.getMessage(), containsString(anInterface.getName() + ":suffix"));
+        }
     }
 }

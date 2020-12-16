@@ -752,6 +752,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
         }
+        if (systemProperties.containsKey("io.netty.leakDetection.level") == false) {
+            systemPropertiesString = systemPropertiesString + " -Dio.netty.leakDetection.level=paranoid";
+        }
         String jvmArgsString = "";
         if (jvmArgs.isEmpty() == false) {
             jvmArgsString = " " + jvmArgs.stream().peek(argument -> {
@@ -888,10 +891,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
         reaper.unregister(toString());
-        if (tailLogs) {
-            logFileContents("Standard output of node", esStdoutFile);
-            logFileContents("Standard error of node", esStderrFile);
-        }
         esProcess = null;
         // Clean up the ports file in case this is started again.
         try {
@@ -904,6 +903,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        logFileContents("Standard output of node", esStdoutFile, tailLogs);
+        logFileContents("Standard error of node", esStderrFile, tailLogs);
     }
 
     @Override
@@ -956,7 +957,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         );
     }
 
-    private void logFileContents(String description, Path from) {
+    private void logFileContents(String description, Path from, boolean tailLogs) {
         final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
         LinkedList<String> ring = new LinkedList<>();
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
@@ -985,31 +986,47 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to tail log " + this, e);
+            if (tailLogs) {
+                throw new UncheckedIOException("Failed to tail log " + this, e);
+            }
+            return;
         }
 
-        if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
-            LOGGER.error("\n=== {} `{}` ===", description, this);
+        boolean foundNettyLeaks = false;
+        for (String logLine : errorsAndWarnings.keySet()) {
+            if (logLine.contains("ResourceLeakDetector]")) {
+                tailLogs = true;
+                foundNettyLeaks = true;
+                break;
+            }
         }
-        if (errorsAndWarnings.isEmpty() == false) {
-            LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
-            errorsAndWarnings.forEach((message, count) -> {
-                LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                if (count > 1) {
-                    LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
-                }
-            });
-        }
-
-        ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
-
-        if (ring.isEmpty() == false) {
-            LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
-            ring.forEach(message -> {
-                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+        if (tailLogs) {
+            if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
+                LOGGER.error("\n=== {} `{}` ===", description, this);
+            }
+            if (errorsAndWarnings.isEmpty() == false) {
+                LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
+                errorsAndWarnings.forEach((message, count) -> {
                     LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                }
-            });
+                    if (count > 1) {
+                        LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
+                    }
+                });
+            }
+
+            ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
+
+            if (ring.isEmpty() == false) {
+                LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
+                ring.forEach(message -> {
+                    if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+                        LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
+                    }
+                });
+            }
+        }
+        if (foundNettyLeaks) {
+            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
         }
     }
 

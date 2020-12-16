@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
@@ -72,12 +73,8 @@ public class DynamicTemplate implements ToXContentObject {
     public enum XContentFieldType {
         OBJECT {
             @Override
-            public String defaultMappingType() {
-                return ObjectMapper.CONTENT_TYPE;
-            }
-            @Override
-            public String toString() {
-                return "object";
+            boolean supportsRuntimeField() {
+                return false;
             }
         },
         STRING {
@@ -86,58 +83,23 @@ public class DynamicTemplate implements ToXContentObject {
                 return TextFieldMapper.CONTENT_TYPE;
             }
             @Override
-            public String toString() {
-                return "string";
+            String defaultRuntimeMappingType() {
+                return KeywordFieldMapper.CONTENT_TYPE;
             }
         },
-        LONG {
-            @Override
-            public String defaultMappingType() {
-                return NumberFieldMapper.NumberType.LONG.typeName();
-            }
-            @Override
-            public String toString() {
-                return "long";
-            }
-        },
+        LONG,
         DOUBLE {
             @Override
             public String defaultMappingType() {
                 return NumberFieldMapper.NumberType.FLOAT.typeName();
             }
-            @Override
-            public String toString() {
-                return "double";
-            }
         },
-        BOOLEAN {
-            @Override
-            public String defaultMappingType() {
-                return BooleanFieldMapper.CONTENT_TYPE;
-            }
-            @Override
-            public String toString() {
-                return "boolean";
-            }
-        },
-        DATE {
-            @Override
-            public String defaultMappingType() {
-                return DateFieldMapper.CONTENT_TYPE;
-            }
-            @Override
-            public String toString() {
-                return "date";
-            }
-        },
+        BOOLEAN,
+        DATE,
         BINARY {
             @Override
-            public String defaultMappingType() {
-                return BinaryFieldMapper.CONTENT_TYPE;
-            }
-            @Override
-            public String toString() {
-                return "binary";
+            boolean supportsRuntimeField() {
+                return false;
             }
         };
 
@@ -151,16 +113,47 @@ public class DynamicTemplate implements ToXContentObject {
                     + Arrays.toString(values()));
         }
 
-        /** The default mapping type to use for fields of this {@link XContentFieldType}. */
-        public abstract String defaultMappingType();
+        /**
+         * The default mapping type to use for fields of this {@link XContentFieldType}.
+         * By default, the lowercase field type is used.
+         */
+        String defaultMappingType() {
+            return toString();
+        }
+
+        /**
+         * The default mapping type to use for fields of this {@link XContentFieldType} when defined as runtime fields
+         * By default, the lowercase field type is used.
+         */
+        String defaultRuntimeMappingType() {
+            return toString();
+        }
+
+        /**
+         * Returns true if the field type supported as runtime field, false otherwise.
+         * Whenever a match_mapping_type has not been defined in a dynamic template, if a runtime mapping has been specified only
+         * field types that are supported as runtime field will match the template.
+         * Also, it is not possible to define a dynamic template that defines a runtime field and explicitly matches a type that
+         * is not supported as runtime field.
+         */
+        boolean supportsRuntimeField() {
+            return true;
+        }
+
+        @Override
+        public final String toString() {
+            return name().toLowerCase(Locale.ROOT);
+        }
     }
 
-    public static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
+    @SuppressWarnings("unchecked")
+    static DynamicTemplate parse(String name, Map<String, Object> conf) throws MapperParsingException {
         String match = null;
         String pathMatch = null;
         String unmatch = null;
         String pathUnmatch = null;
         Map<String, Object> mapping = null;
+        boolean runtime = false;
         String matchMappingType = null;
         String matchPattern = MatchType.SIMPLE.toString();
 
@@ -179,7 +172,20 @@ public class DynamicTemplate implements ToXContentObject {
             } else if ("match_pattern".equals(propName)) {
                 matchPattern = entry.getValue().toString();
             } else if ("mapping".equals(propName)) {
+                if (mapping != null) {
+                    throw new MapperParsingException("mapping and runtime cannot be both specified in the same dynamic template ["
+                        + name + "]");
+                }
                 mapping = (Map<String, Object>) entry.getValue();
+                runtime = false;
+            } else if ("runtime".equals(propName)) {
+                if (mapping != null) {
+                    throw new MapperParsingException("mapping and runtime cannot be both specified in the same dynamic template ["
+                        + name + "]");
+
+                }
+                mapping = (Map<String, Object>) entry.getValue();
+                runtime = true;
             } else {
                 // unknown parameters were ignored before but still carried through serialization
                 // so we need to ignore them at parsing time for old indices
@@ -191,12 +197,16 @@ public class DynamicTemplate implements ToXContentObject {
             throw new MapperParsingException("template must have match, path_match or match_mapping_type set " + conf.toString());
         }
         if (mapping == null) {
-            throw new MapperParsingException("template must have mapping set");
+            throw new MapperParsingException("template [" + name + "] must have either mapping or runtime set");
         }
 
         XContentFieldType xcontentFieldType = null;
         if (matchMappingType != null && matchMappingType.equals("*") == false) {
             xcontentFieldType = XContentFieldType.fromString(matchMappingType);
+            if (runtime && xcontentFieldType.supportsRuntimeField() == false) {
+                throw new MapperParsingException("Dynamic template [" + name + "] defines a runtime field but type ["
+                    + xcontentFieldType + "] is not supported as runtime field");
+            }
         }
 
         final MatchType matchType = MatchType.fromString(matchPattern);
@@ -214,27 +224,21 @@ public class DynamicTemplate implements ToXContentObject {
             }
         }
 
-        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType, matchType, mapping);
+        return new DynamicTemplate(name, pathMatch, pathUnmatch, match, unmatch, xcontentFieldType, matchType, mapping, runtime);
     }
 
     private final String name;
-
     private final String pathMatch;
-
     private final String pathUnmatch;
-
     private final String match;
-
     private final String unmatch;
-
     private final MatchType matchType;
-
     private final XContentFieldType xcontentFieldType;
-
     private final Map<String, Object> mapping;
+    private final boolean runtimeMapping;
 
     private DynamicTemplate(String name, String pathMatch, String pathUnmatch, String match, String unmatch,
-            XContentFieldType xcontentFieldType, MatchType matchType, Map<String, Object> mapping) {
+            XContentFieldType xcontentFieldType, MatchType matchType, Map<String, Object> mapping, boolean runtimeMapping) {
         this.name = name;
         this.pathMatch = pathMatch;
         this.pathUnmatch = pathUnmatch;
@@ -243,6 +247,7 @@ public class DynamicTemplate implements ToXContentObject {
         this.matchType = matchType;
         this.xcontentFieldType = xcontentFieldType;
         this.mapping = mapping;
+        this.runtimeMapping = runtimeMapping;
     }
 
     public String name() {
@@ -269,6 +274,9 @@ public class DynamicTemplate implements ToXContentObject {
         if (this.xcontentFieldType != null && this.xcontentFieldType != xcontentFieldType) {
             return false;
         }
+        if (runtimeMapping && xcontentFieldType.supportsRuntimeField() == false) {
+            return false;
+        }
         return true;
     }
 
@@ -282,7 +290,7 @@ public class DynamicTemplate implements ToXContentObject {
             type = dynamicType;
         }
         if (type.equals(mapping.get("type")) == false // either the type was not set, or we updated it through replacements
-                && "text".equals(type)) { // and the result is "text"
+                && TextFieldMapper.CONTENT_TYPE.equals(type)) { // and the result is "text"
             // now that string has been splitted into text and keyword, we use text for
             // dynamic mappings. However before it used to be possible to index as a keyword
             // by setting index=not_analyzed, so for now we will use a keyword field rather
@@ -292,50 +300,50 @@ public class DynamicTemplate implements ToXContentObject {
             // TODO: how to do it in the future?
             final Object index = mapping.get("index");
             if ("not_analyzed".equals(index) || "no".equals(index)) {
-                type = "keyword";
+                return KeywordFieldMapper.CONTENT_TYPE;
             }
         }
         return type;
      }
 
+    public boolean isRuntimeMapping() {
+        return runtimeMapping;
+    }
+
     public Map<String, Object> mappingForName(String name, String dynamicType) {
         return processMap(mapping, name, dynamicType);
     }
 
-    private Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
+    private static Map<String, Object> processMap(Map<String, Object> map, String name, String dynamicType) {
         Map<String, Object> processedMap = new HashMap<>();
         for (Map.Entry<String, Object> entry : map.entrySet()) {
             String key = entry.getKey().replace("{name}", name).replace("{dynamic_type}", dynamicType)
                 .replace("{dynamicType}", dynamicType);
-            Object value = entry.getValue();
-            if (value instanceof Map) {
-                value = processMap((Map<String, Object>) value, name, dynamicType);
-            } else if (value instanceof List) {
-                value = processList((List) value, name, dynamicType);
-            } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name).replace("{dynamic_type}", dynamicType)
-                    .replace("{dynamicType}", dynamicType);
-            }
-            processedMap.put(key, value);
+            processedMap.put(key, extractValue(entry.getValue(), name, dynamicType));
         }
         return processedMap;
     }
 
-    private List processList(List list, String name, String dynamicType) {
-        List processedList = new ArrayList(list.size());
+    private static List<?> processList(List<?> list, String name, String dynamicType) {
+        List<Object> processedList = new ArrayList<>(list.size());
         for (Object value : list) {
-            if (value instanceof Map) {
-                value = processMap((Map<String, Object>) value, name, dynamicType);
-            } else if (value instanceof List) {
-                value = processList((List) value, name, dynamicType);
-            } else if (value instanceof String) {
-                value = value.toString().replace("{name}", name)
-                    .replace("{dynamic_type}", dynamicType)
-                    .replace("{dynamicType}", dynamicType);
-            }
-            processedList.add(value);
+            processedList.add(extractValue(value, name, dynamicType));
         }
         return processedList;
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object extractValue(Object value, String name, String dynamicType) {
+        if (value instanceof Map) {
+            return processMap((Map<String, Object>) value, name, dynamicType);
+        } else if (value instanceof List) {
+            return processList((List<?>) value, name, dynamicType);
+        } else if (value instanceof String) {
+            return value.toString().replace("{name}", name)
+                .replace("{dynamic_type}", dynamicType)
+                .replace("{dynamicType}", dynamicType);
+        }
+        return value;
     }
 
     String getName() {
@@ -374,7 +382,11 @@ public class DynamicTemplate implements ToXContentObject {
             builder.field("match_pattern", matchType);
         }
         // use a sorted map for consistent serialization
-        builder.field("mapping", new TreeMap<>(mapping));
+        if (runtimeMapping) {
+            builder.field("runtime", new TreeMap<>(mapping));
+        } else {
+            builder.field("mapping", new TreeMap<>(mapping));
+        }
         builder.endObject();
         return builder;
     }

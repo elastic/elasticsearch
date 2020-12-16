@@ -89,7 +89,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+        DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
             .setJob(jobBuilder.build())
             .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
@@ -121,7 +121,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+        DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
             .setJob(jobBuilder.build())
             .setRestartTimeInfo(new RestartTimeInfo(3_600_000L, 7_200_000L, false))
@@ -153,7 +153,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
                 }, e -> fail()
         );
 
-        DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+        DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
             .setJob(jobBuilder.build())
             .setRestartTimeInfo(new RestartTimeInfo(3_800_000L, 3_600_000L, false))
@@ -198,7 +198,7 @@ public class DatafeedJobBuilderTests extends ESTestCase {
             }
         );
 
-        DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+        DatafeedContext datafeedContext = DatafeedContext.builder()
             .setDatafeedConfig(datafeed.build())
             .setJob(jobBuilder.build())
             .setRestartTimeInfo(new RestartTimeInfo(null, null, false))

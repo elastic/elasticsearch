@@ -37,7 +37,7 @@ public class IdpBaseRestHandlerTests extends ESTestCase {
             .put("xpack.idp.enabled", true)
             .build();
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState(settings);
-        licenseState.update(licenseMode, true, null);
+        licenseState.update(licenseMode, true, Long.MAX_VALUE, null);
         return new IdpBaseRestHandler(licenseState) {
             @Override
             protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {

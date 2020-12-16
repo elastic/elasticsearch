@@ -20,6 +20,7 @@
 package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
@@ -32,11 +33,17 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -69,6 +76,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -78,11 +86,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
-
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashSet;
 
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
@@ -744,6 +747,45 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
+    }
+
+    /**
+     * Check that when available system memory is constrained by Docker, the machine-dependant heap sizing
+     * logic sets the correct heap size, based on the container limits.
+     */
+    public void test150MachineDependentHeap() throws Exception {
+        // Start by ensuring `jvm.options` doesn't define any heap options
+        final Path jvmOptionsPath = tempDir.resolve("jvm.options");
+        final Path containerJvmOptionsPath = installation.config("jvm.options");
+        copyFromContainer(containerJvmOptionsPath, jvmOptionsPath);
+
+        final List<String> jvmOptions = Files.readAllLines(jvmOptionsPath)
+            .stream()
+            .filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false)
+            .collect(Collectors.toList());
+
+        Files.write(jvmOptionsPath, jvmOptions);
+
+        // Now run the container, being explicit about the available memory
+        runContainer(distribution(), builder().memory("942m").volumes(Collections.singletonMap(jvmOptionsPath, containerJvmOptionsPath)));
+        waitForElasticsearch(installation);
+
+        // Grab the container output and find the line where it print the JVM arguments. This will
+        // let us see what the automatic heap sizing calculated.
+        final Optional<String> jvmArgumentsLine = Arrays.stream(getContainerLogs().stdout.split(System.lineSeparator()))
+            .filter(line -> line.contains("JVM arguments"))
+            .findFirst();
+        assertThat("Failed to find jvmArguments in container logs", jvmArgumentsLine.isPresent(), is(true));
+
+        final JsonNode jsonNode = new ObjectMapper().readTree(jvmArgumentsLine.get());
+
+        final String argsStr = jsonNode.get("message").textValue();
+        final List<String> xArgs = Arrays.stream(argsStr.substring(1, argsStr.length() - 1).split(",\\s*"))
+            .filter(arg -> arg.startsWith("-X"))
+            .collect(Collectors.toList());
+
+        // This is roughly 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
     }
 
     /**

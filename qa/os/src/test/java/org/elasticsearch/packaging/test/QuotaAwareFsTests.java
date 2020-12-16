@@ -153,8 +153,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
     }
 
     /**
-     * Check that the _cat API handles bootstrap plugins correctly. They should be filtered unless
-     * explicitly asked for. Plugin types can be included in the response if requested.
+     * Check that the _cat API can list the plugin correctly.
      */
     public void test40CatApiFiltersPlugin() throws Exception {
         install();
@@ -172,24 +171,11 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         try {
             startElasticsearch();
 
-            // Check that bootstrap plugins are filtered out by default
-            String response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_cat/plugins")).trim();
-            assertThat(response, emptyString());
-
-            // Check that bootstrap plugins can be included
-            response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_cat/plugins?include_bootstrap=true")).trim();
+            final String uri = "http://localhost:9200/_cat/plugins?include_bootstrap=true&h=component,type";
+            String response = ServerUtils.makeRequest(Request.Get(uri)).trim();
             assertThat(response, not(emptyString()));
 
             List<String> lines = response.lines().collect(Collectors.toList());
-            assertThat(lines, hasSize(1));
-            assertThat(lines.get(0).split(" ")[1], equalTo("quota-aware-fs"));
-
-            // Check that the plugin type can be included in the response
-            response = ServerUtils.makeRequest(Request.Get("http://localhost:9200/_cat/plugins?include_bootstrap=true&h=component,type"))
-                .trim();
-            assertThat(response, not(emptyString()));
-
-            lines = response.lines().collect(Collectors.toList());
             assertThat(lines, hasSize(1));
 
             final String[] fields = lines.get(0).split(" ");

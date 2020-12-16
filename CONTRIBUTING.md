@@ -169,7 +169,9 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
 check the Elasticsearch code. However, the Checkstyle configuration file does
 not work by default with the IntelliJ plugin, so instead an IDE-specific config
-file is generated automatically after IntelliJ finishes syncing.
+file is generated automatically after IntelliJ finishes syncing. You can
+manually generate the file with `./gradlew configureIdeCheckstyle` in case
+it is removed due to a `./gradlew clean` or other action.
 
    1. Open **Preferences > Tools > Checkstyle**
    2. Change the "Scan Scope" to "Only Java sources (including tests)"

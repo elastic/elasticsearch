@@ -96,7 +96,7 @@ A successful call returns an object with "cluster" and "index" fields.
     "none",
     "read_ccr",
     "read_ilm",
-    "read_ingest_pipelines",
+    "read_pipeline",
     "read_slm",
     "transport_client"
   ],

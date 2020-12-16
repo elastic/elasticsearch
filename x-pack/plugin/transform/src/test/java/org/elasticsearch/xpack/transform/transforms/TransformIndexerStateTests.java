@@ -25,7 +25,6 @@ import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
-import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
@@ -232,8 +231,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         auditor = MockTransformAuditor.createMockAuditor();
         transformConfigManager = new InMemoryTransformConfigManager();
         client = new NoOpClient(getTestName());
-        threadPool = new TestThreadPool(ThreadPool.Names.GENERIC,
-            new ScalingExecutorBuilder(ThreadPool.Names.GENERIC, 4, 10, TimeValue.timeValueSeconds(30)));
+        threadPool = new TestThreadPool(ThreadPool.Names.GENERIC);
     }
 
     @After

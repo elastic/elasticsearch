@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.rollup.job.RollupJobConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 import org.elasticsearch.xpack.core.scheduler.CronSchedule;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,7 +57,7 @@ public class RollupJobTask extends AllocatedPersistentTask implements SchedulerE
         private final ThreadPool threadPool;
 
         public RollupJobPersistentTasksExecutor(Client client, SchedulerEngine schedulerEngine, ThreadPool threadPool) {
-            super(RollupField.TASK_NAME, Rollup.TASK_THREAD_POOL_NAME);
+            super(RollupField.TASK_NAME, ThreadPool.Names.GENERIC);
             this.client = client;
             this.schedulerEngine = schedulerEngine;
             this.threadPool = threadPool;

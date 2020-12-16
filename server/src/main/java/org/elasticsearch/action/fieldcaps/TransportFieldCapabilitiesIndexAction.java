@@ -178,7 +178,7 @@ public class TransportFieldCapabilitiesIndexAction
         assert req.nowInMillis() != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
-        return searchService.queryStillMatchesAfterRewrite(searchRequest, queryShardContext);
+        return SearchService.queryStillMatchesAfterRewrite(searchRequest, queryShardContext);
     }
 
     private ClusterBlockException checkGlobalBlock(ClusterState state) {

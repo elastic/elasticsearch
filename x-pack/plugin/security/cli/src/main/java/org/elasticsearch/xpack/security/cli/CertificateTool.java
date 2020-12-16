@@ -155,8 +155,7 @@ public class CertificateTool extends LoggingAwareMultiCommand {
                 throw new UserException(ExitCodes.USAGE,
                     "Generating certificates without providing a CA is no longer supported.\n" +
                         "Please first generate a CA with the 'ca' sub-command and provide the ca file \n" +
-                        "with either --ca or --ca-cert/--ca-key to generate certificates.\n" +
-                        "Alternatively, you can also generate self-signed certificates with --self-signed.");
+                        "with either --ca or --ca-cert/--ca-key to generate certificates.");
             } else {
                 throw e;
             }

@@ -54,17 +54,18 @@ loaded/unloaded classes.
 Operating system stats, load average, mem, swap.
 
 `plugins`::
++
+--
 Details about the installed plugins and modules per node. The following
 information are available for each plugin and module:
-+
----
+
 * `name`: plugin name
 * `version`: version of Elasticsearch the plugin was built for
 * `description`: short description of the plugin's purpose
 * `classname`: fully-qualified class name of the plugin's entry point
 * `has_native_controller`: whether or not the plugin has a native controller
 process
----
+--
 
 `process`::
 Process statistics, memory consumption, cpu usage, open file descriptors.

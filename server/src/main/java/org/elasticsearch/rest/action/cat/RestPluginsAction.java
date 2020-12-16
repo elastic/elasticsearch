@@ -99,7 +99,7 @@ public class RestPluginsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, boolean includeBootstrapPlugins) {
+    Table buildTable(RestRequest req, ClusterStateResponse state, NodesInfoResponse nodesInfo, boolean includeBootstrapPlugins) {
         DiscoveryNodes nodes = state.getState().nodes();
         Table table = getTableWithHeader(req);
 

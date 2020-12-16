@@ -2207,7 +2207,7 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             // tag::invalidate-api-key-ids-request
             InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
-                new String[]{"kI3QZHYBnpSXoDRq1XzR", "ko3SZHYBnpSXoDRqk3zm"}, false);
+                Arrays.asList("kI3QZHYBnpSXoDRq1XzR", "ko3SZHYBnpSXoDRqk3zm"), false);
             // end::invalidate-api-key-ids-request
 
             InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,

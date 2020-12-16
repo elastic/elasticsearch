@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.stream.IntStream;
 
 /**
@@ -36,7 +37,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
 
     private final String realmName;
     private final String userName;
-    private final String[] ids;
+    private final List<String> ids;
     private final String name;
     private final boolean ownedByAuthenticatedUser;
 
@@ -44,20 +45,20 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     @Deprecated
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
                             @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
-        this(realmName, userName, apiKeyName, ownedByAuthenticatedUser, Strings.hasText(apiKeyId) ? new String[]{apiKeyId} : null);
+        this(realmName, userName, apiKeyName, ownedByAuthenticatedUser, apiKeyIdToIds(apiKeyId));
     }
 
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName,
-                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser, @Nullable String[] apiKeyIds) {
+                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser, @Nullable List<String> apiKeyIds) {
         validateApiKeyIds(apiKeyIds);
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && apiKeyIds == null
             && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
-            throwValidationError("One of [api key ids, api key name, username, realm name] must be specified if [owner] flag is false");
+            throwValidationError("One of [api key id(s), api key name, username, realm name] must be specified if [owner] flag is false");
         }
         if (apiKeyIds != null || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 throwValidationError(
-                    "username or realm name must not be specified when the api key ids or api key name is specified");
+                    "username or realm name must not be specified when the api key id(s) or api key name is specified");
             }
         }
         if (ownedByAuthenticatedUser) {
@@ -66,7 +67,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
             }
         }
         if (apiKeyIds != null && Strings.hasText(apiKeyName)) {
-            throwValidationError("only one of [api key ids, api key name] can be specified");
+            throwValidationError("only one of [api key id(s), api key name] can be specified");
         }
         this.realmName = realmName;
         this.userName = userName;
@@ -75,13 +76,13 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
 
-    private void validateApiKeyIds(@Nullable String[] apiKeyIds) {
+    private void validateApiKeyIds(@Nullable List<String> apiKeyIds) {
         if (apiKeyIds != null) {
-            if (apiKeyIds.length == 0) {
+            if (apiKeyIds.size() == 0) {
                 throwValidationError("Argument [apiKeyIds] cannot be an empty array");
             } else {
-                final int[] idxOfBlankIds = IntStream.range(0, apiKeyIds.length)
-                    .filter(i -> Strings.hasText(apiKeyIds[i]) == false).toArray();
+                final int[] idxOfBlankIds = IntStream.range(0, apiKeyIds.size())
+                    .filter(i -> Strings.hasText(apiKeyIds.get(i)) == false).toArray();
                 if (idxOfBlankIds.length > 0) {
                     throwValidationError("Argument [apiKeyIds] must not contain blank id, but got blank "
                         + (idxOfBlankIds.length == 1 ? "id" : "ids") + " at index "
@@ -108,14 +109,14 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     public String getId() {
         if (ids == null) {
             return null;
-        } else if (ids.length == 1) {
-            return ids[0];
+        } else if (ids.size() == 1) {
+            return ids.get(0);
         } else {
-            throw new IllegalArgumentException("Cannot get a single api key id when multiple ids have been set " + Arrays.toString(ids));
+            throw new IllegalArgumentException("Cannot get a single api key id when multiple ids have been set " + ids);
         }
     }
 
-    public String[] getIds() {
+    public List<String> getIds() {
         return ids;
     }
 
@@ -163,8 +164,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
      * @return {@link InvalidateApiKeyRequest}
      */
     public static InvalidateApiKeyRequest usingApiKeyId(String apiKeyId, boolean ownedByAuthenticatedUser) {
-        return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser,
-            Strings.hasText(apiKeyId) ? new String[] { apiKeyId } : null);
+        return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser, apiKeyIdToIds(apiKeyId));
     }
 
     /**
@@ -174,7 +174,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
      * {@code false}
      * @return {@link InvalidateApiKeyRequest}
      */
-    public static InvalidateApiKeyRequest usingApiKeyIds(String[] apiKeyIds, boolean ownedByAuthenticatedUser) {
+    public static InvalidateApiKeyRequest usingApiKeyIds(List<String> apiKeyIds, boolean ownedByAuthenticatedUser) {
         return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser, apiKeyIds);
     }
 
@@ -213,5 +213,9 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         }
         builder.field("owner", ownedByAuthenticatedUser);
         return builder.endObject();
+    }
+
+    static List<String> apiKeyIdToIds(@Nullable String apiKeyId) {
+        return Strings.hasText(apiKeyId) ? List.of(apiKeyId) : null;
     }
 }

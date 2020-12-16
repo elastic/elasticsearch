@@ -206,7 +206,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
             builder.field("username", userName);
         }
         if (ids != null) {
-            builder.array("ids", ids);
+            builder.field("ids", ids);
         }
         if (name != null) {
             builder.field("name", name);

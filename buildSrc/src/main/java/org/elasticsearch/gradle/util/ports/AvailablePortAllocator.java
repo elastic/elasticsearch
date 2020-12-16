@@ -32,7 +32,6 @@ public class AvailablePortAllocator implements PortAllocator {
     public static final int DEFAULT_RANGE_SIZE = 100;
 
     private final List<ReservedPortRange> reservations = new ArrayList<ReservedPortRange>();
-    private final int rangeSize = DEFAULT_RANGE_SIZE;
 
     private final Lock lock = new ReentrantLock();
 
@@ -49,8 +48,8 @@ public class AvailablePortAllocator implements PortAllocator {
     }
 
     protected Pair<Integer, Integer> getNextPortRange(int rangeNumber) {
-        int startPort = MIN_PRIVATE_PORT + (rangeNumber * rangeSize);
-        int endPort = startPort + rangeSize - 1;
+        int startPort = MIN_PRIVATE_PORT + (rangeNumber * DEFAULT_RANGE_SIZE);
+        int endPort = startPort + DEFAULT_RANGE_SIZE - 1;
         return Pair.of(startPort, endPort);
     }
 

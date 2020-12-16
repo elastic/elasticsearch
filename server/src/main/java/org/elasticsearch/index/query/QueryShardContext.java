@@ -34,7 +34,6 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.BigArrays;
@@ -604,7 +603,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Cache key for current mapping.
      */
-    public Writeable mappingKey() {
+    public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
     }
 }

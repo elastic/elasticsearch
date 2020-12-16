@@ -485,6 +485,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 reloadedAnalyzers.add(analyzerName);
             }
         }
+        // TODO this should make a new MappingLookup to bust the cache
         return reloadedAnalyzers;
     }
 }

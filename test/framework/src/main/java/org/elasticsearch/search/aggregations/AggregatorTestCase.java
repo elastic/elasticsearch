@@ -234,7 +234,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             List.of(),
             0,
             souceToParse -> null,
-            w -> w.writeString("test"),
             true
         ) {
             @Override

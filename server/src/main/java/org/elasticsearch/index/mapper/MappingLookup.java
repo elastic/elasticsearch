@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -36,6 +35,13 @@ import java.util.stream.Stream;
 
 public class MappingLookup {
     /**
+     * Key for the lookup to be used in caches.
+     */
+    public class CacheKey {
+        private CacheKey() {}
+    }
+
+    /**
      * A lookup representing an empty mapping.
      */
     public static final MappingLookup EMPTY = new MappingLookup(
@@ -46,9 +52,10 @@ public class MappingLookup {
         List.of(),
         0,
         souceToParse -> null,
-        writer -> writer.writeString("empty"),
         false
     );
+
+    private final CacheKey cacheKey = new CacheKey();
 
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
@@ -58,14 +65,9 @@ public class MappingLookup {
     private final int metadataFieldCount;
     private final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
     private final Function<SourceToParse, ParsedDocument> documentParser;
-    private final Writeable cacheKey;
     private final boolean sourceEnabled;
 
-    public static MappingLookup fromMapping(
-        Mapping mapping,
-        Function<SourceToParse, ParsedDocument> documentParser,
-        Writeable cacheKey
-    ) {
+    public static MappingLookup fromMapping(Mapping mapping, Function<SourceToParse, ParsedDocument> documentParser) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -85,7 +87,6 @@ public class MappingLookup {
             mapping.root.runtimeFieldTypes(),
             mapping.metadataMappers.length,
             documentParser,
-            cacheKey,
             mapping.metadataMapper(SourceFieldMapper.class).enabled()
         );
     }
@@ -115,10 +116,8 @@ public class MappingLookup {
                          Collection<RuntimeFieldType> runtimeFieldTypes,
                          int metadataFieldCount,
                          Function<SourceToParse, ParsedDocument> documentParser,
-                         Writeable cacheKey,
                          boolean sourceEnabled) {
         this.documentParser = documentParser;
-        this.cacheKey = cacheKey;
         this.sourceEnabled = sourceEnabled;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
@@ -381,7 +380,10 @@ public class MappingLookup {
         return false;
     }
 
-    public Writeable cacheKey() {
+    /**
+     * Key for the lookup to be used in caches.
+     */
+    public CacheKey cacheKey() {
         return cacheKey;
     }
 }

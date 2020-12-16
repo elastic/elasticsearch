@@ -119,7 +119,8 @@ public class DocumentMapper implements ToXContentFragment {
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
-        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse, w -> w.write(mappingSource.compressed()));
+        // TODO this::parse performs a volatile read on mapping from MapperService. Yikes!
+        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
 
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
             SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);

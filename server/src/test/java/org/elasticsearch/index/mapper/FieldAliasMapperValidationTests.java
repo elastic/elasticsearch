@@ -46,7 +46,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null,
                 false
             )
         );
@@ -68,7 +67,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null,
                 false
             )
         );
@@ -87,7 +85,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             Arrays.asList(alias, invalidAlias),
             emptyList(),
             0,
-            null,
             null,
             false
         );
@@ -113,7 +110,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 emptyList(),
                 0,
                 null,
-                null,
                 false
             );
             invalidAlias.validate(mappers);
@@ -134,7 +130,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 singletonList(invalidAlias),
                 emptyList(),
                 0,
-                null,
                 null,
                 false
             );
@@ -157,7 +152,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             emptyList(),
             0,
             null,
-            null,
             false
         );
         aliasMapper.validate(mappers);
@@ -174,7 +168,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
             singletonList(aliasMapper),
             emptyList(),
             0,
-            null,
             null,
             false
         );
@@ -193,7 +186,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 singletonList(aliasMapper),
                 emptyList(),
                 0,
-                null,
                 null,
                 false
             );
@@ -217,7 +209,6 @@ public class FieldAliasMapperValidationTests extends ESTestCase {
                 singletonList(aliasMapper),
                 emptyList(),
                 0,
-                null,
                 null,
                 false
             );

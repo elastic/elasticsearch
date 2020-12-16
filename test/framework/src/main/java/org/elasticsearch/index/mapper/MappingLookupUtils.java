@@ -47,7 +47,6 @@ public class MappingLookupUtils {
             List.of(),
             0,
             souceToParse -> null,
-            w -> w.writeString("test" + mappers.hashCode()),
             true
         );
     }

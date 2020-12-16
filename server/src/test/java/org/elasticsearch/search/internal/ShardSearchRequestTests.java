@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -158,9 +157,7 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        String randomCacheKey = randomAlphaOfLength(5);
-        Writeable cacheKey = w -> w.writeString(randomCacheKey);
-        assertEquals(orig.cacheKey(cacheKey), copy.cacheKey(cacheKey));
+        assertEquals(orig.cacheKey(), copy.cacheKey());
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());
         assertEquals(orig.indexBoost(), copy.indexBoost(), 0.0f);

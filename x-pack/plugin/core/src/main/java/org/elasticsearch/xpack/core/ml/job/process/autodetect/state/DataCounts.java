@@ -198,11 +198,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             latestSparseBucketTimeStamp = new Date(in.readVLong());
         }
         in.readVLong(); // throw away inputRecordCount
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            logTime = in.readOptionalInstant();
-        } else {
-            logTime = null;
-        }
+        logTime = in.readOptionalInstant();
     }
 
     public String getJobid() {
@@ -526,9 +522,7 @@ public class DataCounts implements ToXContentObject, Writeable {
             out.writeBoolean(false);
         }
         out.writeVLong(getInputRecordCount());
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalInstant(logTime);
-        }
+        out.writeOptionalInstant(logTime);
     }
 
     @Override

@@ -316,8 +316,11 @@ public class SqlDataTypes {
         if (dataType == INTEGER) {
             return JDBCType.INTEGER;
         }
-        if (dataType == LONG || dataType == UNSIGNED_LONG) {
+        if (dataType == LONG) {
             return JDBCType.BIGINT;
+        }
+        if (dataType == UNSIGNED_LONG) {
+            return JDBCType.NUMERIC;
         }
         if (dataType == DOUBLE) {
             return JDBCType.DOUBLE;

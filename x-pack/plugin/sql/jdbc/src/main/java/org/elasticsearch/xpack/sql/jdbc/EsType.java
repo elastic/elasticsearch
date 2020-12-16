@@ -19,7 +19,7 @@ public enum EsType implements SQLType {
     SHORT(                    Types.SMALLINT),
     INTEGER(                  Types.INTEGER),
     LONG(                     Types.BIGINT),
-    UNSIGNED_LONG(            Types.BIGINT),
+    UNSIGNED_LONG(            Types.NUMERIC),
     DOUBLE(                   Types.DOUBLE),
     FLOAT(                    Types.REAL),
     HALF_FLOAT(               Types.FLOAT),

@@ -52,7 +52,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
-salary_ul           |BIGINT         |unsigned_long
+salary_ul           |NUMERIC        |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 
@@ -83,7 +83,7 @@ last_name           |VARCHAR        |text
 last_name.keyword   |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
-salary_ul           |BIGINT         |unsigned_long
+salary_ul           |NUMERIC        |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 

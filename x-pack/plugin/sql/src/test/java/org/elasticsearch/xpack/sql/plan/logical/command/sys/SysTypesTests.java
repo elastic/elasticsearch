@@ -58,7 +58,7 @@ public class SysTypesTests extends ESTestCase {
         return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
     }
 
-    static final List<String> ALL_TYPES = asList("BYTE", "LONG", "UNSIGNED_LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT",
+    static final List<String> ALL_TYPES = asList("BYTE", "LONG", "BINARY", "NULL", "UNSIGNED_LONG", "INTEGER", "SHORT", "HALF_FLOAT",
         "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
         "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
         "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",

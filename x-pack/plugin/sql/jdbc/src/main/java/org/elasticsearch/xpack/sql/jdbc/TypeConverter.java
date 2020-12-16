@@ -228,7 +228,7 @@ final class TypeConverter {
             case LONG:
                 return ((Number) v).longValue();
             case UNSIGNED_LONG:
-                return new BigInteger(v.toString());
+                return asBigInteger(v, columnType, typeString);
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
@@ -350,7 +350,7 @@ final class TypeConverter {
             case LONG:
                 return safeToByte(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return safeToByte(((BigInteger) val));
+                return safeToByte(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -379,7 +379,7 @@ final class TypeConverter {
             case LONG:
                 return safeToShort(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return safeToShort((BigInteger) val);
+                return safeToShort(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -407,7 +407,7 @@ final class TypeConverter {
             case LONG:
                 return safeToInt(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return safeToInt((BigInteger) val);
+                return safeToInt(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -435,7 +435,7 @@ final class TypeConverter {
             case LONG:
                 return Long.valueOf(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return safeToLong((BigInteger) val);
+                return safeToLong(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -469,7 +469,7 @@ final class TypeConverter {
             case LONG:
                 return Float.valueOf(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return ((BigInteger) val).floatValue();
+                return asBigInteger(val, columnType, typeString).floatValue();
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -497,7 +497,7 @@ final class TypeConverter {
             case LONG:
                 return Double.valueOf(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return ((BigInteger) val).doubleValue();
+                return asBigInteger(val, columnType, typeString).doubleValue();
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
@@ -560,14 +560,14 @@ final class TypeConverter {
             case SHORT:
             case INTEGER:
             case LONG:
-                return BigInteger.valueOf(((Number)val).longValue());
-            case UNSIGNED_LONG:
-                return new BigInteger(val.toString());
+                return BigInteger.valueOf(((Number) val).longValue());
             case FLOAT:
             case HALF_FLOAT:
             case SCALED_FLOAT:
             case DOUBLE:
-                return BigDecimal.valueOf(((Number) val).doubleValue()).toBigInteger(); // no safeguarding limits checking needed
+                return BigDecimal.valueOf(((Number) val).doubleValue()).toBigInteger();
+            // Aggs can return floats dressed as UL types (bugUrl="https://github.com/elastic/elasticsearch/issues/65413")
+            case UNSIGNED_LONG:
             case KEYWORD:
             case TEXT:
                 try {
@@ -590,7 +590,7 @@ final class TypeConverter {
             case LONG:
                 return BigDecimal.valueOf(((Number) val).longValue());
             case UNSIGNED_LONG:
-                return new BigDecimal((BigInteger) val);
+                return new BigDecimal(asBigInteger(val, columnType, typeString));
             case FLOAT:
             case HALF_FLOAT:
                 // floats are passed in as doubles here, so we need to dip into string to keep original float's (reduced) precision.

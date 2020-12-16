@@ -93,8 +93,7 @@ class JdbcResultSetMetaData implements ResultSetMetaData, JdbcWrapper {
 
     @Override
     public int getScale(int column) throws SQLException {
-        column(column);
-        return 0;
+        return column(column).displaySize();
     }
 
     @Override

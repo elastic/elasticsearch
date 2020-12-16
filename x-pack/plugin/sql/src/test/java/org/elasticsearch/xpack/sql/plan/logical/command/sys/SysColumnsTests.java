@@ -84,7 +84,7 @@ public class SysColumnsTests extends ESTestCase {
 
         row = rows.get(index++);
         assertEquals("unsigned_long", name(row));
-        assertEquals(Types.BIGINT, sqlType(row));
+        assertEquals(Types.NUMERIC, sqlType(row));
         assertEquals(10, radix(row));
         assertEquals(Long.BYTES, bufferLength(row));
 
@@ -184,7 +184,7 @@ public class SysColumnsTests extends ESTestCase {
 
         row = rows.get(index++);
         assertEquals("unsigned_long", name(row));
-        assertEquals(Types.BIGINT, typeClass.cast(sqlType(row)).intValue());
+        assertEquals(Types.NUMERIC, typeClass.cast(sqlType(row)).intValue());
         assertEquals(typeClass, radix(row).getClass());
         assertEquals(Long.BYTES, bufferLength(row));
         assertNull(decimalPrecision(row));

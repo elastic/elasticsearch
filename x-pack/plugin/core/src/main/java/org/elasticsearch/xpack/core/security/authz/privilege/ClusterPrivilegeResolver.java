@@ -74,7 +74,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet("indices:admin/template/*",
             "indices:admin/index_template/*"));
     private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Collections.singleton("cluster:admin/ingest/pipeline/*");
-    private static final Set<String> READ_INGEST_PIPELINE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet(GetPipelineAction.NAME,
+    private static final Set<String> READ_PIPELINE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet(GetPipelineAction.NAME,
         SimulatePipelineAction.NAME));
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*"));
@@ -119,8 +119,8 @@ public class ClusterPrivilegeResolver {
         new ActionClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INGEST_PIPELINES =
         new ActionClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_PATTERN);
-    public static final NamedClusterPrivilege READ_INGEST_PIPELINES =
-        new ActionClusterPrivilege("read_ingest_pipelines", READ_INGEST_PIPELINE_PATTERN);
+    public static final NamedClusterPrivilege READ_PIPELINE =
+        new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", ALL_SECURITY_PATTERN,

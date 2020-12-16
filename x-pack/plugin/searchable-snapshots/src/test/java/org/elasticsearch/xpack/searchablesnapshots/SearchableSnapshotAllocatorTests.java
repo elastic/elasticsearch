@@ -11,8 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -28,7 +26,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
@@ -119,10 +116,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
                 Request request,
                 ActionListener<Response> listener
             ) {
-                if (action == ClusterRerouteAction.INSTANCE) {
-                    reroutesTriggered.incrementAndGet();
-                    listener.onResponse((Response) new ClusterRerouteResponse(true, state, new RoutingExplanations()));
-                } else if (action == TransportSearchableSnapshotCacheStoresAction.TYPE) {
+                if (action == TransportSearchableSnapshotCacheStoresAction.TYPE) {
                     listener.onResponse(
                         (Response) new TransportSearchableSnapshotCacheStoresAction.NodesCacheFilesMetadata(
                             clusterName,
@@ -144,7 +138,10 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
             }
         };
 
-        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client);
+        final SearchableSnapshotAllocator allocator = new SearchableSnapshotAllocator(client, (reason, priority, listener) -> {
+            reroutesTriggered.incrementAndGet();
+            listener.onResponse(null);
+        });
         allocateAllUnassigned(allocation, allocator);
 
         assertEquals(1, reroutesTriggered.get());

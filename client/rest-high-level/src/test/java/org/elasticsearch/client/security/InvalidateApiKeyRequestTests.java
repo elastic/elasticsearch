@@ -20,7 +20,6 @@
 package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;

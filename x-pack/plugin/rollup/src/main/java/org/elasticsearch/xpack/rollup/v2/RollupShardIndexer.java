@@ -333,7 +333,7 @@ class RollupShardIndexer {
     }
 
     /**
-     * Returns a {@link Comparator<BytesRef>} that can be used to sort inputs created by the {@link BucketCollector}.
+     * Returns a {@link Comparator} that can be used to sort inputs created by the {@link BucketCollector}.
      * We just want identical buckets to be consecutive for the merge so this comparator doesn't follow the natural
      * order and simply checks for identical binary keys.
      */

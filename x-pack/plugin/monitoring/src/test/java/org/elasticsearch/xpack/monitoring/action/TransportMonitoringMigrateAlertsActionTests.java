@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRes
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -119,12 +120,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // ensure resources exist
-            assertBusy(() -> {
-                assertThat(indexExists(".monitoring-*"), is(true));
-                ensureYellowAndNoInitializingShards(".monitoring-*");
-                checkMonitoringTemplates();
-                assertWatchesExist(true);
-            });
+            ensureInitialLocalResources();
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -158,12 +154,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // ensure resources exist
-            assertBusy(() -> {
-                assertThat(indexExists(".monitoring-*"), is(true));
-                ensureYellowAndNoInitializingShards(".monitoring-*");
-                checkMonitoringTemplates();
-                assertWatchesExist(true);
-            });
+            ensureInitialLocalResources();
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -463,6 +454,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     private void ensureInitialLocalResources() throws Exception {
+        waitForWatcherIndices();
         assertBusy(() -> {
             assertThat(indexExists(".monitoring-*"), is(true));
             ensureYellowAndNoInitializingShards(".monitoring-*");
@@ -578,5 +570,10 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
             }
         }
+    }
+
+    protected void waitForWatcherIndices() throws Exception {
+        awaitIndexExists(Watch.INDEX);
+        assertBusy(() -> ensureYellowAndNoInitializingShards(Watch.INDEX));
     }
 }

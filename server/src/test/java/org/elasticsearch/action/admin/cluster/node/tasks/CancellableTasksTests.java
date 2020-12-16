@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -41,6 +42,8 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
@@ -356,7 +359,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
         final Task parentTask = taskManager.register("test", "test", parentRequest);
         final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
-        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test");
+        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test",
+            TestTransportChannels.newFakeTcpTransportChannel(
+                testNodes[0].getNodeId(), new FakeTcpChannel(), threadPool,
+                "test", randomNonNegativeLong(), Version.CURRENT));
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
         childRequest.setParentTask(parentTaskId);
         CancellableTestNodesAction testAction = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[1]

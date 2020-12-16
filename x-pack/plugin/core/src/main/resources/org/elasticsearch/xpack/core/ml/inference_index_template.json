@@ -128,7 +128,7 @@
             }
           }
         },
-        "hyperparameter_importance": {
+        "hyperparameters": {
           "type": "nested",
           "dynamic": "false",
           "properties": {
@@ -143,7 +143,10 @@
             },
             "relative_importance": {
               "type": "double"
-            }
+            },
+            "supplied": {
+              "type": "boolean"
+            },
           } 
         }
       }

@@ -14,17 +14,18 @@ import org.junit.Before;
 import java.io.IOException;
 
 
-public class HyperparameterImportanceTests extends AbstractBWCSerializationTestCase<HyperparameterImportance> {
+public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyperparameters> {
 
     private boolean lenient;
 
     @SuppressWarnings("unchecked")
-    public static HyperparameterImportance randomInstance() {
-        return new HyperparameterImportance(
+    public static Hyperparameters randomInstance() {
+        return new Hyperparameters(
             randomAlphaOfLength(10),
             randomDoubleBetween(0.0, 1.0, true),
             randomDoubleBetween(0.0, 100.0, true),
-            randomDoubleBetween(0.0, 1.0, true));
+            randomDoubleBetween(0.0, 1.0, true),
+            randomBoolean());
     }
 
     @Before
@@ -33,18 +34,18 @@ public class HyperparameterImportanceTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected HyperparameterImportance createTestInstance() {
+    protected Hyperparameters createTestInstance() {
         return randomInstance();
     }
 
     @Override
-    protected Writeable.Reader<HyperparameterImportance> instanceReader() {
-        return HyperparameterImportance::new;
+    protected Writeable.Reader<Hyperparameters> instanceReader() {
+        return Hyperparameters::new;
     }
 
     @Override
-    protected HyperparameterImportance doParseInstance(XContentParser parser) throws IOException {
-        return HyperparameterImportance.fromXContent(parser, lenient);
+    protected Hyperparameters doParseInstance(XContentParser parser) throws IOException {
+        return Hyperparameters.fromXContent(parser, lenient);
     }
 
     @Override
@@ -53,7 +54,7 @@ public class HyperparameterImportanceTests extends AbstractBWCSerializationTestC
     }
 
     @Override
-    protected HyperparameterImportance mutateInstanceForVersion(HyperparameterImportance instance, Version version) {
+    protected Hyperparameters mutateInstanceForVersion(Hyperparameters instance, Version version) {
         return instance;
     }
 }

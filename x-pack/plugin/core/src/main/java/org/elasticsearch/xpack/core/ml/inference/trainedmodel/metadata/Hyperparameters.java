@@ -20,31 +20,34 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class HyperparameterImportance implements ToXContentObject, Writeable {
+public class Hyperparameters implements ToXContentObject, Writeable {
 
-    private static final String NAME = "hyperparameter_importance";
+    private static final String NAME = "hyperparameters";
     public static final ParseField HYPERPARAMETER_NAME = new ParseField("name");
     public static final ParseField VALUE = new ParseField("value");
     public static final ParseField ABSOLUTE_IMPORTANCE = new ParseField("absolute_importance");
     public static final ParseField RELATIVE_IMPORTANCE = new ParseField("relative_importance");
+    public static final ParseField SUPPLIED = new ParseField("supplied");
+
 
     // These parsers follow the pattern that metadata is parsed leniently (to allow for enhancements), whilst config is parsed strictly
-    public static final ConstructingObjectParser<HyperparameterImportance, Void> LENIENT_PARSER = createParser(true);
-    public static final ConstructingObjectParser<HyperparameterImportance, Void> STRICT_PARSER = createParser(false);
+    public static final ConstructingObjectParser<Hyperparameters, Void> LENIENT_PARSER = createParser(true);
+    public static final ConstructingObjectParser<Hyperparameters, Void> STRICT_PARSER = createParser(false);
 
     @SuppressWarnings("unchecked")
-    private static ConstructingObjectParser<HyperparameterImportance, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<HyperparameterImportance, Void> parser = new ConstructingObjectParser<>(NAME,
+    private static ConstructingObjectParser<Hyperparameters, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Hyperparameters, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
-            a -> new HyperparameterImportance((String)a[0], (Double)a[1], (Double)a[2], (Double)a[3]));
+            a -> new Hyperparameters((String)a[0], (Double)a[1], (Double)a[2], (Double)a[3], (Boolean)a[4]));
         parser.declareString(ConstructingObjectParser.constructorArg(), HYPERPARAMETER_NAME);
         parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE);
         parser.declareDouble(ConstructingObjectParser.constructorArg(), ABSOLUTE_IMPORTANCE);
         parser.declareDouble(ConstructingObjectParser.constructorArg(), RELATIVE_IMPORTANCE);
+        parser.declareBoolean(ConstructingObjectParser.constructorArg(), SUPPLIED);
         return parser;
     }
 
-    public static HyperparameterImportance fromXContent(XContentParser parser, boolean lenient) throws IOException {
+    public static Hyperparameters fromXContent(XContentParser parser, boolean lenient) throws IOException {
         return lenient ? LENIENT_PARSER.parse(parser, null) : STRICT_PARSER.parse(parser, null);
     }
 
@@ -52,19 +55,22 @@ public class HyperparameterImportance implements ToXContentObject, Writeable {
     public final Double value;
     public final Double absoluteImportance;
     public final Double relativeImportance;
+    public final Boolean supplied;
 
-    public HyperparameterImportance(StreamInput in) throws IOException {
+    public Hyperparameters(StreamInput in) throws IOException {
         this.hyperparameterName = in.readString();
         this.value = in.readDouble();
         this.absoluteImportance = in.readDouble();
         this.relativeImportance = in.readDouble();
+        this.supplied = in.readBoolean();
     }
 
-    HyperparameterImportance(String hyperparameterName, Double value, Double absoluteImportance, Double relativeImportance) {
+    Hyperparameters(String hyperparameterName, Double value, Double absoluteImportance, Double relativeImportance, Boolean supplied) {
         this.hyperparameterName = hyperparameterName;
         this.value = value;
         this.absoluteImportance = absoluteImportance;
         this.relativeImportance = relativeImportance;
+        this.supplied = supplied;
     }
 
     @Override
@@ -73,6 +79,7 @@ public class HyperparameterImportance implements ToXContentObject, Writeable {
         out.writeDouble(value);
         out.writeDouble(absoluteImportance);
         out.writeDouble(relativeImportance);
+        out.writeBoolean(supplied);
     }
 
     @Override
@@ -84,11 +91,13 @@ public class HyperparameterImportance implements ToXContentObject, Writeable {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        HyperparameterImportance that = (HyperparameterImportance) o;
+        Hyperparameters that = (Hyperparameters) o;
         return Objects.equals(that.hyperparameterName, hyperparameterName)
             && Objects.equals(value, that.value)
             && Objects.equals(absoluteImportance, that.absoluteImportance)
-            && Objects.equals(relativeImportance, that.relativeImportance);
+            && Objects.equals(relativeImportance, that.relativeImportance)
+            && Objects.equals(supplied, that.supplied)
+        ;
     }
 
     public Map<String, Object> asMap() {
@@ -97,12 +106,13 @@ public class HyperparameterImportance implements ToXContentObject, Writeable {
         map.put(VALUE.getPreferredName(), value);
         map.put(ABSOLUTE_IMPORTANCE.getPreferredName(), absoluteImportance);
         map.put(RELATIVE_IMPORTANCE.getPreferredName(), relativeImportance);
+        map.put(SUPPLIED.getPreferredName(), supplied);
         
         return map;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hyperparameterName, value, absoluteImportance, relativeImportance);
+        return Objects.hash(hyperparameterName, value, absoluteImportance, relativeImportance, supplied);
     }
 }

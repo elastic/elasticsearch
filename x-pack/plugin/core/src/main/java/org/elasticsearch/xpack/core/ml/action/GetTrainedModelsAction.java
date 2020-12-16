@@ -39,7 +39,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
         static final String DEFINITION = "definition";
         static final String TOTAL_FEATURE_IMPORTANCE = "total_feature_importance";
         static final String FEATURE_IMPORTANCE_BASELINE = "feature_importance_baseline";
-        static final String HYPERPARAMETER_IMPORTANCE = "hyperparameter_importance";
+        static final String HYPERPARAMETERS = "hyperparameters";
 
         private static final Set<String> KNOWN_INCLUDES;
         static {
@@ -47,7 +47,7 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             includes.add(DEFINITION);
             includes.add(TOTAL_FEATURE_IMPORTANCE);
             includes.add(FEATURE_IMPORTANCE_BASELINE);
-            includes.add(HYPERPARAMETER_IMPORTANCE);
+            includes.add(HYPERPARAMETERS);
             KNOWN_INCLUDES = Collections.unmodifiableSet(includes);
         }
 
@@ -97,8 +97,8 @@ public class GetTrainedModelsAction extends ActionType<GetTrainedModelsAction.Re
             return this.includes.contains(FEATURE_IMPORTANCE_BASELINE);
         }
 
-        public boolean isIncludeHyperparameterImportance() {
-            return this.includes.contains(HYPERPARAMETER_IMPORTANCE);
+        public boolean isIncludeHyperparameters() {
+            return this.includes.contains(HYPERPARAMETERS);
         }
 
         @Override

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStat
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparameterImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -73,7 +73,7 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
                 .limit(randomIntBetween(1, 10))
                 .collect(Collectors.toList()),
                 FeatureImportanceBaselineTests.randomInstance(),
-                Stream.generate(HyperparameterImportanceTests::randomInstance)
+                Stream.generate(HyperparametersTests::randomInstance)
                 .limit(randomIntBetween(1, 10))
                 .collect(Collectors.toList())));
         }

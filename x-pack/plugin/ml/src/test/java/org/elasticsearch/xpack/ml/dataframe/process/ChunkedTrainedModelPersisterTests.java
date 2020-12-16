@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparameterImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.ml.dataframe.process.results.ModelMetadata;
@@ -114,7 +114,7 @@ public class ChunkedTrainedModelPersisterTests extends ESTestCase {
             .limit(randomIntBetween(1, 10))
             .collect(Collectors.toList()),
             FeatureImportanceBaselineTests.randomInstance(),
-            Stream.generate(HyperparameterImportanceTests::randomInstance)
+            Stream.generate(HyperparametersTests::randomInstance)
             .limit(randomIntBetween(1, 10))
             .collect(Collectors.toList()));
 

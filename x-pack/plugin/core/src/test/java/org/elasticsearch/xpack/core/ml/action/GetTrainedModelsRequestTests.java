@@ -28,7 +28,7 @@ public class GetTrainedModelsRequestTests extends AbstractBWCWireSerializationTe
                 Stream.generate(() -> randomFrom(Includes.DEFINITION,
                     Includes.TOTAL_FEATURE_IMPORTANCE,
                     Includes.FEATURE_IMPORTANCE_BASELINE,
-                    Includes.HYPERPARAMETER_IMPORTANCE))
+                    Includes.HYPERPARAMETERS))
                     .limit(4)
                     .collect(Collectors.toSet()));
         request.setPageParams(new PageParams(randomIntBetween(0, 100), randomIntBetween(0, 100)));

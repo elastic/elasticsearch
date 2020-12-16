@@ -12,7 +12,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaseline;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportance;
-import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparameterImportance;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.Hyperparameters;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,29 +25,29 @@ public class ModelMetadata implements ToXContentObject {
 
     public static final ParseField TOTAL_FEATURE_IMPORTANCE = new ParseField("total_feature_importance");
     public static final ParseField FEATURE_IMPORTANCE_BASELINE = new ParseField("feature_importance_baseline");
-    public static final ParseField HYPERPARAMETER_IMPORTANCE = new ParseField("hyperparameter_importance");
+    public static final ParseField HYPERPARAMETERS = new ParseField("hyperparameters");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ModelMetadata, Void> PARSER = new ConstructingObjectParser<>(
         "trained_model_metadata",
-        a -> new ModelMetadata((List<TotalFeatureImportance>) a[0], (FeatureImportanceBaseline) a[1], (List<HyperparameterImportance>) a[2]));
+        a -> new ModelMetadata((List<TotalFeatureImportance>) a[0], (FeatureImportanceBaseline) a[1], (List<Hyperparameters>) a[2]));
 
     static {
         PARSER.declareObjectArray(constructorArg(), TotalFeatureImportance.STRICT_PARSER, TOTAL_FEATURE_IMPORTANCE);
         PARSER.declareObject(optionalConstructorArg(), FeatureImportanceBaseline.STRICT_PARSER, FEATURE_IMPORTANCE_BASELINE);
-        PARSER.declareObjectArray(constructorArg(), HyperparameterImportance.STRICT_PARSER, HYPERPARAMETER_IMPORTANCE);
+        PARSER.declareObjectArray(constructorArg(), Hyperparameters.STRICT_PARSER, HYPERPARAMETERS);
 
     }
 
     private final List<TotalFeatureImportance> featureImportances;
     private final FeatureImportanceBaseline featureImportanceBaseline;
-    private final List<HyperparameterImportance> hyperparameterImportances;
+    private final List<Hyperparameters> hyperparameters;
 
     public ModelMetadata(List<TotalFeatureImportance> featureImportances, FeatureImportanceBaseline featureImportanceBaseline, 
-    List<HyperparameterImportance> hyperparameterImportances) {
+    List<Hyperparameters> hyperparameters) {
         this.featureImportances = featureImportances;
         this.featureImportanceBaseline = featureImportanceBaseline;
-        this.hyperparameterImportances = hyperparameterImportances;
+        this.hyperparameters = hyperparameters;
     }
 
     public List<TotalFeatureImportance> getFeatureImportances() {
@@ -58,8 +58,8 @@ public class ModelMetadata implements ToXContentObject {
         return featureImportanceBaseline;
     }
 
-    public List<HyperparameterImportance> getHyperparameterImportances() {
-        return hyperparameterImportances;
+    public List<Hyperparameters> getHyperparameters() {
+        return hyperparameters;
     }
 
     @Override
@@ -69,12 +69,12 @@ public class ModelMetadata implements ToXContentObject {
         ModelMetadata that = (ModelMetadata) o;
         return Objects.equals(featureImportances, that.featureImportances)
             && Objects.equals(featureImportanceBaseline, that.featureImportanceBaseline)
-            && Objects.equals(hyperparameterImportances, that.hyperparameterImportances);
+            && Objects.equals(hyperparameters, that.hyperparameters);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(featureImportances, featureImportanceBaseline, hyperparameterImportances);
+        return Objects.hash(featureImportances, featureImportanceBaseline, hyperparameters);
     }
 
     @Override
@@ -84,7 +84,7 @@ public class ModelMetadata implements ToXContentObject {
         if (featureImportanceBaseline != null) {
             builder.field(FEATURE_IMPORTANCE_BASELINE.getPreferredName(), featureImportanceBaseline);
         }
-        builder.field(HYPERPARAMETER_IMPORTANCE.getPreferredName(), hyperparameterImportances);
+        builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
         builder.endObject();
         return builder;
     }

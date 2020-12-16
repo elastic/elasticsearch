@@ -138,6 +138,7 @@ public final class ReservedFieldNames {
             DataCounts.LAST_DATA_TIME.getPreferredName(),
             DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
             DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
+            DataCounts.LOG_TIME.getPreferredName(),
 
             Detector.DETECTOR_INDEX.getPreferredName(),
 

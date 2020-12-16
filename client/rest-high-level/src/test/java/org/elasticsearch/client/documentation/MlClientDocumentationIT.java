@@ -251,6 +251,10 @@ import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
 
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+
     @After
     public void cleanUp() throws IOException {
         new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
@@ -710,6 +714,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-config-set-scroll-size
             datafeedBuilder.setScrollSize(1000); // <1>
             // end::put-datafeed-config-set-scroll-size
+
+            // tag::put-datafeed-config-set-runtime-mappings
+            Map<String, Object> fieldProperties = new HashMap<>();
+            fieldProperties.put("type", "keyword");
+            fieldProperties.put("script", "emit(params._source.agent.toLowerCase())");
+            Map<String, Object> runtimeMappings = new HashMap<>();
+            runtimeMappings.put("agent_lowercase", fieldProperties);
+
+            datafeedBuilder.setRuntimeMappings(runtimeMappings); // <1>
+            // end::put-datafeed-config-set-runtime-mappings
 
             // tag::put-datafeed-request
             PutDatafeedRequest request = new PutDatafeedRequest(datafeedBuilder.build()); // <1>
@@ -1372,7 +1386,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         ForecastJobResponse forecastJobResponse = client.machineLearning().
@@ -1509,7 +1524,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         {
@@ -1778,9 +1794,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             postDataRequest.setResetEnd(null);
             postDataRequest.setResetStart(null);
 
+            // Post data is deprecated, so expect a deprecation warning
+            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute
             PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
             // end::post-data-execute
+            */
 
             // tag::post-data-response
             DataCounts dataCounts = postDataResponse.getDataCounts(); // <1>
@@ -1812,9 +1833,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
+            // Post data is deprecated, so expect a deprecation warning
+            client.machineLearning().postDataAsync(postDataRequest, POST_DATA_OPTIONS, listener);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute-async
             client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::post-data-execute-async
+            */
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

@@ -134,8 +134,8 @@ public class TransportFieldCapabilitiesIndexAction
             for (String field : fieldNames) {
                 MappedFieldType ft = queryShardContext.getFieldType(field);
                 if (ft != null) {
-                    if (indicesService.isMetadataField(queryShardContext.getIndexSettings().getIndexVersionCreated(), field)
-                        || fieldPredicate.test(ft.name())) {
+                    if (queryShardContext.isMetadataField(field)
+                            || fieldPredicate.test(ft.name())) {
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
                             ft.isSearchable(), ft.isAggregatable(), ft.meta());
                         responseMap.put(field, fieldCap);
@@ -178,7 +178,7 @@ public class TransportFieldCapabilitiesIndexAction
         assert req.nowInMillis() != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
-        return searchService.canMatch(searchRequest, queryShardContext);
+        return searchService.queryStillMatchesAfterRewrite(searchRequest, queryShardContext);
     }
 
     private ClusterBlockException checkGlobalBlock(ClusterState state) {

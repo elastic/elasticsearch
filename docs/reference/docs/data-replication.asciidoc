@@ -108,7 +108,8 @@ is as follows:
 . Resolve the read requests to the relevant shards. Note that since most searches will be sent to one or more indices,
    they typically need to read from multiple shards, each representing a different subset of the data.
 . Select an active copy of each relevant shard, from the shard replication group. This can be either the primary or
-   a replica. By default, Elasticsearch will simply round robin between the shard copies.
+   a replica. By default, {es} uses <<search-adaptive-replica,adaptive replica
+   selection>> to select the shard copies.
 . Send shard level read requests to the selected copies.
 . Combine the results and respond. Note that in the case of get by ID look up, only one shard is relevant and this step can be skipped.
 

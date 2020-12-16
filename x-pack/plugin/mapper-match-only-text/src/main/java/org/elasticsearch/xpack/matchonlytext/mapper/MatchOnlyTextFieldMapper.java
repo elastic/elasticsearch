@@ -185,7 +185,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private Query toQuery(Query query, QueryShardContext queryShardContext) {
             Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider = context -> {
-                SourceLookup sourceLookup = new SourceLookup();
+                SourceLookup sourceLookup = queryShardContext.lookup().source();
                 ValueFetcher valueFetcher = valueFetcher(queryShardContext, null);
                 valueFetcher.setNextReader(context);
                 return docID -> {

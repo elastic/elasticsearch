@@ -50,6 +50,15 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
 
         options = heap.determineHeapSettings(configPath(), Collections.singletonList("-Xms4g"));
         assertThat(options, empty());
+
+        options = heap.determineHeapSettings(configPath(), Collections.singletonList("-XX:MaxHeapSize=4g"));
+        assertThat(options, empty());
+
+        options = heap.determineHeapSettings(configPath(), Collections.singletonList("-XX:MinHeapSize=4g"));
+        assertThat(options, empty());
+
+        options = heap.determineHeapSettings(configPath(), Collections.singletonList("-XX:InitialHeapSize=4g"));
+        assertThat(options, empty());
     }
 
     public void testMasterOnlyOptions() {

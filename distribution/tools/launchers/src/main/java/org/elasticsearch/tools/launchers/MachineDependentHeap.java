@@ -38,9 +38,6 @@ import java.util.function.Function;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static org.elasticsearch.tools.launchers.JvmOption.isInitialHeapSpecified;
-import static org.elasticsearch.tools.launchers.JvmOption.isMaxHeapSpecified;
-import static org.elasticsearch.tools.launchers.JvmOption.isMinHeapSpecified;
 
 /**
  * Determines optimal default heap settings based on available system memory and assigned node roles.
@@ -52,6 +49,12 @@ public final class MachineDependentHeap {
     private static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
     private static final int DEFAULT_HEAP_SIZE_MB = 1024;
     private static final String ELASTICSEARCH_YML = "elasticsearch.yml";
+    private static final String[] USER_DEFINED_HEAP_ARGS = new String[] {
+        "-Xmx",
+        "-Xms",
+        "-XX:MaxHeapSize",
+        "-XX:MinHeapSize",
+        "-XX:InitialHeapSize" };
 
     private final SystemMemoryInfo systemMemoryInfo;
 
@@ -67,10 +70,8 @@ public final class MachineDependentHeap {
      * @return final heap options, or an empty collection if user provided heap options are to be used
      * @throws IOException if unable to load elasticsearch.yml
      */
-    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws IOException, InterruptedException {
-        // TODO: this could be more efficient, to only parse final options once
-        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
-        if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
+    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws IOException {
+        if (isHeapExplicitlyConfigured(userDefinedJvmOptions)) {
             // User has explicitly set memory settings so we use those
             return Collections.emptyList();
         }
@@ -91,6 +92,10 @@ public final class MachineDependentHeap {
             // If unable to determine system memory (ex: incompatible jdk version) fallback to defaults
             return options(DEFAULT_HEAP_SIZE_MB);
         }
+    }
+
+    private boolean isHeapExplicitlyConfigured(List<String> userDefinedJvmOptions) {
+        return userDefinedJvmOptions.stream().anyMatch(option -> Arrays.stream(USER_DEFINED_HEAP_ARGS).anyMatch(option::startsWith));
     }
 
     private static List<String> options(int heapSize) {

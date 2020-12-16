@@ -25,7 +25,7 @@ class FieldValueFetcher {
     final DocValueFormat format;
     final IndexFieldData<?> fieldData;
 
-    private FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
+    protected FieldValueFetcher(String name, MappedFieldType fieldType, IndexFieldData<?> fieldData) {
         this.name = name;
         this.fieldType = fieldType;
         this.format = fieldType.docValueFormat(null, null);

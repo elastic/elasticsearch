@@ -70,8 +70,6 @@ import java.util.stream.Collectors;
 /**
  * An indexer for rollup that sorts the buckets from the provided source shard on disk and send them
  * to the target rollup index.
- *
- * TODO: Handle histograms
  */
 class RollupShardIndexer {
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
@@ -125,12 +123,16 @@ class RollupShardIndexer {
             verifyTimestampField(timestampField);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
+            this.groupFieldFetchers = new ArrayList<>();
 
             if (config.getGroupConfig().getTerms() != null) {
-                final String[] groupFields = config.getGroupConfig().getTerms().getFields();
-                this.groupFieldFetchers = FieldValueFetcher.build(queryShardContext, groupFields);
-            } else {
-                this.groupFieldFetchers = Collections.emptyList();
+                this.groupFieldFetchers.addAll(FieldValueFetcher.build(queryShardContext,
+                    config.getGroupConfig().getTerms().getFields()));
+            }
+
+            if (config.getGroupConfig().getHistogram() != null) {
+                this.groupFieldFetchers.addAll(FieldHistogramValueFetcher.build(queryShardContext,
+                    config.getGroupConfig().getHistogram().getFields()));
             }
 
             if (config.getMetricsConfig().size() > 0) {

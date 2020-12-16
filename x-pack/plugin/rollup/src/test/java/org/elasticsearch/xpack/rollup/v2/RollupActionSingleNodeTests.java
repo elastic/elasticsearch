@@ -17,10 +17,14 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -30,6 +34,7 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
@@ -73,15 +78,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "date_1", "type=date",
                 "numeric_1", "type=double",
                 "numeric_2", "type=float",
-                "categorical_1", "type=keyword",
-                "histogram_1", "type=histogram").get();
+                "categorical_1", "type=keyword").get();
     }
 
     public void testTermsGrouping() throws IOException {
         DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
             .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("categorical_1", randomAlphaOfLength(5))
+            .field("categorical_1", randomAlphaOfLength(1))
             .field("numeric_1", randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
@@ -93,13 +97,35 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
         TermsAggregationBuilder termsAggBuilder = new TermsAggregationBuilder("terms");
         termsAggBuilder.field("categorical_1");
+        if (randomBoolean()) {
+            termsAggBuilder.order(BucketOrder.aggregation("max_numeric_1", false));
+        }
         termsAggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_1").field("numeric_1"));
         aggBuilder.subAggregation(termsAggBuilder);
         assertAggregation(aggBuilder);
     }
 
-    public void testHistogramGrouping() {
-        // TODO: implement Histogram support
+    public void testHistogramGrouping() throws IOException {
+        long interval = randomLongBetween(1, 1000);
+        DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("numeric_1", randomDoubleBetween(0.0, 100.0, true))
+            .field("numeric_2", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new GroupConfig(dateHistogramGroupConfig, new HistogramGroupConfig(interval, "numeric_1"), null),
+            Collections.singletonList(new MetricConfig("numeric_2", Collections.singletonList("max"))));
+        bulkIndex(sourceSupplier);
+        rollup(config);
+        assertRollupIndex(config);
+        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
+        HistogramAggregationBuilder histoAggBuilder = new HistogramAggregationBuilder("histo");
+        histoAggBuilder.field("numeric_1");
+        histoAggBuilder.interval(interval);
+        histoAggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_2").field("numeric_2"));
+        aggBuilder.subAggregation(histoAggBuilder);
+        assertAggregation(aggBuilder);
     }
 
     public void testMaxMetric() throws IOException {
@@ -234,21 +260,34 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void assertAggregation(AggregationBuilder builder) {
-        List<Aggregation> indexAggregations = client().prepareSearch(index).addAggregation(builder).get().getAggregations().asList();
-        List<Aggregation> rollupAggregations = client().prepareSearch(rollupIndex).addAggregation(builder).get().getAggregations().asList();
-        assertThat(rollupAggregations.size(), equalTo(indexAggregations.size()));
-        for (int i = 0; i < rollupAggregations.size(); i++) {
-            Aggregation indexAggObj = indexAggregations.get(i);
-            Aggregation rollupAggObj = rollupAggregations.get(i);
+        Aggregations indexAggregations = client().prepareSearch(index).addAggregation(builder).get().getAggregations();
+        Aggregations rollupAggregations = client().prepareSearch(rollupIndex).addAggregation(builder).get().getAggregations();
+        assertAggregations(indexAggregations, rollupAggregations);
+    }
+
+    private void assertAggregations(Aggregations indexAggregations, Aggregations rollupAggregations) {
+        List<Aggregation> indexAggregationsList = indexAggregations.asList();
+        List<Aggregation> rollupAggregationsList = rollupAggregations.asList();
+        assertThat(rollupAggregationsList.size(), equalTo(indexAggregationsList.size()));
+        for (int i = 0; i < rollupAggregationsList.size(); i++) {
+            Aggregation indexAggObj = indexAggregationsList.get(i);
+            Aggregation rollupAggObj = rollupAggregationsList.get(i);
             if (indexAggObj instanceof MultiBucketsAggregation && rollupAggObj instanceof MultiBucketsAggregation) {
                 MultiBucketsAggregation indexAgg = (MultiBucketsAggregation) indexAggObj;
                 MultiBucketsAggregation rollupAgg = (MultiBucketsAggregation) rollupAggObj;
                 assertThat(rollupAgg.getBuckets().size(), equalTo(indexAgg.getBuckets().size()));
-                for (int j = 0; j < rollupAggregations.size(); j++) {
+                for (int j = 0; j < rollupAggregationsList.size(); j++) {
                     assertThat(rollupAgg.getBuckets().get(j).getKey(), equalTo(indexAgg.getBuckets().get(j).getKey()));
                     assertThat(rollupAgg.getBuckets().get(j).getDocCount(), equalTo(indexAgg.getBuckets().get(j).getDocCount()));
+                    assertAggregations(indexAgg.getBuckets().get(j).getAggregations(), rollupAgg.getBuckets().get(j).getAggregations());
                 }
-            } else {
+            } else if (indexAggObj instanceof InternalNumericMetricsAggregation.SingleValue
+                    && rollupAggObj instanceof InternalNumericMetricsAggregation.SingleValue) {
+                InternalNumericMetricsAggregation.SingleValue indexAgg = (InternalNumericMetricsAggregation.SingleValue) indexAggObj;
+                InternalNumericMetricsAggregation.SingleValue rollupAgg = (InternalNumericMetricsAggregation.SingleValue) rollupAggObj;
+                assertThat(rollupAgg.getValueAsString(), equalTo(indexAgg.getValueAsString()));
+            }
+            else {
                 throw new IllegalArgumentException("unsupported aggregation type [" + indexAggObj.getType() + "]");
             }
         }

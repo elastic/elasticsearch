@@ -43,10 +43,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
@@ -210,7 +210,7 @@ public class TransportRollupAction
 
         if (histogramGroupConfig != null) {
             for (String field : histogramGroupConfig.getFields()) {
-                builder.startObject(field).field("type", HistogramFieldMapper.CONTENT_TYPE).endObject();
+                builder.startObject(field).field("type", NumberFieldMapper.NumberType.DOUBLE.typeName()).endObject();
             }
         }
 

@@ -190,7 +190,7 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
-        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), NEW_FEATURES_VERSION);
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), Version.CURRENT);
     }
 
     public static String getDefaultBackingIndexName(String dataStreamName, long generation, Version minNodeVersion) {

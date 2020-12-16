@@ -285,7 +285,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *    }
      */
     public void testUnsignedLongFieldType() throws IOException {
-        //randomBigInteger() can produce a value that fits into a Long, which is what testField() will then recover
+        // randomBigInteger() can produce a value that fits into a Long, which is what testField() will then recover
         testField("unsigned_long", BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong())));
     }
 

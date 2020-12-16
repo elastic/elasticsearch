@@ -543,6 +543,22 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=week}, {v=date}, {v=date}, {v=Z}, {v=2018-09-04T00:00:00.000Z}]", sc.script().params().toString());
     }
 
+    public void testTranslateDateFormat_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE DATE_FORMAT(date, '%Y_%m_%d') = '2018_09_04'");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = translate(condition);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.dateFormat(" +
+                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+            sc.script().toString());
+        assertEquals("[{v=date}, {v=%Y_%m_%d}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
+    }
+
     public void testTranslateDateTrunc_WhereClause_Painless() {
         LogicalPlan p = plan("SELECT int FROM test WHERE DATE_TRUNC('month', date) > '2018-09-04'::date");
         assertTrue(p instanceof Project);

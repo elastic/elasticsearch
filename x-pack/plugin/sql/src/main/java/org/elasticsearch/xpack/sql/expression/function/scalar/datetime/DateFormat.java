@@ -35,6 +35,11 @@ public class DateFormat extends BaseDateTimeFormatFunction {
     }
 
     @Override
+    protected String scriptMethodName() {
+        return "dateFormat"; 
+    }
+
+    @Override
     protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
         return new DateFormat(source(), timestamp, pattern, zoneId());
     }

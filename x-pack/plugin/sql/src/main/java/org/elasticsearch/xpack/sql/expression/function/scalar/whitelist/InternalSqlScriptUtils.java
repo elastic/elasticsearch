@@ -273,6 +273,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (Integer) DateDiffProcessor.process(dateField, asDateTime(dateTime1), asDateTime(dateTime2) , ZoneId.of(tzId));
     }
 
+    public static String dateFormat(Object dateTime, String pattern, String tzId) {
+        return (String) Formatter.DATE_FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
     public static Object dateTrunc(String truncateTo, Object dateTimeOrInterval, String tzId) {
         if (dateTimeOrInterval instanceof IntervalDayTime || dateTimeOrInterval instanceof IntervalYearMonth) {
            return DateTruncProcessor.process(truncateTo, dateTimeOrInterval, ZoneId.of(tzId));

@@ -301,25 +301,10 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         verify.accept(result);
     }
 
-    static MappedFieldType[] withJoinFields(MappedFieldType... fieldTypes) {
-        MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 3];
-        System.arraycopy(fieldTypes, 0, result, 0, fieldTypes.length);
-
-        int i = fieldTypes.length;
-        result[i++] = new MetaJoinFieldMapper.MetaJoinFieldType("join_field");
-        result[i++] = new ParentJoinFieldMapper.Builder("join_field").addRelation(PARENT_TYPE, Collections.singleton(CHILD_TYPE))
-            .build(new ContentPath(0))
-            .fieldType();
-        result[i++] = new ParentIdFieldMapper.ParentIdFieldType("join_field#" + PARENT_TYPE, false);
-        assert i == result.length;
-        return result;
-    }
-
     @Override
     protected List<SearchPlugin> getSearchPlugins() {
         return Collections.singletonList(new ParentJoinPlugin());
     }
-
 
     static MappedFieldType[] withJoinFields(MappedFieldType... fieldTypes) {
         MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 3];

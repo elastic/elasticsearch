@@ -32,8 +32,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.threadpool.ExecutorBuilder;
-import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -90,7 +88,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final int CURRENT_ROLLUP_VERSION = ROLLUP_VERSION_V2;
 
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
-    public static final String SCHEDULE_THREAD_POOL_NAME = RollupField.NAME + "_scheduler";
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
 
@@ -170,18 +167,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
         }
 
         return actions;
-    }
-
-    @Override
-    public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
-        if (transportClientMode) {
-            return emptyList();
-        }
-
-        FixedExecutorBuilder indexing = new FixedExecutorBuilder(settings, Rollup.TASK_THREAD_POOL_NAME,
-                4, 4, "xpack.rollup.task_thread_pool");
-
-        return Collections.singletonList(indexing);
     }
 
     @Override

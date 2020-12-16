@@ -58,7 +58,6 @@ class ClientTransformIndexer extends TransformIndexer {
 
     ClientTransformIndexer(
         ThreadPool threadPool,
-        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
         AtomicReference<IndexerState> initialState,
@@ -77,7 +76,6 @@ class ClientTransformIndexer extends TransformIndexer {
     ) {
         super(
             ExceptionsHelper.requireNonNull(threadPool, "threadPool"),
-            executorName,
             transformsConfigManager,
             checkpointProvider,
             auditor,

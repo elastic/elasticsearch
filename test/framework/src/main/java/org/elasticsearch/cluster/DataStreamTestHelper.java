@@ -128,13 +128,25 @@ public final class DataStreamTestHelper {
      * @param indexNames  The names of indices to create that do not back any data streams
      */
     public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames) {
+        return getClusterStateWithDataStreams(dataStreams, indexNames, 1);
+    }
+
+    /**
+     * Constructs {@code ClusterState} with the specified data streams and indices.
+     *
+     * @param dataStreams The names of the data streams to create with their respective number of backing indices
+     * @param indexNames  The names of indices to create that do not back any data streams
+     * @param replicas number of replicas
+     */
+    public static ClusterState getClusterStateWithDataStreams(List<Tuple<String, Integer>> dataStreams, List<String> indexNames,
+                                                              int replicas) {
         Metadata.Builder builder = Metadata.builder();
 
         List<IndexMetadata> allIndices = new ArrayList<>();
         for (Tuple<String, Integer> dsTuple : dataStreams) {
             List<IndexMetadata> backingIndices = new ArrayList<>();
             for (int backingIndexNumber = 1; backingIndexNumber <= dsTuple.v2(); backingIndexNumber++) {
-                backingIndices.add(createIndexMetadata(getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber), true));
+                backingIndices.add(createIndexMetadata(getDefaultBackingIndexName(dsTuple.v1(), backingIndexNumber), true, replicas));
             }
             allIndices.addAll(backingIndices);
 
@@ -149,7 +161,7 @@ public final class DataStreamTestHelper {
         }
 
         for (String indexName : indexNames) {
-            allIndices.add(createIndexMetadata(indexName, false));
+            allIndices.add(createIndexMetadata(indexName, false, replicas));
         }
 
         for (IndexMetadata index : allIndices) {
@@ -159,10 +171,10 @@ public final class DataStreamTestHelper {
         return ClusterState.builder(new ClusterName("_name")).metadata(builder).build();
     }
 
-    private static IndexMetadata createIndexMetadata(String name, boolean hidden) {
+    private static IndexMetadata createIndexMetadata(String name, boolean hidden, int replicas) {
         Settings.Builder b = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).put("index.hidden", hidden);
 
-        return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(1).build();
+        return IndexMetadata.builder(name).settings(b).numberOfShards(1).numberOfReplicas(replicas).build();
     }
 
     public static String backingIndexPattern(String dataStreamName, long generation) {

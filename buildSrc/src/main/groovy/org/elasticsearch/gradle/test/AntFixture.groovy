@@ -231,6 +231,7 @@ class AntFixture extends AntTask implements Fixture {
         stop.configure {
             it.fixture = fixture
         }
+        fixture.finalizedBy(stop)
         return stop
     }
 

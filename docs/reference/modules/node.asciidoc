@@ -176,7 +176,7 @@ least two of which are not voting-only nodes. Such a cluster will be able to
 elect a master node even if one of the nodes fails.
 
 Since voting-only nodes never act as the cluster's elected master, they may
-require require less heap and a less powerful CPU than the true master nodes.
+require less heap and a less powerful CPU than the true master nodes.
 However all master-eligible nodes, including voting-only nodes, require
 reasonably fast persistent storage and a reliable and low-latency network
 connection to the rest of the cluster, since they are on the critical path for

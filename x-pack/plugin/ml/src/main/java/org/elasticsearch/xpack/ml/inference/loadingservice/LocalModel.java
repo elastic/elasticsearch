@@ -56,6 +56,7 @@ public class LocalModel implements Closeable {
     private final License.OperationMode licenseLevel;
     private final CircuitBreaker trainedModelCircuitBreaker;
     private final AtomicLong referenceCount;
+    private final long modelSize;
 
     LocalModel(String modelId,
                String nodeId,
@@ -67,6 +68,7 @@ public class LocalModel implements Closeable {
                TrainedModelStatsService trainedModelStatsService,
                CircuitBreaker trainedModelCircuitBreaker) {
         this.trainedModelDefinition = trainedModelDefinition;
+        this.modelSize = trainedModelDefinition.ramBytesUsed();
         this.modelId = modelId;
         this.fieldNames = new HashSet<>(input.getFieldNames());
         // the ctor being called means a new instance was created.
@@ -82,7 +84,7 @@ public class LocalModel implements Closeable {
     }
 
     long ramBytesUsed() {
-        return trainedModelDefinition.ramBytesUsed();
+        return modelSize;
     }
 
     public String getModelId() {

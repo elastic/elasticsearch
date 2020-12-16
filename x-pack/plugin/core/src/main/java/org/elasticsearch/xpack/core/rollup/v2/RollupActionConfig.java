@@ -55,6 +55,8 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     public RollupActionConfig(final GroupConfig groupConfig, final List<MetricConfig> metricsConfig) {
         if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
             throw new IllegalArgumentException("At least one grouping or metric must be configured");
+        } else if (metricsConfig == null || metricsConfig.isEmpty()) {
+            throw new IllegalArgumentException("At least one metric must be configured");
         }
         this.groupConfig = groupConfig;
         this.metricsConfig = metricsConfig != null ? metricsConfig : Collections.emptyList();

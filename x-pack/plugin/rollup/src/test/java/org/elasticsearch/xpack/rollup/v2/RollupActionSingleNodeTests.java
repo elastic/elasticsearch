@@ -17,9 +17,10 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.InternalDateHistogram;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
 import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -75,37 +77,29 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "histogram_1", "type=histogram").get();
     }
 
-    public void testDateHistogramGrouping() throws IOException {
+    public void testTermsGrouping() throws IOException {
         DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
             .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(5))
             .field("numeric_1", randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
-            new GroupConfig(dateHistogramGroupConfig, null, null),
-            Collections.emptyList());
+            new GroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder("date");
-        aggBuilder.field("date_1");
-        if (dateHistogramGroupConfig instanceof DateHistogramGroupConfig.FixedInterval) {
-            aggBuilder.fixedInterval(dateHistogramGroupConfig.getInterval());
-        } else if (dateHistogramGroupConfig instanceof DateHistogramGroupConfig.CalendarInterval) {
-            aggBuilder.calendarInterval(dateHistogramGroupConfig.getInterval());
-        } else {
-            aggBuilder.interval(dateHistogramGroupConfig.getInterval().estimateMillis());
-            assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
-        }
-        assertAggregation(aggBuilder);
-    }
-
-    public void testTermsGrouping() {
-
+        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
+        TermsAggregationBuilder termsAggBuilder = new TermsAggregationBuilder("terms");
+        termsAggBuilder.field("categorical_1");
+        termsAggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_1").field("numeric_1"));
+        aggBuilder.subAggregation(termsAggBuilder);
+        assertAggregation(termsAggBuilder);
     }
 
     public void testHistogramGrouping() {
-
+        // TODO: implement Histogram support
     }
 
     public void testMaxMetric() throws IOException {
@@ -174,10 +168,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
         aggBuilder.subAggregation(new ValueCountAggregationBuilder("avg_numeric_1").field("numeric_1"));
         assertAggregation(aggBuilder);
-    }
-
-    public void testAllGroupingAllMetrics() {
-
     }
 
     private DateHistogramAggregationBuilder dateHistogramBuilder(String name, DateHistogramGroupConfig dateHistogramGroupConfig) {
@@ -250,14 +240,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         for (int i = 0; i < rollupAggregations.size(); i++) {
             Aggregation indexAggObj = indexAggregations.get(i);
             Aggregation rollupAggObj = rollupAggregations.get(i);
-            if (indexAggObj instanceof InternalDateHistogram && rollupAggObj instanceof InternalDateHistogram) {
-                InternalDateHistogram indexAgg = (InternalDateHistogram) indexAggObj;
-                InternalDateHistogram rollupAgg = (InternalDateHistogram) rollupAggObj;
+            if (indexAggObj instanceof MultiBucketsAggregation && rollupAggObj instanceof MultiBucketsAggregation) {
+                MultiBucketsAggregation indexAgg = (MultiBucketsAggregation) indexAggObj;
+                MultiBucketsAggregation rollupAgg = (MultiBucketsAggregation) rollupAggObj;
                 assertThat(rollupAgg.getBuckets().size(), equalTo(indexAgg.getBuckets().size()));
                 for (int j = 0; j < rollupAggregations.size(); j++) {
                     assertThat(rollupAgg.getBuckets().get(j).getKey(), equalTo(indexAgg.getBuckets().get(j).getKey()));
                     assertThat(rollupAgg.getBuckets().get(j).getDocCount(), equalTo(indexAgg.getBuckets().get(j).getDocCount()));
                 }
+            } else {
+                throw new IllegalArgumentException("unsupported aggregation type [" + indexAggObj.getType() + "]");
             }
         }
     }

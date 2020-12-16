@@ -48,4 +48,11 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
             new RollupActionConfig(null, randomBoolean() ? null : emptyList()));
         assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
     }
+
+    public void testEmptyMetrics() {
+        final GroupConfig groupConfig = ConfigTestHelpers.randomGroupConfig(random());
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            new RollupActionConfig(groupConfig, randomBoolean() ? null : emptyList()));
+        assertThat(e.getMessage(), equalTo("At least one metric must be configured"));
+    }
 }

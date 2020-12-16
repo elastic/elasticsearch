@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
@@ -448,7 +449,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
                 assert size > 0;
                 newIndices.put(newIndex, size);
-                dataStream = dataStream.rollover(newIndex.getIndex());
+                dataStream = dataStream.rollover(newIndex.getIndex(), Version.CURRENT);
             }
 
             return new SingleForecast(newIndices, dataStream);

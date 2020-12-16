@@ -121,7 +121,7 @@ tasks.register("integTestSecure", RestIntegTestTask).configure {
   )
   onlyIf { BuildParams.inFipsJvm == false }
 }
-tasks.named("check").configure { depends("integTestSecure") }
+tasks.named("check").configure { dependsOn("integTestSecure") }
 
 testClusters.configureEach {
   testDistribution = 'DEFAULT'

@@ -39,6 +39,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -66,33 +67,47 @@ public class TransportClusterUpdateSettingsAction extends
 
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
-        // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        // also we allow to remove archived.* settings together with blocks
-        boolean hasOtherSettings = false;
-        for (String settingsKey : request.transientSettings().keySet()) {
-            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(settingsKey)
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(settingsKey)
-                || (settingsKey.startsWith(ARCHIVED_SETTINGS_PREFIX) && request.transientSettings().get(settingsKey) == null)) {
-                continue;
-            } else {
-                hasOtherSettings = true;
-            }
-        }
-
-        for (String settingsKey : request.persistentSettings().keySet()) {
-            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(settingsKey)
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(settingsKey)
-                || (settingsKey.startsWith(ARCHIVED_SETTINGS_PREFIX) && request.persistentSettings().get(settingsKey) == null)) {
-                continue;
-            } else {
-                hasOtherSettings = true;
-            }
-        }
-
-        if (!hasOtherSettings) {
+        if (checkNeedToSkipBlock(request.transientSettings()) && checkNeedToSkipBlock(request.persistentSettings())) {
+            logger.debug("Skip checking cluster block.");
             return null;
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    /**skip check block if:
+     * Only at least one of cluster.blocks.read_only or cluster.blocks.read_only_allow_delete is being cleared (set to null or false).
+     * Or all of the following are true:
+     * 1. At least one of cluster.blocks.read_only or cluster.blocks.read_only_allow_delete is being cleared (set to null or false).
+     * 2. Neither cluster.blocks.read_only nor cluster.blocks.read_only_allow_delete is being set to true.
+     * 3. The only other settings in this update are archived ones being set to null.
+     * @param settings persistent or transient settings
+     * @return true skip block
+     */
+    private boolean checkNeedToSkipBlock(final Settings settings) {
+        boolean clearReadOnly = false;
+        boolean clearArchived = false;
+        for (String settingsKey : settings.keySet()) {
+            if ((Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(settingsKey)
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(settingsKey))) {
+                if (settings.get(settingsKey) == null || settings.get(settingsKey).equals("false")) {
+                    clearReadOnly = true;
+                } else {
+                    // set to "true" need to check block
+                    return false;
+                }
+            } else if (settingsKey.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
+                if (settings.get(settingsKey) == null) {
+                    clearArchived = true;
+                } else {
+                    // other archived setting values need to check block
+                    return false;
+                }
+            } else {
+                // need to check block other settings
+                return false;
+            }
+        }
+        return clearArchived && clearReadOnly || clearReadOnly;
     }
 
     @Override

@@ -319,7 +319,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertTrue(ex.getMessage().contains("unknown setting [archived.this.is.unknown]"));
         }
 
-        // can only remove archived settings if cluster is read only
+        // fail to clear archived settings with non-archived settings
         try {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
@@ -328,8 +328,26 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         } catch (ClusterBlockException ex) {
             assertTrue(ex.getMessage().contains("cluster read-only"));
         }
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(Settings.builder().putNull("archived.*")).get());
+
+        // fail to clear archived settings due to cluster read only block
+        try {
+            assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("archived.*")).get());
+            fail("should fail due to cluster read only block.");
+        } catch (ClusterBlockException ex) {
+            assertTrue(ex.getMessage().contains("cluster read-only"));
+        }
+
+        // we can clear read-only block with archived settings together
+        if (randomBoolean()) {
+            assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("archived.*"))
+                .setPersistentSettings(Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())).get());
+        } else {
+            assertAcked(client().admin().cluster().prepareUpdateSettings()
+                .setPersistentSettings(Settings.builder().putNull("archived.*"))
+                .setPersistentSettings(Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "false")).get());
+        }
 
         // now we can remove read only blocks
         setClusterReadOnly(false);

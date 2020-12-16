@@ -20,14 +20,14 @@ POST /my-index-000001/_rollup/my-rollup-index
     },
     "terms": {
       "fields": [
-        "my-keyword-field",
-        "my-other-keyword-field"
+        "http.request.method",
+        "user.id"
       ]
     }
   },
   "metrics": [
     {
-      "field": "my-numeric-field",
+      "field": "http.response.bytes",
       "metrics": [
         "min",
         "max",

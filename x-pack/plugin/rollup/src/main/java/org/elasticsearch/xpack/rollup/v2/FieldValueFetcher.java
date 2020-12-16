@@ -56,7 +56,7 @@ class FieldValueFetcher {
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
             if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field [" + fieldType.name() + "]");
+                throw new IllegalArgumentException("Unknown field [" + field + "]");
             }
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             fetchers.add(new FieldValueFetcher(field, fieldType, fieldData));

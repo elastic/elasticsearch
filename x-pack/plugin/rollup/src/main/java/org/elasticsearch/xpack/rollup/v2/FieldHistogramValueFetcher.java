@@ -63,7 +63,7 @@ class FieldHistogramValueFetcher extends FieldValueFetcher {
         for (String field : histogramGroupConfig.getFields()) {
             MappedFieldType fieldType = context.getFieldType(field);
             if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field [" + fieldType.name() + "]");
+                throw new IllegalArgumentException("Unknown field [" + field + "]");
             }
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             fetchers.add(new FieldHistogramValueFetcher(field, fieldType, fieldData, histogramGroupConfig.getInterval()));

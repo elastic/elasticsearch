@@ -260,4 +260,24 @@ public class PrivilegeTests extends ESTestCase {
 
         }
     }
+
+    public void testIngestPipelinePrivileges() {
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.MANAGE_INGEST_PIPELINES, "cluster:admin/ingest/pipeline/get",
+                "cluster:admin/ingest/pipeline/put",
+                "cluster:admin/ingest/pipeline/delete",
+                "cluster:admin/ingest/pipeline/simulate");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.MANAGE_INGEST_PIPELINES, "cluster:admin/whatever");
+        }
+
+        {
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_INGEST_PIPELINES,
+                "cluster:admin/ingest/pipeline/get",
+                "cluster:admin/ingest/pipeline/simulate");
+            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_INGEST_PIPELINES,"cluster:admin/ingest/pipeline/put",
+                "cluster:admin/ingest/pipeline/delete",
+                "cluster:admin/whatever");
+
+        }
+    }
 }

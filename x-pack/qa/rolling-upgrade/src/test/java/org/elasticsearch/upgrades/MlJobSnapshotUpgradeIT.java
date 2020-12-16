@@ -274,7 +274,19 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     protected PostDataResponse postData(String jobId, String data) throws IOException {
-        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), RequestOptions.DEFAULT);
+        // Post data is deprecated, so a deprecation warning is possible (depending on the old version)
+        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    // No warning is OK - it means we hit an old node where post data is not deprecated
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                }
+                return warnings.get(0).equals("Posting data directly to anomaly detection jobs is deprecated, " +
+                    "in a future major version it will be compulsory to use a datafeed") == false;
+            }).build();
+        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), postDataOptions);
     }
 
     protected FlushJobResponse flushJob(String jobId) throws IOException {

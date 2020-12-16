@@ -6,6 +6,8 @@
 <titleabbrev>Post data to jobs</titleabbrev>
 ++++
 
+deprecated::[7.11.0, "Posting data directly to anomaly detection jobs is deprecated, in a future major version a <<ml-api-datafeed-endpoint,{dfeed}>> will be required."]
+
 Sends data to an anomaly detection job for analysis.
 
 [[ml-post-data-request]]

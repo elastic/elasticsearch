@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -51,12 +50,13 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ProactiveStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -76,9 +76,15 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
     private final List<AutoscalingExtension> autoscalingExtensions;
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
+    private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
     public Autoscaling() {
+        this(new AutoscalingLicenseChecker());
+    }
+
+    Autoscaling(final AutoscalingLicenseChecker autoscalingLicenseChecker) {
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
+        this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
     @Override
@@ -96,7 +102,7 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.clusterService.set(clusterService);
-        return List.of(new AutoscalingCalculateCapacityService.Holder(this));
+        return List.of(new AutoscalingCalculateCapacityService.Holder(this), autoscalingLicenseChecker);
     }
 
     @Override
@@ -141,6 +147,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 ReactiveStorageDeciderService.NAME,
                 ReactiveStorageDeciderService.ReactiveReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                ProactiveStorageDeciderService.NAME,
+                ProactiveStorageDeciderService.ProactiveReason::new
             )
         );
     }
@@ -150,10 +161,6 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         return List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
         );
-    }
-
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
     }
 
     @Override
@@ -170,6 +177,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 clusterService.get().getSettings(),
                 clusterService.get().getClusterSettings(),
                 allocationDeciders.get()
+            ),
+            new ProactiveStorageDeciderService(
+                clusterService.get().getSettings(),
+                clusterService.get().getClusterSettings(),
+                allocationDeciders.get()
             )
         );
     }
@@ -178,4 +190,5 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         this.allocationDeciders.set(allocationDeciders);
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
+
 }

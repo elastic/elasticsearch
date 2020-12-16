@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.xpack.core.transform.TransformField;
@@ -154,7 +155,7 @@ public final class TransformIndex {
         sortedMappingsEntries.sort(comparingByKey());
         Map<String, Object> fieldMappings = new HashMap<>();
         for (Map.Entry<String, String> entry : sortedMappingsEntries) {
-            String[] parts = entry.getKey().split("\\.");
+            String[] parts = Strings.tokenizeToStringArray(entry.getKey(), ".");
             String type = entry.getValue();
             Map<String, Object> current = fieldMappings;
             current = diveInto(current, parts[0]);

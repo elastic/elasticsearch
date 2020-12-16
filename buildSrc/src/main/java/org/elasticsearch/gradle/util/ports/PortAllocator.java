@@ -20,19 +20,6 @@
 package org.elasticsearch.gradle.util.ports;
 
 public interface PortAllocator {
-    /**
-     * Assign and reserve a port
-     *
-     * @return the port assigned
-     */
-    int assignPort();
-
-    /**
-     * Release a previously assigned port
-     *
-     * @param port the port to deallocate
-     */
-    void releasePort(int port);
 
     /**
      * Assign a range of ports

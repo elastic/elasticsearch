@@ -228,7 +228,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mapperServiceMock();
+        MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(mapperService.indexAnalyzer(anyString(), any())).thenReturn(Lucene.STANDARD_ANALYZER); // for significant text
@@ -341,13 +341,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         .build(),
                 Settings.EMPTY
         );
-    }
-
-    /**
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected MapperService mapperServiceMock() {
-        return mock(MapperService.class);
     }
 
     /**

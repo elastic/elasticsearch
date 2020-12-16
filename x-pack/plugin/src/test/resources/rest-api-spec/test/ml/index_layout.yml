@@ -4,6 +4,10 @@ setup:
 ---
 "Test CRUD on two jobs in shared index":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
       ml.put_job:
         job_id: index-layout-job
@@ -58,6 +62,8 @@ setup:
         job_id: index-layout-job2
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: index-layout-job
         body: >
@@ -65,6 +71,8 @@ setup:
           {"airline":"JZA","responsetime":"990.4628","sourcetype":"farequote","time":"1403481700"}
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: index-layout-job2
         body: >
@@ -341,6 +349,10 @@ setup:
 ---
 "Test unrelated index":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
       ml.put_job:
         job_id: index-layout-job
@@ -368,6 +380,8 @@ setup:
         job_id: index-layout-job
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: index-layout-job
         body: >
@@ -649,6 +663,10 @@ setup:
 ---
 "Test force close does not create state":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -680,6 +698,8 @@ setup:
         job_id: index-layout-force-close-job
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: index-layout-force-close-job
         body: >

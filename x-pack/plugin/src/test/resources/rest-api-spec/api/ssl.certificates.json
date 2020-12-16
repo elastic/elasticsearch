@@ -5,6 +5,7 @@
       "description":"Retrieves information about the X.509 certificates used to encrypt communications in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

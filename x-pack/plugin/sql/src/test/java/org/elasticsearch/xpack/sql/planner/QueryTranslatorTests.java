@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -84,17 +85,19 @@ import org.junit.BeforeClass;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
+import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -153,7 +156,7 @@ public class QueryTranslatorTests extends ESTestCase {
         }
 
         private LogicalPlan parameterizedSql(String sql, SqlTypedParamValue... params) {
-            return analyzer.analyze(parser.createStatement(sql, Arrays.asList(params), DateUtils.UTC), true);
+            return analyzer.analyze(parser.createStatement(sql, asList(params), DateUtils.UTC), true);
         }
     }
 
@@ -1048,7 +1051,7 @@ public class QueryTranslatorTests extends ESTestCase {
         assertFalse(bq.isAnd());
         assertTrue(bq.left() instanceof RangeQuery);
         assertTrue(bq.right() instanceof RangeQuery);
-        List<Tuple<String, RangeQuery>> tuples = Arrays.asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
+        List<Tuple<String, RangeQuery>> tuples = asList(new Tuple<>(dates[0], (RangeQuery)bq.left()),
             new Tuple<>(dates[1], (RangeQuery) bq.right()));
 
         for (Tuple<String, RangeQuery> t: tuples) {
@@ -2442,5 +2445,67 @@ public class QueryTranslatorTests extends ESTestCase {
 
         test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
         test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
+    }
+
+    // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // and SUM(all nulls)
+    public void testReplaceSumWithStats() {
+        List<String> testCases = asList(
+            "SELECT keyword, SUM(int) FROM test GROUP BY keyword",
+            "SELECT SUM(int) FROM test",
+            "SELECT * FROM (SELECT some.string, keyword, int FROM test) PIVOT (SUM(int) FOR keyword IN ('a', 'b'))");
+        for (String testCase : testCases) {
+            PhysicalPlan physicalPlan = optimizeAndPlan(testCase);
+            assertEquals(EsQueryExec.class, physicalPlan.getClass());
+            EsQueryExec eqe = (EsQueryExec) physicalPlan;
+            assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("{\"stats\":{\"field\":\"int\"}}"));
+        }
+    }
+
+    public void testAddMissingEqualsToBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test WHERE bool");
+        assertTrue(p instanceof Project);
+
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+
+        Expression condition = ((Filter) p).condition();
+        assertTrue(condition instanceof Equals);
+        Equals eq = (Equals) condition;
+
+        assertTrue(eq.left() instanceof FieldAttribute);
+        assertEquals("bool", ((FieldAttribute) eq.left()).name());
+
+        assertTrue(eq.right() instanceof Literal);
+        assertEquals(TRUE, eq.right());
+    }
+
+    public void testAddMissingEqualsToNestedBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test " +
+            "WHERE int > 1 and (bool or int < 2) or (int = 3 and bool) or (int = 4 and bool = false) or bool");
+        LogicalPlan expectedPlan = plan("SELECT bool FROM test " +
+            "WHERE int > 1 and (bool = true or int < 2) or (int = 3 and bool = true) or (int = 4 and bool = false) or bool = true");
+
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+
+        Expression expectedCondition = ((Filter) ((Project) expectedPlan).child()).condition();
+
+        List<Expression> expectedFields = expectedCondition.collect(x -> x instanceof FieldAttribute);
+        Set<Expression> expectedBools = expectedFields.stream()
+            .filter(x -> ((FieldAttribute) x).name().equals("bool")).collect(Collectors.toSet());
+        assertEquals(1, expectedBools.size());
+        Set<Expression> expectedInts = expectedFields.stream()
+            .filter(x -> ((FieldAttribute) x).name().equals("int")).collect(Collectors.toSet());
+        assertEquals(1, expectedInts.size());
+
+        condition = condition
+            .transformDown(x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x, FieldAttribute.class)
+            .transformDown(x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x , FieldAttribute.class);
+
+        assertEquals(expectedCondition, condition);
     }
 }

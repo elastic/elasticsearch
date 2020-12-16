@@ -101,8 +101,8 @@ setup:
   - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
   - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
-  - match: { generated_dest_index.mappings.properties.time\.max.type: "date" }
-  - match: { generated_dest_index.mappings.properties.time\.min.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time.properties.max.type: "date" }
+  - match: { generated_dest_index.mappings.properties.time.properties.min.type: "date" }
 
   - do:
       ingest.put_pipeline:

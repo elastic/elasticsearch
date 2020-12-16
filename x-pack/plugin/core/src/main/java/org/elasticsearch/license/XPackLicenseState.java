@@ -108,7 +108,9 @@ public class XPackLicenseState {
 
         SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
 
-        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true);
+        OPERATOR_PRIVILEGES(OperationMode.ENTERPRISE, true),
+
+        AUTOSCALING(OperationMode.ENTERPRISE, true);
 
         final OperationMode minimumOperationMode;
         final boolean needsActive;

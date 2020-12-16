@@ -26,14 +26,14 @@
         body:
           '@timestamp': '2020-12-12'
           foo: bar
-  - match: {_index: .ds-logs-foobar-000001}
+  - match: {_index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/"}
 
   - do:
       search:
         index: logs-foobar
         body: { query: { match_all: {} } }
   - length:   { hits.hits: 1  }
-  - match: { hits.hits.0._index: .ds-logs-foobar-000001 }
+  - match: { hits.hits.0._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { hits.hits.0._source.foo: 'bar' }
 
   - do:
@@ -74,10 +74,16 @@
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       catch: bad_request
       indices.clone:
-        index: ".ds-simple-data-stream1-000001"
+        index: $idx0name
         target: "target"
         wait_for_active_shards: 1
         master_timeout: 10s
@@ -112,10 +118,16 @@
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       catch: bad_request
       indices.shrink:
-        index: ".ds-simple-data-stream1-000001"
+        index: $idx0name
         target: "target"
         wait_for_active_shards: 1
         master_timeout: 10s
@@ -152,7 +164,7 @@
   - do:
       catch: bad_request
       indices.close:
-        index: ".ds-simple-data-stream1-000001"
+        index: ".ds-simple-data-stream1-*000001"
 
   - do:
       indices.delete_data_stream:
@@ -180,10 +192,16 @@
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       catch: bad_request
       indices.split:
-        index: ".ds-simple-data-stream1-000001"
+        index: $idx0name
         target: "target"
         wait_for_active_shards: 1
         master_timeout: 10s
@@ -244,7 +262,7 @@
   - match: { items.0.index.error.type: illegal_argument_exception }
   - match: { items.0.index.error.reason: "only write ops with an op_type of create are allowed in data streams" }
   - match: { items.1.create.result: created }
-  - match: { items.1.create._index: .ds-logs-foobar-000001 }
+  - match: { items.1.create._index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: { items.2.index.status: 400 }
   - match: { items.2.index.error.type: illegal_argument_exception }
   - match: { items.2.index.error.reason: "only write ops with an op_type of create are allowed in data streams" }

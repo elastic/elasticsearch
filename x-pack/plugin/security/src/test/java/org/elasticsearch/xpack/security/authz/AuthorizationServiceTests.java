@@ -145,6 +145,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
@@ -387,6 +388,21 @@ public class AuthorizationServiceTests extends ESTestCase {
                 authzInfoRoles(new String[] { SystemUser.ROLE_NAME }));
         }
 
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationForSecurityChange() {
+        final Authentication authentication = createAuthentication(new User("user", "manage_security_role"));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        RoleDescriptor role = new RoleDescriptor("manage_security_role", new String[]{ClusterPrivilegeResolver.MANAGE_SECURITY.name()},
+                null,null, null, null, null, null);
+        roleMap.put("manage_security_role", role);
+        for (String action : LoggingAuditTrail.SECURITY_CHANGE_ACTIONS) {
+            TransportRequest request = mock(TransportRequest.class);
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+                    authzInfoRoles(new String[]{role.getName()}));
+        }
         verifyNoMoreInteractions(auditTrail);
     }
 

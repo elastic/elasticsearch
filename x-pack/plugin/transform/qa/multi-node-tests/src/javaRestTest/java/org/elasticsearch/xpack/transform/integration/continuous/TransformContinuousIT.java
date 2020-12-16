@@ -151,6 +151,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         deletePipeline(ContinuousTestCase.INGEST_PIPELINE);
     }
 
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/66410")
     public void testContinousEvents() throws Exception {
         String sourceIndexName = ContinuousTestCase.CONTINUOUS_EVENTS_SOURCE_INDEX;
         DecimalFormat numberFormat = new DecimalFormat("000", new DecimalFormatSymbols(Locale.ROOT));
@@ -337,8 +338,9 @@ public class TransformContinuousIT extends ESRestTestCase {
                 if (dateType.equals("date_nanos")) {
                     builder.field("format", "strict_date_optional_time_nanos");
                 }
-                builder.endObject()
-                    .startObject("event")
+                builder.endObject();
+
+                builder.startObject("event")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
@@ -355,9 +357,66 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject()
                     .startObject("some-timestamp")
                     .field("type", dateType)
+                    .endObject();
+
+                builder.endObject(); // properties
+
+                // add some runtime fields
+                builder.startObject("runtime");
+
+                builder.startObject("metric-rt-2x")
+                    .field("type", "long")
+                    .startObject("script")
+                    .field("source", "if (params._source.metric != null) {emit(params._source.metric * 2)}")
                     .endObject()
+                    .endObject()
+                    .startObject("event-upper")
+                    .field("type", "keyword")
+                    .startObject("script")
+                    .field("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}")
+                    .endObject()
+                    .endObject()
+                    .startObject("timestamp-at-runtime")
+                    .field("type", "date")
+                    .startObject("script")
+                    .field("source", "emit(parse(params._source.get('timestamp')))")
+                    .endObject()
+                    .endObject()
+                    .startObject("metric-timestamp-5m-earlier")
+                    .field("type", "date")
+                    .startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value.minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                    )
+                    .endObject()
+                    .endObject()
+                    .startObject("some-timestamp-10m-earlier")
+                    .field("type", "date")
+                    .startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value.minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                    )
                     .endObject()
                     .endObject();
+
+                // random overlay of existing field
+                if (randomBoolean()) {
+                    if (randomBoolean()) {
+                        builder.startObject("metric").field("type", "long").endObject();
+                    } else {
+                        builder.startObject("metric")
+                            .field("type", "long")
+                            .startObject("script")
+                            .field("source", "if (params._source.metric != null) {emit(params._source.metric * 3)}")
+                            .endObject()
+                            .endObject();
+                    }
+                }
+
+                builder.endObject(); // runtime
+                builder.endObject(); // mappings
             }
             builder.endObject();
             String indexSettingsAndMappings = Strings.toString(builder);

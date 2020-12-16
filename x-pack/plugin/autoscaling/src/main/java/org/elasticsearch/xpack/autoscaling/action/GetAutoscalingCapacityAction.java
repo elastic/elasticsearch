@@ -83,6 +83,10 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
             out.writeMap(results, StreamOutput::writeString, (o, decision) -> decision.writeTo(o));
         }
 
+        public SortedMap<String, AutoscalingDeciderResults> results() {
+            return results;
+        }
+
         @Override
         public XContentBuilder toXContent(final XContentBuilder builder, final Params params) throws IOException {
             builder.startObject();

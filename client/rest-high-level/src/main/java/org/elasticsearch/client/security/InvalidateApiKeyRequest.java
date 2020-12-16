@@ -52,12 +52,12 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         validateApiKeyIds(apiKeyIds);
         if (Strings.hasText(realmName) == false && Strings.hasText(userName) == false && apiKeyIds == null
             && Strings.hasText(apiKeyName) == false && ownedByAuthenticatedUser == false) {
-            throwValidationError("One of [api key id, api key name, username, realm name] must be specified if [owner] flag is false");
+            throwValidationError("One of [api key ids, api key name, username, realm name] must be specified if [owner] flag is false");
         }
         if (apiKeyIds != null || Strings.hasText(apiKeyName)) {
             if (Strings.hasText(realmName) || Strings.hasText(userName)) {
                 throwValidationError(
-                    "username or realm name must not be specified when the api key id or api key name is specified");
+                    "username or realm name must not be specified when the api key ids or api key name is specified");
             }
         }
         if (ownedByAuthenticatedUser) {
@@ -66,7 +66,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
             }
         }
         if (apiKeyIds != null && Strings.hasText(apiKeyName)) {
-            throwValidationError("only one of [api key id, api key name] can be specified");
+            throwValidationError("only one of [api key ids, api key name] can be specified");
         }
         this.realmName = realmName;
         this.userName = userName;
@@ -206,7 +206,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
             builder.field("username", userName);
         }
         if (ids != null) {
-            builder.array("id", ids);
+            builder.array("ids", ids);
         }
         if (name != null) {
             builder.field("name", name);

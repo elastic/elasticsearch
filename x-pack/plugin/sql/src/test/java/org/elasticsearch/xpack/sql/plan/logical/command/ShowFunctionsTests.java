@@ -64,7 +64,7 @@ public class ShowFunctionsTests extends ESTestCase {
         List<List<?>> expect = asList(
             asList("bool",                      JDBCType.BOOLEAN.getName(),   BOOLEAN.typeName()),
             asList("int",                       JDBCType.INTEGER.getName(),   INTEGER.typeName()),
-            asList("unsigned_long",             JDBCType.BIGINT.getName(),    UNSIGNED_LONG.typeName()),
+            asList("unsigned_long",             JDBCType.NUMERIC.getName(),    UNSIGNED_LONG.typeName()),
             asList("text",                      JDBCType.VARCHAR.getName(),   TEXT.typeName()),
             asList("keyword",                   JDBCType.VARCHAR.getName(),   KEYWORD.typeName()),
             asList("date",                      JDBCType.TIMESTAMP.getName(), DATETIME.typeName()),

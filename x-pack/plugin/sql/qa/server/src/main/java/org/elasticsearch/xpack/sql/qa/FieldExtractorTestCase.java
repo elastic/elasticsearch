@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.util.Arrays;
 import java.util.Collections;
@@ -284,7 +285,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *    }
      */
     public void testUnsignedLongFieldType() throws IOException {
-        testField("unsigned_long", randomBigInteger());
+        //randomBigInteger() can produce a value that fits into a Long, which is what testField() will then recover
+        testField("unsigned_long", BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong())));
     }
 
     private void testField(String fieldType, Object value) throws IOException {

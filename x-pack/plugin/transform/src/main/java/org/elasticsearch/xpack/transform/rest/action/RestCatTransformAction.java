@@ -101,11 +101,11 @@ public class RestCatTransformAction extends AbstractCatAction {
             .addCell(
                 "state",
                 TableColumnAttributeBuilder.builder("transform state")
-                    .setAliases("s", "state")
+                    .setAliases("s")
                     .setTextAlignment(TableColumnAttributeBuilder.TextAlign.RIGHT)
                     .build()
             )
-            .addCell("checkpoint", TableColumnAttributeBuilder.builder("checkpoint").setAliases("c", "checkPoint").build())
+            .addCell("checkpoint", TableColumnAttributeBuilder.builder("checkpoint").setAliases("c").build())
             .addCell(
                 "documents_processed",
                 TableColumnAttributeBuilder.builder("the number of documents read from source indices and processed")

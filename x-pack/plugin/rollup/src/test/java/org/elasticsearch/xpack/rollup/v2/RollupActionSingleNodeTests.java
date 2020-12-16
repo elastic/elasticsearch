@@ -95,7 +95,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         termsAggBuilder.field("categorical_1");
         termsAggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_1").field("numeric_1"));
         aggBuilder.subAggregation(termsAggBuilder);
-        assertAggregation(termsAggBuilder);
+        assertAggregation(aggBuilder);
     }
 
     public void testHistogramGrouping() {

@@ -196,10 +196,10 @@ class RollupShardIndexer {
             }
         };
         return BulkProcessor.builder(client::bulk, listener)
-            .setBulkActions(1000)
-            .setBulkSize(new ByteSizeValue(10, ByteSizeUnit.MB))
-            .setFlushInterval(TimeValue.timeValueSeconds(5))
-            .setConcurrentRequests(1)
+            .setBulkActions(10000)
+            .setBulkSize(new ByteSizeValue(1, ByteSizeUnit.MB))
+            // execute the bulk request on the same thread
+            .setConcurrentRequests(0)
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), 3))
             .build();
     }

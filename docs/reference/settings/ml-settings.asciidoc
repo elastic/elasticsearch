@@ -154,7 +154,7 @@ assumed to have failed. Defaults to `10s`. The minimum value for this setting is
 `5s`.
 
 xpack.ml.use_auto_machine_memory_percent::
-(<<static-cluster-setting,Static>>) If this setting is `true`, the
+(<<cluster-update-settings,Dynamic>>) If this setting is `true`, the
 `xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
 percentage of the machine's memory that can be used for running {ml} analytics
 processes is calculated automatically and takes into account the total node size

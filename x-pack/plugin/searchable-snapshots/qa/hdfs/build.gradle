@@ -7,6 +7,7 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.util.ports.ReservedPortRange
 
 import java.nio.file.Files
 import java.nio.file.Paths
@@ -17,6 +18,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.internal-available-ports'
 
 final Project hdfsFixtureProject = project(':test:fixtures:hdfs-fixture')
 final Project krbFixtureProject = project(':test:fixtures:krb5kdc-fixture')
@@ -62,7 +64,7 @@ String krb5conf = krbFixtureProject.ext.krb5Conf("hdfs")
 
 // Create HDFS File System Testing Fixtures
 for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
-  def tsk = project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
+  project.tasks.register(fixtureName, org.elasticsearch.gradle.test.AntFixture) {
     dependsOn project.configurations.hdfsFixture, krbFixtureProject.tasks.postProcessFixture
     executable = "${BuildParams.runtimeJavaHome}/bin/java"
     env 'CLASSPATH', "${-> project.configurations.hdfsFixture.asPath}"
@@ -79,6 +81,9 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
     if (name.equals('secureHdfsFixture')) {
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
     }
+    // configure port dynamically
+    def portRange = project.getExtensions().getByType(ReservedPortRange)
+    miniHDFSArgs.add("-Dhdfs.config.port=${portRange.getOrAllocate(name)}")
 
     // Common options
     miniHDFSArgs.add('hdfs.MiniHDFS')
@@ -97,14 +102,16 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
 // Disable integration test if Fips mode
 tasks.named("integTest").configure {
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
-  systemProperty 'test.hdfs.uri', 'hdfs://localhost:9999'
+  def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("hdfsFixture")
+  systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
   nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/searchable_snapshots/simple'
   onlyIf { BuildParams.inFipsJvm == false }
 }
 
 tasks.register("integTestSecure", RestIntegTestTask) {
   description = "Runs rest tests against an elasticsearch cluster with Secured HDFS."
-  nonInputProperties.systemProperty 'test.hdfs.uri', 'hdfs://localhost:9998'
+  def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("secureHdfsFixture")
+  nonInputProperties.systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
   nonInputProperties.systemProperty 'test.hdfs.path', '/user/elasticsearch/test/searchable_snapshots/secure'
   nonInputProperties.systemProperty "test.krb5.principal.es", "elasticsearch@${realm}"
   nonInputProperties.systemProperty "test.krb5.principal.hdfs", "hdfs/hdfs.build.elastic.co@${realm}"

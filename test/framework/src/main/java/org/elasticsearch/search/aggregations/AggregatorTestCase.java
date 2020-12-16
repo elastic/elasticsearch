@@ -79,6 +79,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -232,10 +233,16 @@ public abstract class AggregatorTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mapperServiceMock();
+        MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(mapperService.indexAnalyzer(anyString(), any())).thenReturn(Lucene.STANDARD_ANALYZER); // for significant text
+        
+        // Setup the type for fetching
+        DocumentMapper docMapper = mock(DocumentMapper.class);
+        when(mapperService.documentMapper()).thenReturn(docMapper);
+        when(docMapper.type()).thenReturn("_doc");
+
         for (MappedFieldType type : fieldTypes) {
             String name = type.name();
             when(mapperService.fieldType(name)).thenReturn(type);
@@ -345,13 +352,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         .build(),
                 Settings.EMPTY
         );
-    }
-
-    /**
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected MapperService mapperServiceMock() {
-        return mock(MapperService.class);
     }
 
     /**

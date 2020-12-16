@@ -237,7 +237,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;
             }
-            //todo consider moving to XContentType
+            //TODO consider refactoring to handler.supportsContentStream(xContentType). It is only used with JSON and SMILE
             if (handler.supportsContentStream() && xContentType.canonical() != XContentType.JSON
                 && xContentType.canonical() != XContentType.SMILE) {
                 channel.sendResponse(BytesRestResponse.createSimpleErrorResponse(channel, RestStatus.NOT_ACCEPTABLE,

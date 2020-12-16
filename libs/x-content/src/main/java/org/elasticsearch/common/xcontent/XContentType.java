@@ -336,6 +336,11 @@ public enum XContentType implements MediaType {
         return joined.isEmpty() ? "" : ";" + joined;
     }
 
+    /**
+     * Returns a canonical XContentType for given this XContentType.
+     * XContentTypes can derive from other XContentType. Like application/vnd.elasticsearch+json derives from application/json
+     * A canonical is the XContentType that is being derived from.
+     */
     public XContentType canonical(){
         return this;
     }

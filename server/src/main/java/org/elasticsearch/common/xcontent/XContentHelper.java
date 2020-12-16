@@ -457,10 +457,10 @@ public class XContentHelper {
     }
 
     /**
-     * Serialises new XContentType vnd values in a bwc manner
+     * Serialises new XContentType VND_ values in a bwc manner
      * TODO remove in ES v9
      * @param out stream output of the destination node
-     * @param xContentType an instance to serialise
+     * @param xContentType an instance to serialize
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {

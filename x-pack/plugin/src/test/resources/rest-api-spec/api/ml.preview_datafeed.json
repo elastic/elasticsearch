@@ -5,6 +5,7 @@
       "description":"Previews a datafeed."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

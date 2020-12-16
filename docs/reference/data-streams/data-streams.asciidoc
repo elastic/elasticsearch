@@ -95,12 +95,13 @@ convention:
 
 [source,text]
 ----
-.ds-<data-stream>-<generation>
+.ds-<data-stream>-<yyyy.MM.dd>-<generation>
 ----
 
-Backing indices with a higher generation contain more recent data. For example,
-the `web-server-logs` data stream has a generation of `34`. The stream's most
-recent backing index is named `.ds-web-server-logs-000034`.
+`<yyyy.MM.dd>` is the backing index's creation date. Backing indices with a
+higher generation contain more recent data. For example, the `web-server-logs`
+data stream has a generation of `34`. The stream's most recent backing index,
+created on 7 March 2099, is named `.ds-web-server-logs-2099.03.07-000034`.
 
 Some operations, such as a <<indices-shrink-index,shrink>> or
 <<snapshots-restore-snapshot,restore>>, can change a backing index's name.

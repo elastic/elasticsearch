@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.io.IOException;
+import java.time.Instant;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -58,6 +59,7 @@ public class JobDataCountsPersister {
      * @param counts The counts
      */
     public void persistDataCounts(String jobId, DataCounts counts) {
+        counts.setLogTime(Instant.now());
         try {
             resultsPersisterService.indexWithRetry(jobId,
                 AnomalyDetectorsIndex.resultsWriteAlias(jobId),
@@ -87,6 +89,7 @@ public class JobDataCountsPersister {
      * @param listener ActionType response listener
      */
     public void persistDataCountsAsync(String jobId, DataCounts counts, ActionListener<Boolean> listener) {
+        counts.setLogTime(Instant.now());
         try (XContentBuilder content = serialiseCounts(counts)) {
             final IndexRequest request = new IndexRequest(AnomalyDetectorsIndex.resultsWriteAlias(jobId))
                 .id(DataCounts.documentId(jobId))

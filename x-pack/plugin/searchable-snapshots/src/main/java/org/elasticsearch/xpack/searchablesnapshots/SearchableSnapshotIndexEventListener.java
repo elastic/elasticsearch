@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 
+import static org.elasticsearch.index.store.SearchableSnapshotDirectory.unwrapDirectory;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -49,6 +50,13 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         this.cacheService = cacheService;
     }
 
+    /**
+     * Called before a searchable snapshot {@link IndexShard} starts to recover. This event is used to trigger the loading of the shard
+     * snapshot information that contains the list of shard's Lucene files.
+     *
+     * @param indexShard    the shard that is about to recover
+     * @param indexSettings the shard's index settings
+     */
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
@@ -57,7 +65,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
-        final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
+        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
         assert directory != null;
         final StepListener<Void> preWarmListener = new StepListener<>();
         final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);

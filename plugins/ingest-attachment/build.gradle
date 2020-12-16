@@ -87,7 +87,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /apache-mime4j-.*/, to: 'apache-mime4j'
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.doc'
   exclude '**/*.docx'
   exclude '**/*.pdf'
@@ -96,15 +96,15 @@ forbiddenPatterns {
   exclude '**/text-cjk-*.txt'
 }
 
-thirdPartyAudit {
+tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
 }
 
 if (BuildParams.inFipsJvm) {
   // FIPS JVM includes many classes from bouncycastle which count as jar hell for the third party audit,
   // rather than provide a long list of exclusions, disable the check on FIPS.
-  jarHell.enabled = false
-  test.enabled = false
-  yamlRestTest.enabled = false;
-  testingConventions.enabled = false;
+  tasks.named("jarHell").configure { enabled = false }
+  tasks.named("test").configure { enabled = false }
+  tasks.named("yamlRestTest").configure { enabled = false };
+  tasks.named("testingConventions").configure { enabled = false };
 }

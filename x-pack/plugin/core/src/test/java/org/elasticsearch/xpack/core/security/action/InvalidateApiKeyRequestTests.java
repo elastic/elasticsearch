@@ -43,25 +43,23 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
     }
 
     public void testNonNullIdsCannotBeEmptyNorContainBlankId() {
-        InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            false,
-            new String[]{});
-        ActionRequestValidationException validationException = invalidateApiKeyRequest.validate();
-        assertNotNull(validationException);
+
+        ActionRequestValidationException validationException =
+            expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                false,
+                new String[] {}));
         assertThat(validationException.getMessage(), containsString("Field [ids] cannot be an empty array"));
 
-        invalidateApiKeyRequest = new InvalidateApiKeyRequest(
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-            false,
-            new String[]{randomAlphaOfLength(12), null});
-        validationException = invalidateApiKeyRequest.validate();
-        assertNotNull(validationException);
-
+        validationException =
+            expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
+                false,
+                new String[] { randomAlphaOfLength(12), null }));
         assertThat(validationException.getMessage(), containsString("Field [ids] must not contain blank id, "
             + "but got blank id at index position: [1]"));
     }

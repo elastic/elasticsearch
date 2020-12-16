@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -844,7 +845,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         if (randomBoolean()) {
             logger.info("--> closing index before snapshot");
-            assertAcked(client().admin().indices().prepareClose(restoredIndexName));
+            assertAcked(client().admin().indices().prepareClose(restoredIndexName).setWaitForActiveShards(ActiveShardCount.DEFAULT));
         }
 
         logger.info("--> starting to take snapshot-2");

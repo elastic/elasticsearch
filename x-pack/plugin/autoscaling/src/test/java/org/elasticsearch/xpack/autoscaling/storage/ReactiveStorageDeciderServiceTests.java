@@ -269,7 +269,7 @@ public class ReactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         return new InternalSnapshotsInfoService.SnapshotShard(recoverySource.snapshot(), recoverySource.index(), primaryShard.shardId());
     }
 
-    private void addNode(ClusterState.Builder stateBuilder) {
+    static void addNode(ClusterState.Builder stateBuilder) {
         stateBuilder.nodes(
             DiscoveryNodes.builder(stateBuilder.nodes())
                 .add(

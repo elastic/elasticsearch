@@ -106,6 +106,7 @@ DELETE /_security/api_key
 }
 --------------------------------------------------
 // TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TEST[warning:Deprecated field [id] used, replaced by [ids]]
 // TEST[continued]
 
 The above request can also be performed using the `ids` field which takes
@@ -163,6 +164,7 @@ DELETE /_security/api_key
   "owner" : "true"
 }
 --------------------------------------------------
+// TEST[warning:Deprecated field [id] used, replaced by [ids]]
 
 The following example invalidates all API keys owned by the currently authenticated
  user immediately:

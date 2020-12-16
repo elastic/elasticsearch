@@ -50,13 +50,11 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     public RollupJob(RollupJobConfig config, Map<String, String> headers) {
         this.config = Objects.requireNonNull(config);
         this.headers = headers == null ? Collections.emptyMap() : headers;
-        assertNoAuthorizationHeader(headers);
     }
 
     public RollupJob(StreamInput in) throws IOException {
         this.config = new RollupJobConfig(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
-        assertNoAuthorizationHeader(headers);
     }
 
     public RollupJobConfig getConfig() {
@@ -71,6 +69,7 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CONFIG.getPreferredName(), config);
+        assertNoAuthorizationHeader(headers);
         builder.field(HEADERS.getPreferredName(), headers);
         builder.endObject();
         return builder;

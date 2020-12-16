@@ -1164,7 +1164,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * to check if the query can match any documents. This method can have false positives while if it returns {@code false} the query
      * won't match any documents on the current shard.
      */
-    CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
+    public CanMatchResponse canMatch(ShardSearchRequest request) throws IOException {
         return canMatch(request, true);
     }
 

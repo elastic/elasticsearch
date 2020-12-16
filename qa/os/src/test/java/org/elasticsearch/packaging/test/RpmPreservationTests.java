@@ -57,6 +57,7 @@ public class RpmPreservationTests extends PackagingTestCase {
     }
 
     public void test20Remove() throws Exception {
+        setHeap(null); // remove test heap options, so the config directory can be removed
         remove(distribution());
 
         // config was removed

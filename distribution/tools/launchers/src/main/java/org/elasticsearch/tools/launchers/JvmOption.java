@@ -57,7 +57,7 @@ class JvmOption {
     }
 
     private static final Pattern OPTION = Pattern.compile(
-        "^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}\\s+\\{(?<origin>[^}]+)}"
+        "^\\s*\\S+\\s+(?<flag>\\S+)\\s+:?=\\s+(?<value>\\S+)?\\s+\\{[^}]+?\\}(\\s+\\{(?<origin>[^}]+)})?"
     );
 
     public static Long extractMaxHeapSize(final Map<String, JvmOption> finalJvmOptions) {

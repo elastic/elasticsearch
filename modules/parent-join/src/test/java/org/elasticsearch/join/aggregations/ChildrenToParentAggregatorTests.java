@@ -306,6 +306,7 @@ public class ChildrenToParentAggregatorTests extends AggregatorTestCase {
         return Collections.singletonList(new ParentJoinPlugin());
     }
 
+
     static MappedFieldType[] withJoinFields(MappedFieldType... fieldTypes) {
         MappedFieldType[] result = new MappedFieldType[fieldTypes.length + 3];
         System.arraycopy(fieldTypes, 0, result, 0, fieldTypes.length);

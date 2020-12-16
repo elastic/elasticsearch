@@ -62,9 +62,9 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
@@ -474,9 +474,9 @@ public abstract class PackagingTestCase extends Assert {
         if (heapSize == null) {
             FileUtils.rm(heapOptions);
         } else {
-            Files.writeString(
+            Files.write(
                 heapOptions,
-                String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s%n", heapSize),
+                Arrays.asList("-Xmx" + heapSize, "-Xms" + heapSize),
                 StandardOpenOption.CREATE,
                 StandardOpenOption.TRUNCATE_EXISTING
             );

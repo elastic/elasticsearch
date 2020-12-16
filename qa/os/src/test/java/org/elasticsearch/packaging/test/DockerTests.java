@@ -33,10 +33,14 @@ import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -82,11 +86,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
-
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Paths;
-import java.util.Arrays;
-import java.util.HashSet;
 
 public class DockerTests extends PackagingTestCase {
     private Path tempDir;
@@ -765,15 +764,15 @@ public class DockerTests extends PackagingTestCase {
             .filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false)
             .collect(Collectors.toList());
 
-        Files.writeString(jvmOptionsPath, String.join("\n", jvmOptions));
+        Files.write(jvmOptionsPath, jvmOptions);
 
         // Now run the container, being explicit about the available memory
-        runContainer(distribution(), builder().memory("942m").volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath)));
+        runContainer(distribution(), builder().memory("942m").volumes(Collections.singletonMap(jvmOptionsPath, containerJvmOptionsPath)));
         waitForElasticsearch(installation);
 
         // Grab the container output and find the line where it print the JVM arguments. This will
         // let us see what the automatic heap sizing calculated.
-        final Optional<String> jvmArgumentsLine = getContainerLogs().stdout.lines()
+        final Optional<String> jvmArgumentsLine = Arrays.stream(getContainerLogs().stdout.split(System.lineSeparator()))
             .filter(line -> line.contains("JVM arguments"))
             .findFirst();
         assertThat("Failed to find jvmArguments in container logs", jvmArgumentsLine.isPresent(), is(true));

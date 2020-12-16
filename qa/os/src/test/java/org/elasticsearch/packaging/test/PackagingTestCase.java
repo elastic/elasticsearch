@@ -64,6 +64,7 @@ import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.packaging.util.Cleanup.cleanEverything;
 import static org.elasticsearch.packaging.util.Docker.ensureImageIsLoaded;
@@ -468,7 +469,7 @@ public abstract class PackagingTestCase extends Assert {
             FileUtils.rm(heapOptions);
         } else {
             Files.createDirectory(config.resolve("jvm.options.d"));
-            Files.writeString(heapOptions, String.format("-Xmx%1$s%n-Xms%1$s", heapSize), StandardOpenOption.CREATE);
+            Files.writeString(heapOptions, String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s", heapSize), StandardOpenOption.CREATE);
         }
     }
 }

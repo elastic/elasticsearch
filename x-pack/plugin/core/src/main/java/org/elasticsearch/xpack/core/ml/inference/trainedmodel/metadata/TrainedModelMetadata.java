@@ -39,7 +39,8 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
     private static ConstructingObjectParser<TrainedModelMetadata, Void> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<TrainedModelMetadata, Void> parser = new ConstructingObjectParser<>(NAME,
             ignoreUnknownFields,
-            a -> new TrainedModelMetadata((String)a[0], (List<TotalFeatureImportance>)a[1], (FeatureImportanceBaseline)a[2], (List<HyperparameterImportance>)a[3]));
+            a -> new TrainedModelMetadata((String)a[0], (List<TotalFeatureImportance>)a[1], (FeatureImportanceBaseline)a[2], 
+                                          (List<HyperparameterImportance>)a[3]));
         parser.declareString(ConstructingObjectParser.constructorArg(), MODEL_ID);
         parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
             ignoreUnknownFields ? TotalFeatureImportance.LENIENT_PARSER : TotalFeatureImportance.STRICT_PARSER,

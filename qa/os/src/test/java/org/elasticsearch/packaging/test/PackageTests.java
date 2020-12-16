@@ -143,18 +143,6 @@ public class PackageTests extends PackagingTestCase {
         stopElasticsearch();
     }
 
-    public void test42BundledJdkRemoved() throws Exception {
-        assumeThat(distribution().hasJdk, is(true));
-
-        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-        try {
-            mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
-        } finally {
-            mv(relocatedJdk, installation.bundledJdk);
-        }
-    }
-
     public void test40StartServer() throws Exception {
         String start = sh.runIgnoreExitCode("date ").stdout.trim();
         startElasticsearch();
@@ -170,6 +158,18 @@ public class PackageTests extends PackagingTestCase {
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
+    }
+
+    public void test42BundledJdkRemoved() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test50Remove() throws Exception {

@@ -470,7 +470,7 @@ public abstract class PackagingTestCase extends Assert {
         if (heapSize == null) {
             FileUtils.rm(heapOptions);
         } else {
-            Files.writeString(heapOptions, String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s", heapSize), StandardOpenOption.CREATE);
+            Files.writeString(heapOptions, String.format(Locale.ROOT, "-Xmx%1$s%n-Xms%1$s%n", heapSize), StandardOpenOption.CREATE);
         }
     }
 }

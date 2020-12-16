@@ -178,7 +178,7 @@ This privilege is necessary only on clusters that contain leader indices.
 All read-only {Ilm} operations, such as getting policies and checking the
 status of {Ilm}
 
-`read_ingest_pipelines`::
+`read_pipeline`::
 Read-only access to ingest pipline (get, simulate).
 
 `read_slm`::

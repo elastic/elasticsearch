@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ProactiveStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
 
 import java.util.ArrayList;
@@ -146,6 +147,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 ReactiveStorageDeciderService.NAME,
                 ReactiveStorageDeciderService.ReactiveReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                ProactiveStorageDeciderService.NAME,
+                ProactiveStorageDeciderService.ProactiveReason::new
             )
         );
     }
@@ -168,6 +174,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         return List.of(
             new FixedAutoscalingDeciderService(),
             new ReactiveStorageDeciderService(
+                clusterService.get().getSettings(),
+                clusterService.get().getClusterSettings(),
+                allocationDeciders.get()
+            ),
+            new ProactiveStorageDeciderService(
                 clusterService.get().getSettings(),
                 clusterService.get().getClusterSettings(),
                 allocationDeciders.get()

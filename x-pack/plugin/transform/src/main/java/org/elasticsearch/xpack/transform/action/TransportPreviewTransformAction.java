@@ -189,7 +189,7 @@ public class TransportPreviewTransformAction extends HandledTransportAction<
             mappings.set(deducedMappings);
             function.preview(
                 client,
-                threadPool.getThreadContext().getHeaders(),
+                ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()),
                 source,
                 deducedMappings,
                 NUMBER_OF_PREVIEW_BUCKETS,

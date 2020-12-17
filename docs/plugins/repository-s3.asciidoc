@@ -27,7 +27,7 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket"
+    "bucket": "my-bucket"
   }
 }
 ----
@@ -48,8 +48,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my_bucket",
-    "client": "my_alternate_client"
+    "bucket": "my-bucket",
+    "client": "my-alternate-client"
   }
 }
 ----
@@ -241,7 +241,7 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "bucket": "my-bucket-name",
+    "bucket": "my-bucket",
     "another_setting": "setting-value"
   }
 }
@@ -344,8 +344,8 @@ PUT _snapshot/my_s3_repository
 {
   "type": "s3",
   "settings": {
-    "client": "my-client-name",
-    "bucket": "my-bucket-name",
+    "client": "my-client",
+    "bucket": "my-bucket",
     "endpoint": "my.s3.endpoint"
   }
 }

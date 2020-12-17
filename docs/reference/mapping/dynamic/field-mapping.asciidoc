@@ -13,12 +13,13 @@ NOTE: The field data types in the following table are the only
 <<mapping-types,field data types>> that {es} detects dynamically. You must
 explicitly map all other data types.
 
+[[dynamic-field-mapping-types]]
 [cols="3"]
 |===
 h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
  |`null` 2*| No field added
  |`true` or `false` 2*| `boolean`
- |floating point number | `float` | `double`
+ |`double` | `float` | `double`
  |`integer` 2*| `long`
  |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
  |`array` 2*|  Depends on the first non-`null` value in the array

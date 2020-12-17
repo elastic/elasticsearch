@@ -65,12 +65,12 @@ reordered or deleted after they were initially added.
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
-The `match_mapping_type` is the data type detected by the JSON parser. Since
+The `match_mapping_type` is the data type detected by the JSON parser. Because
 JSON doesn't distinguish a `long` from an `integer` or a `double` from
-a `float`, it will always choose the wider data type, i.e. `long` for integers
+a `float`, it always chooses the wider data type such as `long` for integers
 and `double` for floating-point numbers.
 
-The following data types may be automatically detected:
+{es} automatically detects the following data types:
 
  - `boolean` when `true` or `false` are encountered.
  - `date` when <<date-detection,date detection>> is enabled and a string matching
@@ -80,7 +80,7 @@ The following data types may be automatically detected:
  - `object` for objects, also called hashes.
  - `string` for character strings.
 
-`*` may also be used in order to match all data types.
+Use a wildcard (`*`) to match all data types.
 
 For example, if we wanted to map all integer fields as `integer` instead of
 `long`, and all `string` fields as both `text` and `keyword`, we
@@ -128,6 +128,31 @@ PUT my-index-000001/_doc/1
 <1> The `my_integer` field is mapped as an `integer`.
 <2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
 
+[[match-mapping-runtime-fields]]
+===== Mapping runtime fields in a dynamic template
+You can also map runtime fields in a dynamic template. For example, the
+following request adds a dynamic template named `dayofweek` that maps all
+incoming `string` fields as `keyword` fields. Although the `runtime` definition
+is blank, new `string` fields will be mapped as `keyword` fields based on the
+<<dynamic-field-mapping-types,dynamic mapping rules>> that {es} uses for adding
+field types to the mapping. Any `string` that doesn't pass date detection or
+numeric detection is automatically mapped as a `keyword` when `dynamic` is set
+to `runtime`.
+
+[source,console]
+----
+PUT my-index/_mappings
+{
+  "dynamic_templates": [
+    {
+      "dayOfWeek": {
+        "match_mapping_type": "string",
+        "runtime": {}
+      }
+    }
+  ]
+}
+----
 
 [[match-unmatch]]
 ==== `match` and `unmatch`

@@ -38,17 +38,18 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 
 public class DateTimeToCharProcessorTests extends ESTestCase {
 
-    public static class TestCase {
+    private static class TestCase {
         private static final AtomicInteger COUNTER = new AtomicInteger(0);
         
         // timezones that are valid both in Java and in Postgres
         public static final List<String> POSTGRES_TEST_ZONE_LIST = List.of(
             // location-based and long-names
             "US/Samoa", "Pacific/Honolulu", "Pacific/Marquesas", "Pacific/Gambier", "America/Juneau", "Canada/Yukon", "America/Vancouver",
-            "Pacific/Easter", "US/Mountain", "America/Chicago", "US/Michigan", "Atlantic/Bermuda", "Canada/Newfoundland", "Atlantic/Cape_Verde",
-            "Pacific/Kiritimati", "Pacific/Chatham", "Pacific/Auckland", "Asia/Sakhalin", "Australia/Tasmania", "Australia/North", "Asia/Tokyo",
-            "Australia/Eucla", "Asia/Singapore", "Asia/Rangoon", "Indian/Chagos", "Asia/Calcutta", "Asia/Tashkent", "Asia/Tehran", "Asia/Dubai",
-            "Africa/Nairobi", "Europe/Brussels", "Europe/Vienna", "Europe/London", "Etc/GMT+12",
+            "Pacific/Easter", "US/Mountain", "America/Chicago", "US/Michigan", "Atlantic/Bermuda", "Canada/Newfoundland",
+            "Atlantic/Cape_Verde", "Pacific/Kiritimati", "Pacific/Chatham", "Pacific/Auckland", "Asia/Sakhalin", "Australia/Tasmania", 
+            "Australia/North", "Asia/Tokyo", "Australia/Eucla", "Asia/Singapore", "Asia/Rangoon", "Indian/Chagos", "Asia/Calcutta", 
+            "Asia/Tashkent", "Asia/Tehran", "Asia/Dubai", "Africa/Nairobi", "Europe/Brussels", "Europe/Vienna", "Europe/London", 
+            "Etc/GMT+12",
             // short names of zones
             "GMT", "UTC", "CET",
             // offsets
@@ -68,6 +69,22 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
 
     }
 
+    /**
+     * Generates an sql file that can be used to generate the test dataset for this unit test (to be used with the <code>psql</code> cli).
+     *
+     * Run the @{link {@link TestGenerator#main(String[])}} class and execute the following command to generate the output dataset with:
+     *
+     * <p>
+     *  <code>
+     *      # easy way to spin up the latest Postgres
+     *      docker run --rm --name postgres-latest -e POSTGRES_PASSWORD=mysecretpassword -p 5432:5432 -d postgres:latest
+     *
+     *      # generate the csv for the unit test
+     *      PGPASSWORD="mysecretpassword" psql --quiet -h localhost -p 5432 -U postgres -f /tmp/postgresql-tochar-test.sql \
+     *          &gt; /path/to/tochar.csv
+     *  </code>
+     * </p>
+     */
     private static class TestGenerator {
         
         private static final long SECONDS_IN_YEAR = 365 * 24 * 60 * 60L;
@@ -212,18 +229,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                 );
             }).collect(Collectors.joining("\n"));
         }
-    
-        /**
-         * Saves the generated test script into the file specified as the first and only argument.
-         *
-         * Once the file is generated, you can execute the following command to generate the output dataset with:
-         *
-         * <p>
-         *  <code>
-         *  PGPASSWORD="mysecretpassword" psql --quiet -h localhost -p 5432 -U postgres -f /tmp/postgresql-tochar-test.sql &gt; /tochar.csv
-         *  </code>
-         * </p>
-         */
+        
         public static void main(String[] args) throws Exception {
             String scriptFilename = args.length < 1 ? "/tmp/postgresql-tochar-test.sql" : args[0];
             Files.writeString(Path.of(scriptFilename), unitTestExporterScript(), StandardCharsets.UTF_8);
@@ -271,7 +277,8 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
     public void test() throws Exception {
         ZoneId zoneId = ZoneId.of(zone);
         ZonedDateTime timestamp = dateTimeWithFractions(secondsAndFractionsSinceEpoch);
-        String actualResult = (String) new ToChar(Source.EMPTY, l(timestamp, DataTypes.DATETIME), l(formatString, DataTypes.KEYWORD), zoneId)
+        String actualResult =
+            (String) new ToChar(Source.EMPTY, l(timestamp, DataTypes.DATETIME), l(formatString, DataTypes.KEYWORD), zoneId)
                 .makePipe()
                 .asProcessor()
                 .process(null);

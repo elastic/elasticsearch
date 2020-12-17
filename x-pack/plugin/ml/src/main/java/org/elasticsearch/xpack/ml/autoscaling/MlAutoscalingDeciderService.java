@@ -11,6 +11,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.LifecycleListener;
@@ -71,12 +72,12 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     private final NodeLoadDetector nodeLoadDetector;
     private final MlMemoryTracker mlMemoryTracker;
     private final Supplier<Long> timeSupplier;
-    private final boolean useAuto;
 
     private volatile boolean isMaster;
     private volatile boolean running;
     private volatile int maxMachineMemoryPercent;
     private volatile int maxOpenJobs;
+    private volatile boolean useAuto;
     private volatile long lastTimeToScale;
     private volatile long scaleDownDetected;
 
@@ -98,6 +99,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
             this::setMaxMachineMemoryPercent);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAuto);
         clusterService.addLocalNodeMasterListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -203,6 +205,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
     void setMaxOpenJobs(int maxOpenJobs) {
         this.maxOpenJobs = maxOpenJobs;
+    }
+
+    void setUseAuto(boolean useAuto) {
+        this.useAuto = useAuto;
     }
 
     @Override
@@ -604,6 +610,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
     @Override
     public List<Setting<?>> deciderSettings() {
         return List.of(NUM_ANALYTICS_JOBS_IN_QUEUE, NUM_ANOMALY_JOBS_IN_QUEUE, DOWN_SCALE_DELAY);
+    }
+
+    @Override
+    public List<DiscoveryNodeRole> roles() {
+        return List.of(MachineLearning.ML_ROLE);
     }
 }
 

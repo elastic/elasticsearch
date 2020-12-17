@@ -92,10 +92,10 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testOperatorPrivilegesXpackInfo() throws IOException {
-        final Request xpackRequest = new Request("GET", "/_xpack");
+    public void testOperatorPrivilegesXpackUsage() throws IOException {
+        final Request xpackRequest = new Request("GET", "/_xpack/usage");
         final Map<String, Object> response = entityAsMap(client().performRequest(xpackRequest));
-        final Map<String, Object> features = (Map<String, Object>) response.get("features");
+        final Map<String, Object> features = (Map<String, Object>) response.get("security");
         final Map<String, Object> operatorPrivileges = (Map<String, Object>) features.get("operator_privileges");
         assertTrue((boolean) operatorPrivileges.get("available"));
         assertTrue((boolean) operatorPrivileges.get("enabled"));

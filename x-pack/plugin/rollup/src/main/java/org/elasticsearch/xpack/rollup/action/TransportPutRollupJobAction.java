@@ -45,6 +45,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
@@ -55,7 +56,8 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 
 public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
@@ -119,9 +121,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> Rollup.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
         return new RollupJob(config, filteredHeaders);
     }
 
@@ -250,7 +250,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
 
     static void startPersistentTask(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                                     PersistentTasksService persistentTasksService) {
-
+        assertNoAuthorizationHeader(job.getHeaders());
         persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
                 ActionListener.wrap(
                         rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService),

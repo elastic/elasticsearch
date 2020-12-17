@@ -38,9 +38,9 @@ import java.io.IOException;
 import java.util.Comparator;
 
 /**
- * Copy of {@link ExternalRefSorter} that uses the compressed writer/reader of the provided {@link CompressingOfflineSorter}.
+ * Copy of {@link ExternalRefSorter} that uses a {@link OfflineSorter.ByteSequencesWriter} to write the temporary file.
  *
- * TODO: Donate to Lucene
+ * TODO: Move to Lucene
  */
 class XExternalRefSorter implements BytesRefSorter, Closeable {
     private final CompressingOfflineSorter sorter;

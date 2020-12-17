@@ -5,28 +5,26 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.aggregations.Aggregation;
-import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
+import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
@@ -44,6 +42,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -94,15 +93,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
-        TermsAggregationBuilder termsAggBuilder = new TermsAggregationBuilder("terms");
-        termsAggBuilder.field("categorical_1");
-        if (randomBoolean()) {
-            termsAggBuilder.order(BucketOrder.aggregation("max_numeric_1", false));
-        }
-        termsAggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_1").field("numeric_1"));
-        aggBuilder.subAggregation(termsAggBuilder);
-        assertAggregation(aggBuilder);
     }
 
     public void testHistogramGrouping() throws IOException {
@@ -110,7 +100,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
             .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDoubleBetween(0.0, 100.0, true))
+            .field("numeric_1", randomDoubleBetween(0.0, 10000.0, true))
             .field("numeric_2", randomDouble())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
@@ -119,13 +109,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
-        HistogramAggregationBuilder histoAggBuilder = new HistogramAggregationBuilder("histo");
-        histoAggBuilder.field("numeric_1");
-        histoAggBuilder.interval(interval);
-        histoAggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_2").field("numeric_2"));
-        aggBuilder.subAggregation(histoAggBuilder);
-        assertAggregation(aggBuilder);
     }
 
     public void testMaxMetric() throws IOException {
@@ -140,9 +123,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
-        aggBuilder.subAggregation(new MaxAggregationBuilder("max_numeric_1").field("numeric_1"));
-        assertAggregation(aggBuilder);
     }
 
     public void testMinMetric() throws IOException {
@@ -157,9 +137,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
-        aggBuilder.subAggregation(new MinAggregationBuilder("min_numeric_1").field("numeric_1"));
-        assertAggregation(aggBuilder);
     }
 
     public void testValueCountMetric() throws IOException {
@@ -174,9 +151,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
-        aggBuilder.subAggregation(new ValueCountAggregationBuilder("value_count_numeric_1").field("numeric_1"));
-        assertAggregation(aggBuilder);
     }
 
     public void testAvgMetric() throws IOException {
@@ -191,24 +165,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(config);
         assertRollupIndex(config);
-        DateHistogramAggregationBuilder aggBuilder = dateHistogramBuilder("date", dateHistogramGroupConfig);
-        aggBuilder.subAggregation(new ValueCountAggregationBuilder("avg_numeric_1").field("numeric_1"));
-        assertAggregation(aggBuilder);
-    }
-
-    private DateHistogramAggregationBuilder dateHistogramBuilder(String name, DateHistogramGroupConfig dateHistogramGroupConfig) {
-        DateHistogramAggregationBuilder aggBuilder = new DateHistogramAggregationBuilder(name);
-        aggBuilder.field(dateHistogramGroupConfig.getField());
-        aggBuilder.timeZone(ZoneId.of(dateHistogramGroupConfig.getTimeZone()));
-        if (dateHistogramGroupConfig instanceof DateHistogramGroupConfig.FixedInterval) {
-            aggBuilder.fixedInterval(dateHistogramGroupConfig.getInterval());
-        } else if (dateHistogramGroupConfig instanceof DateHistogramGroupConfig.CalendarInterval) {
-            aggBuilder.calendarInterval(dateHistogramGroupConfig.getInterval());
-        } else {
-            aggBuilder.interval(dateHistogramGroupConfig.getInterval().estimateMillis());
-            assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
-        }
-        return aggBuilder;
     }
 
     private DateHistogramGroupConfig randomDateHistogramGroupConfig() {
@@ -252,45 +208,86 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void assertRollupIndex(RollupActionConfig config) {
-        GetIndexResponse indexResponse = client().admin().indices().prepareGetIndex().setIndices(rollupIndex).get();
-        assertTrue(true);
-        // TODO(talevy): assert doc count
         // TODO(talevy): assert mapping
         // TODO(talevy): assert settings
+
+        final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
+        long numBuckets = 0;
+        InternalComposite origResp = client().prepareSearch(index).addAggregation(aggregation).get().getAggregations().get("resp");
+        InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+        while (origResp.afterKey() != null) {
+            numBuckets += origResp.getBuckets().size();
+            assertThat(origResp, equalTo(rollupResp));
+            aggregation.aggregateAfter(origResp.afterKey());
+            origResp = client().prepareSearch(index).addAggregation(aggregation).get().getAggregations().get("resp");
+            rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+        }
+        assertThat(origResp, equalTo(rollupResp));
+
+        SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
+        assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
     }
 
-    private void assertAggregation(AggregationBuilder builder) {
-        Aggregations indexAggregations = client().prepareSearch(index).addAggregation(builder).get().getAggregations();
-        Aggregations rollupAggregations = client().prepareSearch(rollupIndex).addAggregation(builder).get().getAggregations();
-        assertAggregations(indexAggregations, rollupAggregations);
-    }
+    private CompositeAggregationBuilder buildCompositeAggs(String name, RollupActionConfig config) {
+        List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
 
-    private void assertAggregations(Aggregations indexAggregations, Aggregations rollupAggregations) {
-        List<Aggregation> indexAggregationsList = indexAggregations.asList();
-        List<Aggregation> rollupAggregationsList = rollupAggregations.asList();
-        assertThat(rollupAggregationsList.size(), equalTo(indexAggregationsList.size()));
-        for (int i = 0; i < rollupAggregationsList.size(); i++) {
-            Aggregation indexAggObj = indexAggregationsList.get(i);
-            Aggregation rollupAggObj = rollupAggregationsList.get(i);
-            if (indexAggObj instanceof MultiBucketsAggregation && rollupAggObj instanceof MultiBucketsAggregation) {
-                MultiBucketsAggregation indexAgg = (MultiBucketsAggregation) indexAggObj;
-                MultiBucketsAggregation rollupAgg = (MultiBucketsAggregation) rollupAggObj;
-                assertThat(rollupAgg.getBuckets().size(), equalTo(indexAgg.getBuckets().size()));
-                for (int j = 0; j < rollupAggregationsList.size(); j++) {
-                    assertThat(rollupAgg.getBuckets().get(j).getKey(), equalTo(indexAgg.getBuckets().get(j).getKey()));
-                    assertThat(rollupAgg.getBuckets().get(j).getDocCount(), equalTo(indexAgg.getBuckets().get(j).getDocCount()));
-                    assertAggregations(indexAgg.getBuckets().get(j).getAggregations(), rollupAgg.getBuckets().get(j).getAggregations());
-                }
-            } else if (indexAggObj instanceof InternalNumericMetricsAggregation.SingleValue
-                    && rollupAggObj instanceof InternalNumericMetricsAggregation.SingleValue) {
-                InternalNumericMetricsAggregation.SingleValue indexAgg = (InternalNumericMetricsAggregation.SingleValue) indexAggObj;
-                InternalNumericMetricsAggregation.SingleValue rollupAgg = (InternalNumericMetricsAggregation.SingleValue) rollupAggObj;
-                assertThat(rollupAgg.getValueAsString(), equalTo(indexAgg.getValueAsString()));
-            }
-            else {
-                throw new IllegalArgumentException("unsupported aggregation type [" + indexAggObj.getType() + "]");
+        DateHistogramGroupConfig dateHistoConfig = config.getGroupConfig().getDateHistogram();
+        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(dateHistoConfig.getField());
+        dateHisto.field(dateHistoConfig.getField());
+        if (dateHistoConfig.getTimeZone() != null) {
+            dateHisto.timeZone(ZoneId.of(dateHistoConfig.getTimeZone()));
+        }
+        if (dateHistoConfig instanceof DateHistogramGroupConfig.FixedInterval) {
+            dateHisto.fixedInterval(dateHistoConfig.getInterval());
+        } else if (dateHistoConfig instanceof DateHistogramGroupConfig.CalendarInterval) {
+            dateHisto.calendarInterval(dateHistoConfig.getInterval());
+        } else {
+            dateHisto.interval(dateHistoConfig.getInterval().estimateMillis());
+            assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
+        }
+
+        if (config.getGroupConfig().getHistogram() != null) {
+            HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
+            for (String field : histoConfig.getFields()) {
+                HistogramValuesSourceBuilder source = new HistogramValuesSourceBuilder(field)
+                    .field(field)
+                    .interval(histoConfig.getInterval());
+                sources.add(source);
             }
         }
+
+        if (config.getGroupConfig().getTerms() != null) {
+            TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
+            for (String field : termsConfig.getFields()) {
+                TermsValuesSourceBuilder source = new TermsValuesSourceBuilder(field).field(field);
+                sources.add(source);
+            }
+        }
+
+        final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(100);
+        if (config.getMetricsConfig() != null) {
+            for (MetricConfig metricConfig : config.getMetricsConfig()) {
+                for (String metricName : metricConfig.getMetrics()) {
+                    switch (metricName) {
+                        case "min":
+                            composite.subAggregation(new MinAggregationBuilder(metricName).field(metricConfig.getField()));
+                            break;
+                        case "max":
+                            composite.subAggregation(new MaxAggregationBuilder(metricName).field(metricConfig.getField()));
+                            break;
+                        case "sum":
+                            composite.subAggregation(new SumAggregationBuilder(metricName).field(metricConfig.getField()));
+                            break;
+                        case "value_count":
+                            composite.subAggregation(new ValueCountAggregationBuilder(metricName).field(metricConfig.getField()));
+                            break;
+                        default:
+                            throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
+                    }
+                }
+            }
+        }
+        return composite;
     }
 
     @FunctionalInterface

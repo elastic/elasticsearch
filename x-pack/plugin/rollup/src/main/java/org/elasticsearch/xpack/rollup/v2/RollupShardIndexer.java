@@ -49,7 +49,9 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.io.Closeable;
@@ -109,8 +111,6 @@ class RollupShardIndexer {
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;
         try {
-            // TODO: Should we use a temporary directory in the node instead ?
-            //       What should we do to cleanup this directory in case of node crash/restart ?
             this.dir = searcher.getDirectoryReader().directory();
             this.queryShardContext = indexService.newQueryShardContext(
                 indexShard.shardId().id(),
@@ -126,13 +126,14 @@ class RollupShardIndexer {
             this.groupFieldFetchers = new ArrayList<>();
 
             if (config.getGroupConfig().getTerms() != null) {
-                this.groupFieldFetchers.addAll(FieldValueFetcher.build(queryShardContext,
-                    config.getGroupConfig().getTerms().getFields()));
+                TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
+                this.groupFieldFetchers.addAll(FieldValueFetcher.build(queryShardContext, termsConfig.getFields()));
             }
 
             if (config.getGroupConfig().getHistogram() != null) {
-                this.groupFieldFetchers.addAll(FieldHistogramValueFetcher.build(queryShardContext,
-                    config.getGroupConfig().getHistogram().getFields()));
+                HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
+                this.groupFieldFetchers.addAll(FieldValueFetcher.buildHistograms(queryShardContext,
+                    histoConfig.getFields(), histoConfig.getInterval()));
             }
 
             if (config.getMetricsConfig().size() > 0) {

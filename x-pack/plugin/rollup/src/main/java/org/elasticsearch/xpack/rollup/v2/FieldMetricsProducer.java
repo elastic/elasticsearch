@@ -142,16 +142,21 @@ class FieldMetricsProducer {
                 final List<Metric> list = new ArrayList<>();
                 if (normalizedMetrics.isEmpty() == false) {
                     for (String metricName : normalizedMetrics) {
-                        if (metricName.equals(MetricConfig.MIN.getPreferredName())) {
-                            list.add(new Min());
-                        } else if (metricName.equals(MetricConfig.MAX.getPreferredName())) {
-                            list.add(new Max());
-                        } else if (metricName.equals(MetricConfig.SUM.getPreferredName())) {
-                            list.add(new Sum());
-                        } else if (metricName.equals(MetricConfig.VALUE_COUNT.getPreferredName())) {
-                            list.add(new ValueCount());
-                        } else {
-                            throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
+                        switch (metricName) {
+                            case "min":
+                                list.add(new Min());
+                                break;
+                            case "max":
+                                list.add(new Max());
+                                break;
+                            case "sum":
+                                list.add(new Sum());
+                                break;
+                            case "value_count":
+                                list.add(new ValueCount());
+                                break;
+                            default:
+                                throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
                         }
                     }
                     fields.add(new FieldMetricsProducer(metricConfig.getField(), Collections.unmodifiableList(list)));

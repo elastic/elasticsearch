@@ -102,6 +102,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -215,6 +216,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
@@ -253,7 +255,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
                           Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-                          List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners) {
+                          List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
+                          Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -301,6 +304,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
+        this.snapshotCommitSuppliers = snapshotCommitSuppliers;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -679,7 +683,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 namedWriteableRegistry,
                 this::isIdFieldDataEnabled,
                 valuesSourceRegistry,
-                indexFoldersDeletionListeners
+                indexFoldersDeletionListeners,
+                snapshotCommitSuppliers
         );
     }
 
@@ -1528,6 +1533,15 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+    }
+
+    public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
+        return new CoordinatorRewriteContextProvider(xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            nowInMillis,
+            clusterService::state,
+            this::getTimestampFieldType);
     }
 
     /**

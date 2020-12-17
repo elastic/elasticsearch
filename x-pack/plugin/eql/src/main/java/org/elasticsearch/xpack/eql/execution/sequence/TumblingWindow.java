@@ -77,7 +77,6 @@ public class TumblingWindow implements Executable {
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
     private boolean restartWindowFromTailQuery;
-    private final boolean earlyUntil;
 
     private long startTime;
 
@@ -107,7 +106,6 @@ public class TumblingWindow implements Executable {
         Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
         this.restartWindowFromTailQuery = baseRequest.descending();
-        this.earlyUntil = baseRequest.descending();
     }
 
     @Override
@@ -137,27 +135,19 @@ public class TumblingWindow implements Executable {
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
             if (currentStage == 0) {
-                matcher.trim(true);
+                matcher.trim(null);
             }
         }
-        // trim to last
         else {
-           // check case when a rebase occurred and the current query
-           // has a lot more results than the first once and hasn't
-           // covered the whole window. Running a trim early data before
-           // the whole window is matched
-           boolean trimToLast = false;
-           if (currentStage == 0) {
-               trimToLast = true;
-           }
-           else {
-               Ordinal current = criteria.get(currentStage).queryRequest().after();
-               Ordinal previous = criteria.get(currentStage - 1).queryRequest().after();
-               trimToLast = current.after(previous);
-           }
-           if (trimToLast) {
-               matcher.trim(false);
-           }
+            // trim to last until the current window
+            // that's because some stages can be sparse, other dense
+            // and results from the sparse stage can be after those in the dense one
+            // trimming to last removes these results
+            // same applies for rebase
+            Ordinal marker = criteria.get(currentStage).queryRequest().after();
+            if (marker != null) {
+                matcher.trim(marker);
+            }
         }
 
         advance(currentStage, listener);
@@ -200,7 +190,6 @@ public class TumblingWindow implements Executable {
             // get borders for the rest of the queries - but only when at least one result is found
             begin = headOrdinal(hits, base);
             end = tailOrdinal(hits, base);
-            boolean desc = base.descending();
             // always create an ASC window
             info = new WindowInfo(baseStage, begin, end);
 

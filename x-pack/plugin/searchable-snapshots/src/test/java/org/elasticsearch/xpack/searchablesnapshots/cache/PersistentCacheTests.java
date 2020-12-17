@@ -119,11 +119,8 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                 boolean commit = false;
                 if (frequently()) {
-                    writer.prepareCommit();
-                    if (frequently()) {
-                        writer.commit();
-                        commit = true;
-                    }
+                    writer.commit();
+                    commit = true;
                 }
 
                 if (commit) {

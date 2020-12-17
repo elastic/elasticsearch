@@ -376,6 +376,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         assertTrue("onChildTasksCompleted() is not invoked", latch.await(1, TimeUnit.SECONDS));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66518")
     public void testTaskCancellationOnCoordinatingNodeLeavingTheCluster() throws Exception {
         setupTestNodes(Settings.EMPTY);
         connectNodes(testNodes);

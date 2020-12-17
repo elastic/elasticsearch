@@ -187,6 +187,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    public static final int MIN_PRIVATE_PORT = 13301;
+
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -1500,7 +1502,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             startAt = Math.floorMod(workerId - 1, 223) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return 10300 + (startAt * 100);
+        return MIN_PRIVATE_PORT + (startAt * 100);
     }
 
     protected static InetAddress randomIp(boolean v4) {

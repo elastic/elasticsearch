@@ -126,8 +126,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      *                      backing indices on data streams. See {@link #getDefaultBackingIndexName}.
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index newWriteIndex) {
-        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1));
+    public DataStream rollover(Index newWriteIndex, Version minNodeVersion) {
+        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1, minNodeVersion));
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
@@ -190,7 +190,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
-        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis());
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), Version.CURRENT);
+    }
+
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, Version minNodeVersion) {
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), minNodeVersion);
     }
 
     /**
@@ -205,6 +209,22 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
         return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis),
             generation);
+    }
+
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis, Version minNodeVersion) {
+        if (minNodeVersion.onOrAfter(NEW_FEATURES_VERSION)) {
+            return String.format(Locale.ROOT,
+                BACKING_INDEX_PREFIX + "%s-%s-%06d",
+                dataStreamName,
+                DATE_FORMATTER.formatMillis(epochMillis),
+                generation);
+        } else {
+            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
+        }
+    }
+
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
     }
 
     public DataStream(StreamInput in) throws IOException {

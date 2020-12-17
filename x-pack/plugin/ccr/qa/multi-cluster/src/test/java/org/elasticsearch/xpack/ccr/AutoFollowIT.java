@@ -498,13 +498,17 @@ public class AutoFollowIT extends ESCCRRestTestCase {
                                     String aliasName,
                                     boolean checkWriteIndex,
                                     String... otherIndices) throws IOException {
-        var getAliasRequest = new Request("GET", "/_alias/" + aliasName);
-        var responseBody = toMap(client.performRequest(getAliasRequest));
-        if (checkWriteIndex) {
-            assertThat(ObjectPath.eval(otherIndices[0] + ".aliases." + aliasName + ".is_write_index", responseBody), is(true));
-        }
-        for (String otherIndex : otherIndices) {
-            assertThat(ObjectPath.eval(otherIndex + ".aliases." + aliasName, responseBody), notNullValue());
+        try {
+            var getAliasRequest = new Request("GET", "/_alias/" + aliasName);
+            var responseBody = toMap(client.performRequest(getAliasRequest));
+            if (checkWriteIndex) {
+                assertThat(ObjectPath.eval(otherIndices[0] + ".aliases." + aliasName + ".is_write_index", responseBody), is(true));
+            }
+            for (String otherIndex : otherIndices) {
+                assertThat(ObjectPath.eval(otherIndex + ".aliases." + aliasName, responseBody), notNullValue());
+            }
+        } catch (ResponseException e) {
+            throw new AssertionError("get alias call failed", e);
         }
     }
 

@@ -157,6 +157,7 @@ public class Constants {
         "cluster:admin/xpack/rollup/start",
         "cluster:admin/xpack/rollup/stop",
         "cluster:admin/xpack/searchable_snapshots/cache/clear",
+        "cluster:admin/xpack/searchable_snapshots/cache/store",
         "cluster:admin/xpack/security/api_key/create",
         "cluster:admin/xpack/security/api_key/get",
         "cluster:admin/xpack/security/api_key/grant",

@@ -123,7 +123,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     public TransformIndexer(
         ThreadPool threadPool,
-        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
         TransformAuditor auditor,
@@ -137,7 +136,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformCheckpoint nextCheckpoint,
         TransformContext context
     ) {
-        super(threadPool, executorName, initialState, initialPosition, jobStats);
+        super(threadPool, initialState, initialPosition, jobStats);
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");

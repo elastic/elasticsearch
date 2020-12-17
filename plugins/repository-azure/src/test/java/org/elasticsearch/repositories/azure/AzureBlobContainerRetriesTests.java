@@ -174,11 +174,6 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             }
 
             @Override
-            int getMaxUploadParallelism() {
-                return 1;
-            }
-
-            @Override
             int getMaxReadRetries(String clientName) {
                 return maxRetries;
             }
@@ -415,6 +410,9 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 if (requestReceived.compareAndSet(false, true)) {
                     throw new AssertionError("Should not receive two requests");
                 } else {
+                    // We have to try to read the body since the netty async http client sends the request
+                    // lazily
+                    Streams.readFully(exchange.getRequestBody());
                     exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
                 }
             } finally {

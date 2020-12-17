@@ -51,6 +51,7 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GENERATED;
 
 /**
@@ -509,6 +510,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
                 builder.field(CONFIG_TYPE.getPreferredName(), TYPE);
             }
             if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+                assertNoAuthorizationHeader(headers);
                 builder.field(HEADERS.getPreferredName(), headers);
             }
             builder.field(QUERY_DELAY.getPreferredName(), queryDelay.getStringRep());

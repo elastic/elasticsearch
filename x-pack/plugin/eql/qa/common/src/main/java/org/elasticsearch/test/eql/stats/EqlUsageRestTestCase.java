@@ -199,7 +199,8 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
                 "  [process where opcode == 2] by user");
         }
         responseAsMap = getStats();
-        metricsToCheck = unmodifiableSet(new HashSet<>("sequence", "sequence_queries_three", "join_keys_one", "sequence_maxspan", defaultPipe)));
+        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_three", "join_keys_one",
+            "sequence_maxspan", defaultPipe)));
         assertFeaturesMetrics(randomThreeQueriesSequences, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -252,7 +253,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
                 "  [process where opcode == 1]");
         }
         responseAsMap = getStats();
-        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two", 
+        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two",
             "join_keys_five_or_more", defaultPipe)));
         assertFeaturesMetrics(randomFiveJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);

@@ -67,7 +67,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -404,23 +403,22 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
     }
 
     public void testRetryUntilFail() throws IOException {
-        final AtomicBoolean requestReceived = new AtomicBoolean(false);
+        final int maxRetries = randomIntBetween(2, 5);
+        final AtomicInteger requestsReceived = new AtomicInteger(0);
         httpServer.createContext("/account/container/write_blob_max_retries", exchange -> {
             try {
-                if (requestReceived.compareAndSet(false, true)) {
-                    throw new AssertionError("Should not receive two requests");
-                } else {
-                    // We have to try to read the body since the netty async http client sends the request
-                    // lazily
-                    Streams.readFully(exchange.getRequestBody());
-                    exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
+                requestsReceived.incrementAndGet();
+                // We have to try to read the body since the netty async http client sends the request
+                // lazily
+                if (Streams.readFully(exchange.getRequestBody()).length() > 0) {
+                    throw new AssertionError("Should not receive any data");
                 }
             } finally {
                 exchange.close();
             }
         });
 
-        final BlobContainer blobContainer = createBlobContainer(randomIntBetween(2, 5));
+        final BlobContainer blobContainer = createBlobContainer(maxRetries);
         try (InputStream stream = new InputStream() {
             @Override
             public int read() throws IOException {
@@ -439,6 +437,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             final IOException ioe = expectThrows(IOException.class, () ->
                 blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean()));
             assertThat(ioe.getMessage(), is("Unable to write blob write_blob_max_retries"));
+            assertThat(requestsReceived.get(), equalTo(maxRetries + 1));
         }
     }
 

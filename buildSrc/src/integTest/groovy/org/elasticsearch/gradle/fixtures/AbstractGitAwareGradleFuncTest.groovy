@@ -41,7 +41,7 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
     File setupGitRemote() {
         URL fakeRemote = getClass().getResource("fake_git/remote")
         File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')
-        FileUtils.copyDirectory(new File(fakeRemote.file), workingRemoteGit)
+        FileUtils.copyDirectory(new File(fakeRemote.toURI()), workingRemoteGit)
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()
 

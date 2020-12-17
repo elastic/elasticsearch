@@ -24,6 +24,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -49,6 +50,7 @@ import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66385")
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
 

@@ -176,7 +176,7 @@ public abstract class MonitoringIntegTestCase extends ESIntegTestCase {
         assertBusy(this::ensureMonitoringIndicesYellow);
     }
 
-    private void awaitIndexExists(final String index) throws Exception {
+    protected void awaitIndexExists(final String index) throws Exception {
         assertBusy(() -> assertIndicesExists(index), 30, TimeUnit.SECONDS);
     }
 

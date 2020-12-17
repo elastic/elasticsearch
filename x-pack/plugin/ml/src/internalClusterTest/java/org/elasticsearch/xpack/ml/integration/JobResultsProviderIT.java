@@ -666,7 +666,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         createJob("other_job");
         indexModelSnapshot(new ModelSnapshot.Builder("other_job").setSnapshotId("other_snap")
             .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
-            .setMinVersion(Version.CURRENT)
+            .setMinVersion(Version.V_7_9_0)
             .build());
         // Add a snapshot WITHOUT a min version.
         client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"), MapperService.SINGLE_MAPPING_NAME)

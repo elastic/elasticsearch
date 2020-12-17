@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -197,6 +198,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public Query termQuery(Object value, QueryShardContext context) {
             // Disable scoring
             return new ConstantScoreQuery(super.termQuery(value, context));
+        }
+
+        @Override
+        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
+                boolean transpositions, QueryShardContext context) {
+            // Disable scoring
+            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
         }
 
         @Override

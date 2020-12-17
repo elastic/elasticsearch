@@ -161,6 +161,20 @@ setup:
   - match: { "hits.hits.0._score": 1.0 }
 
 ---
+"Fuzzy query":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            fuzzy:
+              foo: "lucane"
+
+  - match: { "hits.total.value": 2 }
+  - match: { "hits.hits.0._score": 1.0 }
+
+---
 "Span query":
 
   - do:

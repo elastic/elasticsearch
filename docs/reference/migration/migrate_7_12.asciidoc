@@ -27,7 +27,8 @@ See also <<release-highlights>> and <<es-release-notes>>.
 ====
 *Details* +
 In earlier versions a force-merge on a frozen index or a searchable snapshot
-index would yield a successful response without performing the requested merge.
-From version 7.12 onwards a force-merge on these kinds of index will fail
-unless the requested merge is a no-op.
+index would incorrectly yield a successful response without performing the
+requested merge. This bug is fixed in version 7.12: from this version onwards a
+force-merge on these immutable indices will fail if the requested merge is not
+a no-op.
 ====

@@ -102,3 +102,18 @@ Discontinue use of the `index.translog.retention.age` and
 `index.translog.retention.size` index settings. Requests that
 include these settings will return an error.
 ====
+
+.The default for the `?wait_for_active_shards` parameter on the close index API has changed from `NONE` to `DEFAULT`.
+[%collapsible]
+====
+*Details* +
+When closing an index in earlier versions, by default {es} would not wait for
+the shards of the closed index to be properly assigned before returning. From
+version 8.0 onwards the default behaviour is to wait for shards to be assigned
+according to the <<index-wait-for-active-shards,index setting
+`index.write.wait_for_active_shards`>>.
+
+*Impact* +
+Accept the new behaviour, or specify `?wait_for_active_shards=NONE` to preserve
+the old behaviour if needed.
+====

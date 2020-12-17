@@ -95,6 +95,7 @@
   - do:
       indices.close:
         index: index1
+        wait_for_active_shards: DEFAULT
 
   - do:
       catch: bad_request

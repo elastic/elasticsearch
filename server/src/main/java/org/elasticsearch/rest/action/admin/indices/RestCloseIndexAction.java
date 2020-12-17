@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -36,6 +37,8 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestCloseIndexAction extends BaseRestHandler {
+
+    private static final DeprecationLogger logger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
 
     @Override
     public List<Route> routes() {
@@ -55,8 +58,12 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.masterNodeTimeout(request.paramAsTime("master_timeout", closeIndexRequest.masterNodeTimeout()));
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
-        String waitForActiveShards = request.param("wait_for_active_shards");
-        if (waitForActiveShards != null) {
+        final String waitForActiveShards = request.param("wait_for_active_shards");
+        if (waitForActiveShards == null) {
+            logger.deprecate("close-index-wait-for-active-shards", "When closing an index in 8.0 the default behaviour will change from " +
+                    "?wait_for_active_shards=NONE to ?wait_for_active_shards=DEFAULT. To opt-in to the new default, set " +
+                    "?wait_for_active_shards=DEFAULT when closing indices.");
+        } else {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));

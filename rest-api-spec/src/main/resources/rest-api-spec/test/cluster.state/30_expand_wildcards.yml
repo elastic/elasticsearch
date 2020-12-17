@@ -25,6 +25,7 @@ setup:
   - do:
       indices.close:
         index: test_close_index
+        wait_for_active_shards: DEFAULT
 
 ---
 "Test expand_wildcards parameter on closed, open indices and both":

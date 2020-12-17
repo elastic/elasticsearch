@@ -399,6 +399,7 @@
   - do:
       indices.close:
         index: test_index
+        wait_for_active_shards: DEFAULT
 
   - do:
       cat.aliases:
@@ -432,6 +433,7 @@
   - do:
       indices.close:
         index: test_index
+        wait_for_active_shards: DEFAULT
 
   - do:
       node_selector:

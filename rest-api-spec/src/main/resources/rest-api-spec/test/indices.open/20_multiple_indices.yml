@@ -26,6 +26,7 @@ setup:
   - do:
       indices.close:
         index: _all
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:
@@ -53,6 +54,7 @@ setup:
   - do:
       indices.close:
         index: test_*
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:
@@ -80,6 +82,7 @@ setup:
   - do:
       indices.close:
         index: '*'
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:

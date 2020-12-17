@@ -230,6 +230,7 @@ teardown:
   - do:
       indices.close:
         index: ".ds-simple-data-stream1-*000001,.ds-simple-data-stream1-*000002"
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:

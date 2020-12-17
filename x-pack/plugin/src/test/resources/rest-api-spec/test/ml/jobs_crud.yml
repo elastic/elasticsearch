@@ -1223,6 +1223,7 @@
   - do:
       indices.close:
         index: ".ml-anomalies-shared"
+        wait_for_active_shards: DEFAULT
 
   - do:
       catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-anomalies-shared\]/
@@ -1250,6 +1251,7 @@
   - do:
       indices.close:
         index: ".ml-state-000001"
+        wait_for_active_shards: DEFAULT
 
   - do:
       catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state-000001\]/

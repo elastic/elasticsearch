@@ -307,6 +307,7 @@ setup:
   - do:
       indices.close:
         index: test_index_2
+        wait_for_active_shards: DEFAULT
 
   - do:
       indices.get_alias:

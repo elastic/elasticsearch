@@ -54,6 +54,7 @@ setup:
   - do:
       indices.close:
         index: test_index2
+        wait_for_active_shards: DEFAULT
 
   - do:
       indices.create:

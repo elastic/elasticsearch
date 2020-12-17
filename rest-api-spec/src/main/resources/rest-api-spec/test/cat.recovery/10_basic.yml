@@ -93,6 +93,7 @@
   - do:
       indices.close:
         index: index2
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:

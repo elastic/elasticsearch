@@ -55,6 +55,7 @@ setup:
   - do:
       indices.close:
         index:  index3
+        wait_for_active_shards: DEFAULT
 
 ---
 teardown:
@@ -150,6 +151,7 @@ teardown:
   - do:
       indices.close:
         index:  index_to_monitor
+        wait_for_active_shards: DEFAULT
 
   - do:
       headers: { Authorization: "Basic Y2F0X3VzZXI6Y2F0X3Bhc3N3b3Jk" } # cat_user

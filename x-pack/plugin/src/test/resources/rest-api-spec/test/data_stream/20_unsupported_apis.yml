@@ -45,6 +45,7 @@
   - do:
       indices.close:
         index: logs-*
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
   - length: { indices: 0 }
 
@@ -165,6 +166,7 @@
       catch: bad_request
       indices.close:
         index: ".ds-simple-data-stream1-*000001"
+        wait_for_active_shards: DEFAULT
 
   - do:
       indices.delete_data_stream:

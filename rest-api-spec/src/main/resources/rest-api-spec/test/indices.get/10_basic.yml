@@ -38,6 +38,7 @@ setup:
   - do:
       indices.close:
         index: test_index_3
+        wait_for_active_shards: DEFAULT
 
   - do:
       cluster.health:

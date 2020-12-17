@@ -14,6 +14,7 @@
   - do:
       indices.close:
         index: test_index
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:
@@ -52,6 +53,7 @@
   - do:
       indices.close:
         index: test_index
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:
@@ -83,6 +85,27 @@
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }
 ---
+"Close index without specifying wait_for_active_shards":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "closed indices are replicated starting version 7.2.0"
+      features: ["warnings", "node_selector"]
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: test_index
+      warnings:
+        - "When closing an index in 8.0 the default behaviour will change from ?wait_for_active_shards=NONE to ?wait_for_active_shards=DEFAULT. To opt-in to the new default, set ?wait_for_active_shards=DEFAULT when closing indices."
+      node_selector:
+        version: "7.12.0 - "
+---
 "Close index response with result per index":
   - skip:
       version: " - 7.2.99"
@@ -112,6 +135,7 @@
   - do:
       indices.close:
         index: "index_*"
+        wait_for_active_shards: DEFAULT
 
   - match: { acknowledged: true }
   - match: { shards_acknowledged: true }

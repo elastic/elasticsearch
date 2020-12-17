@@ -40,6 +40,7 @@ setup:
   - do:
       indices.close:
         index : test_index
+        wait_for_active_shards: DEFAULT
 
   - do:
       snapshot.restore:

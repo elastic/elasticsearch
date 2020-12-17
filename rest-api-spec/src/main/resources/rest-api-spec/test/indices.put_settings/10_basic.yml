@@ -89,6 +89,7 @@ setup:
   - do:
       indices.close:
         index: test-index
+        wait_for_active_shards: DEFAULT
 
   - do:
       indices.put_settings:

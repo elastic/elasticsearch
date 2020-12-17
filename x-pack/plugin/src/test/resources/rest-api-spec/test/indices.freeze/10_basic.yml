@@ -104,6 +104,7 @@
 - do:
     indices.close:
       index: test-close
+      wait_for_active_shards: DEFAULT
 
 - do:
     indices.freeze:

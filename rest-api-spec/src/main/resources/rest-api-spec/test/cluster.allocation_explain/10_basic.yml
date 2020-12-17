@@ -68,6 +68,7 @@
   - do:
       indices.close:
         index: test_closed
+        wait_for_active_shards: DEFAULT
 
   - match: { acknowledged: true }
 

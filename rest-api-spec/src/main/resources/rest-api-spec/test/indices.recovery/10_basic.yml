@@ -56,6 +56,7 @@
   - do:
       indices.close:
         index: test_2
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:

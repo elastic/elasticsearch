@@ -34,6 +34,7 @@
   - do:
       indices.close:
           index:  index_closed
+          wait_for_active_shards: DEFAULT
 
   - do:
       catch:  /index_closed_exception/

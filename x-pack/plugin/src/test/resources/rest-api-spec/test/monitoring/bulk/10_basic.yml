@@ -206,6 +206,7 @@
   - do:
       indices.close:
         index: .monitoring-beats-*
+        wait_for_active_shards: DEFAULT
 
   - do:
       catch: /export_exception/

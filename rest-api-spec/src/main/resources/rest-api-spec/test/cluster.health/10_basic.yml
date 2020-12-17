@@ -183,6 +183,7 @@
   - do:
       indices.close:
         index: index-2
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   # closing the index-2 turns the cluster health back to green
@@ -258,6 +259,7 @@
   - do:
       indices.close:
         index: index-2
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:

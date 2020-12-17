@@ -66,6 +66,7 @@
   - do:
       indices.close:
         index: index-2
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:
@@ -107,6 +108,7 @@
   - do:
       indices.close:
         index: index-2
+        wait_for_active_shards: DEFAULT
   - is_true: acknowledged
 
   - do:
@@ -249,6 +251,7 @@
   - do:
       indices.close:
         index: bar
+        wait_for_active_shards: DEFAULT
 
   - do:
       cat.indices:

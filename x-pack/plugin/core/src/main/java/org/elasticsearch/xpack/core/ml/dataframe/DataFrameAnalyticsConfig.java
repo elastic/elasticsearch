@@ -35,6 +35,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.OBJECT_ARRAY_BOOLEAN_OR_STRING;
 import static org.elasticsearch.common.xcontent.ObjectParser.ValueType.VALUE;
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
 
 public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
@@ -251,6 +252,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
         }
         builder.field(MODEL_MEMORY_LIMIT.getPreferredName(), getModelMemoryLimit().getStringRep());
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            assertNoAuthorizationHeader(headers);
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (createTime != null) {
@@ -414,6 +416,7 @@ public class DataFrameAnalyticsConfig implements ToXContentObject, Writeable {
 
         public Builder setHeaders(Map<String, String> headers) {
             this.headers = headers;
+            assertNoAuthorizationHeader(this.headers);
             return this;
         }
 

@@ -143,6 +143,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
     public void testCloseAndReopen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
             final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
+            closeRequest.addParameter("wait_for_active_shards", "DEFAULT");
             assertOK(client().performRequest(closeRequest));
             ensureGreen(restoredIndexName);
 

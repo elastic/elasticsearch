@@ -1225,7 +1225,9 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
+        final Request closeRequest = new Request("POST", "/" + index + "/_close");
+        closeRequest.addParameter("wait_for_active_shards", "DEFAULT");
+        Response response = client().performRequest(closeRequest);
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
     }
 

@@ -108,7 +108,9 @@ public class RankEvalIT extends ESRestHighLevelClientTestCase {
         }
 
         // now try this when test2 is closed
-        client().performRequest(new Request("POST", "index2/_close"));
+        final Request closeRequest = new Request("POST", "index2/_close");
+        closeRequest.addParameter("wait_for_active_shards", "DEFAULT");
+        client().performRequest(closeRequest);
         rankEvalRequest.indicesOptions(IndicesOptions.fromParameters(null, "true", null, "false", SearchRequest.DEFAULT_INDICES_OPTIONS));
         response = execute(rankEvalRequest, highLevelClient()::rankEval, highLevelClient()::rankEvalAsync);
     }

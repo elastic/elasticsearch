@@ -89,7 +89,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 assertThat(countCcrNodeTasks(), equalTo(0));
             });
 
-            assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_close")));
+            closeIndex(allowedIndex);
             assertOK(client().performRequest(new Request("POST", "/" + allowedIndex + "/_ccr/unfollow")));
             Exception e = expectThrows(ResponseException.class, () -> resumeFollow(allowedIndex));
             assertThat(e.getMessage(), containsString("follow index [" + allowedIndex + "] does not have ccr metadata"));
@@ -124,7 +124,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
             e = expectThrows(ResponseException.class,
                 () -> client().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
             assertThat(e.getMessage(), containsString("action [indices:admin/xpack/ccr/unfollow] is unauthorized for user [test_ccr]"));
-            assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_close")));
+            closeIndex(unallowedIndex);
             assertOK(adminClient().performRequest(new Request("POST", "/" + unallowedIndex + "/_ccr/unfollow")));
             assertBusy(() -> assertThat(countCcrNodeTasks(), equalTo(0)));
         }

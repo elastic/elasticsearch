@@ -378,7 +378,7 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
     private static void stopIndexFollowing(RestClient client, String followerIndex) throws IOException {
         pauseIndexFollowing(client, followerIndex);
-        assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_close")));
+        closeIndex(followerIndex);
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/unfollow")));
     }
 

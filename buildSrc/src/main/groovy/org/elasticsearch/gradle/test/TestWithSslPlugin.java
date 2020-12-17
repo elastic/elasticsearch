@@ -75,7 +75,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);
             clusters.all(c -> {
-                if (BuildParams.isInFipsJvm()){
+                if (BuildParams.isInFipsJvm()) {
                     c.setting("xpack.security.transport.ssl.key", "test-node.key");
                     c.setting("xpack.security.transport.ssl.certificate", "test-node.crt");
                     c.setting("xpack.security.http.ssl.key", "test-node.key");

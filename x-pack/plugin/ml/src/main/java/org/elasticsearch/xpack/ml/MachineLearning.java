@@ -448,6 +448,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<Boolean> USE_AUTO_MACHINE_MEMORY_PERCENT = Setting.boolSetting(
         "xpack.ml.use_auto_machine_memory_percent",
         false,
+        Property.Dynamic,
         Property.NodeScope);
     public static final Setting<Integer> MAX_LAZY_ML_NODES =
             Setting.intSetting("xpack.ml.max_lazy_ml_nodes", 0, 0, Property.Dynamic, Property.NodeScope);
@@ -497,6 +498,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     public static final Setting<ByteSizeValue> MAX_ML_NODE_SIZE = Setting.byteSizeSetting(
         "xpack.ml.max_ml_node_size",
         ByteSizeValue.ZERO,
+        Property.Dynamic,
         Property.NodeScope);
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
@@ -505,7 +507,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
     private final boolean enabled;
 
     private final SetOnce<AutodetectProcessManager> autodetectProcessManager = new SetOnce<>();
-    private final SetOnce<DatafeedContextProvider> datafeedContextProvider = new SetOnce<>();
+    private final SetOnce<DatafeedConfigProvider> datafeedConfigProvider = new SetOnce<>();
     private final SetOnce<DatafeedManager> datafeedManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsManager> dataFrameAnalyticsManager = new SetOnce<>();
     private final SetOnce<DataFrameAnalyticsAuditor> dataFrameAnalyticsAuditor = new SetOnce<>();
@@ -579,7 +581,11 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             // This is not used in v7 and higher, but users are still prevented from setting it directly to avoid confusion
             disallowMlNodeAttributes(mlEnabledNodeAttrName);
         } else {
-            disallowMlNodeAttributes(mlEnabledNodeAttrName, maxOpenJobsPerNodeNodeAttrName, machineMemoryAttrName);
+            disallowMlNodeAttributes(mlEnabledNodeAttrName,
+                maxOpenJobsPerNodeNodeAttrName,
+                machineMemoryAttrName,
+                jvmSizeAttrName
+            );
         }
         return additionalSettings.build();
     }
@@ -635,7 +641,12 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
         InferenceAuditor inferenceAuditor = new InferenceAuditor(client, clusterService);
         this.dataFrameAnalyticsAuditor.set(dataFrameAnalyticsAuditor);
         OriginSettingClient originSettingClient = new OriginSettingClient(client, ClientHelper.ML_ORIGIN);
-        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(originSettingClient, clusterService, settings);
+        ResultsPersisterService resultsPersisterService = new ResultsPersisterService(
+            threadPool,
+            originSettingClient,
+            clusterService,
+            settings
+        );
         AnnotationPersister anomalyDetectionAnnotationPersister = new AnnotationPersister(resultsPersisterService);
         JobResultsProvider jobResultsProvider = new JobResultsProvider(client, settings, indexNameExpressionResolver);
         JobResultsPersister jobResultsPersister =
@@ -645,6 +656,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
             anomalyDetectionAuditor);
         JobConfigProvider jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         DatafeedConfigProvider datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
+        this.datafeedConfigProvider.set(datafeedConfigProvider);
         UpdateJobProcessNotifier notifier = new UpdateJobProcessNotifier(client, clusterService, threadPool);
         JobManager jobManager = new JobManager(environment,
             settings,
@@ -727,7 +739,6 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 clusterService.getNodeName());
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(jobConfigProvider, datafeedConfigProvider,
             jobResultsProvider);
-        this.datafeedContextProvider.set(datafeedContextProvider);
         DatafeedManager datafeedManager = new DatafeedManager(threadPool, client, clusterService, datafeedJobBuilder,
                 System::currentTimeMillis, anomalyDetectionAuditor, autodetectProcessManager, datafeedContextProvider);
         this.datafeedManager.set(datafeedManager);
@@ -835,7 +846,7 @@ public class MachineLearning extends Plugin implements SystemIndexPlugin,
                 new OpenJobPersistentTasksExecutor(settings,
                     clusterService,
                     autodetectProcessManager.get(),
-                    datafeedContextProvider.get(),
+                    datafeedConfigProvider.get(),
                     memoryTracker.get(),
                     client,
                     expressionResolver),

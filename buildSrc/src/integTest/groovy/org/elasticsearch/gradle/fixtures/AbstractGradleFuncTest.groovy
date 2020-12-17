@@ -90,7 +90,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         return jarFile;
     }
 
-    File internalBuild(File buildScript = buildFile) {
+    File internalBuild(File buildScript = buildFile, String major = "7.9.1", String minor = "7.10.0", String bugfix = "7.11.0") {
         buildScript << """plugins {
           id 'elasticsearch.global-build-info'
         }
@@ -102,11 +102,13 @@ abstract class AbstractGradleFuncTest extends Specification {
         import org.elasticsearch.gradle.BwcVersions
         import org.elasticsearch.gradle.Version
 
-        Version currentVersion = Version.fromString("9.0.0")
-        BwcVersions versions = new BwcVersions(new TreeSet<>(
-        Arrays.asList(Version.fromString("8.0.0"), Version.fromString("8.0.1"), Version.fromString("8.1.0"), currentVersion)),
-            currentVersion)
-
+        Version currentVersion = Version.fromString("8.0.0")
+         def versionList = []
+               versionList.addAll(
+            Arrays.asList(Version.fromString("$major"), Version.fromString("$minor"), Version.fromString("$bugfix"), currentVersion)
+        )
+        
+        BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)
         BuildParams.init { it.setBwcVersions(versions) }
         """
     }

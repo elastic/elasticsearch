@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -214,12 +213,8 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         totalPartitionFieldCount = in.readVLong();
         bucketAllocationFailuresCount = in.readVLong();
         memoryStatus = MemoryStatus.readFromStream(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (in.readBoolean()) {
-                assignmentMemoryBasis = AssignmentMemoryBasis.readFromStream(in);
-            } else {
-                assignmentMemoryBasis = null;
-            }
+        if (in.readBoolean()) {
+            assignmentMemoryBasis = AssignmentMemoryBasis.readFromStream(in);
         } else {
             assignmentMemoryBasis = null;
         }
@@ -254,13 +249,11 @@ public class ModelSizeStats implements ToXContentObject, Writeable {
         out.writeVLong(totalPartitionFieldCount);
         out.writeVLong(bucketAllocationFailuresCount);
         memoryStatus.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            if (assignmentMemoryBasis != null) {
-                out.writeBoolean(true);
-                assignmentMemoryBasis.writeTo(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        if (assignmentMemoryBasis != null) {
+            out.writeBoolean(true);
+            assignmentMemoryBasis.writeTo(out);
+        } else {
+            out.writeBoolean(false);
         }
         out.writeVLong(categorizedDocCount);
         out.writeVLong(totalCategoryCount);

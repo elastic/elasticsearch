@@ -55,17 +55,19 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '.ds-logs-foo-bar-000001' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-logs-foo-bar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
 
   - do:
       indices.get:
-        index: .ds-logs-foo-bar-000001
+        index: $idx0name
 
-  - is_true: \.ds-logs-foo-bar-000001.settings
-  - is_true: \.ds-logs-foo-bar-000001.mappings
-  - match: { \.ds-logs-foo-bar-000001.settings.index.lifecycle.name: "logs" }
-  - is_true: \.ds-logs-foo-bar-000001.mappings.properties.message
-  - match: { \.ds-logs-foo-bar-000001.data_stream: "logs-foo-bar" }
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.mappings
+  - match: { .$idx0name.settings.index.lifecycle.name: "logs" }
+  - is_true: .$idx0name.mappings.properties.message
+  - match: { .$idx0name.data_stream: "logs-foo-bar" }
 
   - do:
       indices.delete_data_stream:
@@ -88,17 +90,19 @@ setup:
   - match: { data_streams.0.timestamp_field.name: '@timestamp' }
   - match: { data_streams.0.generation: 1 }
   - length: { data_streams.0.indices: 1 }
-  - match: { data_streams.0.indices.0.index_name: '.ds-metrics-foo-bar-000001' }
+  - match: { data_streams.0.indices.0.index_name: '/\.ds-metrics-foo-bar-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
 
   - do:
       indices.get:
-        index: .ds-metrics-foo-bar-000001
+        index: $idx0name
 
-  - is_true: \.ds-metrics-foo-bar-000001.settings
-  - is_true: \.ds-metrics-foo-bar-000001.mappings
-  - match: { \.ds-metrics-foo-bar-000001.settings.index.lifecycle.name: "metrics" }
-  - is_true: \.ds-metrics-foo-bar-000001.mappings.properties.message
-  - match: { \.ds-metrics-foo-bar-000001.data_stream: "metrics-foo-bar" }
+  - is_true: .$idx0name.settings
+  - is_true: .$idx0name.mappings
+  - match: { .$idx0name.settings.index.lifecycle.name: "metrics" }
+  - is_true: .$idx0name.mappings.properties.message
+  - match: { .$idx0name.data_stream: "metrics-foo-bar" }
 
   - do:
       indices.delete_data_stream:

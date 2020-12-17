@@ -6,7 +6,6 @@
 package org.elasticsearch.smoketest;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -16,6 +15,7 @@ import org.junit.After;
 import java.io.IOException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.watcher.WatcherRestTestCase.deleteAllWatcherData;
 import static org.hamcrest.Matchers.is;
 
 public class MonitoringWithWatcherRestIT extends ESRestTestCase {
@@ -40,20 +40,7 @@ public class MonitoringWithWatcherRestIT extends ESRestTestCase {
                     .nullField("xpack.monitoring.exporters.*")
                 .endObject().endObject()));
         adminClient().performRequest(cleanupSettingsRequest);
-        final Request deleteRequest = new Request("DELETE", "/.watch*");
-        RequestOptions allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(warnings -> {
-                if (warnings.size() != 1) {
-                    return true;
-                }
-                // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
-                final String warning = warnings.get(0);
-                final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
-                    && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
-                return isSystemIndexWarning == false;
-            }).build();
-        deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
-        adminClient().performRequest(deleteRequest);
+        deleteAllWatcherData();
     }
 
     @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/59132" )

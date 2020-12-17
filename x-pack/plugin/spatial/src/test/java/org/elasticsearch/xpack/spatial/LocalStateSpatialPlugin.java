@@ -22,7 +22,7 @@ public class LocalStateSpatialPlugin extends SpatialPlugin {
     protected XPackLicenseState getLicenseState() {
         TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
         License.OperationMode operationMode = License.OperationMode.TRIAL;
-        licenseState.update(operationMode, true, VersionUtils.randomVersion(LuceneTestCase.random()));
+        licenseState.update(operationMode, true, Long.MAX_VALUE, VersionUtils.randomVersion(LuceneTestCase.random()));
         return licenseState;
     }
 }

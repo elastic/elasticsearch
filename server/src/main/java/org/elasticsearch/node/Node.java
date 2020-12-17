@@ -110,6 +110,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -490,6 +491,20 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+            final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners =
+                pluginsService.filterPlugins(IndexStorePlugin.class)
+                    .stream()
+                    .map(IndexStorePlugin::getIndexFoldersDeletionListeners)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList());
+
+            final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers =
+                    pluginsService.filterPlugins(IndexStorePlugin.class)
+                            .stream()
+                            .map(IndexStorePlugin::getSnapshotCommitSuppliers)
+                            .flatMap(m -> m.entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
@@ -497,6 +512,9 @@ public class Node implements Closeable {
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings)));
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+
+            final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
+            clusterService.addListener(systemIndexManager);
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -508,7 +526,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
-                    searchModule.getValuesSourceRegistry(), recoveryStateFactories);
+                    searchModule.getValuesSourceRegistry(), recoveryStateFactories, indexFoldersDeletionListeners,
+                    snapshotCommitSuppliers);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -698,11 +717,12 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}), transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(),
-                namedWriteableRegistry
-
-                );
+            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}),
+                transportService.getTaskManager(),
+                () -> clusterService.localNode().getId(),
+                transportService.getLocalNodeConnection(),
+                transportService.getRemoteClusterService(),
+                namedWriteableRegistry);
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");

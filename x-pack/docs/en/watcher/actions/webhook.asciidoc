@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-webhook]]
-=== Webhook action
+=== {watcher} webhook action
+++++
+<titleabbrev>Webhook action</titleabbrev>
+++++
 
 Use the `webhook` action to send a request to any web service. The
 webhook action supports both HTTP and HTTPS connections. See
@@ -25,7 +28,7 @@ The following snippet shows a simple webhook action definition:
       "host" : "mylisteningserver", <5>
       "port" : 9200, <6>
       "path": ":/{{ctx.watch_id}}", <7>
-      "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total.value}}" <8>
+      "body" : "{{ctx.watch_id}}:{{ctx.payload.hits.total}}" <8>
     }
   }
 }
@@ -50,7 +53,7 @@ For example, the following `webhook` action creates a new issue in GitHub:
 "actions" : {
   "create_github_issue" : {
     "transform": {
-      "script": "return ['title':'Found errors in \\'contact.html\\'', 'body' : 'Found ' + ctx.payload.hits.total.value + ' errors in the last 5 minutes', 'assignee' : 'web-admin', 'labels' : ['bug','sev2']]"
+      "script": "return ['title':'Found errors in \\'contact.html\\'', 'body' : 'Found ' + ctx.payload.hits.total + ' errors in the last 5 minutes', 'assignee' : 'web-admin', 'labels' : ['bug','sev2']]"
     },
     "webhook" : {
       "method" : "POST",
@@ -127,7 +130,7 @@ the values serve as the header values:
       "headers" : {
         "Content-Type" : "application/yaml" <1>
       },
-      "body" : "count: {{ctx.payload.hits.total.value}}"
+      "body" : "count: {{ctx.payload.hits.total}}"
     }
   }
 }

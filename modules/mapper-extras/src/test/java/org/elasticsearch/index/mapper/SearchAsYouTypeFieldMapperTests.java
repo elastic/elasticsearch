@@ -328,18 +328,48 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testTermVectors() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type").field("term_vector", "yes")));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
+        for (String termVector :  new String[] { "yes", "with_positions", "with_offsets", "with_positions_offsets",
+                "with_positions_payloads", "with_positions_offsets_payloads"}) {
+            DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "search_as_you_type")
+                .field("term_vector", termVector)));
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", "some text")));
 
-        assertTrue(fieldType(doc, "field").storeTermVectors());
+            IndexableFieldType rootField = fieldType(doc, "field");
+            assertTrue(rootField.storeTermVectors());
+            if (termVector.contains("positions")) {
+                assertThat(rootField.storeTermVectorPositions(), equalTo(termVector.contains("positions")));
+            }
+            if (termVector.contains("offsets")) {
+                assertTrue(rootField.storeTermVectorOffsets());
+                assertThat(rootField.storeTermVectorOffsets(), equalTo(termVector.contains("offsets")));
+            }
+            if (termVector.contains("payloads")) {
+                assertTrue(rootField.storeTermVectorPayloads());
+                assertThat(rootField.storeTermVectorPayloads(), equalTo(termVector.contains("payloads")));
+            }
 
-        Stream.of(
-            fieldType(doc, "field._2gram"),
-            fieldType(doc, "field._3gram")
-        ).forEach(ft -> assertTrue(ft.storeTermVectors()));
+            Stream.of(
+                fieldType(doc, "field._2gram"),
+                fieldType(doc, "field._3gram")
+            ).forEach(ft -> {
+                assertTrue(ft.storeTermVectors());
+                if (termVector.contains("positions")) {
+                    assertThat(ft.storeTermVectorPositions(), equalTo(termVector.contains("positions")));
+                }
+                if (termVector.contains("offsets")) {
+                    assertThat(ft.storeTermVectorOffsets(), equalTo(termVector.contains("offsets")));
+                }
+                if (termVector.contains("payloads")) {
+                    assertThat(ft.storeTermVectorPayloads(), equalTo(termVector.contains("payloads")));
+                }
+            });
 
-        PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
-        assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
+            PrefixFieldMapper prefixFieldMapper = getPrefixFieldMapper(mapper, "field._index_prefix");
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectors());
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectorOffsets());
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectorPositions());
+            assertFalse(prefixFieldMapper.fieldType.storeTermVectorPayloads());
+        }
     }
 
     public void testNorms() throws IOException {

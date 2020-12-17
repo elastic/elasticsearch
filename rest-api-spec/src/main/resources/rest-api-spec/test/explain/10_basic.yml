@@ -59,3 +59,22 @@ setup:
           id:     id_1
           body:
             match_all: {}
+
+---
+"Explain with query that requires async calls":
+  - skip:
+      version: " - 7.99.99"
+      reason: "bug fix not yet backported"
+  - do:
+      explain:
+        index:  test_1
+        id:     id_1
+        body:
+          query:
+            terms:
+              foo:
+                index: test_1
+                id: placeholder
+                path: placeholder
+
+  - is_false: matched

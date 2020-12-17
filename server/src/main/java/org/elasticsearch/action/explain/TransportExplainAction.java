@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -35,8 +36,11 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
@@ -114,7 +118,14 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
-            context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
+
+            // Rewrite the query builder and perform required async actions
+            IndicesService indicesService = searchService.getIndicesService();
+            PlainActionFuture<QueryBuilder> actionFuture = PlainActionFuture.newFuture();
+            Rewriteable.rewriteAndFetch(request.query(), indicesService.getRewriteContext(() -> request.nowInMillis), actionFuture);
+            QueryBuilder query = actionFuture.actionGet();
+
+            context.parsedQuery(context.getQueryShardContext().toQuery(query));
             context.preProcess(true);
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);

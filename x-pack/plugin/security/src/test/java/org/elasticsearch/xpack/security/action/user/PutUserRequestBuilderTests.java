@@ -159,9 +159,12 @@ public class PutUserRequestBuilderTests extends ESTestCase {
         assertThat(request.username(), equalTo("hash_user"));
     }
 
-    public void testWithMismatchedPasswordHash() throws IOException {
+    public void testWithMismatchedPasswordHashingAlgorithm() throws IOException {
         final Hasher systemHasher = getFastStoredHashAlgoForTests();
-        final Hasher userHasher = getFastStoredHashAlgoForTests();
+        Hasher userHasher = getFastStoredHashAlgoForTests();
+        while (userHasher.name().equals(systemHasher.name())){
+            userHasher = getFastStoredHashAlgoForTests();
+        }
         final char[] hash = userHasher.hash(new SecureString("secretpassword".toCharArray()));
         final String json = "{\n" +
             "    \"password_hash\": \"" + new String(hash) + "\"," +

@@ -32,7 +32,6 @@ tasks.register("writeJavaPolicy") {
         "};"
       ].join("\n")
     )
-    }
   }
 }
 
@@ -65,5 +64,5 @@ tasks.named("test").configure { enabled = false }
 if (BuildParams.inFipsJvm) {
   project.tasks.configureEach {
     enabled = false
-  }   
-}  
+  }
+}

@@ -29,6 +29,9 @@ testClusters.javaRestTest {
 }
 
 task javaRestTestWithSecurity(type: StandaloneRestIntegTestTask) {
+  onlyIf {
+    BuildParams.inFipsJvm == false
+  }
   description = "Run tests against a cluster that has security enabled"
   useCluster testClusters.javaRestTest
   dependsOn javaRestTest

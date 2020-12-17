@@ -12,8 +12,6 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
-import org.junit.After;
-import org.junit.Before;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
@@ -31,10 +29,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.regex.Pattern.quote;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
@@ -42,6 +40,19 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
 
     public static class TestCase {
         private static final AtomicInteger COUNTER = new AtomicInteger(0);
+        
+        // timezones that are valid both in Java and in Postgres
+        public static final List<String> POSTGRES_TEST_ZONE_LIST = List.of(
+            // location-based and long-names
+            "US/Samoa", "Pacific/Honolulu", "Pacific/Marquesas", "Pacific/Gambier", "America/Juneau", "Canada/Yukon", "America/Vancouver",
+            "Pacific/Easter", "US/Mountain", "America/Chicago", "US/Michigan", "Atlantic/Bermuda", "Canada/Newfoundland", "Atlantic/Cape_Verde",
+            "Pacific/Kiritimati", "Pacific/Chatham", "Pacific/Auckland", "Asia/Sakhalin", "Australia/Tasmania", "Australia/North", "Asia/Tokyo",
+            "Australia/Eucla", "Asia/Singapore", "Asia/Rangoon", "Indian/Chagos", "Asia/Calcutta", "Asia/Tashkent", "Asia/Tehran", "Asia/Dubai",
+            "Africa/Nairobi", "Europe/Brussels", "Europe/Vienna", "Europe/London", "Etc/GMT+12",
+            // short names of zones
+            "GMT", "UTC", "CET",
+            // offsets
+            "+11:00", "+04:30", "+01:00", "+00:00", "-00:00", "-01:15", "-02:00", "-11:00");
 
         private final int id;
         private final BigDecimal secondsAndFractionsSinceEpoch;
@@ -52,10 +63,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             this.id = COUNTER.incrementAndGet();
             this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
             this.formatString = formatString;
-            this.zoneId = TestGenerator.randomFromCollection(ZoneId.getAvailableZoneIds().stream().filter(
-                z -> z.startsWith("America") || z.startsWith("Europe") || z.startsWith("Asia") || z.startsWith("Africa") 
-                    || Set.of("UTC", "GMT", "Z").contains(z)
-            ).collect(Collectors.toList()));
+            this.zoneId = TestGenerator.randomFromCollection(POSTGRES_TEST_ZONE_LIST);
         }
 
     }
@@ -67,7 +75,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         private static final String PATTERN_DELIMITER = " @ ";
         // these patterns are hard to sync up between PostgreSQL and Elasticsearch, so we just warn, but actually
         // accept the output of Elasticsearch as is
-        private static final Set<String> NOT_FULLY_MATCHABLE_PATTERNS = Set.of("TZ", "tz", "TZH", "tzh", "TZM", "tzm");
+        private static final Set<String> NOT_FULLY_MATCHABLE_PATTERNS = Set.of("TZ", "tz");
         private static final Set<String> UNSUPPORTED_PATTERN_MODIFIERS = Set.of("FX", "TM", "SP");
         private static final String[] PATTERNS = new String[] {
             "HH", "HH12", "HH24", "MI", "SS", "MS", "US", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "SSSS", "SSSSS", "AM", "am", "PM",
@@ -75,7 +83,6 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             "B.C.", "b.c.", "A.D.", "a.d.", "MONTH", "Month", "month", "MON", "Mon", "mon", "MM", "DAY", "Day", "day", "DY", "Dy",
             "dy", "DDD", "IDDD", "DD", "D", "ID", "W", "WW", "IW", "CC", "J", "Q", "RM", "rm", "TZ", "tz", "TZH", "TZM", "OF"
         };
-        private static final Set<String> PATTERNS_WITHOUT_MODIFIER_TEST = NOT_FULLY_MATCHABLE_PATTERNS;
         private static final List<String> FILL_MODIFIERS = List.of("FM", "fm", "");
         private static final List<String> ORDINAL_SUFFIX_MODIFIERS = List.of("TH", "th", "");
 
@@ -97,7 +104,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         }
         
         private static String patternWithRandomModifiers(String pattern) {
-            if (PATTERNS_WITHOUT_MODIFIER_TEST.contains(pattern)) {
+            if (NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern)) {
                 return pattern;
             }
             return randomFromCollection(FILL_MODIFIERS) + pattern + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS);
@@ -117,7 +124,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
     
             // check each format string alone
             for (String pattern : PATTERNS) {
-                testCases.add(new TestCase(randomFromCollection(testEpochSeconds), PATTERNS_WITHOUT_MODIFIER_TEST.contains(pattern) 
+                testCases.add(new TestCase(randomFromCollection(testEpochSeconds), NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern) 
                     ? pattern 
                     : String.join(PATTERN_DELIMITER, pattern, FILL_MODIFIERS.get(0) + pattern + ORDINAL_SUFFIX_MODIFIERS.get(0))));
             }
@@ -173,6 +180,17 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             return testCases;
         }
         
+        private static String adjustZoneIdToPostgres(String zoneId) {
+            // when the zone is specified by the offset in Postgres, it follows the POSIX definition, so the +- signs are flipped
+            // compared to ISO-8601, see more info at: https://www.postgresql.org/docs/current/datetime-posix-timezone-specs.html
+            if (zoneId.startsWith("+")) {
+                zoneId = zoneId.replaceFirst(quote("+"), "-");
+            } else if (zoneId.startsWith("-")) {
+                zoneId = zoneId.replaceFirst(quote("-"), "+");
+            }
+            return zoneId;
+        }
+        
         /**
          * Generates an SQL file that can be used to create the test dataset for the unit test of the <code>TO_CHAR</code>
          * implementation. In case the <code>TO_CHAR</code> implementation needs an upgrade, add the list of the new format
@@ -184,11 +202,13 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                 long seconds = tc.secondsAndFractionsSinceEpoch.longValue();
                 BigDecimal fractions = tc.secondsAndFractionsSinceEpoch.remainder(BigDecimal.ONE).movePointRight(6);
                 return String.format(Locale.ROOT,
-                    "SET TIME ZONE '%6$s';\n" +
+                    "SET TIME ZONE '%7$s';\n" +
                     "\\copy (SELECT %1$d as id, %2$s as epoch_seconds_and_microsends, '%6$s' as zone_id, '%5$s' as format_string, " +
+                        "(TO_TIMESTAMP(%3$d) + INTERVAL '%4$d microseconds') as to_timestamp_result, " +
                         "TO_CHAR((TO_TIMESTAMP(%3$d) + INTERVAL '%4$d microseconds'), '%5$s') as to_char_result) to stdout " +
                         "with DELIMITER as '" + DELIMITER + "' NULL as '' csv \n",
-                    tc.id, tc.secondsAndFractionsSinceEpoch.toPlainString(), seconds, fractions.intValue(), tc.formatString, tc.zoneId
+                    tc.id, tc.secondsAndFractionsSinceEpoch.toPlainString(), seconds, fractions.intValue(), tc.formatString, tc.zoneId, 
+                    adjustZoneIdToPostgres(tc.zoneId)
                 );
             }).collect(Collectors.joining("\n"));
         }
@@ -210,12 +230,12 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         }
     }
 
-    @ParametersFactory(argumentFormatting = "%1$s: timestamp=%2$s, zone=%3$s, format=%4$s")
+    @ParametersFactory(argumentFormatting = "%1$s: timestamp=%5$s, zone=%3$s, format=%4$s")
     public static List<Object[]> readCsv() throws Exception {
         Path testFilePath = Path.of(DateTimeToCharProcessorTests.class.getResource("tochar.csv").toURI());
         return Files.readAllLines(testFilePath).stream().map(line -> {
-            String[] cols = line.split(Pattern.quote(TestGenerator.DELIMITER));
-            return new Object[]{ cols[0], cols[1], cols[2], cols[3], cols[4] };
+            String[] cols = line.split(quote(TestGenerator.DELIMITER));
+            return new Object[]{ cols[0], cols[1], cols[2], cols[3], cols[4], cols[5] };
         }).collect(Collectors.toList());
     }
 
@@ -223,16 +243,16 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
     private final String secondsAndFractionsSinceEpoch;
     private final String zone;
     private final String formatString;
+    private final String posgresTimestamp;
     private final String expectedResult;
-    
-    private Locale defaultLocale = null;
 
-    public DateTimeToCharProcessorTests(String id, String secondsAndFractionsSinceEpoch, String zone, String formatString, 
-        String expectedResult) {
+    public DateTimeToCharProcessorTests(String id, String secondsAndFractionsSinceEpoch, String zone, String formatString,
+        String postgresTimestamp, String expectedResult) {
         this.id = id;
         this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
         this.zone = zone;
         this.formatString = formatString;
+        this.posgresTimestamp = postgresTimestamp;
         this.expectedResult = expectedResult;
     }
 
@@ -247,31 +267,16 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         }
         return dateTime((seconds + adjustment) * 1000).withNano(fractions);
     }
-
-    /**
-     * Since the test dataset was exported from PostgreSQL using en_US locale, 
-     * let's stick with to that Locale during the testing of this function.
-     */
-    @Before
-    public void changeLocaleToUS() {
-        this.defaultLocale = Locale.getDefault();
-        Locale.setDefault(Locale.US);
-    }
-    
-    @After
-    public void revertLocale() {
-        Locale.setDefault(this.defaultLocale);
-    }
     
     public void test() throws Exception {
         ZoneId zoneId = ZoneId.of(zone);
         ZonedDateTime timestamp = dateTimeWithFractions(secondsAndFractionsSinceEpoch);
-        String result = (String) new ToChar(Source.EMPTY, l(timestamp, DataTypes.DATETIME), l(formatString, DataTypes.KEYWORD), zoneId)
+        String actualResult = (String) new ToChar(Source.EMPTY, l(timestamp, DataTypes.DATETIME), l(formatString, DataTypes.KEYWORD), zoneId)
                 .makePipe()
                 .asProcessor()
                 .process(null);
-        List<String> expectedResultSplitted = List.of(expectedResult.split(Pattern.quote(TestGenerator.PATTERN_DELIMITER)));
-        List<String> resultSplitted = List.of(result.split(Pattern.quote(TestGenerator.PATTERN_DELIMITER)));
+        List<String> expectedResultSplitted = List.of(expectedResult.split(quote(TestGenerator.PATTERN_DELIMITER)));
+        List<String> resultSplitted = List.of(actualResult.split(quote(TestGenerator.PATTERN_DELIMITER)));
         List<String> formatStringSplitted = List.of(formatString.split(TestGenerator.PATTERN_DELIMITER));
         assertEquals(formatStringSplitted.size(), resultSplitted.size());
         assertEquals(formatStringSplitted.size(), expectedResultSplitted.size());
@@ -280,15 +285,27 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             String pattern = patternMaybeWithIndex.contains(":") 
                 ? patternMaybeWithIndex.substring(patternMaybeWithIndex.indexOf(":") + 1)
                 : patternMaybeWithIndex;
-            String expected = expectedResultSplitted.get(i);
-            String actual = resultSplitted.get(i);
+            String expectedPart = expectedResultSplitted.get(i);
+            String actualPart = resultSplitted.get(i);
             try {
-                assertEquals(String.format(Locale.ROOT,
-                    "test id: %1s\nseconds and fractions: %2s\njava timestamp: %3s\nformat string: %4s\nfailed pattern: %5s\n\n",
-                    id, secondsAndFractionsSinceEpoch, timestamp, formatString, patternMaybeWithIndex), expected, actual);
+                assertEquals(
+                    String.format(Locale.ROOT, 
+                        "\nTest id:                            %s\n" +
+                        "zone:                               %s\n" +
+                        "timestamp (as epoch):               %s\n" +
+                        "timestamp (java, UTC):              %s\n" +
+                        "timestamp (postgres, to_timestamp): %s\n" +
+                        "timestamp (java with zone):         %s\n" +
+                        "format string:                      %s\n" +
+                        "expected (postgres to_char result): %s\n" +
+                        "actual (ES to_char result):         %s\n" +
+                        "    FAILED (sub)pattern: %s,",
+                        id, zone, secondsAndFractionsSinceEpoch, timestamp, posgresTimestamp, timestamp.withZoneSameInstant(zoneId), 
+                        formatString, expectedResult, actualResult, patternMaybeWithIndex), 
+                    expectedPart, actualPart);
             } catch (AssertionError err) {
-                if (TestGenerator.NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern)) {
-                    logger.info(err);
+                if (TestGenerator.NOT_FULLY_MATCHABLE_PATTERNS.stream().anyMatch(pattern::contains)) {
+                    logger.info("Known pattern failure ('TZ' and 'tz' cannot be matched with Postgres): " + err.getMessage());
                 } else {
                     throw err;
                 }

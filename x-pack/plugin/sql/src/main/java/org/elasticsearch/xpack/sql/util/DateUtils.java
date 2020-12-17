@@ -248,11 +248,11 @@ public final class DateUtils {
     }
 
     public static int century(int year) {
-        int century = year > 0 ? year / 100 + 1 : year / 100 - 1;
-        if (year % 100 == 0) {
-            century -= 1;
+        if (year > 0) {
+            return year % 100 == 0 ? year / 100 : year / 100 + 1;
+        } else {
+            return year / 100 - 1;
         }
-        return century;
     }
 
     private static int timeSeparatorIdx(String timestampStr) {

@@ -219,6 +219,7 @@ public class Latest implements Function {
                 .source(sourceBuilder)
                 .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
 
+        ClientHelper.assertNoAuthorizationHeader(headers);
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,

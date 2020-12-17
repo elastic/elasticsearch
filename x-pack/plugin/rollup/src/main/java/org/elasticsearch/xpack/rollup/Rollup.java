@@ -70,9 +70,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
@@ -89,10 +87,6 @@ public class Rollup extends Plugin implements ActionPlugin, PersistentTaskPlugin
     public static final String TASK_THREAD_POOL_NAME = RollupField.NAME + "_indexing";
 
     public static final String ROLLUP_TEMPLATE_VERSION_FIELD = "rollup-version";
-
-    // list of headers that will be stored when a job is created
-    public static final Set<String> HEADER_FILTERS =
-            new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication"));
 
     private final SetOnce<SchedulerEngine> schedulerEngine = new SetOnce<>();
     private final Settings settings;

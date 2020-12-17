@@ -97,7 +97,7 @@ public class SystemIndexDescriptor {
      *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
      */
-    private SystemIndexDescriptor(
+    SystemIndexDescriptor(
         String indexPattern,
         String primaryIndex,
         String description,

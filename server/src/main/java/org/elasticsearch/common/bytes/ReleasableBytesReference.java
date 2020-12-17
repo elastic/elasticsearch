@@ -126,7 +126,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
             @Override
             public ReleasableBytesReference readUnsafeBytesReference() throws IOException {
                 final int len = readArraySize();
+                // instead of reading the bytes from a stream we just create a slice of the underlying bytes
                 final ReleasableBytesReference result = ((ReleasableBytesReference) bytesReference).retainedSlice(offset(), len);
+                // move the stream manually since creating the slice didn't move it
                 skip(len);
                 return result;
             }

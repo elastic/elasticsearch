@@ -39,6 +39,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
+/**
+ * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
+ * it to the appropriate handler. Any deserialized {@code TransportMessage} that is found to implement {@link RefCounted} will have its
+ * reference count decremented by one after having been passed to its handler.
+ */
 public class InboundHandler {
 
     private static final Logger logger = LogManager.getLogger(InboundHandler.class);

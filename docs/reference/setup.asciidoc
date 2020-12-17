@@ -120,3 +120,5 @@ include::setup/restart-cluster.asciidoc[]
 include::modules/remote-clusters.asciidoc[]
 
 include::modules/plugins.asciidoc[]
+
+include::setup/advanced-configuration.asciidoc[]

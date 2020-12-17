@@ -6,8 +6,6 @@
 <titleabbrev>Syntax reference</titleabbrev>
 ++++
 
-beta::[]
-
 [discrete]
 [[eql-basic-syntax]]
 === Basic syntax

@@ -31,9 +31,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 
 import java.util.Collections;
 import java.util.HashMap;
+
+import static org.mockito.Mockito.mock;
 
 public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
 
@@ -61,7 +64,8 @@ public class NodeClientHeadersTests extends AbstractClientHeadersTestCase {
     private static class InternalTransportAction extends TransportAction {
 
         private InternalTransportAction(Settings settings, String actionName, ThreadPool threadPool) {
-            super(actionName, EMPTY_FILTERS, new TaskManager(settings, threadPool, Collections.emptySet()));
+            super(actionName, EMPTY_FILTERS, mock(Transport.Connection.class),
+                new TaskManager(settings, threadPool, Collections.emptySet()));
         }
 
         @Override

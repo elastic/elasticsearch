@@ -5,6 +5,10 @@
       "description":"Returns information about hot threads on each node in the cluster."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain"]
+    },
     "url":{
       "paths":[
         {

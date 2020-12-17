@@ -45,12 +45,7 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
             }
         };
         plugin.setCircuitBreaker(new NoopCircuitBreaker(TRAINED_MODEL_CIRCUIT_BREAKER_NAME));
-        plugins.add(new Autoscaling(settings) {
-            @Override
-            protected XPackLicenseState getLicenseState() {
-                return thisVar.getLicenseState();
-            }
-        });
+        plugins.add(new Autoscaling());
         plugins.add(plugin);
         plugins.add(new Monitoring(settings) {
             @Override
@@ -98,7 +93,8 @@ public class LocalStateMachineLearning extends LocalStateCompositeXPackPlugin {
 
             @Inject
             public MockedRollupIndexCapsTransport(TransportService transportService) {
-                super(GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()), transportService.getTaskManager());
+                super(GetRollupIndexCapsAction.NAME, new ActionFilters(new HashSet<>()),
+                    transportService.getLocalNodeConnection(), transportService.getTaskManager());
             }
 
             @Override

@@ -48,10 +48,8 @@ import org.locationtech.jts.geom.Coordinate;
 
 import java.io.IOException;
 
-import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;

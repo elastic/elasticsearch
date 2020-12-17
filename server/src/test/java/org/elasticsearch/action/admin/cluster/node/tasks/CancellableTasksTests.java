@@ -20,6 +20,7 @@ package org.elasticsearch.action.admin.cluster.node.tasks;
 
 import com.carrotsearch.randomizedtesting.RandomizedContext;
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
@@ -41,7 +42,10 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.FakeTcpChannel;
+import org.elasticsearch.transport.TestTransportChannels;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -360,7 +364,10 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CancellableNodesRequest parentRequest = new CancellableNodesRequest("parent");
         final Task parentTask = taskManager.register("test", "test", parentRequest);
         final TaskId parentTaskId = parentTask.taskInfo(testNodes[0].getNodeId(), false).getTaskId();
-        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test");
+        taskManager.setBan(new TaskId(testNodes[0].getNodeId(), parentTask.getId()), "test",
+            TestTransportChannels.newFakeTcpTransportChannel(
+                testNodes[0].getNodeId(), new FakeTcpChannel(), threadPool,
+                "test", randomNonNegativeLong(), Version.CURRENT));
         CancellableNodesRequest childRequest = new CancellableNodesRequest("child");
         childRequest.setParentTask(parentTaskId);
         CancellableTestNodesAction testAction = new CancellableTestNodesAction("internal:testAction", threadPool, testNodes[1]
@@ -369,12 +376,12 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             () -> testAction.execute(childRequest, ActionListener.wrap(() -> fail("must not execute"))));
         assertThat(cancelledException.getMessage(), startsWith("Task cancelled before it started:"));
         CountDownLatch latch = new CountDownLatch(1);
-        taskManager.startBanOnChildrenNodes(parentTaskId.getId(), latch::countDown);
+        taskManager.startBanOnChildTasks(parentTaskId.getId(), latch::countDown);
         assertTrue("onChildTasksCompleted() is not invoked", latch.await(1, TimeUnit.SECONDS));
     }
 
     public void testTaskCancellationOnCoordinatingNodeLeavingTheCluster() throws Exception {
-        setupTestNodes(Settings.EMPTY);
+        setupTestNodes(Settings.EMPTY, VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.V_7_11_0));
         connectNodes(testNodes);
         CountDownLatch responseLatch = new CountDownLatch(1);
         final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();

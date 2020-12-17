@@ -5,6 +5,10 @@
       "description":"Performs a synced flush operation on one or more indices. Synced flush is deprecated and will be removed in 8.0. Use flush instead"
     },
     "stability":"stable",
+    "visibility" : "public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

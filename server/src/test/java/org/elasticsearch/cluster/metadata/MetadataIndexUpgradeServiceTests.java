@@ -153,7 +153,8 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         return new MetadataIndexUpgradeService(
             Settings.EMPTY,
             xContentRegistry(),
-            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
+            new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), null,
+                Collections.emptyMap(), MapperPlugin.NOOP_FIELD_FILTER),
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             new SystemIndices(Collections.singletonMap("system-plugin",
                 Collections.singletonList(new SystemIndexDescriptor(".system", "a system index")))),

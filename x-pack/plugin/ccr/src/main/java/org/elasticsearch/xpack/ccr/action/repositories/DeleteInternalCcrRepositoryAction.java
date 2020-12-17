@@ -33,7 +33,7 @@ public class DeleteInternalCcrRepositoryAction extends ActionType<ActionResponse
         @Inject
         public TransportDeleteInternalRepositoryAction(RepositoriesService repositoriesService, ActionFilters actionFilters,
                                                        TransportService transportService) {
-            super(NAME, actionFilters, transportService.getTaskManager());
+            super(NAME, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
             this.repositoriesService = repositoriesService;
         }
 

@@ -79,6 +79,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -137,11 +138,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -175,22 +173,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
         blacklist.add(CompletionFieldMapper.CONTENT_TYPE); // TODO support completion
         blacklist.add(FieldAliasMapper.CONTENT_TYPE); // TODO support alias
         TYPE_TEST_BLACKLIST = blacklist;
-    }
-
-    /**
-     * Allows subclasses to provide alternate names for the provided field type, which
-     * can be useful when testing aggregations on field aliases.
-     */
-    protected Map<String, MappedFieldType> getFieldAliases(MappedFieldType... fieldTypes) {
-        return Collections.emptyMap();
-    }
-
-    private static void registerFieldTypes(MapperService mapperService, Map<String, MappedFieldType> fieldNameToType) {
-        for (Map.Entry<String, MappedFieldType> entry : fieldNameToType.entrySet()) {
-            String fieldName = entry.getKey();
-            MappedFieldType fieldType = entry.getValue();
-            when(mapperService.fieldType(fieldName)).thenReturn(fieldType);
-        }
     }
 
     @Before
@@ -251,16 +233,22 @@ public abstract class AggregatorTestCase extends ESTestCase {
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
 
         // TODO: now just needed for top_hits, this will need to be revised for other agg unit tests:
-        MapperService mapperService = mapperServiceMock();
+        MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.hasNested()).thenReturn(false);
         when(mapperService.indexAnalyzer(anyString(), any())).thenReturn(Lucene.STANDARD_ANALYZER); // for significant text
-        Map<String, MappedFieldType> fieldNameToType = new HashMap<>();
-        fieldNameToType.putAll(Arrays.stream(fieldTypes)
-            .filter(Objects::nonNull)
-            .collect(Collectors.toMap(MappedFieldType::name, Function.identity())));
-        fieldNameToType.putAll(getFieldAliases(fieldTypes));
-        registerFieldTypes(mapperService, fieldNameToType);
+        
+        // Setup the type for fetching
+        DocumentMapper docMapper = mock(DocumentMapper.class);
+        when(mapperService.documentMapper()).thenReturn(docMapper);
+        when(docMapper.type()).thenReturn("_doc");
+
+        for (MappedFieldType type : fieldTypes) {
+            String name = type.name();
+            when(mapperService.fieldType(name)).thenReturn(type);
+            // Alias each field to <name>-alias so everyone can test aliases
+            when(mapperService.fieldType(name + "-alias")).thenReturn(type);
+        }
         when(mapperService.getObjectMapper(anyString())).thenAnswer(invocation -> {
             String fieldName = (String) invocation.getArguments()[0];
             if (fieldName.startsWith(NESTEDFIELD_PREFIX)) {
@@ -364,13 +352,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         .build(),
                 Settings.EMPTY
         );
-    }
-
-    /**
-     * sub-tests that need a more complex mock can overwrite this
-     */
-    protected MapperService mapperServiceMock() {
-        return mock(MapperService.class);
     }
 
     /**
@@ -825,7 +806,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     private static class MockParserContext extends Mapper.TypeParser.ParserContext {
         MockParserContext() {
-            super(null, null, null, Version.CURRENT, null, null, null, null, null, null);
+            super(null, null, null, Version.CURRENT, null, null, null, null, null, null, false);
         }
 
         @Override

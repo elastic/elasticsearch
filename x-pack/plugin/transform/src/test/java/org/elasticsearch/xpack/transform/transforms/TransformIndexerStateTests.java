@@ -256,7 +256,10 @@ public class TransformIndexerStateTests extends ESTestCase {
             new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
+            null,
+            null,
             null
         );
 
@@ -464,8 +467,11 @@ public class TransformIndexerStateTests extends ESTestCase {
             new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)),
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null)
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STARTED);
 

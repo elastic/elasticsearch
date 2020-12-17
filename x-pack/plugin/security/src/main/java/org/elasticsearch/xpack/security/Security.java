@@ -560,7 +560,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         securityInterceptor.set(new SecurityServerTransportInterceptor(settings, threadPool, authcService.get(),
                 authzService, getLicenseState(), getSslService(), securityContext.get(), destructiveOperations, clusterService));
 
-        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, getLicenseState(),
+        securityActionFilter.set(new SecurityActionFilter(authcService.get(), authzService, auditTrailService, getLicenseState(),
             threadPool, securityContext.get(), destructiveOperations));
 
         return components;

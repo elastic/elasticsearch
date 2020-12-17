@@ -5,6 +5,10 @@
       "description":"DEPRECATED Upgrades to the current version of Lucene."
     },
     "stability":"stable",
+    "visibility" : "public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

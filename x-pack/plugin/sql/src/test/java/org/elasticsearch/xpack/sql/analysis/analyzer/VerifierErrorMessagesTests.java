@@ -95,6 +95,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:17: Unknown index [missing]", error(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
     }
 
+    public void testNonBooleanFilter() {
+        String[][] testData = new String[][]{
+            {"INTEGER", "int", "int + 1", "ABS(int)", "ASCII(keyword)"},
+            {"KEYWORD", "keyword", "RTRIM(keyword)", "IIF(true, 'true', 'false')"},
+            {"DATETIME", "date", "date + INTERVAL 1 DAY", "NOW()"}};
+        for (String[] testDatum : testData) {
+            for (int j = 1; j < testDatum.length; j++) {
+                assertEquals("1:26: Condition expression needs to be boolean, found [" + testDatum[0] + "]",
+                    error("SELECT * FROM test WHERE " + testDatum[j]));
+            }
+        }
+    }
+
     public void testMissingColumn() {
         assertEquals("1:8: Unknown column [xxx]", error("SELECT xxx FROM test"));
     }

@@ -52,11 +52,27 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
      * The element and everything before it is removed.
      */
     E trimBefore(Ordinal ordinal) {
+        return trimBefore(ordinal, true);
+    }
+
+    /**
+     * Returns the latest element from the group that has its timestamp
+     * less than the given argument alongside its position in the list.
+     * Everything before the element it is removed. The element is kept.
+     */
+    E trimBeforeLast(Ordinal ordinal) {
+        return trimBefore(ordinal, false);
+    }
+
+    private E trimBefore(Ordinal ordinal, boolean removeMatch) {
         Tuple<E, Integer> match = findBefore(ordinal);
 
         // trim
         if (match != null) {
-            int pos = match.v2() + 1;
+            int pos = match.v2();
+            if (removeMatch) {
+                pos = pos + 1;
+            }
             elements.subList(0, pos).clear();
 
             // update min time
@@ -74,17 +90,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     E before(Ordinal ordinal) {
         Tuple<E, Integer> match = findBefore(ordinal);
         return match != null ? match.v1() : null;
-    }
-
-    E trimToLast() {
-        E last = elements.peekLast();
-        if (last != null) {
-            elements.clear();
-            start = null;
-            stop = null;
-            add(last);
-        }
-        return last;
     }
 
     private Tuple<E, Integer> findBefore(Ordinal ordinal) {

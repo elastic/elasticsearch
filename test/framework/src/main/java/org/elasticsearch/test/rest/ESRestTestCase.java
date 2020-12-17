@@ -1476,15 +1476,20 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Response performSyncedFlush(String indexName) throws IOException {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
+        // prior to v7.11, the deprecation message for synced flush was incorrect so we also need to handle that
+        final List<String> incorrectWarningMessage = Collections.singletonList("Synced flush is deprecated and will be removed in 8.0." +
+            " Use flush at _/flush or /{index}/_flush instead.");
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_11_0))) {
             options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+        } else if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false &&
+                warnings.equals(incorrectWarningMessage) == false);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false &&
+                warnings.equals(expectedWarnings) == false && warnings.equals(incorrectWarningMessage) == false);
         }
+        request.setOptions(options);
         return client().performRequest(request);
     }
 

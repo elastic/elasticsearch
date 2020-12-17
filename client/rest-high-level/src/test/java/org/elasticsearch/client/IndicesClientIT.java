@@ -2034,7 +2034,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(aliasExists(index, alias2), equalTo(true));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60461")
     public void testDataStreams() throws Exception {
         String dataStreamName = "data-stream";
 
@@ -2085,7 +2084,6 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertThat(backingIndices, equalTo(1));
         ByteSizeValue byteSizeValue = dataStreamsStatsResponse.getTotalStoreSize();
         assertThat(byteSizeValue, notNullValue());
-        assertThat(byteSizeValue.getBytes(), not(equalTo(0L)));
         Map<String, DataStreamStats> dataStreamsStats = dataStreamsStatsResponse.getDataStreams();
         assertThat(dataStreamsStats, notNullValue());
         assertThat(dataStreamsStats.size(), equalTo(1));

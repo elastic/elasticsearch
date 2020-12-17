@@ -74,6 +74,8 @@ import static org.elasticsearch.xpack.rollup.Rollup.TASK_THREAD_POOL_NAME;
 public class TransportRollupAction
     extends TransportBroadcastAction<RollupAction.Request, RollupAction.Response, RollupAction.ShardRequest, RollupAction.ShardResponse> {
 
+    private static final int SORTER_RAM_SIZE_MB = 100;
+
     private final Client client;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -142,7 +144,7 @@ public class TransportRollupAction
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
         String tmpIndexName =  ".rolluptmp-" + request.getRollupIndex();
         RollupShardIndexer indexer = new RollupShardIndexer(client, indexService, request.shardId(),
-            request.getRollupConfig(), tmpIndexName,100);
+            request.getRollupConfig(), tmpIndexName, SORTER_RAM_SIZE_MB);
         indexer.execute();
         return new RollupAction.ShardResponse(request.shardId());
     }

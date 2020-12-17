@@ -22,11 +22,12 @@ import java.io.DataInputStream;
 import java.io.DataOutputStream;
 import java.io.IOException;
 import java.util.Comparator;
+import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
 
 /**
- * An {@link OfflineSorter} that compresses the values using a deflater.
+ * An {@link OfflineSorter} that compresses the values using a {@link Deflater}.
  */
 class CompressingOfflineSorter extends OfflineSorter {
     CompressingOfflineSorter(Directory dir,

@@ -92,6 +92,8 @@ class RollupShardIndexer {
     private final List<FieldValueFetcher> groupFieldFetchers;
     private final List<FieldValueFetcher> metricsFieldFetchers;
 
+    private final CompressingOfflineSorter sorter;
+
     private final BulkProcessor bulkProcessor;
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
@@ -143,6 +145,7 @@ class RollupShardIndexer {
                 this.metricsFieldFetchers = Collections.emptyList();
             }
 
+            this.sorter = new CompressingOfflineSorter(dir, "rollup-", keyComparator(), ramBufferSizeMB);
             toClose = null;
         } finally {
             IOUtils.closeWhileHandlingException(toClose);
@@ -251,7 +254,6 @@ class RollupShardIndexer {
     }
 
     private Long computeBucket(long lastRounding) throws IOException {
-        final CompressingOfflineSorter sorter = new CompressingOfflineSorter(dir, "rollup-", keyComparator(), ramBufferSizeMB);
         Long nextRounding = findNextRounding(lastRounding);
         if (nextRounding == null) {
             return null;

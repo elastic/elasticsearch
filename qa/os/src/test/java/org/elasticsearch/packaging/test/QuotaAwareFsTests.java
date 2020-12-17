@@ -32,15 +32,13 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
 import java.util.Locale;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
@@ -168,7 +166,7 @@ public class QuotaAwareFsTests extends PackagingTestCase {
         installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
 
         final Path quotaPath = getRootTempDir().resolve("quota.properties");
-        Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available));
+        Files.write(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available).getBytes(StandardCharsets.UTF_8));
 
         sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
 
@@ -179,10 +177,10 @@ public class QuotaAwareFsTests extends PackagingTestCase {
             String response = ServerUtils.makeRequest(Request.Get(uri)).trim();
             assertThat(response, not(emptyString()));
 
-            List<String> lines = response.lines().collect(Collectors.toList());
-            assertThat(lines, hasSize(1));
+            String[] lines = response.split("\n");
+            assertThat(lines, arrayWithSize(1));
 
-            final String[] fields = lines.get(0).split(" ");
+            final String[] fields = lines[0].split(" ");
             assertThat(fields, arrayContaining("quota-aware-fs", "bootstrap"));
         } finally {
             stopElasticsearch();

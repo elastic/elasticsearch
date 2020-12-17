@@ -379,7 +379,7 @@ public class FetchPhase {
         SearchHit hit = new SearchHit(topDocId, rootId, nestedIdentity, docFields, metaFields);
         HitContext hitContext = new HitContext(hit, subReaderContext, nestedInfo.doc());
 
-        if (rootSourceAsMap != null) {
+        if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
             // features like source filtering and highlighting work consistent regardless of whether the field points

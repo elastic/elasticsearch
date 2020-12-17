@@ -1,0 +1,47 @@
+"Unified highlighter with stored fields and disabled source":
+  - do:
+      indices.create:
+        index: disabled_source
+        body:
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              nested:
+                type: nested
+                properties:
+                  field:
+                    type: text
+                  stored_only:
+                    type: text
+                    store: true
+  - do:
+      index:
+        index: disabled_source
+        id:    1
+        refresh: true
+        body:
+          nested:
+            field: "The quick brown fox is brown."
+            stored_only: "The quick brown fox is brown."
+
+  - do:
+      search:
+        index: disabled_source
+        body:
+          query:
+            nested:
+              path: "nested"
+              query:
+                multi_match:
+                  query: "quick brown fox"
+                  fields: ["nested.field", "nested.stored_only"]
+              inner_hits:
+                highlight:
+                  type: "unified"
+                  fields:
+                    nested.field: {}
+                    nested.stored_only: {}
+
+  - is_false: hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.field
+  - match: { hits.hits.0.inner_hits.nested.hits.hits.0.highlight.nested\.stored_only.0: "The <em>quick</em> <em>brown</em> <em>fox</em> is <em>brown</em>."}

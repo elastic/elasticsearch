@@ -59,6 +59,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -97,6 +98,16 @@ public class CancellableTasksIT extends ESIntegTestCase {
         arrivedLatches.clear();
         beforeExecuteLatches.clear();
         completedLatches.clear();
+    }
+
+    @After
+    public void ensureAllBansRemoved() throws Exception {
+        assertBusy(() -> {
+            for (String node : internalCluster().getNodeNames()) {
+                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node).getTaskManager();
+                assertThat("node " + node, taskManager.getBannedTaskIds(), empty());
+            }
+        }, 30, TimeUnit.SECONDS);
     }
 
     static TestRequest generateTestRequest(Set<DiscoveryNode> nodes, int level, int maxLevel) {
@@ -165,21 +176,12 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }
     }
 
-    void ensureAllBansRemoved() throws Exception {
-        assertBusy(() -> {
-            for (String node : internalCluster().getNodeNames()) {
-                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node).getTaskManager();
-                assertThat("node " + node, taskManager.getBannedTaskIds(), empty());
-            }
-        }, 30, TimeUnit.SECONDS);
-    }
-
     public void testBanOnlyNodesWithOutstandingDescendantTasks() throws Exception {
         if (randomBoolean()) {
-            internalCluster().startNodes(randomIntBetween(1, 3));
+            internalCluster().startNodes(1);
         }
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
-        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
+        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         ActionFuture<TestResponse> rootTaskFuture = client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
         TaskId rootTaskId = getRootTaskId(rootRequest);
@@ -192,28 +194,31 @@ public class CancellableTasksIT extends ESIntegTestCase {
                 client().admin().cluster().prepareCancelTasks().setTaskId(subTask.getTaskId()).waitForCompletion(false).get();
             }
         }
-        assertBusy(() -> {
-            for (DiscoveryNode node : nodes) {
-                TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
-                Set<TaskId> expectedBans = new HashSet<>();
-                for (TestRequest req : pendingRequests) {
-                    if (req.node.equals(node)) {
-                        List<Task> childTasks = taskManager.getTasks().values().stream()
-                            .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                            .collect(Collectors.toList());
-                        assertThat(childTasks, hasSize(1));
-                        CancellableTask childTask = (CancellableTask) childTasks.get(0);
-                        assertTrue(childTask.isCancelled());
-                        expectedBans.add(childTask.getParentTaskId());
+        try {
+            assertBusy(() -> {
+                for (DiscoveryNode node : nodes) {
+                    TaskManager taskManager = internalCluster().getInstance(TransportService.class, node.getName()).getTaskManager();
+                    Set<TaskId> expectedBans = new HashSet<>();
+                    for (TestRequest req : pendingRequests) {
+                        if (req.node.equals(node)) {
+                            List<Task> childTasks = taskManager.getTasks().values().stream()
+                                .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
+                                .collect(Collectors.toList());
+                            assertThat(childTasks, hasSize(1));
+                            CancellableTask childTask = (CancellableTask) childTasks.get(0);
+                            assertTrue(childTask.isCancelled());
+                            expectedBans.add(childTask.getParentTaskId());
+                        }
                     }
+                    assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBans));
                 }
-                assertThat(taskManager.getBannedTaskIds(), equalTo(expectedBans));
-            }
-        }, 30, TimeUnit.SECONDS);
-        allowEntireRequest(rootRequest);
-        cancelFuture.actionGet();
-        waitForRootTask(rootTaskFuture);
-        ensureAllBansRemoved();
+            }, 30, TimeUnit.SECONDS);
+        } finally {
+            allowEntireRequest(rootRequest);
+            cancelFuture.actionGet();
+            waitForRootTask(rootTaskFuture);
+            ensureAllBansRemoved();
+        }
     }
 
     public void testCancelTaskMultipleTimes() throws Exception {
@@ -310,7 +315,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
     public void testRemoveBanParentsOnDisconnect() throws Exception {
         Set<DiscoveryNode> nodes = StreamSupport.stream(clusterService().state().nodes().spliterator(), false).collect(Collectors.toSet());
-        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 4));
+        final TestRequest rootRequest = generateTestRequest(nodes, 0, between(1, 3));
         client().execute(TransportTestAction.ACTION, rootRequest);
         Set<TestRequest> pendingRequests = allowPartialRequest(rootRequest);
         TaskId rootTaskId = getRootTaskId(rootRequest);

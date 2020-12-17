@@ -26,15 +26,10 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 public class ShardFollowTask extends ImmutableFollowParameters implements XPackPlugin.XPackPersistentTaskParams {
 
     public static final String NAME = "xpack/ccr/shard_follow_task";
-
-    // list of headers that will be stored when a job is created
-    public static final Set<String> HEADER_FILTERS =
-        Collections.unmodifiableSet(new HashSet<>(Arrays.asList("es-security-runas-user", "_xpack_security_authentication")));
 
     private static final ParseField REMOTE_CLUSTER_FIELD = new ParseField("remote_cluster");
     private static final ParseField FOLLOW_SHARD_INDEX_FIELD = new ParseField("follow_shard_index");

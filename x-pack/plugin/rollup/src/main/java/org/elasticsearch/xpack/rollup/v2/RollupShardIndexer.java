@@ -8,6 +8,9 @@ package org.elasticsearch.xpack.rollup.v2;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
@@ -18,6 +21,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.store.FilterDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.FutureArrays;
@@ -63,9 +69,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
@@ -80,7 +88,6 @@ class RollupShardIndexer {
     private final Client client;
     private final RollupActionConfig config;
     private final String tmpIndex;
-    private final int ramBufferSizeMB;
 
     private final Directory dir;
     private final Engine.Searcher searcher;
@@ -93,6 +100,7 @@ class RollupShardIndexer {
     private final List<FieldValueFetcher> metricsFieldFetchers;
 
     private final CompressingOfflineSorter sorter;
+    private final Set<String> tmpFiles = new HashSet<>();
 
     private final BulkProcessor bulkProcessor;
     private final AtomicLong numSent = new AtomicLong();
@@ -108,12 +116,24 @@ class RollupShardIndexer {
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
         this.tmpIndex = tmpIndex;
-        this.ramBufferSizeMB = ramBufferSizeMB;
 
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;
         try {
-            this.dir = searcher.getDirectoryReader().directory();
+            this.dir = new FilterDirectory(searcher.getDirectoryReader().directory()) {
+                @Override
+                public IndexOutput createOutput(String name, IOContext context) throws IOException {
+                    tmpFiles.add(name);
+                    return super.createOutput(name, context);
+                }
+
+                @Override
+                public IndexOutput createTempOutput(String prefix, String suffix, IOContext context) throws IOException {
+                    IndexOutput output = super.createTempOutput(prefix, suffix, context);
+                    tmpFiles.add(output.getName());
+                    return output;
+                }
+            };
             this.queryShardContext = indexService.newQueryShardContext(
                 indexShard.shardId().id(),
                 searcher,
@@ -170,10 +190,21 @@ class RollupShardIndexer {
             do {
                 bucket = computeBucket(bucket);
             } while (bucket != null);
+        } finally {
+            assert(checkCleanDirectory(dir, tmpFiles));
         }
         // TODO: check that numIndexed == numSent, otherwise throw an exception
         logger.info("Successfully sent [" + numIndexed.get()  + "], indexed [" + numIndexed.get()  + "]");
         return numIndexed.get();
+    }
+
+    // check that all temporary files are deleted
+    private static boolean checkCleanDirectory(Directory dir, Set<String> tmpFiles) throws IOException {
+        Set<String> allFiles = Arrays.stream(dir.listAll()).collect(Collectors.toSet());
+        for (String tmpFile : tmpFiles) {
+            assert(allFiles.contains(tmpFile) == false);
+        }
+        return true;
     }
 
     private BulkProcessor createBulkProcessor() {

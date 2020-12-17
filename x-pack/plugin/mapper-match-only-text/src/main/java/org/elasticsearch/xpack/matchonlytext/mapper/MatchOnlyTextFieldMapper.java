@@ -184,9 +184,13 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         private Query toQuery(Query query, QueryShardContext queryShardContext) {
+            if (queryShardContext.isSourceEnabled() == false) {
+                throw new IllegalArgumentException("Field [" + name() + "] of type [" + CONTENT_TYPE +
+                    "] cannot run positional queries since [_source] is disabled.");
+            }
+            SourceLookup sourceLookup = queryShardContext.lookup().source();
+            ValueFetcher valueFetcher = valueFetcher(queryShardContext, null);
             Function<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> valueFetcherProvider = context -> {
-                SourceLookup sourceLookup = queryShardContext.lookup().source();
-                ValueFetcher valueFetcher = valueFetcher(queryShardContext, null);
                 valueFetcher.setNextReader(context);
                 return docID -> {
                     try {

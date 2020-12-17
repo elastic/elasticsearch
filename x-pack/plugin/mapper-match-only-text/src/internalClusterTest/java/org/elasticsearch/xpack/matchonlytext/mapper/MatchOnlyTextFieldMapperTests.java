@@ -84,7 +84,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b.field("search_quote_analyzer", "keyword");
         }, m -> assertEquals("keyword", m.fieldType().getTextSearchInfo().getSearchQuoteAnalyzer().name()));
 
-        checker.registerConflictCheck("store", b -> b.field("store", true));
         checker.registerConflictCheck("analyzer", b -> b.field("analyzer", "keyword"));
     }
 
@@ -150,13 +149,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
     }
 
-    public void testEnableStore() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("store", true)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        IndexableField[] fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.length);
-        assertTrue(fields[0].fieldType().stored());
-    }
 
     public void testSearchAnalyzerSerialization() throws IOException {
         XContentBuilder mapping = fieldMapping(
@@ -207,27 +199,27 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     public void testNullConfigValuesFail() throws MapperParsingException {
         Exception e = expectThrows(
             MapperParsingException.class,
-            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("store", (String) null)))
+            () -> createDocumentMapper(fieldMapping(b -> b.field("type", "match_only_text").field("analyzer", (String) null)))
         );
-        assertThat(e.getMessage(), containsString("[store] on mapper [field] of type [match_only_text] must not have a [null] value"));
+        assertThat(e.getMessage(), containsString("[analyzer] on mapper [field] of type [match_only_text] must not have a [null] value"));
     }
 
     public void testSimpleMerge() throws IOException {
-        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "match_only_text").field("store", true));
+        XContentBuilder startingMapping = fieldMapping(b -> b.field("type", "match_only_text").field("analyzer", "whitespace"));
         MapperService mapperService = createMapperService(startingMapping);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(MatchOnlyTextFieldMapper.class));
 
         merge(mapperService, startingMapping);
         assertThat(mapperService.documentMapper().mappers().getMapper("field"), instanceOf(MatchOnlyTextFieldMapper.class));
 
-        XContentBuilder differentStore = fieldMapping(b -> b.field("type", "match_only_text").field("store", false));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, differentStore));
-        assertThat(e.getMessage(), containsString("Cannot update parameter [store]"));
+        XContentBuilder differentAnalyzer = fieldMapping(b -> b.field("type", "match_only_text").field("analyzer", "keyword"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, differentAnalyzer));
+        assertThat(e.getMessage(), containsString("Cannot update parameter [analyzer]"));
 
         XContentBuilder newField = mapping(b -> {
             b.startObject("field")
                 .field("type", "match_only_text")
-                .field("store", true)
+                .field("analyzer", "whitespace")
                 .startObject("meta")
                 .field("key", "value")
                 .endObject()

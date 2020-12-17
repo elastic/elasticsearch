@@ -70,10 +70,3 @@ The following mapping parameters are accepted:
 
     The <<analyzer,`analyzer`>> that should be used at search time when a
     phrase is encountered. Defaults to the `search_analyzer` setting.
-
-<<mapping-store,`store`>>::
-
-    Whether the field value should be stored and retrievable separately from
-    the <<mapping-source-field,`_source`>> field. Accepts `true` or `false`
-    (default).
-

@@ -76,8 +76,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private final Version indexCreatedVersion;
 
-        private final Parameter<Boolean> store = Parameter.storeParam(m -> builder(m).store.getValue(), false);
-
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         private final TextParams.Analyzers analyzers;
@@ -92,11 +90,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
         }
 
-        public Builder store(boolean store) {
-            this.store.setValue(store);
-            return this;
-        }
-
         public Builder addMultiField(FieldMapper.Builder builder) {
             this.multiFieldsBuilder.add(builder);
             return this;
@@ -104,7 +97,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         protected List<Parameter<?>> getParameters() {
-            return Arrays.asList(store, analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, meta);
+            return Arrays.asList(analyzers.indexAnalyzer, analyzers.searchAnalyzer, analyzers.searchQuoteAnalyzer, meta);
         }
 
         private MatchOnlyTextFieldType buildFieldType(FieldType fieldType, ContentPath contentPath) {
@@ -114,7 +107,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             TextSearchInfo tsi = new TextSearchInfo(fieldType, null, searchAnalyzer, searchQuoteAnalyzer);
             MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
                 buildFullName(contentPath),
-                store.getValue(),
                 tsi,
                 indexAnalyzer,
                 meta.getValue()
@@ -124,11 +116,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         @Override
         public MatchOnlyTextFieldMapper build(ContentPath contentPath) {
-            FieldType fieldType = new FieldType(Defaults.FIELD_TYPE);
-            fieldType.setStored(store.get());
-            MatchOnlyTextFieldType tft = buildFieldType(fieldType, contentPath);
+            MatchOnlyTextFieldType tft = buildFieldType(Defaults.FIELD_TYPE, contentPath);
             MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
-            return new MatchOnlyTextFieldMapper(name, fieldType, tft, analyzers.getIndexAnalyzer(), multiFields, copyTo.build(), this);
+            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, analyzers.getIndexAnalyzer(), multiFields, copyTo.build(), this);
         }
     }
 
@@ -139,8 +129,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         private final Analyzer indexAnalyzer;
         private final TextFieldType textFieldType;
 
-        public MatchOnlyTextFieldType(String name, boolean stored, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
-            super(name, true, stored, false, tsi, meta);
+        public MatchOnlyTextFieldType(String name, TextSearchInfo tsi, Analyzer indexAnalyzer, Map<String, String> meta) {
+            super(name, true, false, false, tsi, meta);
             this.indexAnalyzer = Objects.requireNonNull(indexAnalyzer);
             this.textFieldType = new TextFieldType(name);
         }
@@ -161,7 +151,6 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldType(String name) {
             this(
                 name,
-                false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 Lucene.STANDARD_ANALYZER,
                 Collections.emptyMap()

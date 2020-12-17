@@ -37,9 +37,7 @@ public final class ClientHelper {
             Pattern.CASE_INSENSITIVE);
 
     public static void assertNoAuthorizationHeader(Map<String, String> headers) {
-        boolean assertsEnabled = false;
-        assert assertsEnabled = true;
-        if (assertsEnabled) {
+        if (org.elasticsearch.Assertions.ENABLED) {
             for (String header : headers.keySet()) {
                 if (authorizationHeaderPattern.matcher(header).find()) {
                     assert false : "headers contain \"Authorization\"";

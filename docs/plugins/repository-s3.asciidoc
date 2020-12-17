@@ -53,17 +53,7 @@ PUT _snapshot/my_s3_repository
   }
 }
 ----
-
-*bucket:*  The name of the bucket to be used for snapshots. (Mandatory)
-Note that the bucket name can be between 3 and 63 characters long, and can contain only lower-case characters, numbers, periods, and dashes it cannot contain underscores, end with a dash, have consecutive periods, or use dashes adjacent to periods
-
-The bucket naming convention is outlines in AWS [here] (https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-s3-bucket-naming-requirements.html)
-
-
-
 // TEST[skip:we don't have S3 setup while testing this]
-
-
 
 Most client settings can be added to the `elasticsearch.yml` configuration file
 with the exception of the secure settings, which you add to the {es} keystore.

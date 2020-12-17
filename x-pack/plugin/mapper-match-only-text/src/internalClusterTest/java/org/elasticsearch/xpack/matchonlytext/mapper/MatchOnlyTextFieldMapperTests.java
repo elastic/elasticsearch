@@ -149,7 +149,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         assertEquals(DocValuesType.NONE, fieldType.docValuesType());
     }
 
-
     public void testSearchAnalyzerSerialization() throws IOException {
         XContentBuilder mapping = fieldMapping(
             b -> b.field("type", "match_only_text").field("analyzer", "standard").field("search_analyzer", "keyword")
@@ -256,8 +255,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = ((FieldMapper) mapperService.documentMapper().mapping().root().getMapper("foo")).fieldType();
         QueryShardContext context = createQueryShardContext(mapperService);
         TokenStream ts = new CannedTokenStream(new Token("a", 0, 3), new Token("b", 4, 7));
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> ft.phraseQuery(ts, 0, true, context));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> ft.phraseQuery(ts, 0, true, context));
         assertThat(e.getMessage(), Matchers.containsString("cannot run positional queries since [_source] is disabled"));
 
         // Term queries are ok

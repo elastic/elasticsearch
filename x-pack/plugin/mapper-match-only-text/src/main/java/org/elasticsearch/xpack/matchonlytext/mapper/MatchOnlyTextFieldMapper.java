@@ -106,12 +106,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             NamedAnalyzer indexAnalyzer = analyzers.getIndexAnalyzer();
             TextSearchInfo tsi = new TextSearchInfo(fieldType, null, searchAnalyzer, searchQuoteAnalyzer);
-            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(
-                buildFullName(contentPath),
-                tsi,
-                indexAnalyzer,
-                meta.getValue()
-            );
+            MatchOnlyTextFieldType ft = new MatchOnlyTextFieldType(buildFullName(contentPath), tsi, indexAnalyzer, meta.getValue());
             return ft;
         }
 
@@ -119,7 +114,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         public MatchOnlyTextFieldMapper build(ContentPath contentPath) {
             MatchOnlyTextFieldType tft = buildFieldType(Defaults.FIELD_TYPE, contentPath);
             MultiFields multiFields = multiFieldsBuilder.build(this, contentPath);
-            return new MatchOnlyTextFieldMapper(name, Defaults.FIELD_TYPE, tft, analyzers.getIndexAnalyzer(), multiFields, copyTo.build(), this);
+            return new MatchOnlyTextFieldMapper(
+                name,
+                Defaults.FIELD_TYPE,
+                tft,
+                analyzers.getIndexAnalyzer(),
+                multiFields,
+                copyTo.build(),
+                this
+            );
         }
     }
 
@@ -175,8 +178,9 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
 
         private Query toQuery(Query query, QueryShardContext queryShardContext) {
             if (queryShardContext.isSourceEnabled() == false) {
-                throw new IllegalArgumentException("Field [" + name() + "] of type [" + CONTENT_TYPE +
-                    "] cannot run positional queries since [_source] is disabled.");
+                throw new IllegalArgumentException(
+                    "Field [" + name() + "] of type [" + CONTENT_TYPE + "] cannot run positional queries since [_source] is disabled."
+                );
             }
             SourceLookup sourceLookup = queryShardContext.lookup().source();
             ValueFetcher valueFetcher = valueFetcher(queryShardContext, null);
@@ -201,8 +205,14 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions, QueryShardContext context) {
+        public Query fuzzyQuery(
+            Object value,
+            Fuzziness fuzziness,
+            int prefixLength,
+            int maxExpansions,
+            boolean transpositions,
+            QueryShardContext context
+        ) {
             // Disable scoring
             return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
         }

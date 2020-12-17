@@ -19,6 +19,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.test.ESTestCase;
 
@@ -43,6 +44,11 @@ public abstract class FieldTypeTestCase extends ESTestCase {
     static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries) {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(queryShardContext.isSourceEnabled()).thenReturn(true);
+        SourceLookup sourceLookup = mock(SourceLookup.class);
+        SearchLookup searchLookup = mock(SearchLookup.class);
+        when(searchLookup.source()).thenReturn(sourceLookup);
+        when(queryShardContext.lookup()).thenReturn(searchLookup);
         return queryShardContext;
     }
 

@@ -18,8 +18,10 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CheckHits;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TermQuery;
@@ -29,6 +31,7 @@ import org.apache.lucene.search.spans.SpanTermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -196,6 +199,82 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         }
     }
 
+    public void testMultiPhrasePrefix() throws Exception {
+        try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
+
+            Document doc = new Document();
+            doc.add(new TextField("body", "a b cd b a b cd", Store.YES));
+            w.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new TextField("body", "b d", Store.YES));
+            w.addDocument(doc);
+
+            doc = new Document();
+            doc.add(new TextField("body", "b cd e", Store.YES));
+            w.addDocument(doc);
+
+            try (IndexReader reader = DirectoryReader.open(w)) {
+                IndexSearcher searcher = new IndexSearcher(reader);
+
+                MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("body");
+                Query sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                ScoreDoc[] phrasePrefixHits = searcher.search(query, 10).scoreDocs;
+                ScoreDoc[] sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
+                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+
+                query = new MultiPhrasePrefixQuery("body");
+                query.add(new Term("body", "c"));
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                phrasePrefixHits = searcher.search(query, 10).scoreDocs;
+                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
+                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+
+                query = new MultiPhrasePrefixQuery("body");
+                query.add(new Term("body", "b"));
+                query.add(new Term("body", "c"));
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                phrasePrefixHits = searcher.search(query, 10).scoreDocs;
+                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
+                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+
+                // Sloppy multi phrase prefix query
+                query = new MultiPhrasePrefixQuery("body");
+                query.add(new Term("body", "a"));
+                query.add(new Term("body", "c"));
+                query.setSlop(2);
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                phrasePrefixHits = searcher.search(query, 10).scoreDocs;
+                sourceConfirmedHits = searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs;
+                CheckHits.checkEqual(query, phrasePrefixHits, sourceConfirmedHits);
+                CheckHits.checkExplanations(sourceConfirmedPhraseQuery, "body", searcher);
+                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+
+                // Multi phrase prefix query with no matches
+                query = new MultiPhrasePrefixQuery("body");
+                query.add(new Term("body", "d"));
+                query.add(new Term("body", "b"));
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                assertEquals(searcher.count(query), searcher.count(sourceConfirmedPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+
+                // Multi phrase query with one missing term
+                query = new MultiPhrasePrefixQuery("body");
+                query.add(new Term("body", "d"));
+                query.add(new Term("body", "f"));
+                sourceConfirmedPhraseQuery = new SourceConfirmedTextQuery(query, SOURCE_FETCHER_PROVIDER, Lucene.STANDARD_ANALYZER);
+                assertEquals(0, searcher.count(sourceConfirmedPhraseQuery));
+                assertArrayEquals(new ScoreDoc[0], searcher.search(sourceConfirmedPhraseQuery, 10).scoreDocs);
+            }
+        }
+    }
+
     public void testSpanNear() throws Exception {
         try (Directory dir = newDirectory(); IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(Lucene.STANDARD_ANALYZER))) {
 
@@ -321,5 +400,19 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
             )
             .build();
         assertEquals(approximation, SourceConfirmedTextQuery.approximate(query));
+
+        MultiPhrasePrefixQuery phrasePrefixQuery = new MultiPhrasePrefixQuery("body");
+        assertEquals(new MatchNoDocsQuery(), SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+
+        phrasePrefixQuery.add(new Term("body", "apache"));
+        approximation = new BooleanQuery.Builder().add(new PrefixQuery(new Term("body", "apache")), Occur.FILTER).build();
+        assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+
+        phrasePrefixQuery.add(new Term("body", "luc"));
+        approximation = new BooleanQuery.Builder().add(
+            new BooleanQuery.Builder().add(new TermQuery(new Term("body", "apache")), Occur.SHOULD).build(),
+            Occur.FILTER
+        ).build();
+        assertEquals(approximation, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
     }
 }

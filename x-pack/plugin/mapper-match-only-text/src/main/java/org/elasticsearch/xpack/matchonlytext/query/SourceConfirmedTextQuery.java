@@ -26,6 +26,7 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
@@ -37,6 +38,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -68,8 +70,9 @@ public final class SourceConfirmedTextQuery extends Query {
             return approximate((PhraseQuery) query);
         } else if (query instanceof MultiPhraseQuery) {
             return approximate((MultiPhraseQuery) query);
+        } else if (query instanceof MultiPhrasePrefixQuery) {
+            return approximate((MultiPhrasePrefixQuery) query);
         } else {
-            // TODO: spans and intervals
             return new MatchAllDocsQuery();
         }
     }
@@ -85,6 +88,31 @@ public final class SourceConfirmedTextQuery extends Query {
     private static Query approximate(MultiPhraseQuery query) {
         BooleanQuery.Builder approximation = new BooleanQuery.Builder();
         for (Term[] termArray : query.getTermArrays()) {
+            BooleanQuery.Builder approximationClause = new BooleanQuery.Builder();
+            for (Term term : termArray) {
+                approximationClause.add(new TermQuery(term), Occur.SHOULD);
+            }
+            approximation.add(approximationClause.build(), Occur.FILTER);
+        }
+        return approximation.build();
+    }
+
+    private static Query approximate(MultiPhrasePrefixQuery query) {
+        Term[][] terms = query.getTerms();
+        if (terms.length == 0) {
+            return new MatchNoDocsQuery();
+        } else if (terms.length == 1) {
+            // Only a prefix, approximate with a prefix query
+            BooleanQuery.Builder approximation = new BooleanQuery.Builder();
+            for (Term term : terms[0]) {
+                approximation.add(new PrefixQuery(term), Occur.FILTER);
+            }
+            return approximation.build();
+        }
+        // A combination of a phrase and a prefix query, only use terms of the phrase for the approximation
+        BooleanQuery.Builder approximation = new BooleanQuery.Builder();
+        for (int i = 0; i < terms.length - 1; ++i) { // ignore the last set of terms, which are prefixes
+            Term[] termArray = terms[i];
             BooleanQuery.Builder approximationClause = new BooleanQuery.Builder();
             for (Term term : termArray) {
                 approximationClause.add(new TermQuery(term), Occur.SHOULD);
@@ -126,6 +154,10 @@ public final class SourceConfirmedTextQuery extends Query {
         this.in = in;
         this.valueFetcherProvider = valueFetcherProvider;
         this.indexAnalyzer = indexAnalyzer;
+    }
+
+    public Query getQuery() {
+        return in;
     }
 
     @Override

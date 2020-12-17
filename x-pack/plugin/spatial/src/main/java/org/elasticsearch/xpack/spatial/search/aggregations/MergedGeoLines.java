@@ -50,7 +50,7 @@ final class MergedGeoLines {
     public void merge() {
         // 1. add first element of each sub line to heap
         for (int i = 0; i < geoLines.size(); i++) {
-            if (geoLines.size() > 0) {
+            if (geoLines.get(i).length() > 0) {
                 add(i, 0);
             }
         }
@@ -66,7 +66,7 @@ final class MergedGeoLines {
             finalSortValues[i] = getTopSortValue();
             removeTop();
             InternalGeoLine lineChosen = geoLines.get(lineIdx);
-            if (idxInLine + 1 < lineChosen.line().length) {
+            if (idxInLine + 1 < lineChosen.length()) {
                 add(lineIdx, idxInLine + 1);
             }
             i++;

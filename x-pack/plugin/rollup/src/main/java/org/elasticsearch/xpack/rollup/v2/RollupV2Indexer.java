@@ -96,23 +96,25 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
      * Ctr
      * @param client The Transport client
      * @param threadPool ThreadPool to use to fire the first request of a background job.
-     * @param executorName Name of the executor to use to fire the first request of a background job.
      * @param request The rollup request
      */
-    RollupV2Indexer(Client client, ThreadPool threadPool, String executorName, RollupAction.Request request, Map<String, String> headers,
+    RollupV2Indexer(Client client,
+                    ThreadPool threadPool,
+                    RollupAction.Request request,
+                    Map<String, String> headers,
                     ActionListener<Void> completionListener) {
-        super(threadPool, executorName, new AtomicReference<>(IndexerState.STOPPED), null, new RollupIndexerJobStats());
+        super(threadPool, new AtomicReference<>(IndexerState.STOPPED), null, new RollupIndexerJobStats());
         this.client = client;
         this.request = request;
         this.headers = headers;
         this.compositeBuilder = createCompositeBuilder(this.request.getRollupConfig());
-        this.tmpIndex = ".rolluptmp-" + this.request.getRollupConfig().getRollupIndex();
+        this.tmpIndex = ".rolluptmp-" + this.request.getRollupIndex();
         this.completionListener = completionListener;
     }
 
     @Override
     protected String getJobId() {
-        return request.getRollupConfig().getId();
+        return "rollup_" + request.getRollupIndex();
     }
 
     @Override
@@ -196,7 +198,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
     @Override
     protected void onFinish(ActionListener<Void> listener) {
         // "shrink index"
-        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupConfig().getRollupIndex(), tmpIndex);
+        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndex);
         resizeRequest.setResizeType(ResizeType.CLONE);
         resizeRequest.getTargetIndexRequest()
             .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());

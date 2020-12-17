@@ -5,6 +5,10 @@
       "description":"Retrieves information for one or more API keys."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

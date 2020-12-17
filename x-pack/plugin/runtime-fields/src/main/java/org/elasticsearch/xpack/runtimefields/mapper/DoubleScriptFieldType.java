@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.runtimefields.query.DoubleScriptFieldTermsQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -46,6 +47,10 @@ public final class DoubleScriptFieldType extends AbstractScriptFieldType<DoubleF
 
     private DoubleScriptFieldType(String name, DoubleFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);
+    }
+
+    DoubleScriptFieldType(String name) {
+        this(name, DoubleFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 
     DoubleScriptFieldType(

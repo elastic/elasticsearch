@@ -21,7 +21,7 @@ import java.util.Objects;
 
 public class MlScalingReason implements AutoscalingDeciderResult.Reason {
 
-    static final String NAME = "ml";
+    public static final String NAME = MlAutoscalingDeciderService.NAME;
     static final String WAITING_ANALYTICS_JOBS = "waiting_analytics_jobs";
     static final String WAITING_ANOMALY_JOBS = "waiting_anomaly_jobs";
     static final String CONFIGURATION = "configuration";
@@ -119,7 +119,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         builder.startObject();
         builder.field(WAITING_ANALYTICS_JOBS, waitingAnalyticsJobs);
         builder.field(WAITING_ANOMALY_JOBS, waitingAnalyticsJobs);
-        builder.field(CONFIGURATION, passedConfiguration);
+        builder.startObject(CONFIGURATION).value(passedConfiguration).endObject();
         if (largestWaitingAnalyticsJob != null) {
             builder.field(LARGEST_WAITING_ANALYTICS_JOB, largestWaitingAnalyticsJob);
         }
@@ -130,6 +130,11 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
         builder.field(REASON, simpleReason);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean isFragment() {
+        return false;
     }
 
     static class Builder {

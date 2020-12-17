@@ -1090,9 +1090,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "data stream [logs-foobar] could create backing indices that conflict with 1 "
-                    + "existing index(s) or alias(s) including '.ds-logs-foobar-000002'"
+            startsWith(
+                "data stream [logs-foobar] could create backing indices that conflict with 1"
+                    + " existing index(s) or alias(s) including '.ds-logs-foobar"
             )
         );
     }
@@ -1141,7 +1141,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         // when querying a backing index then the data stream should be included as well.
-        ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-000001");
+        ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-*000001");
         ClusterState state = client().admin().cluster().state(request).get().getState();
         assertThat(state.metadata().dataStreams().size(), equalTo(1));
         assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));

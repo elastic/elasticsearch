@@ -34,14 +34,19 @@ import java.util.Map;
 
 class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MetricAggregatorSupplier aggregatorSupplier;
+
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(ValueCountAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, ValueCountAggregator::new, true);
     }
 
     ValueCountAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                Map<String, Object> metadata) throws IOException {
+                                Map<String, Object> metadata,
+                                MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -55,8 +60,7 @@ class ValueCountAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(ValueCountAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(name, config, context, parent, metadata);
     }
 }

@@ -298,8 +298,8 @@ setup:
 ---
 Test unmapped field:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support isn't yet backported
+        version: ' - 7.10.99'
+        reason: support was introduced in 7.11
   -  do:
         indices.create:
            index: test
@@ -364,8 +364,8 @@ Test unmapped field:
 ---
 Test unmapped fields inside disabled objects:
   -  skip:
-        version: ' - 7.99.99'
-        reason: support isn't yet backported
+        version: ' - 7.10.99'
+        reason: support was introduced in 7.11
   -  do:
         indices.create:
            index: test

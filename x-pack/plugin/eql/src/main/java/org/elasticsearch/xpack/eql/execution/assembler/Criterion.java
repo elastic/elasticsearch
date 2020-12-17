@@ -10,7 +10,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
-import org.elasticsearch.xpack.eql.execution.sequence.SequenceKey;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
@@ -24,6 +23,7 @@ public class Criterion<Q extends QueryRequest> {
     private final HitExtractor tiebreaker;
 
     private final boolean descending;
+    private final int keySize;
 
     public Criterion(int stage,
               Q queryRequest,
@@ -38,6 +38,8 @@ public class Criterion<Q extends QueryRequest> {
         this.tiebreaker = tiebreaker;
 
         this.descending = descending;
+
+        this.keySize = keys.size();
     }
 
     public int stage() {
@@ -52,20 +54,14 @@ public class Criterion<Q extends QueryRequest> {
         return queryRequest;
     }
 
-    public int keySize() {
-        return keys.size();
-    }
-
-    public SequenceKey key(SearchHit hit) {
-        SequenceKey key;
-        if (keys.isEmpty()) {
-            key = SequenceKey.NONE;
-        } else {
-            Object[] docKeys = new Object[keys.size()];
-            for (int i = 0; i < docKeys.length; i++) {
+    public Object[] key(SearchHit hit) {
+        Object[] key = null;
+        if (keySize > 0) {
+            Object[] docKeys = new Object[keySize];
+            for (int i = 0; i < keySize; i++) {
                 docKeys[i] = keys.get(i).extract(hit);
             }
-            key = new SequenceKey(docKeys);
+            key = docKeys;
         }
         return key;
     }

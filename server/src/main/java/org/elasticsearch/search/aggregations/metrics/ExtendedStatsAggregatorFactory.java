@@ -35,6 +35,7 @@ import java.util.Map;
 
 class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final ExtendedStatsAggregatorProvider aggregatorSupplier;
     private final double sigma;
 
     ExtendedStatsAggregatorFactory(String name,
@@ -43,9 +44,11 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                     AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+                                    Map<String, Object> metadata,
+                                    ExtendedStatsAggregatorProvider aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.sigma = sigma;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -67,8 +70,6 @@ class ExtendedStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(ExtendedStatsAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, context, parent, sigma, metadata);
+        return aggregatorSupplier.build(name, config, context, parent, sigma, metadata);
     }
 }

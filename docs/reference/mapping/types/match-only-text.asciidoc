@@ -5,14 +5,18 @@
 [[match-only-text-field-type]]
 === Match-only text field type
 
-A variant of <<text,`text`>> that trades scoring and efficiency of positional
-queries for space efficiency. This field effectively stores data the same way as
-a `text` field that only indexes documents (`index_options: docs`) and disables
-norms (`norms: false`). Term queries perform as fast if not faster as on `text`
-fields, however queries that need positions such as the
+A variant of <<text-field-type,`text`>> that trades scoring and efficiency of
+positional queries for space efficiency. This field effectively stores data the
+same way as a `text` field that only indexes documents (`index_options: docs`)
+and disables norms (`norms: false`). Term queries perform as fast if not faster
+as on `text` fields, however queries that need positions such as the
 <<query-dsl-match-query-phrase,`match_phrase` query>> perform slower as they
 need to look at the `_source` document to verify whether a phrase matches. All
 queries return constant scores that are equal to 1.0.
+
+<<query-dsl-intervals-query,Interval queries>> and <<span-queries,span queries>>
+are not supported by this field. Use the <<text-field-type,`text`>> field type
+if you need them.
 
 [source,console]
 --------------------------------

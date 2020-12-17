@@ -159,3 +159,30 @@ setup:
 
   - match: { "hits.total.value": 2 }
   - match: { "hits.hits.0._score": 1.0 }
+
+---
+"Span query":
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            span_term:
+              foo: lucene
+
+---
+"Intervals query":
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          query:
+            intervals:
+              foo:
+                match:
+                  query: "apache lucene"
+

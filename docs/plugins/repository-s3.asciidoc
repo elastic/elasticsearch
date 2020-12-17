@@ -252,7 +252,7 @@ The following settings are supported:
 
 `bucket`::
 (Required)
-Name of the bucket to use for snapshots.
+Name of the S3 bucket to use for snapshots.
 +
 The bucket name must adhere to the
 https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-s3-bucket-naming-requirements.html[Amazon

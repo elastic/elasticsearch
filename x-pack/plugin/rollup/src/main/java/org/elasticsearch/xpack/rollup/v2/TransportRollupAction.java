@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
 import org.elasticsearch.xpack.core.rollup.v2.RollupTask;
-import org.elasticsearch.xpack.rollup.Rollup;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,8 +58,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
     @Override
     protected void doExecute(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
         RollupTask rollupTask = (RollupTask) task;
-        RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, Rollup.TASK_THREAD_POOL_NAME,
-            request, rollupTask.headers(), ActionListener.wrap(c -> {
+        RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, request, rollupTask.headers(), ActionListener.wrap(c -> {
             // update Rollup metadata to include this index
             clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
 

@@ -271,10 +271,10 @@ public class PrivilegeTests extends ESTestCase {
         }
 
         {
-            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_INGEST_PIPELINES,
+            verifyClusterActionAllowed(ClusterPrivilegeResolver.READ_PIPELINE,
                 "cluster:admin/ingest/pipeline/get",
                 "cluster:admin/ingest/pipeline/simulate");
-            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_INGEST_PIPELINES,"cluster:admin/ingest/pipeline/put",
+            verifyClusterActionDenied(ClusterPrivilegeResolver.READ_PIPELINE,"cluster:admin/ingest/pipeline/put",
                 "cluster:admin/ingest/pipeline/delete",
                 "cluster:admin/whatever");
 

@@ -134,6 +134,7 @@ final class JvmOptionsParser {
         throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
+        final MachineDependentHeap machineDependentHeap = new MachineDependentHeap(new DefaultSystemMemoryInfo());
 
         if (esJavaOpts != null) {
             jvmOptions.addAll(
@@ -142,6 +143,7 @@ final class JvmOptionsParser {
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
+        substitutedJvmOptions.addAll(machineDependentHeap.determineHeapSettings(config, substitutedJvmOptions));
         final List<String> ergonomicJvmOptions = JvmErgonomics.choose(substitutedJvmOptions);
         final List<String> systemJvmOptions = SystemJvmOptions.systemJvmOptions();
         final List<String> bootstrapOptions = BootstrapJvmOptions.bootstrapJvmOptions(plugins);

@@ -63,9 +63,9 @@ As such, the elasticsearch keystore that stores the node's <<secure-settings,sec
 needs to be password protected with a password that satisfies this requirement.
 This means that the  password needs to be 14 bytes long which is equivalent
 to a 14 character ASCII encoded password, or a 7 character UTF-8 encoded password.
-You can use the <<keystore, elasticsearch-keystore passwd>> subcommand to change or set the
+You can use the <<elasticsearch-keystore, elasticsearch-keystore passwd>> subcommand to change or set the
 password of an existing keystore.
-Note that when the keystore is password-protected, you must supply the password each time 
+Note that when the keystore is password-protected, you must supply the password each time
 Elasticsearch starts.
 
 [discrete]
@@ -134,7 +134,7 @@ In order to ensure FIPS 140-2 compliance, you would need to recreate users or
 change their password using the <<users-command, elasticsearch-user>> CLI tool
 for the file realm and the <<security-api-put-user,create users>> and
 <<security-api-change-password,change password>> APIs for the native and reserved realms.
-Other types of realms are not affected and do not require any changes. 
+Other types of realms are not affected and do not require any changes.
 
 The user cache will be emptied upon node restart, so any existing hashes using
 non-compliant algorithms will be discarded and the new ones will be created

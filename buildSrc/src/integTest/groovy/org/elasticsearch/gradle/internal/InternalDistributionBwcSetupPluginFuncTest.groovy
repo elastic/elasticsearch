@@ -48,8 +48,8 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}\n")
-        result.output.contains("[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}\n")
+        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
+        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
 
         where:
         bwcDistVersion | bwcProject | expectedAssembleTaskName

@@ -33,6 +33,7 @@ PUT _snapshot/my_s3_repository
 ----
 // TEST[skip:we don't have s3 setup while testing this]
 
+
 [[repository-s3-client]]
 ==== Client Settings
 
@@ -241,7 +242,7 @@ PUT _snapshot/my_s3_repository
   "type": "s3",
   "settings": {
     "bucket": "my-bucket-name",
-    "another_setting": "setting_value"
+    "another_setting": "setting-value"
   }
 }
 ----
@@ -250,7 +251,8 @@ PUT _snapshot/my_s3_repository
 The following settings are supported:
 
 `bucket`::
-The name of the bucket to be used for snapshots. (Mandatory)
+(Required)
+Name of the bucket to use for snapshots.
 +
 The bucket name must adhere to the
 https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-s3-bucket-naming-requirements.html[Amazon

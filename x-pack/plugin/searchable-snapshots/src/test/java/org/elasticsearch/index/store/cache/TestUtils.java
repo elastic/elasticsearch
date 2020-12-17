@@ -267,7 +267,7 @@ public final class TestUtils {
         }
 
         @Override
-        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
             throw unsupportedException();
         }
 

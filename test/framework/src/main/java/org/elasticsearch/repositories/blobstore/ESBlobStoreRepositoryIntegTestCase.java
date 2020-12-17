@@ -204,14 +204,13 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     public static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
-        boolean failIfAlreadyExists) throws IOException {
-        try (InputStream stream = bytesArray.streamInput()) {
-            if (randomBoolean()) {
+                                 boolean failIfAlreadyExists) throws IOException {
+        if (randomBoolean()) {
+            try (InputStream stream = bytesArray.streamInput()) {
                 container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
-            } else {
-                container.writeBlobAtomic(blobName, stream, bytesArray.length(), failIfAlreadyExists);
             }
         }
+        container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
     }
 
     public void testContainerCreationAndDeletion() throws IOException {
@@ -257,9 +256,7 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     }
 
     protected static void writeBlob(BlobContainer container, String blobName, BytesArray bytesArray) throws IOException {
-        try (InputStream stream = bytesArray.streamInput()) {
-            container.writeBlob(blobName, stream, bytesArray.length(), true);
-        }
+        container.writeBlob(blobName, bytesArray, true);
     }
 
     protected BlobStore newBlobStore() {

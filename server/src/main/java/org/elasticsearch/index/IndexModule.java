@@ -414,13 +414,16 @@ public final class IndexModule {
                                         NamedWriteableRegistry namedWriteableRegistry,
                                         BooleanSupplier idFieldDataEnabled,
                                         ValuesSourceRegistry valuesSourceRegistry,
-                                        IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener) throws IOException {
+                                        IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
+                                        Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers) throws IOException {
         final IndexEventListener eventListener = freeze();
         Function<IndexService, CheckedFunction<DirectoryReader, DirectoryReader, IOException>> readerWrapperFactory =
             indexReaderWrapper.get() == null ? (shard) -> null : indexReaderWrapper.get();
         eventListener.beforeIndexCreated(indexSettings.getIndex(), indexSettings.getSettings());
         final IndexStorePlugin.DirectoryFactory directoryFactory = getDirectoryFactory(indexSettings, directoryFactories);
         final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory = getRecoveryStateFactory(indexSettings, recoveryStateFactories);
+        final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier
+                = getSnapshotCommitSupplier(indexSettings, snapshotCommitSuppliers);
         QueryCache queryCache = null;
         IndexAnalyzers indexAnalyzers = null;
         boolean success = false;
@@ -443,7 +446,7 @@ public final class IndexModule {
                 engineFactory, circuitBreakerService, bigArrays, threadPool, scriptService, clusterService, client, queryCache,
                 directoryFactory, eventListener, readerWrapperFactory, mapperRegistry, indicesFieldDataCache, searchOperationListeners,
                 indexOperationListeners, namedWriteableRegistry, idFieldDataEnabled, allowExpensiveQueries, expressionResolver,
-                valuesSourceRegistry, recoveryStateFactory, indexFoldersDeletionListener);
+                valuesSourceRegistry, recoveryStateFactory, indexFoldersDeletionListener, snapshotCommitSupplier);
             success = true;
             return indexService;
         } finally {
@@ -496,6 +499,18 @@ public final class IndexModule {
         }
 
         return factory;
+    }
+
+    public static final IndexStorePlugin.SnapshotCommitSupplier DEFAULT_SNAPSHOT_COMMIT_SUPPLIER
+            = e -> e.acquireLastIndexCommit(true); // by default we flush first so that the snapshot is as up-to-date as possible.
+
+    private static IndexStorePlugin.SnapshotCommitSupplier getSnapshotCommitSupplier(
+            final IndexSettings indexSettings,
+            final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers) {
+        final String storeType = indexSettings.getValue(INDEX_STORE_TYPE_SETTING);
+        // we check that storeType refers to a valid store type in getDirectoryFactory() so there's no need for strictness here too.
+        final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier = snapshotCommitSuppliers.get(storeType);
+        return snapshotCommitSupplier == null ? DEFAULT_SNAPSHOT_COMMIT_SUPPLIER : snapshotCommitSupplier;
     }
 
     /**

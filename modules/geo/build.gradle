@@ -33,7 +33,7 @@ restResources {
 artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
-test.enabled = false
+tasks.named("test").configure { enabled = false }
 
 if (BuildParams.inFipsJvm){
   // The geo module is replaced by spatial in the default distribution and in FIPS 140 mode, we set the testclusters to

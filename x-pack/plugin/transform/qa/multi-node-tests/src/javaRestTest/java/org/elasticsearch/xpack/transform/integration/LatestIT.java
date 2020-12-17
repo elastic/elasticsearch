@@ -26,7 +26,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -55,8 +57,10 @@ public class LatestIT extends TransformIntegTestCase {
     private static final String BUSINESS_ID = "business_id";
     private static final String COUNT = "count";
     private static final String STARS = "stars";
+    private static final String COMMENT = "comment";
 
-    private static final Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp) {
+    private static final Map<String, Object> row(
+            String userId, String businessId, int count, int stars, String timestamp, String comment) {
         return new HashMap<>() {{
             if (userId != null) {
                 put(USER_ID, userId);
@@ -65,40 +69,43 @@ public class LatestIT extends TransformIntegTestCase {
             put(COUNT, count);
             put(STARS, stars);
             put(TIMESTAMP, timestamp);
+            put(COMMENT, comment);
+            put("regular_object", singletonMap("foo", 42));
+            put("nested_object", singletonMap("bar", 43));
         }};
     }
 
     private static final Object[] EXPECTED_DEST_INDEX_ROWS =
         new Object[] {
-            row("user_0", "business_37", 87, 2, "2017-04-04T12:30:00Z"),
-            row("user_1", "business_38", 88, 3, "2017-04-05T12:30:00Z"),
-            row("user_2", "business_39", 89, 4, "2017-04-06T12:30:00Z"),
-            row("user_3", "business_40", 90, 0, "2017-04-07T12:30:00Z"),
-            row("user_4", "business_41", 91, 1, "2017-04-08T12:30:00Z"),
-            row("user_5", "business_42", 92, 2, "2017-04-09T12:30:00Z"),
-            row("user_6", "business_43", 93, 3, "2017-04-10T12:30:00Z"),
-            row("user_7", "business_44", 94, 4, "2017-04-11T12:30:00Z"),
-            row("user_8", "business_45", 95, 0, "2017-04-12T12:30:00Z"),
-            row("user_9", "business_46", 96, 1, "2017-04-13T12:30:00Z"),
-            row("user_10", "business_47", 97, 2, "2017-04-14T12:30:00Z"),
-            row("user_11", "business_48", 98, 3, "2017-04-15T12:30:00Z"),
-            row("user_12", "business_49", 99, 4, "2017-04-16T12:30:00Z"),
-            row("user_13", "business_21", 71, 1, "2017-03-16T12:30:00Z"),
-            row("user_14", "business_22", 72, 2, "2017-03-17T12:30:00Z"),
-            row("user_15", "business_23", 73, 3, "2017-03-18T12:30:00Z"),
-            row("user_16", "business_24", 74, 4, "2017-03-19T12:30:00Z"),
-            row("user_17", "business_25", 75, 0, "2017-03-20T12:30:00Z"),
-            row("user_18", "business_26", 76, 1, "2017-03-21T12:30:00Z"),
-            row("user_19", "business_27", 77, 2, "2017-03-22T12:30:00Z"),
-            row("user_20", "business_28", 78, 3, "2017-03-23T12:30:00Z"),
-            row("user_21", "business_29", 79, 4, "2017-03-24T12:30:00Z"),
-            row("user_22", "business_30", 80, 0, "2017-03-25T12:30:00Z"),
-            row("user_23", "business_31", 81, 1, "2017-03-26T12:30:00Z"),
-            row("user_24", "business_32", 82, 2, "2017-03-27T12:30:00Z"),
-            row("user_25", "business_33", 83, 3, "2017-03-28T12:30:00Z"),
-            row("user_26", "business_34", 84, 4, "2017-04-01T12:30:00Z"),
-            row("user_27", "business_35", 85, 0, "2017-04-02T12:30:00Z"),
-            row(null, "business_36", 86, 1, "2017-04-03T12:30:00Z")
+            row("user_0", "business_37", 87, 2, "2017-04-04T12:30:00Z", "Great stuff, deserves 2 stars"),
+            row("user_1", "business_38", 88, 3, "2017-04-05T12:30:00Z", "Great stuff, deserves 3 stars"),
+            row("user_2", "business_39", 89, 4, "2017-04-06T12:30:00Z", "Great stuff, deserves 4 stars"),
+            row("user_3", "business_40", 90, 0, "2017-04-07T12:30:00Z", "Great stuff, deserves 0 stars"),
+            row("user_4", "business_41", 91, 1, "2017-04-08T12:30:00Z", "Great stuff, deserves 1 stars"),
+            row("user_5", "business_42", 92, 2, "2017-04-09T12:30:00Z", "Great stuff, deserves 2 stars"),
+            row("user_6", "business_43", 93, 3, "2017-04-10T12:30:00Z", "Great stuff, deserves 3 stars"),
+            row("user_7", "business_44", 94, 4, "2017-04-11T12:30:00Z", "Great stuff, deserves 4 stars"),
+            row("user_8", "business_45", 95, 0, "2017-04-12T12:30:00Z", "Great stuff, deserves 0 stars"),
+            row("user_9", "business_46", 96, 1, "2017-04-13T12:30:00Z", "Great stuff, deserves 1 stars"),
+            row("user_10", "business_47", 97, 2, "2017-04-14T12:30:00Z", "Great stuff, deserves 2 stars"),
+            row("user_11", "business_48", 98, 3, "2017-04-15T12:30:00Z", "Great stuff, deserves 3 stars"),
+            row("user_12", "business_49", 99, 4, "2017-04-16T12:30:00Z", "Great stuff, deserves 4 stars"),
+            row("user_13", "business_21", 71, 1, "2017-03-16T12:30:00Z", "Great stuff, deserves 1 stars"),
+            row("user_14", "business_22", 72, 2, "2017-03-17T12:30:00Z", "Great stuff, deserves 2 stars"),
+            row("user_15", "business_23", 73, 3, "2017-03-18T12:30:00Z", "Great stuff, deserves 3 stars"),
+            row("user_16", "business_24", 74, 4, "2017-03-19T12:30:00Z", "Great stuff, deserves 4 stars"),
+            row("user_17", "business_25", 75, 0, "2017-03-20T12:30:00Z", "Great stuff, deserves 0 stars"),
+            row("user_18", "business_26", 76, 1, "2017-03-21T12:30:00Z", "Great stuff, deserves 1 stars"),
+            row("user_19", "business_27", 77, 2, "2017-03-22T12:30:00Z", "Great stuff, deserves 2 stars"),
+            row("user_20", "business_28", 78, 3, "2017-03-23T12:30:00Z", "Great stuff, deserves 3 stars"),
+            row("user_21", "business_29", 79, 4, "2017-03-24T12:30:00Z", "Great stuff, deserves 4 stars"),
+            row("user_22", "business_30", 80, 0, "2017-03-25T12:30:00Z", "Great stuff, deserves 0 stars"),
+            row("user_23", "business_31", 81, 1, "2017-03-26T12:30:00Z", "Great stuff, deserves 1 stars"),
+            row("user_24", "business_32", 82, 2, "2017-03-27T12:30:00Z", "Great stuff, deserves 2 stars"),
+            row("user_25", "business_33", 83, 3, "2017-03-28T12:30:00Z", "Great stuff, deserves 3 stars"),
+            row("user_26", "business_34", 84, 4, "2017-04-01T12:30:00Z", "Great stuff, deserves 4 stars"),
+            row("user_27", "business_35", 85, 0, "2017-04-02T12:30:00Z", "Great stuff, deserves 0 stars"),
+            row(null, "business_36", 86, 1, "2017-04-03T12:30:00Z", "Great stuff, deserves 1 stars")
         };
 
     @After
@@ -162,11 +169,24 @@ public class LatestIT extends TransformIntegTestCase {
             GetMappingsResponse sourceIndexMapping =
                 restClient.indices().getMapping(new GetMappingsRequest().indices(SOURCE_INDEX_NAME), RequestOptions.DEFAULT);
             assertThat(
-                previewResponse.getMappings().get("properties"),
+                // Mappings we get from preview sometimes contain redundant { "type": "object" } entries.
+                // We clear them here to be able to compare with the GetMappingsAction output.
+                clearDefaultObjectType(previewResponse.getMappings().get("properties")),
                 is(equalTo(sourceIndexMapping.mappings().get(SOURCE_INDEX_NAME).sourceAsMap().get("properties"))));
             // Verify preview contents
             assertThat(previewResponse.getDocs(), hasSize(NUM_USERS + 1));
             assertThat(previewResponse.getDocs(), containsInAnyOrder(EXPECTED_DEST_INDEX_ROWS));
         }
+    }
+
+    private static Object clearDefaultObjectType(Object obj) {
+        if (obj instanceof Map == false) {
+            return obj;
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>) obj;
+        return map.entrySet().stream()
+            .filter(entry -> (entry.getKey().equals("type") && entry.getValue().equals("object")) == false)
+            .collect(toMap(entry -> entry.getKey(), entry -> clearDefaultObjectType(entry.getValue())));
     }
 }

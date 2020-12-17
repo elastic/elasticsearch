@@ -76,7 +76,7 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
@@ -86,9 +86,13 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-other')
 }
 
-integTest {
+tasks.named("integTest").configure {
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_searchable_snapshots_tests" + BuildParams.testSeed
+
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
 }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
@@ -97,7 +101,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
   keystore 'gcs.client.searchable_snapshots.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
-    tasks.integTest.dependsOn createServiceAccountFile
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.searchable_snapshots.endpoint', { "${-> fixtureAddress('gcs-fixture-other')}" }, IGNORE_VALUE
     setting 'gcs.client.searchable_snapshots.token_uri', { "${-> fixtureAddress('gcs-fixture-other')}/o/oauth2/token" }, IGNORE_VALUE
@@ -107,6 +110,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
 
   setting 'xpack.license.self_generated.type', 'trial'
 }
+
 
 tasks.register("gcsThirdPartyTest")  {
   dependsOn "integTest"

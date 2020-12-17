@@ -25,6 +25,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -121,4 +123,26 @@ public interface IndexStorePlugin {
     default List<IndexFoldersDeletionListener> getIndexFoldersDeletionListeners() {
         return Collections.emptyList();
     }
+
+    /**
+     * An interface that allows plugins to override the {@link org.apache.lucene.index.IndexCommit} of which a snapshot is taken. By default
+     * we snapshot the latest such commit.
+     */
+    @FunctionalInterface
+    interface SnapshotCommitSupplier {
+        Engine.IndexCommitRef acquireIndexCommitForSnapshot(Engine engine) throws EngineException;
+    }
+
+    /**
+     * The {@link SnapshotCommitSupplier} mappings for this plugin. When an index is created the store type setting
+     * {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING} on the index will determine whether the snapshot commit supplier
+     * should be overridden and, if so, which override to use.
+     *
+     * @return a collection of snapshot commit suppliers, keyed by the value of
+     *         {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING}.
+     */
+    default Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
+        return Collections.emptyMap();
+    }
+
 }

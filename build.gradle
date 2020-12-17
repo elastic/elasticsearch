@@ -287,23 +287,17 @@ gradle.projectsEvaluated {
       // :test:framework:test cannot run before and after :server:test
       return
     }
-    tasks.matching {it.name.equals('integTest')}.configureEach {integTestTask ->
+    tasks.matching { it.name.equals('integTest')}.configureEach {integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
 
     configurations.matching { it.canBeResolved }.all { Configuration configuration ->
       dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
         Project upstreamProject = dep.dependencyProject
-        if (upstreamProject != null) {
-          if (project.path == upstreamProject.path) {
-            // TODO: distribution integ tests depend on themselves (!), fix that
-            return
-          }
+        if (project.path != upstreamProject?.path) {
           for (String taskName : ['test', 'integTest']) {
-            Task task = project.tasks.findByName(taskName)
-            Task upstreamTask = upstreamProject.tasks.findByName(taskName)
-            if (task != null && upstreamTask != null) {
-              task.shouldRunAfter(upstreamTask)
+            project.tasks.matching { it.name == taskName }.configureEach {task ->
+              task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
             }
           }
         }
@@ -487,7 +481,7 @@ allprojects {
 subprojects {
   project.ext.disableTasks = { String... tasknames ->
     for (String taskname : tasknames) {
-      project.tasks.named(taskname).configure { onlyIf { false } }
+      project.tasks.named(taskname).configure { enabled = false }
     }
   }
 }

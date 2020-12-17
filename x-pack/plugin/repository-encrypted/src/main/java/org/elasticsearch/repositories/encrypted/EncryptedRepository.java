@@ -51,7 +51,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -498,9 +497,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                 throw new RepositoryException(repositoryName, "Failure to AES wrap the DEK [" + dekId + "]", e);
             }
             logger.trace("Repository [{}] successfully wrapped DEK [{}]", repositoryName, dekId);
-            try (InputStream encryptedDEKInputStream = new ByteArrayInputStream(encryptedDEKBytes)) {
-                dekBlobContainer.writeBlobAtomic(kek.v1(), encryptedDEKInputStream, encryptedDEKBytes.length, true);
-            }
+            dekBlobContainer.writeBlobAtomic(kek.v1(), new BytesArray(encryptedDEKBytes), true);
             logger.debug("Repository [{}] successfully stored DEK [{}] under path {} {}", repositoryName, dekId, dekBlobPath, kek.v1());
         }
 
@@ -647,11 +644,10 @@ public class EncryptedRepository extends BlobStoreRepository {
         }
 
         @Override
-        public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists)
-            throws IOException {
+        public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
             // the encrypted repository does not offer an alternative implementation for atomic writes
             // fallback to regular write
-            writeBlob(blobName, inputStream, blobSize, failIfAlreadyExists);
+            writeBlob(blobName, bytes, failIfAlreadyExists);
         }
 
         @Override

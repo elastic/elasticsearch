@@ -43,7 +43,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public String mediaType() {
-            return "application/json; charset=UTF-8";
+            return "application/json;charset=utf-8";
         }
 
         @Override

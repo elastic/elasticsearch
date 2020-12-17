@@ -29,8 +29,6 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,7 +47,6 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +58,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.test.ClusterServiceUtils.setState;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -374,101 +370,6 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         CountDownLatch latch = new CountDownLatch(1);
         taskManager.startBanOnChildTasks(parentTaskId.getId(), latch::countDown);
         assertTrue("onChildTasksCompleted() is not invoked", latch.await(1, TimeUnit.SECONDS));
-    }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66518")
-    public void testTaskCancellationOnCoordinatingNodeLeavingTheCluster() throws Exception {
-        setupTestNodes(Settings.EMPTY);
-        connectNodes(testNodes);
-        CountDownLatch responseLatch = new CountDownLatch(1);
-        final AtomicReference<NodesResponse> responseReference = new AtomicReference<>();
-        final AtomicReference<Throwable> throwableReference = new AtomicReference<>();
-        int blockedNodesCount = randomIntBetween(0, nodesCount - 1);
-
-        // We shouldn't block on the first node since it's leaving the cluster anyway so it doesn't matter
-        List<TestNode> blockOnNodes = randomSubsetOf(blockedNodesCount, Arrays.copyOfRange(testNodes, 1, nodesCount));
-        Task mainTask = startCancellableTestNodesAction(true, Arrays.asList(testNodes), blockOnNodes,
-            new CancellableNodesRequest("Test Request"), new
-                ActionListener<NodesResponse>() {
-                    @Override
-                    public void onResponse(NodesResponse listTasksResponse) {
-                        responseReference.set(listTasksResponse);
-                        responseLatch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        throwableReference.set(e);
-                        responseLatch.countDown();
-                    }
-                }
-        );
-
-        String mainNode = testNodes[0].getNodeId();
-
-        // Make sure that tasks are running
-        ListTasksResponse listTasksResponse = ActionTestUtils.executeBlocking(
-            testNodes[randomIntBetween(0, testNodes.length - 1)].transportListTasksAction,
-            new ListTasksRequest().setParentTaskId(new TaskId(mainNode, mainTask.getId())));
-        assertThat(listTasksResponse.getTasks().size(), greaterThanOrEqualTo(blockOnNodes.size()));
-
-        // Simulate the coordinating node leaving the cluster
-        if (randomBoolean()) {
-            DiscoveryNode[] discoveryNodes = new DiscoveryNode[testNodes.length - 1];
-            for (int i = 1; i < testNodes.length; i++) {
-                discoveryNodes[i - 1] = testNodes[i].discoveryNode();
-            }
-            DiscoveryNode master = discoveryNodes[0];
-            for (int i = 1; i < testNodes.length; i++) {
-                // Notify only nodes that should remain in the cluster
-                setState(testNodes[i].clusterService,
-                    ClusterStateCreationUtils.state(testNodes[i].discoveryNode(), master, discoveryNodes));
-            }
-            if (randomBoolean()) {
-                logger.info("--> Simulate issuing cancel request on the node that is about to leave the cluster");
-                // Simulate issuing cancel request on the node that is about to leave the cluster
-                CancelTasksRequest request = new CancelTasksRequest();
-                request.setReason("Testing Cancellation");
-                request.setTaskId(new TaskId(testNodes[0].getNodeId(), mainTask.getId()));
-                // And send the cancellation request to a random node
-                CancelTasksResponse response = ActionTestUtils.executeBlocking(testNodes[0].transportCancelTasksAction, request);
-                logger.info("--> Done simulating issuing cancel request on the node that is about to leave the cluster");
-                // This node still thinks that's part of the cluster, so cancelling should look successful
-                if (response.getTasks().size() == 0) {
-                    logger.error("!!!!");
-                }
-                assertThat(response.getTasks().size(), lessThanOrEqualTo(1));
-                assertThat(response.getTaskFailures().size(), lessThanOrEqualTo(1));
-                assertThat(response.getTaskFailures().size() + response.getTasks().size(), lessThanOrEqualTo(1));
-            }
-        }
-
-        for (int i = 1; i < testNodes.length; i++) {
-            assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
-        }
-
-        if (randomBoolean()) {
-            testNodes[0].close();
-        } else {
-            for (TestNode blockOnNode : blockOnNodes) {
-                if (randomBoolean()) {
-                    testNodes[0].transportService.disconnectFromNode(blockOnNode.discoveryNode());
-                } else {
-                    testNodes[0].transportService.getConnection(blockOnNode.discoveryNode()).close();
-                }
-            }
-        }
-
-        assertBusy(() -> {
-            // Make sure that tasks are no longer running
-            ListTasksResponse listTasksResponse1 = ActionTestUtils.executeBlocking(
-                testNodes[randomIntBetween(1, testNodes.length - 1)].transportListTasksAction,
-                new ListTasksRequest().setTaskId(new TaskId(mainNode, mainTask.getId())));
-            assertEquals(0, listTasksResponse1.getTasks().size());
-        });
-
-        // Wait for clean up
-        responseLatch.await();
     }
 
     public void testNonExistingTaskCancellation() throws Exception {

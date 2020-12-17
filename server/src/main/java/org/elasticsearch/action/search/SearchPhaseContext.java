@@ -115,8 +115,12 @@ interface SearchPhaseContext extends Executor {
 
     /**
      * Builds an request for the initial search phase.
+     *
+     * @param shardIt the target {@link SearchShardIterator}
+     * @param shardIndex the index of the shard that is used in the coordinator node to
+     *                   tiebreak results with identical sort values
      */
-    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
+    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution

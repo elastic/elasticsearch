@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.Transport;
 
 import static org.elasticsearch.action.support.PlainActionFuture.newFuture;
 import static org.mockito.Mockito.mock;
@@ -42,9 +43,11 @@ public class ActionTestUtils {
     }
 
     public static <Request extends ActionRequest, Response extends ActionResponse>
-    Response executeBlockingWithTask(TaskManager taskManager, TransportAction<Request, Response> action, Request request) {
+    Response executeBlockingWithTask(TaskManager taskManager, Transport.Connection localConnection,
+                                     TransportAction<Request, Response> action, Request request) {
         PlainActionFuture<Response> future = newFuture();
-        taskManager.registerAndExecute("transport", action, request, (t, r) -> future.onResponse(r), (t, e) -> future.onFailure(e));
+        taskManager.registerAndExecute("transport", action, request, localConnection,
+            (t, r) -> future.onResponse(r), (t, e) -> future.onFailure(e));
         return future.actionGet();
     }
 

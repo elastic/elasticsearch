@@ -8,12 +8,16 @@ package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
@@ -29,6 +33,7 @@ import java.util.Collection;
 import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -95,6 +100,74 @@ public class FrozenIndexIT extends ESIntegTestCase {
         assertTrue(timestampFieldRange.isComplete());
         assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").getMillis()));
         assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").getMillis()));
+    }
+
+    public void testTimestampFieldTypeExposedByAllIndicesServices() throws Exception {
+        internalCluster().startNodes(between(2, 4));
+
+        final String locale;
+        final String date;
+
+        switch (between(1, 3)) {
+            case 1:
+                locale = "";
+                date = "04 Feb 2020 12:01:23Z";
+                break;
+            case 2:
+                locale = "en_GB";
+                date = "04 Feb 2020 12:01:23Z";
+                break;
+            case 3:
+                locale = "fr_FR";
+                date = "04 févr. 2020 12:01:23Z";
+                break;
+            default:
+                throw new AssertionError("impossible");
+        }
+
+        assertAcked(prepareCreate("index")
+                .setSettings(Settings.builder()
+                        .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+                .setMapping(jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                        .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .field("type", "date")
+                        .field("format", "dd LLL yyyy HH:mm:ssX")
+                        .field("locale", locale)
+                        .endObject()
+                        .endObject().endObject().endObject()));
+
+        final Index index = client().admin().cluster().prepareState().clear().setIndices("index").setMetadata(true)
+                .get().getState().metadata().index("index").getIndex();
+
+        ensureGreen("index");
+        if (randomBoolean()) {
+            client().prepareIndex("index").setSource(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, date).get();
+        }
+
+        for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            assertNull(indicesService.getTimestampFieldType(index));
+        }
+
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index")).actionGet());
+        ensureGreen("index");
+        for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            final PlainActionFuture<DateFieldMapper.DateFieldType> timestampFieldTypeFuture = new PlainActionFuture<>();
+            assertBusy(() -> {
+                final DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(index);
+                assertNotNull(timestampFieldType);
+                timestampFieldTypeFuture.onResponse(timestampFieldType);
+            });
+            assertTrue(timestampFieldTypeFuture.isDone());
+            assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().locale().toString(), equalTo(locale));
+            assertThat(timestampFieldTypeFuture.get().dateTimeFormatter().parseMillis(date), equalTo(1580817683000L));
+        }
+
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest("index").setFreeze(false)).actionGet());
+        ensureGreen("index");
+        for (final IndicesService indicesService : internalCluster().getInstances(IndicesService.class)) {
+            assertNull(indicesService.getTimestampFieldType(index));
+        }
     }
 
 }

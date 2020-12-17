@@ -1,8 +1,5 @@
 [[mapping-doc-count-field]]
-=== `_doc_count` data type
-++++
-<titleabbrev>_doc_count</titleabbrev>
-++++
+=== `_doc_count` field
 
 Bucket aggregations always return a field named `doc_count` showing the number of documents that were aggregated and partitioned
 in each bucket. Computation of the value of `doc_count` is very simple. `doc_count` is incremented by 1 for every document collected

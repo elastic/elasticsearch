@@ -1,8 +1,5 @@
 ---
 "Test geo_line aggregation on geo points":
-  - skip:
-      version: "all"
-      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/65473"
   - do:
       indices.create:
         index: races

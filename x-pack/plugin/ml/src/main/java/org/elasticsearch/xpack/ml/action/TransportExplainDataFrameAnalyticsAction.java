@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -106,7 +107,7 @@ public class TransportExplainDataFrameAnalyticsAction
         );
         if (licenseState.isSecurityEnabled()) {
             useSecondaryAuthIfAvailable(this.securityContext, () -> {
-                // Set the auth headers (preferring the secondary headers) to the caller's. 
+                // Set the auth headers (preferring the secondary headers) to the caller's.
                 // Regardless if the config was previously stored or not.
                 DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder(request.getConfig())
                     .setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()))
@@ -152,6 +153,11 @@ public class TransportExplainDataFrameAnalyticsAction
                                      DataFrameAnalyticsConfig config,
                                      ExtractedFields extractedFields,
                                      ActionListener<MemoryEstimation> listener) {
+        if (extractedFields.getAllFields().isEmpty()) {
+            listener.onResponse(new MemoryEstimation(ByteSizeValue.ZERO, ByteSizeValue.ZERO));
+            return;
+        }
+
         final String estimateMemoryTaskId = "memory_usage_estimation_" + task.getId();
         DataFrameDataExtractorFactory extractorFactory = DataFrameDataExtractorFactory.createForSourceIndices(
             new ParentTaskAssigningClient(client, task.getParentTaskId()), estimateMemoryTaskId, config, extractedFields);

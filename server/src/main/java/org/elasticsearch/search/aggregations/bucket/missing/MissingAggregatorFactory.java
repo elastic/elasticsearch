@@ -34,14 +34,18 @@ import java.util.Map;
 
 public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MissingAggregatorSupplier aggregatorSupplier;
+
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(MissingAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.ALL_CORE, MissingAggregator::new, true);
     }
 
     public MissingAggregatorFactory(String name, ValuesSourceConfig config, AggregationContext context,
                                     AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata) throws IOException {
+                                    Map<String, Object> metadata,
+                                    MissingAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
@@ -50,10 +54,10 @@ public class MissingAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-        throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(MissingAggregationBuilder.REGISTRY_KEY, config)
+    protected Aggregator doCreateInternal(Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
+        return aggregatorSupplier
             .build(name, factories, config, context, parent, cardinality, metadata);
     }
 }

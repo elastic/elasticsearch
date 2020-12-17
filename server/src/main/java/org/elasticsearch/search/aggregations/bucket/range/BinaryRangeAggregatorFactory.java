@@ -38,6 +38,7 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
         builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new, true);
     }
 
+    private final IpRangeAggregatorSupplier aggregatorSupplier;
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
 
@@ -46,8 +47,10 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
             AggregationContext context,
             AggregatorFactory parent, Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
+            Map<String, Object> metadata,
+            IpRangeAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.ranges = ranges;
         this.keyed = keyed;
     }
@@ -64,9 +67,9 @@ public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory 
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(IpRangeAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, factories, config.getValuesSource(), config.format(), ranges, keyed, context, parent, cardinality, metadata);
+        return aggregatorSupplier
+            .build(name, factories, config.getValuesSource(), config.format(),
+                   ranges, keyed, context, parent, cardinality, metadata);
     }
 
 }

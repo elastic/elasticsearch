@@ -321,10 +321,11 @@ public class RegressionTests extends AbstractBWCSerializationTestCase<Regression
         assertThat(createTestInstance().getFieldCardinalityConstraints(), is(empty()));
     }
 
-    public void testGetExplicitlyMappedFields() {
-        Map<String, Object> explicitlyMappedFields = new Regression("foo").getExplicitlyMappedFields("results", null);
-        assertThat(explicitlyMappedFields, hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
-        assertThat(explicitlyMappedFields, hasEntry("results.feature_importance", Regression.FEATURE_IMPORTANCE_MAPPING));
+    public void testGetResultMappings() {
+        Map<String, Object> resultMappings = new Regression("foo").getResultMappings("results", null);
+        assertThat(resultMappings, hasEntry("results.foo_prediction", Collections.singletonMap("type", "double")));
+        assertThat(resultMappings, hasEntry("results.feature_importance", Regression.FEATURE_IMPORTANCE_MAPPING));
+        assertThat(resultMappings, hasEntry("results.is_training", Collections.singletonMap("type", "boolean")));
     }
 
     public void testGetStateDocId() {

@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -125,15 +126,19 @@ class ScrollDataExtractor implements DataExtractor {
     }
 
     private SearchRequestBuilder buildSearchRequest(long start) {
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder()
+            .size(context.scrollSize)
+            .sort(context.extractedFields.timeField(), SortOrder.ASC)
+            .query(ExtractorUtils.wrapInTimeRangeQuery(
+                context.query, context.extractedFields.timeField(), start, context.end))
+            .runtimeMappings(context.runtimeMappings);
+
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
                 .setScroll(SCROLL_TIMEOUT)
-                .addSort(context.extractedFields.timeField(), SortOrder.ASC)
                 .setIndices(context.indices)
                 .setIndicesOptions(context.indicesOptions)
-                .setSize(context.scrollSize)
                 .setAllowPartialSearchResults(false)
-                .setQuery(ExtractorUtils.wrapInTimeRangeQuery(
-                        context.query, context.extractedFields.timeField(), start, context.end));
+                .setSource(searchSourceBuilder);
 
         for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
             searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());

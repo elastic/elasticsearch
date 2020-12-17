@@ -474,16 +474,15 @@ public class DatafeedManagerTests extends ESTestCase {
     private void givenDatafeedHasNeverRunBefore(Job job, DatafeedConfig datafeed) {
         doAnswer(invocationOnMock -> {
             @SuppressWarnings("unchecked")
-            ActionListener<DatafeedContext> datafeedContextListener = (ActionListener<DatafeedContext>) invocationOnMock.getArguments()[2];
-            DatafeedContext datafeedContext = DatafeedContext.builder(0L)
+            ActionListener<DatafeedContext> datafeedContextListener = (ActionListener<DatafeedContext>) invocationOnMock.getArguments()[1];
+            DatafeedContext datafeedContext = DatafeedContext.builder()
                 .setJob(job)
                 .setDatafeedConfig(datafeed)
-                .setModelSnapshot(null)
                 .setRestartTimeInfo(new RestartTimeInfo(null, null, false))
                 .setTimingStats(new DatafeedTimingStats(job.getId()))
                 .build();
             datafeedContextListener.onResponse(datafeedContext);
             return null;
-        }).when(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), anyLong(), any());
+        }).when(datafeedContextProvider).buildDatafeedContext(eq(DATAFEED_ID), any());
     }
 }

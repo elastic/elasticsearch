@@ -87,7 +87,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * Same as {@link #collectBucket(LeafBucketCollector, int, long)}, but doesn't check if the docCounts needs to be re-sized.
      */
     public final void collectExistingBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
-        long docCount = docCountProvider.getDocCount(doc);
+        int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
             // We calculate the final number of buckets only during the reduce phase. But we still need to
             // trigger bucket consumer from time to time in order to give it a chance to check available memory and break

@@ -174,6 +174,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66520")
     public void testBanOnlyNodesWithOutstandingDescendantTasks() throws Exception {
         if (randomBoolean()) {
             internalCluster().startNodes(randomIntBetween(1, 3));

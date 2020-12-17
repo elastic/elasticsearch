@@ -77,6 +77,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.rollup.RollupShardDecider;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -1203,23 +1204,24 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     minMax = null;
                 }
 
-                // get info about things
-                QueryBuilder queryBuilder = request.source() == null ? null : request.source().query();
-                AggregatorFactories.Builder aggregations = request.source() == null ? null : request.source().aggregations();
+                if (RollupV2.isEnabled()) {
+                    // get info about things
+                    QueryBuilder queryBuilder = request.source() == null ? null : request.source().query();
+                    AggregatorFactories.Builder aggregations = request.source() == null ? null : request.source().aggregations();
 
-                RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
-                IndexMetadata requestIndexMetadata = clusterService.state().getMetadata().index(request.shardId().getIndexName());
+                    RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
+                    IndexMetadata requestIndexMetadata = clusterService.state().getMetadata().index(request.shardId().getIndexName());
 
-                // cluster state point here. collect metadata about all other indices that are a part of the query
-                Map<String, String> indexRollupMeta = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
-                logger.error("indices searching: " + Arrays.toString(request.indices()));
-                logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
-                // check can-match because rollup is part of request
-                if (RollupShardDecider.shouldMatchRollup(context, queryBuilder, aggregations, rollupMetadata, indexRollupMeta,
-                    requestIndexMetadata, request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
-                    return new CanMatchResponse(false, minMax);
+                    // cluster state point here. collect metadata about all other indices that are a part of the query
+                    Map<String, String> indexRollupMeta = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
+                    logger.error("indices searching: " + Arrays.toString(request.indices()));
+                    logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
+                    // check can-match because rollup is part of request
+                    if (RollupShardDecider.shouldMatchRollup(context, queryBuilder, aggregations, rollupMetadata, indexRollupMeta,
+                        requestIndexMetadata, request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
+                        return new CanMatchResponse(false, minMax);
+                    }
                 }
-
 
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }

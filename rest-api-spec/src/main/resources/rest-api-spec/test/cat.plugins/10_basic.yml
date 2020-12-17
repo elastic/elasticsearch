@@ -1,5 +1,9 @@
 ---
 "Help":
+  - skip:
+      version: " - 7.99.99"
+      reason: output format changed in 8.0.0
+
   - do:
       cat.plugins:
         help: true
@@ -11,4 +15,5 @@
                     component   .+   \n
                     version     .+   \n
                     description .+   \n
+                    type        .+   \n
                $/

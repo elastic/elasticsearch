@@ -50,12 +50,10 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
         execute('git config user.name "Build tool"', workingRemoteGit)
         execute("git add .", workingRemoteGit)
         execute('git commit -m"Initial"', workingRemoteGit)
-        execute("git checkout -b origin/8.0", workingRemoteGit)
         return workingRemoteGit;
     }
 
     GradleRunner gradleRunner(String... arguments) {
         gradleRunner(new File(testProjectDir.root, "cloned"), arguments)
     }
-
 }

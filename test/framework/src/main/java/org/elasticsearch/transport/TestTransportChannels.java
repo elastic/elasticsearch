@@ -17,28 +17,18 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.util.ports;
+package org.elasticsearch.transport;
 
-public interface PortAllocator {
-    /**
-     * Assign and reserve a port
-     *
-     * @return the port assigned
-     */
-    int assignPort();
+import org.elasticsearch.Version;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.threadpool.ThreadPool;
 
-    /**
-     * Release a previously assigned port
-     *
-     * @param port the port to deallocate
-     */
-    void releasePort(int port);
+public class TestTransportChannels {
 
-    /**
-     * Assign a range of ports
-     *
-     * @return a new range of Ports
-     * */
-    ReservedPortRange reservePortRange();
-
+    public static TcpTransportChannel newFakeTcpTransportChannel(String nodeName, TcpChannel channel, ThreadPool threadPool,
+                                                                 String action, long requestId, Version version) {
+        return new TcpTransportChannel(
+            new OutboundHandler(nodeName, version, new StatsTracker(), threadPool, BigArrays.NON_RECYCLING_INSTANCE),
+            channel, action, requestId, version, false, false, () -> {});
+    }
 }

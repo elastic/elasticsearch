@@ -64,6 +64,7 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -124,7 +125,7 @@ public class PersistentCache implements Closeable {
             return writers.stream()
                 .filter(writer -> path.startsWith(writer.nodePath().path))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Failed to find a Lucene index for cache file path [" + path + ']'));
+                .orElseThrow(() -> new PersistentCacheIndexNotFoundException(nodeEnvironment, cacheFile));
         }
     }
 
@@ -651,5 +652,20 @@ public class PersistentCache implements Closeable {
             Files.createDirectories(snapshotCacheRootDir);
         }
         return snapshotCacheRootDir;
+    }
+
+    /**
+     * Exception thrown when the {@link CacheIndexWriter} corresponding to a given {@link CacheFile} cannot be found.
+     */
+    static class PersistentCacheIndexNotFoundException extends IllegalArgumentException {
+
+        PersistentCacheIndexNotFoundException(NodeEnvironment nodeEnvironment, CacheFile cacheFile) {
+            super(
+                "Persistent cache index not found for cache file path ["
+                    + cacheFile.getFile()
+                    + "] using node paths "
+                    + Arrays.toString(nodeEnvironment.nodeDataPaths())
+            );
+        }
     }
 }

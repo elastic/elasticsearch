@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -122,14 +123,13 @@ public class TransportRollupAction
             createTempRollupIndex(request, tmpIndexName,
                 ActionListener.wrap(
                     resp -> {
-                        ActionListener<RollupAction.Response> wrapListener =
-                            ActionListener.wrap(listener::onResponse, exc -> deleteTmpIndex(tmpIndexName, exc, listener));
-                        new Async(task, request, wrapListener).start();
+                        new Async(task, request, listener).start();
                     },
                     listener::onFailure
                 )
             );
         } catch (IOException exc) {
+            // here because the mapping could not be parsed. temp index was not created.
             listener.onFailure(exc);
         }
     }
@@ -185,7 +185,7 @@ public class TransportRollupAction
                 RollupAction.Response resp = newResponse(request, shardsResponses, clusterService.state());
                 shrinkAndPublishIndex(request, ActionListener.wrap(v -> listener.onResponse(resp), listener::onFailure));
             } catch (Exception e) {
-                listener.onFailure(e);
+                deleteTmpIndex(".rolluptmp-" + request.getRollupIndex(), ActionListener.wrap(() -> listener.onFailure(e)));
             }
         }
     }
@@ -257,13 +257,12 @@ public class TransportRollupAction
 
     private void shrinkAndPublishIndex(RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
         String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
-        // "shrink index"
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
         resizeRequest.getTargetIndexRequest()
             .settings(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build());
         UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(
-            Settings.builder().put("index.blocks.write", true).build(), tmpIndexName);
+            Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build(), tmpIndexName);
         client.admin().indices().updateSettings(updateSettingsReq,
             ActionListener.wrap(
                 resp -> {
@@ -280,7 +279,9 @@ public class TransportRollupAction
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                listener.onResponse(new RollupAction.Response(true));
+                // Everything went well, time to delete the temporary index
+                deleteTmpIndex(".rolluptmp-" + request.getRollupIndex(),
+                    ActionListener.wrap(r -> listener.onResponse(new RollupAction.Response(true)), listener::onFailure));
             }
 
             @Override
@@ -335,13 +336,15 @@ public class TransportRollupAction
 
             @Override
             public void onFailure(String source, Exception e) {
-                listener.onFailure(new ElasticsearchException("failed to publish new cluster state with rollup metadata", e));
+                // Everything went well, time to delete the temporary index
+                deleteTmpIndex(".rolluptmp-" + request.getRollupIndex(),
+                    ActionListener.wrap(() -> listener.onFailure(
+                        new ElasticsearchException("failed to publish new cluster state with rollup metadata", e))));
             }
         });
     }
 
-    private void deleteTmpIndex(String tmpIndex, Exception exc, ActionListener<?> listener) {
-        client.admin().indices().delete(new DeleteIndexRequest(tmpIndex),
-            ActionListener.wrap(() -> listener.onFailure(exc)));
+    private void deleteTmpIndex(String tmpIndex, ActionListener<AcknowledgedResponse> listener) {
+        client.admin().indices().delete(new DeleteIndexRequest(tmpIndex), listener);
     }
 }

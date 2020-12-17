@@ -5,6 +5,9 @@
  */
 package org.elasticsearch.xpack.rollup.v2;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -14,6 +17,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -50,6 +54,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
@@ -79,6 +84,55 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 "numeric_1", "type=double",
                 "numeric_2", "type=float",
                 "categorical_1", "type=keyword").get();
+    }
+
+    public void testCannotRollupToExistingIndex() throws Exception {
+        DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new GroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
+        bulkIndex(sourceSupplier);
+        rollup(config);
+        assertRollupIndex(config);
+        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> rollup(config));
+        assertThat(exception.getMessage(), containsString(rollupIndex));
+    }
+
+    public void testTemporaryIndexDeletedOnRollupFailure() throws Exception {
+        DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new GroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_non_existent", Collections.singletonList("max"))));
+        bulkIndex(sourceSupplier);
+        expectThrows(ElasticsearchException.class,  () -> rollup(config));
+        // assert that temporary index was removed
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get());
+    }
+
+    public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
+        DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
+            .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+            .field("categorical_1", randomAlphaOfLength(1))
+            .field("numeric_1", randomDouble())
+            .endObject();
+        RollupActionConfig config = new RollupActionConfig(
+            new GroupConfig(dateHistogramGroupConfig, null, new TermsGroupConfig("categorical_1")),
+            Collections.singletonList(new MetricConfig("numeric_1", Collections.singletonList("max"))));
+        bulkIndex(sourceSupplier);
+        client().execute(RollupAction.INSTANCE, new RollupAction.Request(index, rollupIndex, config), ActionListener.wrap(() -> {}));
+        ResourceAlreadyExistsException exception = expectThrows(ResourceAlreadyExistsException.class, () -> rollup(config));
+        assertThat(exception.getMessage(), containsString(".rolluptmp-" + rollupIndex));
     }
 
     public void testTermsGrouping() throws IOException {
@@ -228,6 +282,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
+
+        // assert that temporary index was removed
+        expectThrows(IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get());
     }
 
     private CompositeAggregationBuilder buildCompositeAggs(String name, RollupActionConfig config) {

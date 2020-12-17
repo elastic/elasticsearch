@@ -57,6 +57,11 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         }
 
         @Override
+        public String[] indices() {
+            return new String[] { sourceIndex };
+        }
+
+        @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new RollupTask(id, type, action, parentTaskId, rollupIndex, rollupConfig, headers);
         }

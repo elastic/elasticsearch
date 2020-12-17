@@ -30,7 +30,7 @@ setup:
             "timestamp": "2016-06-02T00:00:00Z",
             "snapshot_id": "snapshot-1",
             "snapshot_doc_count": 3,
-            "min_version": "7.11.0",
+            "min_version": "7.12.0",
             "retain": false
           }
 

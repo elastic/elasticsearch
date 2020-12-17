@@ -71,6 +71,16 @@ public class VerifierTests extends ESTestCase {
         accept("foo where true");
     }
 
+    public void testQueryCondition() {
+        accept("any where bool");
+        assertEquals("1:11: Condition expression needs to be boolean, found [LONG]", error("any where pid"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [DATETIME]", error("any where @timestamp"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where command_line"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [TEXT]", error("any where hostname"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [KEYWORD]", error("any where constant_keyword"));
+        assertEquals("1:11: Condition expression needs to be boolean, found [IP]", error("any where source_address"));
+    }
+
     public void testQueryStartsWithNumber() {
         assertEquals("1:1: no viable alternative at input '42'", errorParsing("42 where true"));
     }

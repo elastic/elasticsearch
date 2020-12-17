@@ -206,13 +206,11 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
-        throws IOException {
+    public void writeBlobAtomic(final String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
             writeToPath(bytes, tempBlobPath);
-            IOUtils.fsync(tempBlobPath, false);
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
@@ -230,6 +228,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             bytes.writeTo(outputStream);
         }
+        IOUtils.fsync(tempBlobPath, false);
     }
 
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {

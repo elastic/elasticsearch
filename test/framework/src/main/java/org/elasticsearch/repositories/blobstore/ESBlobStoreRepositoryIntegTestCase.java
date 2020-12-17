@@ -206,11 +206,10 @@ public abstract class ESBlobStoreRepositoryIntegTestCase extends ESIntegTestCase
     public static void writeBlob(final BlobContainer container, final String blobName, final BytesArray bytesArray,
                                  boolean failIfAlreadyExists) throws IOException {
         if (randomBoolean()) {
-            try (InputStream stream = bytesArray.streamInput()) {
-                container.writeBlob(blobName, stream, bytesArray.length(), failIfAlreadyExists);
-            }
+            container.writeBlob(blobName, bytesArray, failIfAlreadyExists);
+        } else {
+            container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
         }
-        container.writeBlobAtomic(blobName, bytesArray, failIfAlreadyExists);
     }
 
     public void testContainerCreationAndDeletion() throws IOException {

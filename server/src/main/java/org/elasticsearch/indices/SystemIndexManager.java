@@ -137,7 +137,7 @@ public class SystemIndexManager implements ClusterStateListener {
     UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
-        final String indexDescription = "Index [" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
+        final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
 
         // The messages below will be logged on every cluster state update, which is why even in the index closed / red
         // cases, the log levels are DEBUG.
@@ -176,7 +176,8 @@ public class SystemIndexManager implements ClusterStateListener {
     private void upgradeIndexMetadata(SystemIndexDescriptor descriptor, ActionListener<AcknowledgedResponse> listener) {
         final String indexName = descriptor.getPrimaryIndex();
 
-        PutMappingRequest request = new PutMappingRequest(indexName).source(descriptor.getMappings(), XContentType.JSON);
+        PutMappingRequest request = new PutMappingRequest(indexName).type(descriptor.getTaskType())
+            .source(descriptor.getMappings(), XContentType.JSON);
 
         final OriginSettingClient originSettingClient = new OriginSettingClient(this.client, descriptor.getOrigin());
 
@@ -230,14 +231,17 @@ public class SystemIndexManager implements ClusterStateListener {
         return new State(indexState, indexHealth, isIndexUpToDate, isMappingIsUpToDate);
     }
 
-    /** Checks whether an index's mappings are up-to-date */
+    /**
+     * Checks whether an index's mappings are up-to-date. If an index is encountered that has
+     * a version higher than Version.CURRENT, it is still considered up-to-date.
+     */
     private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;
         }
 
-        return Version.CURRENT.equals(readMappingVersion(descriptor, mappingMetadata));
+        return Version.CURRENT.onOrBefore(readMappingVersion(descriptor, mappingMetadata));
     }
 
     /**

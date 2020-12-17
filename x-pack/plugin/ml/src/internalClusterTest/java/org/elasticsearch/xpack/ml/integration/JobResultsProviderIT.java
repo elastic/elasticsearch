@@ -39,6 +39,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -668,7 +669,7 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
             .setMinVersion(Version.CURRENT)
             .build());
         // Add a snapshot WITHOUT a min version.
-        client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
+        client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"), MapperService.SINGLE_MAPPING_NAME)
             .setId(ModelSnapshot.documentId("other_job", "11"))
             .setSource("{\"job_id\":\"other_job\"," +
                 "\"snapshot_id\":\"11\", \"snapshot_doc_count\":1,\"retain\":false}", XContentType.JSON)

@@ -233,7 +233,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
                 .build();
         
         Settings resetSettingsRequestSize = Settings.builder()
-                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_REQUEST_SIZE_SETTING.getKey(), "1b")
+                .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_REQUEST_SIZE_SETTING.getKey(), "10b")
                 .build();
         assertAcked(client.admin().cluster().prepareUpdateSettings().setTransientSettings(resetSettings));
 

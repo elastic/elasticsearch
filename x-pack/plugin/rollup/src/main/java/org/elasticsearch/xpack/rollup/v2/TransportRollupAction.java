@@ -42,7 +42,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
@@ -52,8 +51,8 @@ import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
+import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -194,30 +193,50 @@ public class TransportRollupAction
                                        ActionListener<CreateIndexResponse> listener) throws IOException {
         CreateIndexRequest req = new CreateIndexRequest(tmpIndex, Settings.builder()
             .put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build())
-            .mapping(getMapping(request));
+            .mapping(getMapping(request.getRollupConfig()));
         client.admin().indices().create(req, listener);
     }
 
-    private XContentBuilder getMapping(RollupAction.Request request) throws IOException {
-        GroupConfig groupConfig = request.getRollupConfig().getGroupConfig();
-        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties");
+    private XContentBuilder getMapping(RollupActionConfig config) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
+        builder = getDynamicTemplates(builder);
+        builder = getProperties(builder, config);
+        return builder.endObject();
+    }
+
+    /**
+     * Configure the dynamic templates to always map strings to the keyword field type.
+     */
+    private static XContentBuilder getDynamicTemplates(XContentBuilder builder) throws IOException {
+        return builder.startArray("dynamic_templates")
+                .startObject()
+                    .startObject("strings")
+                        .field("match_mapping_type", "string")
+                        .startObject("mapping")
+                            .field("type", "keyword")
+                        .endObject()
+                    .endObject()
+                .endObject()
+            .endArray();
+    }
+
+    /**
+     * Creates the rollup mapping properties from the provided {@link RollupActionConfig}.
+     */
+    private static XContentBuilder getProperties(XContentBuilder builder, RollupActionConfig config) throws IOException {
+        builder.startObject("properties");
+
+        GroupConfig groupConfig = config.getGroupConfig();
         String dateField = groupConfig.getDateHistogram().getField();
         HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
-        TermsGroupConfig termsGroupConfig = groupConfig.getTerms();
-        List<MetricConfig> metricConfigs = request.getRollupConfig().getMetricsConfig();
+        List<MetricConfig> metricConfigs = config.getMetricsConfig();
 
+        // TODO: Add the format of the original field
         builder.startObject(dateField).field("type", DateFieldMapper.CONTENT_TYPE).endObject();
 
         if (histogramGroupConfig != null) {
             for (String field : histogramGroupConfig.getFields()) {
                 builder.startObject(field).field("type", NumberFieldMapper.NumberType.DOUBLE.typeName()).endObject();
-            }
-        }
-
-        if (termsGroupConfig != null) {
-            for (String field : termsGroupConfig.getFields()) {
-                // TODO(talevy): not just keyword, can be a number?
-                builder.startObject(field).field("type", KeywordFieldMapper.CONTENT_TYPE).endObject();
             }
         }
 
@@ -231,7 +250,7 @@ public class TransportRollupAction
                 .endObject();
         }
 
-        return builder.endObject().endObject();
+        return builder.endObject();
     }
 
     private void shrinkAndPublishIndex(RollupAction.Request request, ActionListener<RollupAction.Response> listener) {

@@ -22,6 +22,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.HistogramValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -157,7 +158,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         DateHistogramGroupConfig dateHistogramGroupConfig = randomDateHistogramGroupConfig();
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder().startObject()
             .field("date_1", randomDateForInterval(dateHistogramGroupConfig.getInterval()))
-            .field("numeric_1", randomDouble())
+            // use integers to ensure that avg is comparable between rollup and original
+            .field("numeric_1", randomInt())
             .endObject();
         RollupActionConfig config = new RollupActionConfig(
             new GroupConfig(dateHistogramGroupConfig, null, null),
@@ -245,6 +247,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             dateHisto.interval(dateHistoConfig.getInterval().estimateMillis());
             assertWarnings("[interval] on [date_histogram] is deprecated, use [fixed_interval] or [calendar_interval] in the future.");
         }
+        sources.add(dateHisto);
 
         if (config.getGroupConfig().getHistogram() != null) {
             HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
@@ -280,6 +283,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                             break;
                         case "value_count":
                             composite.subAggregation(new ValueCountAggregationBuilder(metricName).field(metricConfig.getField()));
+                            break;
+                        case "avg":
+                            composite.subAggregation(new AvgAggregationBuilder(metricName).field(metricConfig.getField()));
                             break;
                         default:
                             throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");

@@ -414,7 +414,6 @@ class RollupShardIndexer {
                         if (leafField.advanceExact(docID)) {
                             List<Object> lst = new ArrayList<>();
                             for (int i = 0; i < leafField.docValueCount(); i++) {
-                                // TODO: Check the type of the returned value (number and strings only)
                                 lst.add(leafField.nextValue());
                             }
                             combinationKeys.add(lst);

@@ -15,12 +15,20 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Function;
 
 class FieldValueFetcher {
+    private static final Set<Class<?>> VALID_TYPES = Collections.unmodifiableSet(
+        new HashSet<>(Arrays.asList(Long.class, Double.class, BigInteger.class, String.class, BytesRef.class))
+    );
+
     final String name;
     final MappedFieldType fieldType;
     final DocValueFormat format;
@@ -79,7 +87,7 @@ class FieldValueFetcher {
                 throw new IllegalArgumentException("Unknown field: [" + field + "]");
             }
             IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, Function.identity()));
+            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
         }
         return Collections.unmodifiableList(fetchers);
     }
@@ -97,15 +105,23 @@ class FieldValueFetcher {
         return Collections.unmodifiableList(fetchers);
     }
 
+    static Function<Object, Object> getValidator(String field) {
+        return value -> {
+            if (VALID_TYPES.contains(value.getClass()) == false) {
+                throw new IllegalArgumentException("Expected [" + VALID_TYPES + "] for field [" + field + "], " +
+                    "got [" + value.getClass() + "]");
+            }
+            return value;
+        };
+    }
+
     static Function<Object, Object> getIntervalValueFunc(String field, double interval) {
         return value -> {
             if (value instanceof Number == false) {
-                throw new IllegalArgumentException("Expected numbers for field [" + field + "], got [" + value.getClass() + "]");
+                throw new IllegalArgumentException("Expected [Number] for field [" + field + "], got [" + value.getClass() + "]");
             }
             double number = ((Number) value).doubleValue();
             return Math.floor(number / interval) * interval;
         };
     }
-
-
 }

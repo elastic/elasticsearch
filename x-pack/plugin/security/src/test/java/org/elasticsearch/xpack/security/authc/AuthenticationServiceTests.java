@@ -302,8 +302,8 @@ public class AuthenticationServiceTests extends ESTestCase {
                     "Realms [second_realm/second] were skipped because they are not permitted on the current license"
             ));
 
-            Mockito.doReturn(List.of(secondRealm)).when(realms).getUnlicensedRealms();
-            Mockito.doReturn(List.of(firstRealm)).when(realms).asList();
+            Mockito.doReturn(Arrays.asList(secondRealm)).when(realms).getUnlicensedRealms();
+            Mockito.doReturn(Arrays.asList(firstRealm)).when(realms).asList();
             boolean requestIdAlreadyPresent = randomBoolean();
             SetOnce<String> reqId = new SetOnce<>();
             if (requestIdAlreadyPresent) {
@@ -1947,7 +1947,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private Tuple<Authentication, String> authenticateBlocking(RestRequest restRequest) {
         SetOnce<String> reqId = new SetOnce<>();
-        PlainActionFuture<Authentication> future = new PlainActionFuture<>() {
+        PlainActionFuture<Authentication> future = new PlainActionFuture<Authentication>() {
             @Override
             public void onResponse(Authentication result) {
                 reqId.set(expectAuditRequestId(threadContext));
@@ -1969,7 +1969,7 @@ public class AuthenticationServiceTests extends ESTestCase {
 
     private Tuple<Authentication, String> authenticateBlocking(String action, TransportRequest transportRequest, User fallbackUser) {
         SetOnce<String> reqId = new SetOnce<>();
-        PlainActionFuture<Authentication> future = new PlainActionFuture<>() {
+        PlainActionFuture<Authentication> future = new PlainActionFuture<Authentication>() {
             @Override
             public void onResponse(Authentication result) {
                 reqId.set(expectAuditRequestId(threadContext));

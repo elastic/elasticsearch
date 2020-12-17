@@ -402,16 +402,16 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testPasswdNoPasswordOption() throws Exception {
-        terminal.addSecretInput("newpassword");
-        terminal.addSecretInput("newpassword");
+        terminal.addSecretInput("new-test-user-password");
+        terminal.addSecretInput("new-test-user-password");
         execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user");
-        assertUser("existing_user", "newpassword");
+        assertUser("existing_user", "new-test-user-password");
         assertRole("test_admin", "existing_user", "existing_user2"); // roles unchanged
     }
 
     public void testPasswd() throws Exception {
-        execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
-        assertUser("existing_user", "newpassword");
+        execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "new-test-user-password");
+        assertUser("existing_user", "new-test-user-password");
         assertRole("test_admin", "existing_user"); // roles unchanged
     }
 
@@ -423,7 +423,7 @@ public class UsersToolTests extends CommandTestCase {
                 .put("xpack.security.fips_mode.enabled", true)
                 .build();
         UserException e = expectThrows(UserException.class, () -> {
-            execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "newpassword");
+            execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user", "-p", "new-test-user-password");
         });
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertEquals("Only PBKDF2 is allowed for password hashing in a FIPS 140 JVM. " +

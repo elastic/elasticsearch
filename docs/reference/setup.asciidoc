@@ -99,6 +99,8 @@ include::modules/threadpool.asciidoc[]
 
 include::settings/notification-settings.asciidoc[]
 
+include::setup/advanced-configuration.asciidoc[]
+
 include::setup/important-settings.asciidoc[]
 
 include::setup/sysconfig.asciidoc[]
@@ -120,5 +122,3 @@ include::setup/restart-cluster.asciidoc[]
 include::modules/remote-clusters.asciidoc[]
 
 include::modules/plugins.asciidoc[]
-
-include::setup/advanced-configuration.asciidoc[]

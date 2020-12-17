@@ -3,7 +3,7 @@
 === Heap size settings
 
 By default, {es} will auto-determine the appropriate heap size based on total system memory,
-and the set of roles assigned to the node. It is recommended generally that heap size determination
+and the set of roles assigned to the node. It is generally recommended that heap size determination
 be deferred to {es}. Should you have unique requirements that necessitate setting JVM heap size
 manually, refer to <<setting-jvm-heap-size,setting JVM heap size>> for additional guidance.
 

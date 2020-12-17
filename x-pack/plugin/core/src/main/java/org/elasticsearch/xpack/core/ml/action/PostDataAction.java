@@ -112,7 +112,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             dataDescription = in.readOptionalWriteable(DataDescription::new);
             content = in.readBytesReference();
             if (in.readBoolean()) {
-                xContentType = in.readEnum(XContentType.class);;
+                xContentType = in.readEnum(XContentType.class);
             }
         }
 

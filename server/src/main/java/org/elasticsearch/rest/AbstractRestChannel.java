@@ -24,6 +24,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -132,11 +133,14 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+
         Map<String, String> parameters = request.getParsedAccept() != null ?
             request.getParsedAccept().getParameters() : Collections.emptyMap();
+        ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
+
         XContentBuilder builder =
             new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
-                includes, excludes, responseContentType.responseContentTypeHeader(parameters));
+                includes, excludes, responseMediaType);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

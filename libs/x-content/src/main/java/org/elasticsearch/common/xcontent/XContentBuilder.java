@@ -76,7 +76,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * @throws IOException if an {@link IOException} occurs while building the content
      */
     public static XContentBuilder builder(XContentType xContentType, Set<String> includes, Set<String> excludes) throws IOException {
-        return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), includes, excludes, xContentType.mediaType());
+        return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), includes, excludes,
+            ParsedMediaType.parseMediaType(xContentType.mediaType()));
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -167,14 +168,14 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     private byte compatibleMajorVersion;
 
-    private String responseContentTypeString;
+    private ParsedMediaType responseContentType;
 
     /**
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().mediaType());
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), ParsedMediaType.parseMediaType(xContent.type().mediaType()));
     }
 
     /**
@@ -184,7 +185,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContentType xContentType, OutputStream bos, Set<String> includes) throws IOException {
-        this(xContentType.xContent(), bos, includes, Collections.emptySet(), xContentType.mediaType());
+        this(xContentType.xContent(), bos, includes, Collections.emptySet(), ParsedMediaType.parseMediaType(xContentType.mediaType()));
     }
 
     /**
@@ -193,20 +194,23 @@ public final class XContentBuilder implements Closeable, Flushable {
      * remaining fields against the inclusive filters.
      * <p>
      * Make sure to call {@link #close()} when the builder is done with.
-     *  @param os       the output stream
+     * @param os       the output stream
      * @param includes the inclusive filters: only fields and objects that match the inclusive filters will be written to the output.
      * @param excludes the exclusive filters: only fields and objects that don't match the exclusive filters will be written to the output.
-     * @param responseContentTypeString  a content-type header value to be send back on a response
+     * @param responseContentType  a content-type header value to be send back on a response
      */
     public XContentBuilder(XContent xContent, OutputStream os, Set<String> includes, Set<String> excludes,
-                           String responseContentTypeString) throws IOException {
+                           ParsedMediaType responseContentType) throws IOException {
         this.bos = os;
-        this.responseContentTypeString = responseContentTypeString;
+        assert responseContentType != null : "generated response cannot be null";
+        this.responseContentType = responseContentType;
         this.generator = xContent.createGenerator(bos, includes, excludes);
     }
 
     public String getResponseContentTypeString() {
-        return responseContentTypeString;
+        Map<String, String> parameters = responseContentType != null ?
+            responseContentType.getParameters() : Collections.emptyMap();
+        return responseContentType.responseContentTypeHeader(parameters);
     }
 
     public XContentType contentType() {

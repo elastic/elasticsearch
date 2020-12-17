@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -324,17 +323,6 @@ public enum XContentType implements MediaType {
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
-
-    public String responseContentTypeHeader(Map<String,String> parameters) {
-        return this.mediaTypeWithoutParameters() + formatParameters(parameters);
-    }
-
-    private String formatParameters(Map<String, String> parameters) {
-        String joined = parameters.entrySet().stream()
-            .map(e -> e.getKey() + "=" + e.getValue())
-            .collect(Collectors.joining(";"));
-        return joined.isEmpty() ? "" : ";" + joined;
-    }
 
     /**
      * Returns a canonical XContentType for given this XContentType.

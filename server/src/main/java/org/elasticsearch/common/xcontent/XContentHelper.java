@@ -464,7 +464,8 @@ public class XContentHelper {
      */
     public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
         if (out.getVersion().before(Version.V_8_0_0)) {
-            out.writeVInt(xContentType.ordinal() % 4);
+            // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
+            out.writeVInt(xContentType.canonical().ordinal());
         } else {
             out.writeVInt(xContentType.ordinal());
         }

@@ -50,6 +50,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+
 /**
  * Datafeed configuration options. Describes where to proactively pull input
  * data from.
@@ -506,6 +508,7 @@ public class DatafeedConfig extends AbstractDiffable<DatafeedConfig> implements 
             builder.field(CHUNKING_CONFIG.getPreferredName(), chunkingConfig);
         }
         if (headers.isEmpty() == false && params.paramAsBoolean(ToXContentParams.FOR_INTERNAL_STORAGE, false)) {
+            assertNoAuthorizationHeader(headers);
             builder.field(HEADERS.getPreferredName(), headers);
         }
         if (delayedDataCheckConfig != null) {

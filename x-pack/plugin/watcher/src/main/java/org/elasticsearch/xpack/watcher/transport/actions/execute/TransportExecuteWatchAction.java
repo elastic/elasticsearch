@@ -23,6 +23,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.watcher.execution.ActionExecutionMode;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -47,7 +48,6 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
@@ -121,8 +121,7 @@ public class TransportExecuteWatchAction extends WatcherTransportAction<ExecuteW
              * Ensure that the headers from the incoming request are used instead those of the stored watch otherwise the watch would run
              * as the user who stored the watch, but it needs to run as the user who executes this request.
              */
-            final Map<String, String> headers = new HashMap<>(threadPool.getThreadContext().getHeaders());
-            watch.status().setHeaders(headers);
+            watch.status().setHeaders(ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
 
             final String triggerType = watch.trigger().type();
             final TriggerEvent triggerEvent = triggerService.simulateEvent(triggerType, watch.id(), request.getTriggerData());

@@ -59,3 +59,11 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
     dependsOn "${baseName}#mixedClusterTest"
   }
 }
+
+
+// Security is explicitly disabled, do not run these in FIPS mode
+if (BuildParams.inFipsJvm) {
+  project.tasks.configureEach {
+    enabled = false
+  }
+}

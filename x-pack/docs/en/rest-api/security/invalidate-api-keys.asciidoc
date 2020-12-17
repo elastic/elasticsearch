@@ -95,22 +95,8 @@ API key information. For example:
 // TESTRESPONSE[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
 // TESTRESPONSE[s/ui2lp2axTNmsyakw9tvNnw/$body.api_key/]
 
-The following example invalidates the API key identified by specified `id`
+The following example invalidates the API key identified by specified `ids`
 immediately:
-
-[source,console]
---------------------------------------------------
-DELETE /_security/api_key
-{
-  "id" : "VuaCfGcBCdbkQm-e5aOx"
-}
---------------------------------------------------
-// TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
-// TEST[warning:Deprecated field [id] used, replaced by [ids]]
-// TEST[continued]
-
-The above request can also be performed using the `ids` field which takes
-a list of API keys for bulk invalidation:
 
 [source,console]
 --------------------------------------------------
@@ -119,6 +105,8 @@ DELETE /_security/api_key
   "ids" : [ "VuaCfGcBCdbkQm-e5aOx" ]
 }
 --------------------------------------------------
+// TEST[s/VuaCfGcBCdbkQm-e5aOx/$body.id/]
+// TEST[continued]
 
 The following example invalidates the API key identified by specified `name`
 immediately:
@@ -153,18 +141,17 @@ DELETE /_security/api_key
 }
 --------------------------------------------------
 
-The following example invalidates the API key identified by the specified `id` if
+The following example invalidates the API key identified by the specified `ids` if
  it is owned by the currently authenticated user immediately:
 
 [source,console]
 --------------------------------------------------
 DELETE /_security/api_key
 {
-  "id" : "VuaCfGcBCdbkQm-e5aOx",
+  "ids" : ["VuaCfGcBCdbkQm-e5aOx"],
   "owner" : "true"
 }
 --------------------------------------------------
-// TEST[warning:Deprecated field [id] used, replaced by [ids]]
 
 The following example invalidates all API keys owned by the currently authenticated
  user immediately:

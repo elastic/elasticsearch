@@ -31,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
  * Rest action to invalidate one or more API keys
  */
 public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
-    static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>(null,
+    static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
                 return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3],
                     (a[4] == null) ? false : (Boolean) a[4],

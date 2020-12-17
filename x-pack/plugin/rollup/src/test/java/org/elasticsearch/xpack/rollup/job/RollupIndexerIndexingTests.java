@@ -626,11 +626,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         SyncRollupIndexer(ThreadPool threadPool, RollupJob job, IndexSearcher searcher,
                           MappedFieldType[] fieldTypes, MappedFieldType timestampField) {
-<<<<<<< HEAD
-            super(threadPool, executorName, job, new AtomicReference<>(IndexerState.STARTED), null, new AtomicBoolean(newIDScheme));
-=======
-            super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
->>>>>>> cbf6499ba78... Remove the rollup thread pool (#65958)
+            super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null, new AtomicBoolean(newIDScheme));
             this.searcher = searcher;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;

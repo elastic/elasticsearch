@@ -255,8 +255,9 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
          * */
         @Deprecated
         final boolean expandedDistDirSupport;
-        final boolean extractedAssembleSupported;
         final DistributionProjectArtifact expectedBuildArtifact;
+
+        private final boolean extractedAssembleSupported;
 
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
@@ -278,7 +279,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                         + "."
                         + extension
                 ),
-                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install") : null
+                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install/") : null
             );
         }
 

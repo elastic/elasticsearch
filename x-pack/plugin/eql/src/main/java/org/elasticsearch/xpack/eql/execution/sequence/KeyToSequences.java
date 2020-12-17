@@ -95,27 +95,30 @@ class KeyToSequences {
     }
 
     /**
-     * Remove all matches expect the latest.
+     * Remove all matches except the latest occurring _before_ the given ordinal.
      */
-    void trimToTail() {
+    void trimToTail(Ordinal ordinal) {
         for (Iterator<SequenceEntry> it = keyToSequences.values().iterator(); it.hasNext(); ) {
             SequenceEntry seqs =  it.next();
-            // first remove the sequences
-            // and remember the last item from the first
-            // initialized stage to be used with until
+            // remember the last item found (will be ascending)
+            // to trim unneeded until that occur before it
             Sequence firstTail = null;
+            // remove any empty keys
+            boolean keyIsEmpty = true;
             for (SequenceGroup group : seqs.groups) {
                 if (group != null) {
-                    Sequence sequence = group.trimToLast();
+                    Sequence sequence = group.trimBeforeLast(ordinal);
                     if (firstTail == null) {
                         firstTail = sequence;
                     }
+                    keyIsEmpty &= group.isEmpty();
                 }
             }
             // there are no sequences on any stage for this key, drop it
-            if (firstTail == null) {
+            if (keyIsEmpty) {
                 it.remove();
-            } else {
+            }
+            if (firstTail != null) {
                 // drop any possible UNTIL that occurs before the last tail
                 UntilGroup until = seqs.until;
                 if (until != null) {

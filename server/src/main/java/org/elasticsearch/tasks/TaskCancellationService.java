@@ -242,7 +242,7 @@ public class TaskCancellationService {
             if (request.ban) {
                 logger.debug("Received ban for the parent [{}] on the node [{}], reason: [{}]", request.parentTaskId,
                     localNodeId(), request.reason);
-                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason);
+                final List<CancellableTask> childTasks = taskManager.setBan(request.parentTaskId, request.reason,  channel);
                 final GroupedActionListener<Void> listener = new GroupedActionListener<>(
                     new ChannelActionListener<>(channel, BAN_PARENT_ACTION_NAME, request).map(r -> TransportResponse.Empty.INSTANCE),
                     childTasks.size() + 1);

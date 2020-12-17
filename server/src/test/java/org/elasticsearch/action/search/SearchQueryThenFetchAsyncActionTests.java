@@ -157,7 +157,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchQueryThenFetchAsyncAction action = new SearchQueryThenFetchAsyncAction(logger,
             searchTransportService, (clusterAlias, node) -> lookup.get(node),
             Collections.singletonMap("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
-            Collections.emptyMap(), Collections.emptyMap(), controller, executor,
+            Collections.emptyMap(), controller, executor,
             resultConsumer, searchRequest, null, shardsIter, timeProvider, null,
             task, SearchResponse.Clusters.EMPTY) {
             @Override

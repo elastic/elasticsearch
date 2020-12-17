@@ -69,6 +69,7 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggestion;
 import org.elasticsearch.search.suggest.term.TermSuggestion;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -393,7 +394,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
     }
 
     private static SearchRequest randomSearchRequest() {
-        return randomBoolean() ? new SearchRequest() : SearchRequest.subSearchRequest(new SearchRequest(),
+        return randomBoolean() ? new SearchRequest() : SearchRequest.subSearchRequest(new TaskId("n", 1), new SearchRequest(),
             Strings.EMPTY_ARRAY, "remote", 0, randomBoolean());
     }
 

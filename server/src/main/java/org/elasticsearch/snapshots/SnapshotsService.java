@@ -1189,9 +1189,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),
                     ActionListener.wrap(newRepoData -> {
-                        endingSnapshots.remove(snapshot);
-                        completeListenersIgnoringException(
-                            snapshotCompletionListeners.remove(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
+                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                         runNextQueuedOperation(newRepoData, repository, true);
                     }, e -> handleFinalizationFailure(e, entry, repositoryData))),
@@ -1200,6 +1198,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);
         }
+    }
+
+    /**
+     * Remove a snapshot from {@link #endingSnapshots} set and return its completion listeners that must be resolved.
+     */
+    private List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> endAndGetListenersToResolve(Snapshot snapshot) {
+        // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
+        // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
+        final List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
+        endingSnapshots.remove(snapshot);
+        return listenersToComplete;
     }
 
     /**
@@ -1437,8 +1446,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
-        endingSnapshots.remove(snapshot);
-        failListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), e);
+        failListenersIgnoringException(endAndGetListenersToResolve(snapshot), e);
         assert repositoryOperations.assertNotQueued(snapshot);
     }
 

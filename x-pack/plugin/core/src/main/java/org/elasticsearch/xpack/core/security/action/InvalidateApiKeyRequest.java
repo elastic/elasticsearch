@@ -38,15 +38,15 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
 
     public InvalidateApiKeyRequest(StreamInput in) throws IOException {
         super(in);
-        realmName = in.readOptionalString();
-        userName = in.readOptionalString();
+        realmName = textOrNull(in.readOptionalString());
+        userName = textOrNull(in.readOptionalString());
         if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
             ids = in.readOptionalStringArray();
         } else {
             final String id = in.readOptionalString();
             ids = Strings.hasText(id) == false ? null : new String[] { id };
         }
-        name = in.readOptionalString();
+        name = textOrNull(in.readOptionalString());
         if (in.getVersion().onOrAfter(Version.V_7_4_0)) {
             ownedByAuthenticatedUser = in.readOptionalBoolean();
         } else {
@@ -65,15 +65,19 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             throw new IllegalArgumentException("Must use either [id] or [ids], not both at the same time");
         }
 
-        this.realmName = realmName;
-        this.userName = userName;
-        if (id != null) {
-            this.ids = new String[] {id};
+        this.realmName = textOrNull(realmName);
+        this.userName = textOrNull(userName);
+        if (Strings.hasText(id)) {
+            this.ids = new String[]{id};
         } else {
             this.ids = ids;
         }
-        this.name = name;
+        this.name = textOrNull(name);
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
+    }
+
+    private static String textOrNull(@Nullable String arg) {
+        return Strings.hasText(arg) ? arg : null;
     }
 
     public String getRealmName() {

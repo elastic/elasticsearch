@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -48,10 +49,9 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -83,7 +83,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
-    private final Map<String, Set<String>> indexRoutings;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
@@ -94,6 +93,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final Map<SearchShardIterator, Integer> shardItIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -106,7 +106,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                               Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                              Map<String, Set<String>> indexRoutings,
                               Executor executor, SearchRequest request,
                               ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                               SearchTimeProvider timeProvider, ClusterState clusterState,
@@ -124,6 +123,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
+        this.shardItIndexMap = new HashMap<>();
+
+        // we compute the shard index based on the natural order of the shards
+        // that participate in the search request. This means that this number is
+        // consistent between two requests that target the same shards.
+        List<SearchShardIterator> naturalOrder = new ArrayList<>(iterators);
+        CollectionUtil.timSort(naturalOrder);
+        for (int i = 0; i < naturalOrder.size(); i++) {
+            shardItIndexMap.put(naturalOrder.get(i), i);
+        }
+
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
@@ -143,7 +153,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusterState = clusterState;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
-        this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
     }
@@ -210,10 +219,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
-            for (int index = 0; index < shardsIts.size(); index++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(index);
+
+            for (int i = 0; i < shardsIts.size(); i++) {
+                final SearchShardIterator shardRoutings = shardsIts.get(i);
                 assert shardRoutings.skip() == false;
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+                assert shardItIndexMap.containsKey(shardRoutings);
+                int shardIndex = shardItIndexMap.get(shardRoutings);
+                performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
             }
         }
     }
@@ -225,7 +237,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -294,11 +306,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                 SearchShardTarget shard,
                                                 SearchActionListener<Result> listener);
 
-    private void fork(final Runnable runnable) {
+    protected void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-
             }
 
             @Override
@@ -517,7 +528,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void successfulShardExecution(SearchShardIterator shardsIt) {
         final int remainingOpsOnIterator;
         if (shardsIt.skip()) {
-            remainingOpsOnIterator = shardsIt.remaining();
+            // It's possible that we're skipping a shard that's unavailable
+            // but its range was available in the IndexMetadata, in that
+            // case the shardsIt.remaining() would be 0, expectedTotalOps
+            // accounts for unavailable shards too.
+            remainingOpsOnIterator = Math.max(shardsIt.remaining(), 1);
         } else {
             remainingOpsOnIterator = shardsIt.remaining() + 1;
         }
@@ -651,15 +666,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
+    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        String indexName = shardIt.shardId().getIndex().getName();
-        final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
-            .toArray(new String[0]);
-        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
-            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings,
+        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
+            getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),
             shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather

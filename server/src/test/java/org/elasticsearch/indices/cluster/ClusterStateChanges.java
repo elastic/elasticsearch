@@ -215,7 +215,8 @@ public class ClusterStateChanges {
         Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(TransportVerifyShardBeforeCloseAction.TYPE, new TransportVerifyShardBeforeCloseAction(SETTINGS,
             transportService, clusterService, indicesService, threadPool, null, actionFilters));
-        client.initialize(actions, transportService.getTaskManager(), null, null, new NamedWriteableRegistry(List.of()));
+        client.initialize(actions, transportService.getTaskManager(), null, transportService.getLocalNodeConnection(),
+            null, new NamedWriteableRegistry(List.of()));
 
         ShardLimitValidator shardLimitValidator = new ShardLimitValidator(SETTINGS, clusterService);
         MetadataIndexStateService indexStateService = new MetadataIndexStateService(clusterService, allocationService,

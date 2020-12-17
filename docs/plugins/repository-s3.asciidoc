@@ -254,9 +254,9 @@ The following settings are supported:
 (Required)
 Name of the S3 bucket to use for snapshots.
 +
-The bucket name must adhere to the
-https://docs.aws.amazon.com/awscloudtrail/latest/userguide/cloudtrail-s3-bucket-naming-requirements.html[Amazon
-S3 Bucket Naming Requirements].
+The bucket name must adhere to Amazon's
+https://docs.aws.amazon.com/AmazonS3/latest/dev/BucketRestrictions.html#bucketnamingrules[S3
+bucket naming rules].
 
 `client`::
 

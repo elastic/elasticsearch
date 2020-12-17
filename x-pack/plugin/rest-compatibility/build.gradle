@@ -18,6 +18,7 @@
  */
 
 apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.rest-test'
 
 esplugin {
   name 'rest-compatibility'

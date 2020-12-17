@@ -114,7 +114,7 @@ on disk, only the `PBKDF2` based family of algorithms is compliant with FIPS
 function, it is affected by the 112 bit key strength requirement (see <<keystore-fips-password>>)
 even if that requirement does not apply to password hashing. In order to comply to this,
 while allowing you to use passwords that satisfy your security policy, {es} offers
-<<hashing settings, pbkdf2_stretch>> which is the suggested hashing algorithm when running
+<<hashing-settings, pbkdf2_stretch>> which is the suggested hashing algorithm when running
 {es} in FIPS 140-2 environments. `pbkdf2_stretch` performs a single round of SHA-512
 on the user password before passing it to the `PBKDF2` implementation.
 

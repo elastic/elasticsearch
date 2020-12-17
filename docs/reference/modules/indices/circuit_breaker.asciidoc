@@ -20,6 +20,10 @@ The parent-level breaker can be configured with the following settings:
     memory usage into account (`true`) or only consider the amount that is
     reserved by child circuit breakers (`false`). Defaults to `true`.
 
+    `indices.breaker.search.aggregation_memory.limit`::
+    (<<static-cluster-setting,Static>>)
+    Determines aggregation memory used
+
 [[indices-breaker-total-limit]]
 // tag::indices-breaker-total-limit-tag[]
 `indices.breaker.total.limit` {ess-icon}::

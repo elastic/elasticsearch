@@ -549,14 +549,14 @@ public class TransformContinuousIT extends ESRestTestCase {
     private AcknowledgedResponse putTransform(TransformConfig config) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             PutTransformRequest request = new PutTransformRequest(config);
-            logger.warn("putTransform: {}", Strings.toString(request));
+            logger.info("putTransform: {}", Strings.toString(request));
             return restClient.transform().putTransform(request, RequestOptions.DEFAULT);
         }
     }
 
     private org.elasticsearch.action.support.master.AcknowledgedResponse putPipeline(PutPipelineRequest request) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            logger.warn("putPipeline: {}", Strings.toString(request));
+            logger.info("putPipeline: {}", Strings.toString(request));
             return restClient.ingest().putPipeline(request, RequestOptions.DEFAULT);
         }
     }
@@ -564,7 +564,7 @@ public class TransformContinuousIT extends ESRestTestCase {
     private org.elasticsearch.action.support.master.AcknowledgedResponse deletePipeline(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             DeletePipelineRequest request = new DeletePipelineRequest(id);
-            logger.warn("deletePipeline: {}", request.getId());
+            logger.info("deletePipeline: {}", request.getId());
             return restClient.ingest().deletePipeline(request, RequestOptions.DEFAULT);
         }
     }
@@ -578,7 +578,7 @@ public class TransformContinuousIT extends ESRestTestCase {
     private StartTransformResponse startTransform(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             StartTransformRequest request = new StartTransformRequest(id);
-            logger.warn("startTransform: {}", request.getId());
+            logger.info("startTransform: {}", request.getId());
             return restClient.transform().startTransform(request, RequestOptions.DEFAULT);
         }
     }
@@ -587,7 +587,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             StopTransformRequest request = new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint);
-            logger.warn("stopTransform: {}", request.getId());
+            logger.info("stopTransform: {}", request.getId());
             return restClient.transform().stopTransform(request, RequestOptions.DEFAULT);
         }
     }
@@ -596,7 +596,7 @@ public class TransformContinuousIT extends ESRestTestCase {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             DeleteTransformRequest request = new DeleteTransformRequest(id);
             request.setForce(force);
-            logger.warn("deleteTransform: {}", request.getId());
+            logger.info("deleteTransform: {}", request.getId());
             return restClient.transform().deleteTransform(request, RequestOptions.DEFAULT);
         }
     }

@@ -38,11 +38,7 @@ tasks.register("writeJavaPolicy") {
 task "follow-cluster"(type: RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
     useCluster testClusters."leader-cluster"
-    if (BuildParams.inFipsJvm){
-      systemProperty 'java.security.policy', "=file://${policyFile}"
-    } else {
-      systemProperty 'java.security.policy', "file://${policyFile}"
-    }
+    systemProperty 'java.security.policy', "file://${policyFile}"
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"

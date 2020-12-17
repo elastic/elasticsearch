@@ -144,7 +144,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     }
 
     private static ByteBufAllocator createByteBufAllocator() {
-        int nHeapArena = PooledByteBufAllocator.defaultNumHeapArena();
+        int nHeapArena = 1;
         int pageSize = PooledByteBufAllocator.defaultPageSize();
         int maxOrder = PooledByteBufAllocator.defaultMaxOrder();
         int tinyCacheSize = PooledByteBufAllocator.defaultTinyCacheSize();

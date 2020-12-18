@@ -3,7 +3,7 @@
 
 [partintro]
 --
-This section describes the breaking changes and deprecations introduced the current release 
+This section describes the breaking changes and deprecations introduced in this release 
 and previous minor versions. 
 
 As {es} introduces new features and improves existing ones, 

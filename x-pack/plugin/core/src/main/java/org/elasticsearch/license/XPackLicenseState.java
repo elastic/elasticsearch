@@ -47,7 +47,6 @@ public class XPackLicenseState {
      * Each value defines the licensed state necessary for the feature to be allowed.
      */
     public enum Feature {
-        SECURITY(OperationMode.BASIC, false),
         SECURITY_IP_FILTERING(OperationMode.GOLD, false),
         SECURITY_AUDITING(OperationMode.GOLD, false),
         SECURITY_DLS_FLS(OperationMode.PLATINUM, false),
@@ -55,13 +54,10 @@ public class XPackLicenseState {
         SECURITY_STANDARD_REALMS(OperationMode.GOLD, false),
         SECURITY_CUSTOM_ROLE_PROVIDERS(OperationMode.PLATINUM, true),
         SECURITY_TOKEN_SERVICE(OperationMode.STANDARD, false),
-        SECURITY_API_KEY_SERVICE(OperationMode.MISSING, false),
         SECURITY_AUTHORIZATION_REALM(OperationMode.PLATINUM, true),
         SECURITY_AUTHORIZATION_ENGINE(OperationMode.PLATINUM, true),
-        SECURITY_STATS_AND_HEALTH(OperationMode.MISSING, true),
 
         WATCHER(OperationMode.STANDARD, true),
-        MONITORING(OperationMode.MISSING, true),
         // TODO: should just check WATCHER directly?
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
         MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
@@ -72,39 +68,17 @@ public class XPackLicenseState {
 
         MACHINE_LEARNING(OperationMode.PLATINUM, true),
 
-        TRANSFORM(OperationMode.MISSING, true),
-
-        ROLLUP(OperationMode.MISSING, true),
-
-        VOTING_ONLY(OperationMode.MISSING, true),
-
         LOGSTASH(OperationMode.STANDARD, true),
-
-        DEPRECATION(OperationMode.MISSING, true),
-
-        ILM(OperationMode.MISSING, true),
-
-        ENRICH(OperationMode.MISSING, true),
-
-        EQL(OperationMode.MISSING, true),
-
-        SQL(OperationMode.MISSING, true),
 
         JDBC(OperationMode.PLATINUM, true),
 
         ODBC(OperationMode.PLATINUM, true),
-
-        VECTORS(OperationMode.MISSING, true),
-
-        SPATIAL(OperationMode.MISSING, true),
 
         SPATIAL_GEO_CENTROID(OperationMode.GOLD, true),
 
         SPATIAL_GEO_GRID(OperationMode.GOLD, true),
 
         SPATIAL_GEO_LINE(OperationMode.GOLD, true),
-
-        ANALYTICS(OperationMode.MISSING, true),
 
         SEARCHABLE_SNAPSHOTS(OperationMode.ENTERPRISE, true),
 
@@ -116,6 +90,7 @@ public class XPackLicenseState {
         final boolean needsActive;
 
         Feature(OperationMode minimumOperationMode, boolean needsActive) {
+            assert minimumOperationMode.compareTo(OperationMode.BASIC) > 0: minimumOperationMode.toString();
             this.minimumOperationMode = minimumOperationMode;
             this.needsActive = needsActive;
         }
@@ -443,7 +418,7 @@ public class XPackLicenseState {
         // care to actually keep track of
         Map<Feature, LongAccumulator> lastUsed = new EnumMap<>(Feature.class);
         for (Feature feature : Feature.values()) {
-            if (feature.minimumOperationMode.compareTo(OperationMode.BASIC) > 0 && NON_TRACKED_FEATURES.contains(feature) == false) {
+            if (NON_TRACKED_FEATURES.contains(feature) == false) {
                 lastUsed.put(feature, new LongAccumulator(Long::max, 0));
             }
         }
@@ -567,11 +542,6 @@ public class XPackLicenseState {
 
     public static boolean isMachineLearningAllowedForOperationMode(final OperationMode operationMode) {
         return isAllowedByOperationMode(operationMode, OperationMode.PLATINUM);
-    }
-
-    public static boolean isTransformAllowedForOperationMode(final OperationMode operationMode) {
-        // any license (basic and upwards)
-        return operationMode != License.OperationMode.MISSING;
     }
 
     public static boolean isFipsAllowedForOperationMode(final OperationMode operationMode) {

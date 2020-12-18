@@ -80,6 +80,9 @@ setup:
 
 ---
 "top_hits aggregation with nested documents and disabled _source":
+  - skip:
+      version: " - 7.99.99"
+      reason: "bug fix is not yet backported"
   - do:
       indices.create:
         index: disabled-source

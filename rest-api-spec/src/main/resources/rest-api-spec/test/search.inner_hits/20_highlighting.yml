@@ -86,6 +86,9 @@ setup:
 
 ---
 "Unified highlighter with stored fields and disabled source":
+  - skip:
+      version: " - 7.99.99"
+      reason: "bug fix is not yet backported"
   - do:
       indices.create:
         index: disabled_source

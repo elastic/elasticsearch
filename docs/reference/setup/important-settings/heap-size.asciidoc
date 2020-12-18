@@ -7,5 +7,5 @@ By default, {es} automatically sizes JVM heap based on a node's
 production environments. If needed, you can override default sizing by manually
 <<setting-jvm-heap-size,setting JVM heap size>>.
 
-NOTE: Heap auto-determination requires the use of the <<jvm-version,bundled JDK>> or, if using
+NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
 a custom JRE location, a Java 14 or later JRE.

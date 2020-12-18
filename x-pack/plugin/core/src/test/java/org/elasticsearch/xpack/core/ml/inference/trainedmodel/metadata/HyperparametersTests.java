@@ -23,9 +23,10 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
         return new Hyperparameters(
             randomAlphaOfLength(10),
             randomDoubleBetween(0.0, 1.0, true),
-            randomDoubleBetween(0.0, 100.0, true),
-            randomDoubleBetween(0.0, 1.0, true),
-            randomBoolean());
+            // If supplied, the importance values are possibly nullable
+            supplied && randomBoolean() ? null : randomDoubleBetween(0.0, 100.0, true),
+            supplied && randomBoolean() ? null : randomDoubleBetween(0.0, 1.0, true),
+            supplied);
     }
 
     @Before

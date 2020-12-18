@@ -102,6 +102,9 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             cacheSettings.put(CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
         }
         if (randomBoolean()) {
+            cacheSettings.put(CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.getKey(), randomCacheRangeSize());
+        }
+        if (randomBoolean()) {
             cacheSettings.put(
                 CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.getKey(),
                 TimeValue.timeValueSeconds(scaledRandomIntBetween(1, 120))
@@ -149,7 +152,7 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         );
     }
 
-    protected static SearchableSnapshotRecoveryState createRecoveryState() {
+    protected static SearchableSnapshotRecoveryState createRecoveryState(boolean finalizedDone) {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(
             new ShardId(randomAlphaOfLength(10), randomAlphaOfLength(10), 0),
             randomAlphaOfLength(10),
@@ -170,8 +173,9 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
             .setStage(RecoveryState.Stage.VERIFY_INDEX)
             .setStage(RecoveryState.Stage.TRANSLOG);
         recoveryState.getIndex().setFileDetailsComplete();
-        recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
-
+        if (finalizedDone) {
+            recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
+        }
         return recoveryState;
     }
 

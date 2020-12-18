@@ -26,6 +26,9 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singletonMap;
+import static java.util.stream.Collectors.toMap;
+
 public final class TransformIndex {
     private static final Logger logger = LogManager.getLogger(TransformIndex.class);
 
@@ -134,10 +137,8 @@ public final class TransformIndex {
      * }
      * @param mappings A Map of the form {"fieldName": "fieldType"}
      */
-    private static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
-        Map<String, Object> fieldMappings = new HashMap<>();
-        mappings.forEach((k, v) -> fieldMappings.put(k, Map.of("type", v)));
-
-        return fieldMappings;
+    static Map<String, Object> createMappingsFromStringMap(Map<String, String> mappings) {
+        return mappings.entrySet().stream()
+            .collect(toMap(e -> e.getKey(), e -> singletonMap("type", e.getValue())));
     }
 }

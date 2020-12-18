@@ -176,10 +176,10 @@ its shards can be force-merged to a single segment.
 
 [source,console]
 --------------------------------------------------
-POST /.ds-logs-000001/_forcemerge?max_num_segments=1
+POST /.ds-my-data-stream-2099.03.07-000001/_forcemerge?max_num_segments=1
 --------------------------------------------------
 // TEST[setup:my_index]
-// TEST[s/.ds-logs-000001/my-index-000001/]
+// TEST[s/.ds-my-data-stream-2099.03.07-000001/my-index-000001/]
 
 This can be a good idea because single-segment shards can sometimes use simpler
 and more efficient data structures to perform searches.

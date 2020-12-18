@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.xpack.core.rollup.v2;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.rollup.RollupField;
@@ -19,14 +17,19 @@ import java.util.Map;
  * which drives the indexing, and periodically updates it's parent PersistentTask with the indexing's current position.
  */
 public class RollupTask extends CancellableTask {
-    private static final Logger logger = LogManager.getLogger(RollupTask.class.getName());
-
+    private String rollupIndex;
     private RollupActionConfig config;
     private RollupJobStatus status;
 
-    RollupTask(long id, String type, String action, TaskId parentTask, RollupActionConfig config, Map<String, String> headers) {
-        super(id, type, action, RollupField.NAME + "_" + config.getRollupIndex(), parentTask, headers);
+    RollupTask(long id, String type, String action, TaskId parentTask, String rollupIndex, RollupActionConfig config,
+               Map<String, String> headers) {
+        super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
+        this.rollupIndex = rollupIndex;
         this.config = config;
+    }
+
+    public String getRollupIndex() {
+        return rollupIndex;
     }
 
     public RollupActionConfig config() {

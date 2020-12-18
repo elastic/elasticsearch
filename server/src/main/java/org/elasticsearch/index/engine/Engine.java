@@ -551,11 +551,11 @@ public abstract class Engine implements Closeable {
     public static class NoOpResult extends Result {
 
         NoOpResult(long term, long seqNo) {
-            super(Operation.TYPE.NO_OP, term, 0, seqNo);
+            super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
         NoOpResult(long term, long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, term, 0, seqNo);
+            super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 
     }
@@ -1075,6 +1075,13 @@ public abstract class Engine implements Closeable {
      * Snapshots the most recent safe index commit from the engine.
      */
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
+
+    /**
+     * Acquires the index commit that should be included in a snapshot.
+     */
+    public final IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+        return engineConfig.getSnapshotCommitSupplier().acquireIndexCommitForSnapshot(this);
+    }
 
     /**
      * @return a summary of the contents of the current safe commit

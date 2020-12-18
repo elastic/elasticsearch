@@ -30,10 +30,17 @@ import java.util.Objects;
 public final class ShardSearchContextId implements Writeable {
     private final String sessionId;
     private final long id;
+    private final String searcherId;
 
+    // TODO: Remove this constructor
     public ShardSearchContextId(String sessionId, long id) {
+        this(sessionId, id, null);
+    }
+
+    public ShardSearchContextId(String sessionId, long id, String searcherId) {
         this.sessionId = Objects.requireNonNull(sessionId);
         this.id = id;
+        this.searcherId = searcherId;
     }
 
     public ShardSearchContextId(StreamInput in) throws IOException {
@@ -43,6 +50,11 @@ public final class ShardSearchContextId implements Writeable {
         } else {
             this.sessionId = "";
         }
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.searcherId = in.readOptionalString();
+        } else {
+            this.searcherId = null;
+        }
     }
 
     @Override
@@ -50,6 +62,9 @@ public final class ShardSearchContextId implements Writeable {
         out.writeLong(id);
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(sessionId);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeOptionalString(searcherId);
         }
     }
 
@@ -61,21 +76,25 @@ public final class ShardSearchContextId implements Writeable {
         return id;
     }
 
+    public String getSearcherId() {
+        return searcherId;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ShardSearchContextId other = (ShardSearchContextId) o;
-        return id == other.id && sessionId.equals(other.sessionId);
+        return id == other.id && sessionId.equals(other.sessionId) && Objects.equals(searcherId, other.searcherId);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sessionId, id);
+        return Objects.hash(sessionId, id, searcherId);
     }
 
     @Override
     public String toString() {
-        return "[" + sessionId + "][" + id + "]";
+        return "[" + sessionId + "][" + id + "] searcherId [" + searcherId + "]";
     }
 }

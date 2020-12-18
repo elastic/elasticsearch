@@ -140,7 +140,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
-        if (hasAggs && reducePhase.aggregations != null) {
+        if (hasAggs
+                // reduced aggregations can be null if all shards failed
+                && reducePhase.aggregations != null) {
+
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
             long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);

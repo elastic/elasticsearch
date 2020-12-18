@@ -18,8 +18,9 @@ import java.util.*;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
 public class NetworkDirectionProcessor extends AbstractProcessor {
-    static final byte[] UNDEFINED_IP = new byte[]{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    static final byte[] BROADCAST_IP4 = new byte[]{(byte)0xff, (byte)0xff, (byte)0xff, (byte)0xff};
+    static final byte[] UNDEFINED_IP4 = new byte[] { 0, 0, 0, 0 };
+    static final byte[] UNDEFINED_IP6 = new byte[] { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+    static final byte[] BROADCAST_IP4 = new byte[] { (byte) 0xff, (byte) 0xff, (byte) 0xff, (byte) 0xff };
 
     public static final String TYPE = "network_direction";
 
@@ -137,30 +138,29 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     }
 
     private boolean inNetwork(String ip, String network) {
-            switch (network)
-            {
-                case LOOPBACK_NAMED_NETWORK:
-                    return isLoopback(ip);
-                case GLOBAL_UNICAST_NAMED_NETWORK:
-                case UNICAST_NAMED_NETWORK:
-                    return isUnicast(ip);
-                case LINK_LOCAL_UNICAST_NAMED_NETWORK:
-                    return isLinkLocalUnicast(ip);
-                case INTERFACE_LOCAL_NAMED_NETWORK:
-                    return isInterfaceLocalMulticast(ip);
-                case LINK_LOCAL_MULTICAST_NAMED_NETWORK:
-                    return isLinkLocalMulticast(ip);
-                case MULTICAST_NAMED_NETWORK:
-                    return isMulticast(ip);
-                case UNSPECIFIED_NAMED_NETWORK:
-                    return isUnspecified(ip);
-                case PRIVATE_NAMED_NETWORK:
-                    return isPrivate(ip);
-                case PUBLIC_NAMED_NETWORK:
-                    return isPublic(ip);
-                default:
-                    return CIDRUtils.isInRange(ip, network);
-            }
+        switch (network) {
+            case LOOPBACK_NAMED_NETWORK:
+                return isLoopback(ip);
+            case GLOBAL_UNICAST_NAMED_NETWORK:
+            case UNICAST_NAMED_NETWORK:
+                return isUnicast(ip);
+            case LINK_LOCAL_UNICAST_NAMED_NETWORK:
+                return isLinkLocalUnicast(ip);
+            case INTERFACE_LOCAL_NAMED_NETWORK:
+                return isInterfaceLocalMulticast(ip);
+            case LINK_LOCAL_MULTICAST_NAMED_NETWORK:
+                return isLinkLocalMulticast(ip);
+            case MULTICAST_NAMED_NETWORK:
+                return isMulticast(ip);
+            case UNSPECIFIED_NAMED_NETWORK:
+                return isUnspecified(ip);
+            case PRIVATE_NAMED_NETWORK:
+                return isPrivate(ip);
+            case PUBLIC_NAMED_NETWORK:
+                return isPublic(ip);
+            default:
+                return CIDRUtils.isInRange(ip, network);
+        }
     }
 
     // loopback - done
@@ -171,11 +171,11 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     // global_unicast, unicast - done
     private boolean isUnicast(String ip) {
         var address = InetAddresses.forString(ip);
-        return !Arrays.equals(address.getAddress(), BROADCAST_IP4) &&
-            !isUnspecified(ip) &&
-            !isLoopback(ip) &&
-            !isMulticast(ip) &&
-            !isLinkLocalUnicast(ip);
+        return !Arrays.equals(address.getAddress(), BROADCAST_IP4)
+            && !isUnspecified(ip)
+            && !isLoopback(ip)
+            && !isMulticast(ip)
+            && !isLinkLocalUnicast(ip);
     }
 
     // link_local_unicast - done
@@ -201,7 +201,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     // unspecified - done
     private boolean isUnspecified(String ip) {
         var address = InetAddresses.forString(ip).getAddress();
-        return Arrays.equals(UNDEFINED_IP, address);
+        return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
     }
 
     // private
@@ -216,13 +216,13 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
 
     private boolean isLocalOrPrivate(String ip) {
         var address = InetAddresses.forString(ip);
-        return isPrivate(ip) ||
-            isLoopback(ip) ||
-            isUnspecified(ip) ||
-            isLinkLocalUnicast(ip) ||
-            isLinkLocalMulticast(ip) ||
-            isInterfaceLocalMulticast(ip) ||
-            Arrays.equals(address.getAddress(), BROADCAST_IP4);
+        return isPrivate(ip)
+            || isLoopback(ip)
+            || isUnspecified(ip)
+            || isLinkLocalUnicast(ip)
+            || isLinkLocalMulticast(ip)
+            || isInterfaceLocalMulticast(ip)
+            || Arrays.equals(address.getAddress(), BROADCAST_IP4);
     }
 
     @Override

@@ -49,9 +49,6 @@ public class IndexLifecycleFeatureSetTests extends ESTestCase {
     public void testAvailable() {
         IndexLifecycleFeatureSet featureSet = new IndexLifecycleFeatureSet(clusterService);
         assertThat(featureSet.available(), equalTo(true));
-
-        featureSet = new IndexLifecycleFeatureSet(clusterService);
-        assertThat(featureSet.available(), equalTo(false));
     }
 
     public void testName() {

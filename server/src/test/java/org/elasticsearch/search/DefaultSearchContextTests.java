@@ -79,8 +79,12 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
+<<<<<<< HEAD
         when(shardSearchRequest.types()).thenReturn(new String[]{});
         when(shardSearchRequest.shardIndex()).thenReturn(shardId.id());
+=======
+        when(shardSearchRequest.shardRequestIndex()).thenReturn(shardId.id());
+>>>>>>> c756ce1acfa... Sort field tiebreaker for PIT (point in time) readers (#66093)
         when(shardSearchRequest.numberOfShards()).thenReturn(2);
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
@@ -107,9 +111,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject())).thenReturn(
-            queryShardContext
-        );
+        when(indexService.newQueryShardContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
+            .thenReturn(queryShardContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);

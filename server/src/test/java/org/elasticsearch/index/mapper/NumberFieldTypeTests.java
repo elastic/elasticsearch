@@ -473,7 +473,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
 
-        QueryShardContext context = new QueryShardContext(0, indexSettings,
+        QueryShardContext context = new QueryShardContext(0, 0, indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 

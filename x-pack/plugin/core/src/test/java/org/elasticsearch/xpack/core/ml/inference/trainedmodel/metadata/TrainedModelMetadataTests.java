@@ -25,7 +25,7 @@ public class TrainedModelMetadataTests extends AbstractBWCSerializationTestCase<
             randomAlphaOfLength(10),
             Stream.generate(TotalFeatureImportanceTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()),
             randomBoolean() ? null : FeatureImportanceBaselineTests.randomInstance(), 
-            Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()));
+            randomBoolean() ? null : Stream.generate(HyperparametersTests::randomInstance).limit(randomIntBetween(1, 10)).collect(Collectors.toList()));
     }
 
     @Before

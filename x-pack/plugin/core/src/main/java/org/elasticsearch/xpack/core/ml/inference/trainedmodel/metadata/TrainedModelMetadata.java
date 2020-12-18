@@ -48,7 +48,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         parser.declareObject(ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? FeatureImportanceBaseline.LENIENT_PARSER : FeatureImportanceBaseline.STRICT_PARSER,
             FEATURE_IMPORTANCE_BASELINE);
-        parser.declareObjectArray(ConstructingObjectParser.constructorArg(),
+        parser.declareObjectArray(ConstructingObjectParser.optionalConstructorArg(),
             ignoreUnknownFields ? Hyperparameters.LENIENT_PARSER : Hyperparameters.STRICT_PARSER,
             HYPERPARAMETERS);
         return parser;
@@ -85,7 +85,7 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         this.modelId = ExceptionsHelper.requireNonNull(modelId, MODEL_ID);
         this.totalFeatureImportances = Collections.unmodifiableList(totalFeatureImportances);
         this.featureImportanceBaselines = featureImportanceBaselines;
-        this.hyperparameters = Collections.unmodifiableList(hyperparameters);
+        this.hyperparameters =  hyperparameters == null ? Collections.emptyList() : Collections.unmodifiableList(hyperparameters);
 
     }
 

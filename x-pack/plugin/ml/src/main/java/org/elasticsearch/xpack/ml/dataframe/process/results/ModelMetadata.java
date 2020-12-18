@@ -35,8 +35,7 @@ public class ModelMetadata implements ToXContentObject {
     static {
         PARSER.declareObjectArray(constructorArg(), TotalFeatureImportance.STRICT_PARSER, TOTAL_FEATURE_IMPORTANCE);
         PARSER.declareObject(optionalConstructorArg(), FeatureImportanceBaseline.STRICT_PARSER, FEATURE_IMPORTANCE_BASELINE);
-        PARSER.declareObjectArray(constructorArg(), Hyperparameters.STRICT_PARSER, HYPERPARAMETERS);
-
+        PARSER.declareObjectArray(optionalConstructorArg(), Hyperparameters.STRICT_PARSER, HYPERPARAMETERS);
     }
 
     private final List<TotalFeatureImportance> featureImportances;
@@ -84,7 +83,9 @@ public class ModelMetadata implements ToXContentObject {
         if (featureImportanceBaseline != null) {
             builder.field(FEATURE_IMPORTANCE_BASELINE.getPreferredName(), featureImportanceBaseline);
         }
-        builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
+        if (hyperparameters != null) {
+            builder.field(HYPERPARAMETERS.getPreferredName(), hyperparameters);
+        }
         builder.endObject();
         return builder;
     }

@@ -109,13 +109,11 @@ public class Hyperparameters implements ToXContentObject, Writeable {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(HYPERPARAMETER_NAME.getPreferredName(), hyperparameterName);
         map.put(VALUE.getPreferredName(), value);
-        if (supplied == false) {
-            if (absoluteImportance != null) {
-                map.put(ABSOLUTE_IMPORTANCE.getPreferredName(), absoluteImportance);
-            }
-            if (relativeImportance != null) {
-                map.put(RELATIVE_IMPORTANCE.getPreferredName(), relativeImportance);
-            }
+        if (absoluteImportance != null) {
+            map.put(ABSOLUTE_IMPORTANCE.getPreferredName(), absoluteImportance);
+        }
+        if (relativeImportance != null) {
+            map.put(RELATIVE_IMPORTANCE.getPreferredName(), relativeImportance);
         }
         map.put(SUPPLIED.getPreferredName(), supplied);
         

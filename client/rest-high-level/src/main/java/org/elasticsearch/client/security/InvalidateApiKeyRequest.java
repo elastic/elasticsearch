@@ -71,7 +71,7 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         }
         this.realmName = realmName;
         this.userName = userName;
-        this.ids = List.copyOf(apiKeyIds);
+        this.ids = apiKeyIds == null ? null : List.copyOf(apiKeyIds);
         this.name = apiKeyName;
         this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
     }
@@ -112,7 +112,8 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
         } else if (ids.size() == 1) {
             return ids.get(0);
         } else {
-            throw new IllegalArgumentException("Cannot get a single api key id when multiple ids have been set [" + Strings.collectionToCommaDelimitedString(ids) + "]");
+            throw new IllegalArgumentException("Cannot get a single api key id when multiple ids have been set ["
+                + Strings.collectionToCommaDelimitedString(ids) + "]");
         }
     }
 

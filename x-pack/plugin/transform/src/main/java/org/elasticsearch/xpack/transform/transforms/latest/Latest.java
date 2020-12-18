@@ -11,8 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -47,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 
 public class Latest implements Function {
@@ -187,20 +186,7 @@ public class Latest implements Function {
 
     @Override
     public void deduceMappings(Client client, SourceConfig sourceConfig, ActionListener<Map<String, String>> listener) {
-        FieldCapabilitiesRequest fieldCapabilitiesRequest =
-            new FieldCapabilitiesRequest().indices(sourceConfig.getIndex())
-                .fields("*")
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        client.execute(
-            FieldCapabilitiesAction.INSTANCE,
-            fieldCapabilitiesRequest,
-            ActionListener.wrap(
-                response -> {
-                    listener.onResponse(
-                        DocumentConversionUtils.removeInternalFields(DocumentConversionUtils.extractFieldMappings(response)));
-                },
-                listener::onFailure)
-        );
+        listener.onResponse(emptyMap());
     }
 
     @Override

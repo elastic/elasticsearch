@@ -12,6 +12,10 @@ After ensuring that your JVM is properly configured according to FIPS 140-2 requ
 using the Java Security Provider of your choice, you can set {es} in fips mode
 by setting the `xpack.security.fips_mode.enabled` to `true` in `elasticsearch.yml`
 
+NOTE: The JVM that is bundled with {es} is not configured to run with a FIPS 140-2
+certified Java Security Provider. You either need to configure this according to
+FIPS 140-2 requirements, or point {es} to an already configured external JVM.
+
 For {es}, adherence to FIPS 140-2 is ensured by
 
 - Using FIPS approved / NIST recommended cryptographic algorithms.

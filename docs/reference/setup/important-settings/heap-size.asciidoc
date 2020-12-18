@@ -2,10 +2,10 @@
 [discrete]
 === Heap size settings
 
-By default, {es} will auto-determine the appropriate heap size based on total system memory,
-and the set of roles assigned to the node. It is generally recommended that heap size determination
-be deferred to {es}. Should you have unique requirements that necessitate setting JVM heap size
-manually, refer to <<setting-jvm-heap-size,setting JVM heap size>> for additional guidance.
+By default, {es} automatically sizes JVM heap based on a node's
+<<node-roles,roles>> and total memory. We recommend this default sizing for most
+production environments. If needed, you can override default sizing by manually
+<<setting-jvm-heap-size,setting JVM heap size>>.
 
 NOTE: Heap auto-determination requires the use of the <<jvm-version,bundled JDK>> or, if using
 a custom JRE location, a Java 14 or later JRE.

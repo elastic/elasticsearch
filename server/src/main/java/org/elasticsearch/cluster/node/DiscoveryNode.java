@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -42,7 +43,6 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -206,16 +206,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.version = version;
         }
         this.attributes = Collections.unmodifiableMap(attributes);
-        //verify that no node roles are being provided as attributes
-        Predicate<Map<String, String>> predicate =  (attrs) -> {
-            boolean success = true;
-            for (final DiscoveryNodeRole role : DiscoveryNode.roleMap.values()) {
-                success &= attrs.containsKey(role.roleName()) == false;
-                assert success : role.roleName();
-            }
-            return success;
-        };
-        assert predicate.test(attributes) : attributes;
+        assert DiscoveryNode.roleMap.values().stream().noneMatch(role -> attributes.containsKey(role.roleName())) :
+                "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
     }
 
@@ -271,14 +263,20 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
             this.attributes.put(in.readString(), in.readString());
         }
         int rolesSize = in.readVInt();
-        final Set<DiscoveryNodeRole> roles = new HashSet<>(rolesSize);
+        final SortedSet<DiscoveryNodeRole> roles = new TreeSet<>();
         if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
             for (int i = 0; i < rolesSize; i++) {
                 final String roleName = in.readString();
                 final String roleNameAbbreviation = in.readString();
+                final boolean canContainData;
+                if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+                    canContainData = in.readBoolean();
+                } else {
+                    canContainData = roleName.equals(DiscoveryNodeRole.DATA_ROLE.roleName());
+                }
                 final DiscoveryNodeRole role = roleMap.get(roleName);
                 if (role == null) {
-                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation));
+                    roles.add(new DiscoveryNodeRole.UnknownRole(roleName, roleNameAbbreviation, canContainData));
                 } else {
                     assert roleName.equals(role.roleName()) : "role name [" + roleName + "] does not match role [" + role.roleName() + "]";
                     assert roleNameAbbreviation.equals(role.roleNameAbbreviation())
@@ -305,7 +303,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 }
             }
         }
-        this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
+        this.roles = Collections.unmodifiableSortedSet(roles);
         this.version = Version.readVersion(in);
     }
 
@@ -328,6 +326,9 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
                 final DiscoveryNodeRole compatibleRole = role.getCompatibilityRole(out.getVersion());
                 out.writeString(compatibleRole.roleName());
                 out.writeString(compatibleRole.roleNameAbbreviation());
+                if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+                    out.writeBoolean(compatibleRole.canContainData());
+                }
             }
         } else {
             // an old node will only understand legacy roles since pluggable roles is a new concept
@@ -512,8 +513,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return roleMap.get(roleName);
     }
 
-    public static Set<DiscoveryNodeRole> getPossibleRoles() {
-        return Collections.unmodifiableSet(new HashSet<>(roleMap.values()));
+    public static Collection<DiscoveryNodeRole> getPossibleRoles() {
+        return roleMap.values();
     }
 
     public static void setAdditionalRoles(final Set<DiscoveryNodeRole> additionalRoles) {

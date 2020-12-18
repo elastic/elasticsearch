@@ -24,7 +24,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -32,7 +31,7 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper.Parameter;
+import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -88,7 +87,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         return (TestMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         final Parameter<Boolean> fixed
             = Parameter.boolParam("fixed", false, m -> toType(m).fixed, true);
@@ -110,7 +109,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                     throw new IllegalArgumentException("Value of [n] cannot be greater than 50");
                 }
             })
-            .setMergeValidator((o, n) -> n >= o);
+            .setMergeValidator((o, n, c) -> n >= o);
         final Parameter<NamedAnalyzer> analyzer
             = Parameter.analyzerParam("analyzer", false, m -> toType(m).analyzer, () -> Lucene.KEYWORD_ANALYZER);
         final Parameter<NamedAnalyzer> searchAnalyzer
@@ -138,9 +137,9 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
-        public ParametrizedFieldMapper build(Mapper.BuilderContext context) {
-            return new TestMapper(name(), buildFullName(context),
-                multiFieldsBuilder.build(this, context), copyTo.build(), this);
+        public FieldMapper build(ContentPath contentPath) {
+            return new TestMapper(name(), buildFullName(contentPath),
+                multiFieldsBuilder.build(this, contentPath), copyTo.build(), this);
         }
     }
 
@@ -154,7 +153,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    public static class TestMapper extends ParametrizedFieldMapper {
+    public static class TestMapper extends FieldMapper {
 
         private final boolean fixed;
         private final boolean fixed2;
@@ -207,7 +206,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 "default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
             Collections.emptyMap(), Collections.emptyMap());
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, mapperService, s -> {
+        Mapper.TypeParser.ParserContext pc = new Mapper.TypeParser.ParserContext(s -> null, s -> {
             if (Objects.equals("keyword", s)) {
                 return KeywordFieldMapper.PARSER;
             }
@@ -215,10 +214,13 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
                 return BinaryFieldMapper.PARSER;
             }
             return null;
-        }, version, () -> null, null, null);
+        }, name -> null, version, () -> null, null, null,
+            mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
+            throw new UnsupportedOperationException();
+        }, false);
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
-            .build(new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0)));
+            .build(new ContentPath());
     }
 
     private static TestMapper fromMapping(String mapping) {

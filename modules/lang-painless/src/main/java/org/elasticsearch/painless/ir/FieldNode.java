@@ -19,50 +19,12 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
 public class FieldNode extends IRNode {
 
-    /* ---- begin node data ---- */
-
-    private int modifiers;
-    private Class<?> fieldType;
-    private String name;
-
-    public void setModifiers(int modifiers) {
-        this.modifiers = modifiers;
-    }
-
-    public int getModifiers(int modifiers) {
-        return modifiers;
-    }
-
-    public void setFieldType(Class<?> fieldType) {
-        this.fieldType = fieldType;
-    }
-
-    public Class<?> getFieldType() {
-        return fieldType;
-    }
-
-    public String getFieldCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(fieldType);
-    }
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -80,10 +42,4 @@ public class FieldNode extends IRNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        ClassWriter classWriter = writeScope.getClassWriter();
-        classWriter.getClassVisitor().visitField(
-                ClassWriter.buildAccess(modifiers, true), name, Type.getType(fieldType).getDescriptor(), null, null).visitEnd();
-    }
 }

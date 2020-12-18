@@ -2,6 +2,7 @@ apply plugin: 'elasticsearch.esplugin'
 apply plugin: 'elasticsearch.yaml-rest-test'
 
 esplugin {
+  name 'x-pack-test-deprecated-query'
   description 'Deprecated query plugin'
   classname 'org.elasticsearch.query.DeprecatedQueryPlugin'
 }
@@ -18,4 +19,4 @@ testClusters.all {
   setting 'xpack.security.enabled', 'false'
 }
 
-test.enabled = false
+tasks.named("test").configure { enabled = false }

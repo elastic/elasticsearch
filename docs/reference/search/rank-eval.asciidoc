@@ -202,6 +202,28 @@ GET /my-index-000001/_rank_eval
 <3> a reference to a previously defined template
 <4> the parameters to use to fill the template
 
+It is also possible to use <<pre-registered-templates,templates already stored>>  in the cluster state by referencing their id in the templates section.
+
+[source,js]
+--------------------------------
+GET /my_index/_rank_eval
+{ 
+   [...]
+  "templates": [
+     {
+        "id": "match_one_field_query",  <1>
+        "template": { <2>
+            "id": "match_one_field_query"
+        }
+     }
+  ], 
+  "requests": [...]
+}
+--------------------------------
+// NOTCONSOLE
+
+<1> the template id used for requests
+<2> the template id stored in the cluster state
 
 ===== Available evaluation metrics
 

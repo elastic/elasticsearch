@@ -151,7 +151,8 @@ public enum XContentType {
     private static String removeVersionInMediaType(String mediaType) {
         if (mediaType.contains("vnd.elasticsearch")) {
             return mediaType.replaceAll("vnd.elasticsearch\\+", "")
-                .replaceAll("\\s*;\\s*compatible-with=\\d+", "");
+                .replaceAll("\\s*;\\s*compatible-with=\\d+", "")
+                .replaceAll("\\s*;\\s*",";"); // to allow matching using startsWith
         }
         return mediaType;
     }
@@ -162,7 +163,9 @@ public enum XContentType {
      * HTTP header. This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaType) {
-        final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
+        String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
+        lowercaseMediaType = removeVersionInMediaType(lowercaseMediaType);
+
         for (XContentType type : values()) {
             if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
                 return type;

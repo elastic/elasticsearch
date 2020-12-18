@@ -3,7 +3,7 @@
   - skip:
       version: " - 7.5.99"
       reason: "synced flush is deprecated in 7.6"
-      features: "warnings"
+      features: "allowed_warnings"
   - do:
       indices.create:
         index: testing
@@ -16,8 +16,9 @@
       cluster.health:
         wait_for_status: green
   - do:
-      warnings:
+      allowed_warnings:
         - Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead.
+        - Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead.
       indices.flush_synced:
         index: testing
 

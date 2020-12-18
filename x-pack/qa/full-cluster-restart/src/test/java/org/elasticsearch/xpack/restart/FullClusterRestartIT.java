@@ -125,7 +125,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         } else {
             waitForYellow(".security");
             final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
-            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();;
+            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();
             systemIndexWarningOptions.setWarningsHandler(warnings -> {
                 if (warnings.isEmpty()) {
                     return false;
@@ -207,25 +207,13 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("checking that the Watches index is the correct version");
 
-            final Request getSettingsRequest = new Request("GET", "/.watches/_settings/index.format");
-            getSettingsRequest.setOptions(expectWarnings("this request accesses system indices: [.watches], but in a future major " +
-                "version, direct access to system indices will be prevented by default"));
-            Response settingsResponse = client().performRequest(getSettingsRequest);
-            Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
-            logger.info("settings response map {}", settingsResponseMap);
-            final String concreteWatchesIndex;
-            if (settingsResponseMap.isEmpty()) {
-                fail("The security index does not have the expected setting [index.format]");
-            } else {
-                concreteWatchesIndex = settingsResponseMap.keySet().iterator().next();
-                Map<?, ?> indexSettingsMap = (Map<?, ?>) settingsResponseMap.get(concreteWatchesIndex);
-                Map<?, ?> settingsMap = (Map<?, ?>) indexSettingsMap.get("settings");
-                logger.info("settings map {}", settingsMap);
-                if (settingsMap.containsKey("index")) {
-                    int format = Integer.parseInt(String.valueOf(((Map<?, ?>)settingsMap.get("index")).get("format")));
-                    assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, format);
-                }
-            }
+            // Verify .watches index format:
+            Map<?, ?> getClusterStateResponse =
+                entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata/.watches")));
+            Map<?, ?> indices = ObjectPath.eval("metadata.indices", getClusterStateResponse);
+            Map<?, ?> dotWatchesIndex = (Map<?, ?>) indices.get(".watches"); // ObjectPath.eval(...) doesn't handle keys containing .
+            int indexFormat = Integer.parseInt(ObjectPath.eval("settings.index.format", dotWatchesIndex));
+            assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, indexFormat);
 
             // Wait for watcher to actually start....
             startWatcher();
@@ -984,7 +972,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
+        assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
+            ? DataStream.getDefaultBackingIndexName("ds", 1)
+            : DataStream.getLegacyDefaultBackingIndexName("ds", 1),
+            indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }
 

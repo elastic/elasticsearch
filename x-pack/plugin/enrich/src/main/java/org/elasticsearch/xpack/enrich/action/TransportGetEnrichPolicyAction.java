@@ -14,14 +14,12 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.GetEnrichPolicyAction;
 import org.elasticsearch.xpack.enrich.EnrichStore;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,22 +42,10 @@ public class TransportGetEnrichPolicyAction extends TransportMasterNodeReadActio
             threadPool,
             actionFilters,
             GetEnrichPolicyAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            GetEnrichPolicyAction.Response::new,
+            ThreadPool.Names.SAME
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    protected GetEnrichPolicyAction.Response newResponse() {
-        throw new UnsupportedOperationException("usage of Streamable is to be replaced by Writeable");
-    }
-
-    @Override
-    protected GetEnrichPolicyAction.Response read(StreamInput in) throws IOException {
-        return new GetEnrichPolicyAction.Response(in);
     }
 
     @Override

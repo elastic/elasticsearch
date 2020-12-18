@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
@@ -135,10 +136,10 @@ class S3Repository extends MeteredBlobStoreRepository {
         Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART);
 
     /**
-     * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
+     * Big files can be broken down into chunks during snapshotting if needed. Defaults to 5tb.
      */
-    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", MAX_FILE_SIZE_USING_MULTIPART,
+            new ByteSizeValue(5, ByteSizeUnit.MB), MAX_FILE_SIZE_USING_MULTIPART);
 
     /**
      * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
@@ -214,11 +215,13 @@ class S3Repository extends MeteredBlobStoreRepository {
             final NamedXContentRegistry namedXContentRegistry,
             final S3Service service,
             final ClusterService clusterService,
+            final BigArrays bigArrays,
             final RecoverySettings recoverySettings) {
         super(metadata,
             COMPRESS_SETTING.get(metadata.settings()),
             namedXContentRegistry,
             clusterService,
+            bigArrays,
             recoverySettings,
             buildLocation(metadata));
         this.service = service;

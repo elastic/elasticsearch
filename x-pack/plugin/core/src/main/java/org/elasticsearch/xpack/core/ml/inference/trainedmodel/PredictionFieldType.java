@@ -52,22 +52,25 @@ public enum PredictionFieldType implements Writeable {
             case STRING:
                 return stringRep == null ? value.toString() : stringRep;
             case BOOLEAN:
-                if ((areClose(value, 1.0D) || areClose(value, 0.0D)) == false) {
-                    throw new IllegalArgumentException(
-                        "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]");
+                if (isNumberQuickCheck(stringRep)) {
+                    try {
+                        // 1 is true, 0 is false
+                        return Integer.parseInt(stringRep) == 1;
+                    } catch (NumberFormatException nfe) {
+                        // do nothing, allow fall through to final fromDouble
+                    }
+                } else if (isBoolQuickCheck(stringRep)) { // if we start with t/f case insensitive, it indicates boolean string
+                    return Boolean.parseBoolean(stringRep);
                 }
-                return areClose(value, 1.0D);
+                return fromDouble(value);
             case NUMBER:
-                if (Strings.isNullOrEmpty(stringRep)) {
-                    return value;
-                }
                 // Quick check to verify that the string rep is LIKELY a number
                 // Still handles the case where it throws and then returns the underlying value
-                if (stringRep.charAt(0) == '-' || Character.isDigit(stringRep.charAt(0))) {
+                if (isNumberQuickCheck(stringRep)) {
                     try {
                         return Long.parseLong(stringRep);
                     } catch (NumberFormatException nfe) {
-                        return value;
+                        // do nothing, allow fall through to final return
                     }
                 }
                 return value;
@@ -76,7 +79,27 @@ public enum PredictionFieldType implements Writeable {
         }
     }
 
+    private static boolean fromDouble(double value) {
+        if ((areClose(value, 1.0D) || areClose(value, 0.0D)) == false) {
+            throw new IllegalArgumentException(
+                "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]");
+        }
+        return areClose(value, 1.0D);
+    }
+
     private static boolean areClose(double value1, double value2) {
         return Math.abs(value1 - value2) < EPS;
+    }
+
+    private static boolean isNumberQuickCheck(String stringRep) {
+        return Strings.isNullOrEmpty(stringRep) == false && (stringRep.charAt(0) == '-' || Character.isDigit(stringRep.charAt(0)));
+    }
+
+    private static boolean isBoolQuickCheck(String stringRep) {
+        if (Strings.isNullOrEmpty(stringRep)) {
+            return false;
+        }
+        char c = stringRep.charAt(0);
+        return 't' == c || 'T' == c || 'f' == c || 'F' == c;
     }
 }

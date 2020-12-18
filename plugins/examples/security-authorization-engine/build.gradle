@@ -18,13 +18,13 @@ dependencies {
   javaRestTestImplementation project.sourceSets.main.runtimeClasspath
 }
 //no unit tests
-test.enabled = false
-javaRestTest {
-  dependsOn buildZip
+tasks.named("test").configure { enabled = false }
+tasks.named("javaRestTest").configure {
+  dependsOn "buildZip"
   systemProperty 'tests.security.manager', 'false'
 }
 
-testClusters.javaRestTest {
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.ml.enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'

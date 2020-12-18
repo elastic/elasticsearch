@@ -63,7 +63,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 == {api-request-body-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `bucket_span`::
@@ -76,7 +76,7 @@ value.
 time.
 
 `exclude_interim`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-interim-results]
 +
 --
@@ -105,7 +105,7 @@ properties:
 (number) The length of the bucket in seconds. Matches the job with the longest `bucket_span` value.
 
 `is_interim`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `jobs`::

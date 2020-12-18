@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
@@ -180,7 +181,11 @@ public class TransportClientHeadersTests extends AbstractClientHeadersTestCase {
                         clusterStateLatch.countDown();
                     } else if (TransportService.HANDSHAKE_ACTION_NAME .equals(action)) {
                         ((TransportResponseHandler<TransportService.HandshakeResponse>) handler).handleResponse(
-                            new TransportService.HandshakeResponse(connection.getNode(), clusterName, connection.getNode().getVersion()));
+                                new TransportService.HandshakeResponse(
+                                        connection.getNode().getVersion(),
+                                        Build.CURRENT.hash(),
+                                        connection.getNode(),
+                                        clusterName));
                     } else {
                         handler.handleException(new TransportException("", new InternalException(action)));
                     }

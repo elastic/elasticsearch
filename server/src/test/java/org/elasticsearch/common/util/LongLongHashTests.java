@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -98,6 +99,10 @@ public class LongLongHashTests extends ESTestCase {
                 assertEquals(key.key2, hash.getKey2(i));
             }
         }
+    }
+
+    public void testAllocation() {
+        MockBigArrays.assertFitsIn(new ByteSizeValue(256), bigArrays -> new LongLongHash(1, bigArrays));
     }
 
     class Key {

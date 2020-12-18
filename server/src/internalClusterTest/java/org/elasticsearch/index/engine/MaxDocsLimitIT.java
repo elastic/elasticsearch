@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -36,9 +37,7 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Phaser;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -71,9 +70,7 @@ public class MaxDocsLimitIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(TestEnginePlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), TestEnginePlugin.class);
     }
 
     @Before

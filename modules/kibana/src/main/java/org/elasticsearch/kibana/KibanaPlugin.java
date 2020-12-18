@@ -60,18 +60,20 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.unmodifiableList;
+
 public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
         "kibana.system_indices",
-        Collections.unmodifiableList(Arrays.asList(".kibana*", ".reporting")),
+        unmodifiableList(Arrays.asList(".kibana", ".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link")),
         Function.identity(),
         Property.NodeScope
     );
 
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-        return Collections.unmodifiableList(
+        return unmodifiableList(
             KIBANA_INDEX_NAMES_SETTING.get(settings)
                 .stream()
                 .map(pattern -> new SystemIndexDescriptor(pattern, "System index used by kibana"))
@@ -90,7 +92,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
         // TODO need to figure out what subset of system indices Kibana should have access to via these APIs
-        return Collections.unmodifiableList(
+        return unmodifiableList(
             Arrays.asList(
                 // Based on https://github.com/elastic/kibana/issues/49764
                 // apis needed to perform migrations... ideally these will go away
@@ -146,7 +148,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
         @Override
         public List<Route> routes() {
-            return Collections.unmodifiableList(
+            return unmodifiableList(
                 super.routes().stream()
                     .map(route -> new Route(route.getMethod(), "/_kibana" + route.getPath()))
                     .collect(Collectors.toList())

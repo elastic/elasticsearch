@@ -54,8 +54,6 @@ import org.locationtech.spatial4j.shape.Rectangle;
 import java.io.IOException;
 import java.util.Locale;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
-import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.geoIntersectionQuery;
@@ -66,7 +64,6 @@ import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomPoint;
 import static org.elasticsearch.test.geo.RandomShapeGenerator.xRandomRectangle;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -74,8 +71,8 @@ import static org.hamcrest.Matchers.not;
 
 public class GeoShapeQueryTests extends GeoQueryTests {
     protected static final String[] PREFIX_TREES = new String[] {
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.GEOHASH,
-        LegacyGeoShapeFieldMapper.DeprecatedParameters.PrefixTrees.QUADTREE
+        LegacyGeoShapeFieldMapper.PrefixTrees.GEOHASH,
+        LegacyGeoShapeFieldMapper.PrefixTrees.QUADTREE
     };
 
     @Override
@@ -119,8 +116,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             .startObject("properties").startObject("geo")
             .field("type", "geo_shape");
         if (randomBoolean()) {
-            xcb = xcb.field("tree", randomFrom(PREFIX_TREES))
-                .field("strategy", randomFrom(SpatialStrategy.RECURSIVE, SpatialStrategy.TERM));
+            xcb = xcb.field("tree", randomFrom(PREFIX_TREES));
         }
         xcb = xcb.endObject().endObject().endObject();
 
@@ -494,6 +490,7 @@ public class GeoShapeQueryTests extends GeoQueryTests {
             client().admin().indices().prepareCreate("test").addMapping("type", "geo", "type=geo_shape")
                 .execute().actionGet();
         }
+        ensureGreen();
 
         XContentBuilder docSource = gcb.toXContent(jsonBuilder().startObject().field("geo"), null).endObject();
         client().prepareIndex("test", "type", "1").setSource(docSource).setRefreshPolicy(IMMEDIATE).get();

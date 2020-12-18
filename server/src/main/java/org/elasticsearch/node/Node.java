@@ -31,7 +31,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.snapshots.status.TransportNodesSnapshotsStatus;
-import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -73,6 +72,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -113,6 +113,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -266,10 +267,15 @@ public class Node implements Closeable {
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
-     * Logger initialized in the ctor because if it were initialized statically
-     * then it wouldn't get the node name.
+     * This logger instance is an instance field as opposed to a static field. This ensures that the field is not
+     * initialized until an instance of Node is constructed, which is sure to happen after the logging infrastructure
+     * has been initialized to include the hostname. If this field were static, then it would be initialized when the
+     * class initializer runs. Alas, this happens too early, before logging is initialized as this class is referred to
+     * in InternalSettingsPreparer#finalizeSettings, which runs when creating the Environment, before logging is
+     * initialized.
      */
-    private final Logger logger;
+    private final Logger logger = LogManager.getLogger(Node.class);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Node.class);
     private final Injector injector;
     private final Environment environment;
     private final NodeEnvironment nodeEnvironment;
@@ -293,7 +299,6 @@ public class Node implements Closeable {
      */
     protected Node(final Environment initialEnvironment,
                    Collection<Class<? extends Plugin>> classpathPlugins, boolean forbidPrivateIndexSettings) {
-        logger = LogManager.getLogger(Node.class);
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
@@ -316,7 +321,14 @@ public class Node implements Closeable {
                 Constants.JVM_NAME,
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION);
-            logger.info("JVM home [{}]", System.getProperty("java.home"));
+            if (jvmInfo.getBundledJdk()) {
+                logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
+            } else {
+                logger.info("JVM home [{}]", System.getProperty("java.home"));
+                deprecationLogger.deprecate(
+                    "no-jdk",
+                    "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
+            }
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
@@ -493,6 +505,20 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+            final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners =
+                pluginsService.filterPlugins(IndexStorePlugin.class)
+                    .stream()
+                    .map(IndexStorePlugin::getIndexFoldersDeletionListeners)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList());
+
+            final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers =
+                pluginsService.filterPlugins(IndexStorePlugin.class)
+                    .stream()
+                    .map(IndexStorePlugin::getSnapshotCommitSuppliers)
+                    .flatMap(m -> m.entrySet().stream())
+                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = Collections.unmodifiableMap(pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
@@ -500,6 +526,9 @@ public class Node implements Closeable {
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings))));
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+
+            final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
+            clusterService.addListener(systemIndexManager);
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -511,7 +540,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
-                    searchModule.getValuesSourceRegistry(), recoveryStateFactories);
+                    searchModule.getValuesSourceRegistry(), recoveryStateFactories, indexFoldersDeletionListeners,
+                    snapshotCommitSuppliers);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -573,14 +603,14 @@ public class Node implements Closeable {
                 networkModule.getTransportInterceptor(), localNodeFactory, settingsModule.getClusterSettings(), taskHeaders);
             final GatewayMetaState gatewayMetaState = new GatewayMetaState();
             final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-            final SearchTransportService searchTransportService =  new SearchTransportService(transportService,
+            final SearchTransportService searchTransportService = new SearchTransportService(transportService, client,
                 SearchExecutionStatsCollector.makeWrapper(responseCollectorService));
             final HttpServerTransport httpServerTransport = newHttpTransport(networkModule);
             final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
             final RecoverySettings recoverySettings = new RecoverySettings(settings, settingsModule.getClusterSettings());
             RepositoriesModule repositoriesModule = new RepositoriesModule(this.environment,
-                pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, threadPool, xContentRegistry,
+                pluginsService.filterPlugins(RepositoryPlugin.class), transportService, clusterService, bigArrays, xContentRegistry,
                 recoverySettings);
             RepositoriesService repositoryService = repositoriesModule.getRepositoryService();
             repositoriesServiceReference.set(repositoryService);

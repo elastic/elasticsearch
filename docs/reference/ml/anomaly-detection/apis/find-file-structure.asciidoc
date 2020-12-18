@@ -86,7 +86,7 @@ chosen.
   of the rows can have a different number of columns than the first row.
 
 `explain`::
-  (Optional, boolean) If this parameter is set to `true`, the response includes
+  (Optional, Boolean) If this parameter is set to `true`, the response includes
   a field named `explanation`, which is an array of strings that indicate how
   the structure finder produced its result. The default value is `false`.
 
@@ -109,7 +109,7 @@ columns than the first row.
   a Grok pattern.
 
 `has_header_row`::
-  (Optional, boolean) If you have set `format` to `delimited`, you can use this
+  (Optional, Boolean) If you have set `format` to `delimited`, you can use this
   parameter to indicate whether the column names are in the first row of the
   file. If this parameter is not specified, the structure finder guesses based
   on the similarity of the first row of the file to other rows.
@@ -146,7 +146,7 @@ to request analysis of 100000 lines to achieve some variety.
   argument to a character that does not appear anywhere in the sample.
 
 `should_trim_fields`::
-  (Optional, boolean) If you have set `format` to `delimited`, you can specify
+  (Optional, Boolean) If you have set `format` to `delimited`, you can specify
   whether values between delimiters should have whitespace trimmed from them. If
   this parameter is not specified and the delimiter is pipe (`|`), the default
   value is `true`. Otherwise, the default value is `false`.

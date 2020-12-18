@@ -19,7 +19,7 @@ for data tier filtering.
 
 [discrete]
 [[data-tier-allocation-filters]]
-====Data tier allocation settings
+==== Data tier allocation settings
 
 
 `index.routing.allocation.include._tier`::
@@ -43,7 +43,6 @@ for data tier filtering.
     Assign the index to the first tier in the list that has an available node.
     This prevents indices from remaining unallocated if no nodes are available
     in the preferred tier.
-
     For example, if you set `index.routing.allocation.include._tier_preference`
     to `data_warm,data_hot`, the index is allocated to the warm tier if there
     are nodes with the `data_warm` role. If there are no nodes in the warm tier,

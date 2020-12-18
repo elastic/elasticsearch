@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -43,7 +42,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -65,7 +63,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                                      ClusterSettings clusterSettings, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, CloseIndexRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, CloseIndexResponse::new, ThreadPool.Names.SAME);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
         this.closeIndexEnabled = CLUSTER_INDICES_CLOSE_ENABLE_SETTING.get(settings);
@@ -76,16 +74,6 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         this.closeIndexEnabled = closeIndexEnabled;
     }
 
-    @Override
-    protected String executor() {
-        // no need to use a thread pool, we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected CloseIndexResponse read(StreamInput in) throws IOException {
-        return new CloseIndexResponse(in);
-    }
 
     @Override
     protected void doExecute(Task task, CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {

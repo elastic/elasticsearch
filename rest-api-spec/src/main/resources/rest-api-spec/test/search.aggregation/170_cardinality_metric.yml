@@ -232,7 +232,6 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
-  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
   - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
   - gt: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
   - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
@@ -258,7 +257,6 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
-  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }
   - match: { profile.shards.0.aggregations.0.debug.empty_collectors_used: 0 }
   - gt: { profile.shards.0.aggregations.0.debug.numeric_collectors_used: 0 }
   - match: { profile.shards.0.aggregations.0.debug.ordinals_collectors_used: 0 }
@@ -285,4 +283,3 @@ setup:
   - gt: { profile.shards.0.aggregations.0.breakdown.build_leaf_collector: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.collect: 0 }
   - gt: { profile.shards.0.aggregations.0.breakdown.build_aggregation: 0 }
-  - gt: { profile.shards.0.aggregations.0.breakdown.post_collection: 0 }

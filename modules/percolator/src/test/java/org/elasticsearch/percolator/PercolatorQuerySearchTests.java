@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -258,7 +259,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             long[] currentTime = new long[] {System.currentTimeMillis()};
             QueryShardContext queryShardContext =
-                indexService.newQueryShardContext(0, searcher, () -> currentTime[0], null);
+                indexService.newQueryShardContext(0, searcher, () -> currentTime[0], null, emptyMap());
 
             BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .field("field1", "value")

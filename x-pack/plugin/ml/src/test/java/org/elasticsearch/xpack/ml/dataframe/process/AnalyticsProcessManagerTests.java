@@ -262,7 +262,7 @@ public class AnalyticsProcessManagerTests extends ESTestCase {
         inOrder.verify(dataExtractor).getExtractedFields();
         // stop
         inOrder.verify(dataExtractor).cancel();
-        inOrder.verify(process).kill();
+        inOrder.verify(process).kill(true);
         verifyNoMoreInteractions(dataExtractor, process, task);
     }
 

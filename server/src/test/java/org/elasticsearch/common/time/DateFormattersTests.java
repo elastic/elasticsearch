@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -91,6 +92,19 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(instant.getEpochSecond(), is(0L));
             assertThat(instant.getNano(), is(123123456));
         }
+    }
+
+    /**
+     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn throw errors since we use these
+     * e.g. for sorting documents with `null` values first or last
+     */
+    public void testPrintersLongMinMaxValue() {
+        for (FormatNames format : FormatNames.values()) {
+            DateFormatter formatter = DateFormatters.forPattern(format.getSnakeCaseName());
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MIN_VALUE));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MAX_VALUE));
+        }
+        assertWarnings("Format name \"week_year\" is deprecated and will be removed in a future version. Use \"weekyear\" format instead");
     }
 
     public void testInvalidEpochMilliParser() {

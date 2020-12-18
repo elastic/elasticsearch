@@ -73,7 +73,7 @@ public abstract class BucketedSortTestCase<T extends BucketedSort> extends ESTes
         return build(order, format, bucketSize, BucketedSort.NOOP_EXTRA_DATA, values);
     }
 
-    public final void testNeverCalled() {
+    public final void testNeverCalled() throws IOException {
         SortOrder order = randomFrom(SortOrder.values());
         DocValueFormat format = randomFrom(DocValueFormat.RAW, DocValueFormat.BINARY, DocValueFormat.BOOLEAN);
         try (T sort = build(order, format, 1, BucketedSort.NOOP_EXTRA_DATA, new double[] {})) {

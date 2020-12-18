@@ -33,13 +33,11 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -63,20 +61,9 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
                                         ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                         DestructiveOperations destructiveOperations) {
         super(AddIndexBlockAction.NAME, transportService, clusterService, threadPool, actionFilters, AddIndexBlockRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, AddIndexBlockResponse::new, ThreadPool.Names.SAME);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
-    }
-
-    @Override
-    protected String executor() {
-        // no need to use a thread pool, we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AddIndexBlockResponse read(StreamInput in) throws IOException {
-        return new AddIndexBlockResponse(in);
     }
 
     @Override

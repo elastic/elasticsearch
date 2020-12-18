@@ -54,6 +54,13 @@ public class TextSearchInfo {
     public static final TextSearchInfo WHITESPACE_MATCH_ONLY
         = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.WHITESPACE_ANALYZER, Lucene.WHITESPACE_ANALYZER);
 
+    /**
+     * Defines indexing information for fields that support simple match text queries
+     * without using the terms index
+     */
+    public static final TextSearchInfo SIMPLE_MATCH_WITHOUT_TERMS
+        = new TextSearchInfo(SIMPLE_MATCH_ONLY_FIELD_TYPE, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER);
+
     private static final NamedAnalyzer FORBIDDEN_ANALYZER = new NamedAnalyzer("", AnalyzerScope.GLOBAL,
         new Analyzer() {
             @Override

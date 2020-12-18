@@ -19,28 +19,23 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.function.Function;
 
-public class DocLookup {
+public final class DocLookup {
 
-    private final MapperService mapperService;
+    private final Function<String, MappedFieldType> fieldTypeLookup;
     private final Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup;
-    @Nullable
-    private final String[] types;
 
-    DocLookup(MapperService mapperService, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup, @Nullable String[] types) {
-        this.mapperService = mapperService;
+    DocLookup(Function<String, MappedFieldType> fieldTypeLookup, Function<MappedFieldType, IndexFieldData<?>> fieldDataLookup) {
+        this.fieldTypeLookup = fieldTypeLookup;
         this.fieldDataLookup = fieldDataLookup;
-        this.types = types;
     }
 
-    public MapperService mapperService() {
-        return this.mapperService;
+    public MappedFieldType fieldType(String fieldName) {
+        return fieldTypeLookup.apply(fieldName);
     }
 
     public IndexFieldData<?> getForField(MappedFieldType fieldType) {
@@ -48,10 +43,6 @@ public class DocLookup {
     }
 
     public LeafDocLookup getLeafDocLookup(LeafReaderContext context) {
-        return new LeafDocLookup(mapperService, fieldDataLookup, types, context);
-    }
-
-    public String[] getTypes() {
-        return types;
+        return new LeafDocLookup(fieldTypeLookup, fieldDataLookup, context);
     }
 }

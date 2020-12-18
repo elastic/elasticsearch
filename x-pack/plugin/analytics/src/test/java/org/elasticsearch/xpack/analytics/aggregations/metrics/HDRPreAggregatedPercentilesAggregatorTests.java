@@ -154,7 +154,6 @@ public class HDRPreAggregatedPercentilesAggregatorTests extends AggregatorTestCa
                 Aggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
                 verify.accept((InternalHDRPercentiles) aggregator.buildTopLevel());
 
             }

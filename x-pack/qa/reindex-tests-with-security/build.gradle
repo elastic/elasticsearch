@@ -12,7 +12,7 @@ dependencies {
   testImplementation project(path: ':modules:reindex')
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.key'
   exclude '**/*.pem'
   exclude '**/*.p12'

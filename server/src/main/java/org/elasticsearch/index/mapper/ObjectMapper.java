@@ -24,11 +24,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -54,13 +53,27 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class Defaults {
         public static final boolean ENABLED = true;
         public static final Nested NESTED = Nested.NO;
-        public static final Dynamic DYNAMIC = null; // not set, inherited from root
     }
 
     public enum Dynamic {
-        TRUE,
+        TRUE {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_TRUE;
+            }
+        },
         FALSE,
-        STRICT
+        STRICT,
+        RUNTIME {
+            @Override
+            DynamicFieldsBuilder getDynamicFieldsBuilder() {
+                return DynamicFieldsBuilder.DYNAMIC_RUNTIME;
+            }
+        };
+
+        DynamicFieldsBuilder getDynamicFieldsBuilder() {
+            throw new UnsupportedOperationException("Cannot create dynamic fields when dynamic is set to [" + this + "]");
+        };
     }
 
     public static class Nested {
@@ -140,12 +153,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         protected Nested nested = Defaults.NESTED;
 
-        protected Dynamic dynamic = Defaults.DYNAMIC;
+        protected Dynamic dynamic;
 
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
+        protected final Version indexCreatedVersion;
 
-        public Builder(String name) {
+        public Builder(String name, Version indexCreatedVersion) {
             super(name);
+            this.indexCreatedVersion = indexCreatedVersion;
         }
 
         public Builder enabled(boolean enabled) {
@@ -169,37 +184,35 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        public ObjectMapper build(BuilderContext context) {
-            context.path().add(name);
+        public ObjectMapper build(ContentPath contentPath) {
+            contentPath.add(name);
 
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(context);
+                Mapper mapper = builder.build(contentPath);
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
                     mapper = existing.merge(mapper);
                 }
                 mappers.put(mapper.simpleName(), mapper);
             }
-            context.path().remove();
+            contentPath.remove();
 
-            ObjectMapper objectMapper = createMapper(name, context.path().pathAsText(name), enabled, nested, dynamic,
-                mappers, context.indexSettings());
-
-            return objectMapper;
+            return createMapper(name, contentPath.pathAsText(name), enabled, nested, dynamic,
+                mappers, indexCreatedVersion);
         }
 
         protected ObjectMapper createMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-                Map<String, Mapper> mappers, @Nullable Settings settings) {
-            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, settings);
+                Map<String, Mapper> mappers, Version indexCreatedVersion) {
+            return new ObjectMapper(name, fullPath, enabled, nested, dynamic, mappers, indexCreatedVersion);
         }
     }
 
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            ObjectMapper.Builder builder = new Builder(name);
-            parseNested(name, node, builder, parserContext);
+            ObjectMapper.Builder builder = new Builder(name, parserContext.indexVersionCreated());
+            parseNested(name, node, builder);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = entry.getKey();
@@ -217,6 +230,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 String value = fieldNode.toString();
                 if (value.equalsIgnoreCase("strict")) {
                     builder.dynamic(Dynamic.STRICT);
+                }  else if (value.equalsIgnoreCase("runtime")) {
+                    if (parserContext.supportsDynamicRuntimeMappings() == false) {
+                        throw new IllegalArgumentException("unable to set dynamic:runtime as there is " +
+                            "no registered dynamic runtime fields builder");
+                    }
+                    builder.dynamic(Dynamic.RUNTIME);
                 } else {
                     boolean dynamic = XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".dynamic");
                     builder.dynamic(dynamic ? Dynamic.TRUE : Dynamic.FALSE);
@@ -242,8 +261,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return false;
         }
 
-        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder,
-                                          ParserContext parserContext) {
+        protected static void parseNested(String name, Map<String, Object> node, ObjectMapper.Builder builder) {
             boolean nested = false;
             Explicit<Boolean> nestedIncludeInParent = new Explicit<>(false, false);
             Explicit<Boolean> nestedIncludeInRoot = new Explicit<>(false, false);
@@ -315,13 +333,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
                     Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
+                        ObjectMapper.Builder intermediate
+                            = new ObjectMapper.Builder(fieldNameParts[i], parserContext.indexVersionCreated());
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }
                     objBuilder.add(fieldBuilder);
                     propNode.remove("type");
-                    DocumentMapperParser.checkNoRemainingFields(fieldName, propNode, parserContext.indexVersionCreated());
+                    DocumentMapperParser.checkNoRemainingFields(fieldName, propNode);
                     iterator.remove();
                 } else if (isEmptyList) {
                     iterator.remove();
@@ -331,8 +350,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 }
             }
 
-            DocumentMapperParser.checkNoRemainingFields(propsNode, parserContext.indexVersionCreated(),
-                    "DocType mapping definition has unsupported parameters: ");
+            DocumentMapperParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
 
         }
 
@@ -354,9 +372,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
     private volatile CopyOnWriteHashMap<String, Mapper> mappers;
 
     ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Nested nested, Dynamic dynamic,
-            Map<String, Mapper> mappers, Settings settings) {
+            Map<String, Mapper> mappers, Version indexCreatedVersion) {
         super(name);
-        assert settings != null;
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");
         }
@@ -385,13 +402,18 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return clone;
     }
 
+    ObjectMapper copyAndReset() {
+        ObjectMapper copy = clone();
+        // reset the sub mappers
+        copy.mappers = new CopyOnWriteHashMap<>();
+        return copy;
+    }
+
     /**
      * Build a mapping update with the provided sub mapping update.
      */
-    public ObjectMapper mappingUpdate(Mapper mapper) {
-        ObjectMapper mappingUpdate = clone();
-        // reset the sub mappers
-        mappingUpdate.mappers = new CopyOnWriteHashMap<>();
+    final ObjectMapper mappingUpdate(Mapper mapper) {
+        ObjectMapper mappingUpdate = copyAndReset();
         mappingUpdate.putMapper(mapper);
         return mappingUpdate;
     }
@@ -441,35 +463,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     public final Dynamic dynamic() {
         return dynamic;
-    }
-
-    /**
-     * Returns the parent {@link ObjectMapper} instance of the specified object mapper or <code>null</code> if there
-     * isn't any.
-     */
-    public ObjectMapper getParentObjectMapper(MapperService mapperService) {
-        int indexOfLastDot = fullPath().lastIndexOf('.');
-        if (indexOfLastDot != -1) {
-            String parentNestObjectPath = fullPath().substring(0, indexOfLastDot);
-            return mapperService.getObjectMapper(parentNestObjectPath);
-        } else {
-            return null;
-        }
-    }
-
-    /**
-     * Returns whether all parent objects fields are nested too.
-     */
-    public boolean parentObjectMapperAreNested(MapperService mapperService) {
-        for (ObjectMapper parent = getParentObjectMapper(mapperService);
-             parent != null;
-             parent = parent.getParentObjectMapper(mapperService)) {
-
-            if (parent.nested().isNested() == false) {
-                return false;
-            }
-        }
-        return true;
     }
 
     @Override
@@ -597,5 +590,4 @@ public class ObjectMapper extends Mapper implements Cloneable {
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
 
     }
-
 }

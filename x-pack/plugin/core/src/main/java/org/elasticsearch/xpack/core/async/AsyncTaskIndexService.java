@@ -38,6 +38,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
+import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -49,6 +50,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -65,14 +67,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    private static Settings settings() {
+    static Settings settings() {
         return Settings.builder()
+            .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
 
-    private static XContentBuilder mappings() throws IOException {
+    static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder()
             .startObject()
                 .startObject(SINGLE_MAPPING_NAME)
@@ -193,8 +197,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             UpdateRequest request = new UpdateRequest()
                 .index(index)
                 .id(docId)
-                .doc(source, XContentType.JSON);
-            client.update(request, listener);
+                .doc(source, XContentType.JSON)
+                .retryOnConflict(5);
+            // updates create the index automatically if it doesn't exist so we force the creation
+            // preemptively.
+            createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -210,8 +217,11 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
         UpdateRequest request = new UpdateRequest().index(index)
             .id(docId)
-            .doc(source, XContentType.JSON);
-        client.update(request, listener);
+            .doc(source, XContentType.JSON)
+            .retryOnConflict(5);
+        // updates create the index automatically if it doesn't exist so we force the creation
+        // preemptively.
+        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
     }
 
     /**
@@ -221,7 +231,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-            client.delete(request, listener);
+            // deletes create the index automatically if it doesn't exist so we force the creation
+            // preemptively.
+            createIndexIfNecessary(ActionListener.wrap(v -> client.delete(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -303,6 +315,37 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                             ActionListener<R> listener) {
         getEncodedResponse(asyncExecutionId, restoreResponseHeaders, ActionListener.wrap(
             (t) -> listener.onResponse(decodeResponse(t.v1()).withExpirationTime(t.v2())),
+            listener::onFailure
+        ));
+    }
+
+
+    /**
+     * Gets the status response of the async search from the index
+     * @param asyncExecutionId – id of the async search
+     * @param statusProducer – a producer of the status from the stored async search response and expirationTime
+     * @param listener – listener to report result to
+     */
+    public void getStatusResponse(
+        AsyncExecutionId asyncExecutionId,
+            BiFunction<R, Long, AsyncStatusResponse> statusProducer, ActionListener<AsyncStatusResponse> listener) {
+        GetRequest internalGet = new GetRequest(index)
+            .preference(asyncExecutionId.getEncoded())
+            .id(asyncExecutionId.getDocId());
+        client.get(internalGet, ActionListener.wrap(
+            get -> {
+                if (get.isExists() == false) {
+                    listener.onFailure(new ResourceNotFoundException(asyncExecutionId.getEncoded()));
+                    return;
+                }
+                String encoded = (String) get.getSource().get(RESULT_FIELD);
+                if (encoded != null) {
+                    Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
+                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime));
+                } else {
+                    listener.onResponse(null);
+                }
+            },
             listener::onFailure
         ));
     }

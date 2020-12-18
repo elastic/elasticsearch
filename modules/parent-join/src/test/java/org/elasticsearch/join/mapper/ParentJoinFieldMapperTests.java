@@ -19,6 +19,8 @@
 
 package org.elasticsearch.join.mapper;
 
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -50,10 +52,10 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
         DocumentMapper docMapper = mapperService.documentMapper();
-        assertSame(
-            docMapper.mappers().getMapper("join_field"),
-            ParentJoinFieldMapper.getMapper(mapperService::fieldType, mapperService.documentMapper().mappers()::getMapper)
-        );
+
+        Joiner joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        assertNotNull(joiner);
+        assertEquals("join_field", joiner.getJoinField());
 
         // Doc without join
         ParsedDocument doc = docMapper.parse(source(b -> {}));
@@ -118,7 +120,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
         assertEquals("child", doc.rootDoc().getBinaryValue("join_field").utf8ToString());
 
         // Doc child missing parent
-        MapperException exc = expectThrows(
+        MapperParsingException exc = expectThrows(
             MapperParsingException.class,
             () -> docMapper.parse(source("2", b -> b.field("join_field", "child"), "1"))
         );
@@ -174,7 +176,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(exc.getMessage(), containsString("cannot remove parent [parent] in join field [join_field]"));
+        assertThat(exc.getMessage(), containsString("Cannot remove parent [parent]"));
 
         exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
             b.startObject("join_field");
@@ -189,7 +191,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(exc.getMessage(), containsString("cannot remove child [grand_child2] in join field [join_field]"));
+        assertThat(exc.getMessage(), containsString("Cannot remove child [grand_child2]"));
 
         exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
             b.startObject("join_field");
@@ -205,7 +207,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(exc.getMessage(), containsString("cannot create child [parent] from an existing parent"));
+        assertThat(exc.getMessage(), containsString("Cannot create child [parent] from an existing root"));
 
         exc = expectThrows(IllegalArgumentException.class, () -> merge(mapperService, mapping(b -> {
             b.startObject("join_field");
@@ -221,7 +223,7 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertThat(exc.getMessage(), containsString("cannot create parent [grand_child2] from an existing child]"));
+        assertThat(exc.getMessage(), containsString("Cannot create parent [grand_child2] from an existing child"));
 
         merge(mapperService, mapping(b -> {
             b.startObject("join_field");
@@ -236,16 +238,18 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        ParentJoinFieldMapper mapper = ParentJoinFieldMapper.getMapper(
-            mapperService::fieldType,
-            mapperService.documentMapper().mappers()::getMapper
-        );
-        assertNotNull(mapper);
-        assertEquals("join_field", mapper.name());
-        assertTrue(mapper.hasChild("child2"));
-        assertFalse(mapper.hasParent("child2"));
-        assertTrue(mapper.hasChild("grand_child2"));
-        assertFalse(mapper.hasParent("grand_child2"));
+
+        Joiner joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        assertNotNull(joiner);
+        assertEquals("join_field", joiner.getJoinField());
+        assertTrue(joiner.childTypeExists("child2"));
+        assertFalse(joiner.parentTypeExists("child2"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child2"));
+        assertTrue(joiner.childTypeExists("grand_child2"));
+        assertFalse(joiner.parentTypeExists("grand_child2"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child1"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child2"));
 
         merge(mapperService, mapping(b -> {
             b.startObject("join_field");
@@ -261,18 +265,24 @@ public class ParentJoinFieldMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        mapper = ParentJoinFieldMapper.getMapper(
-            mapperService::fieldType,
-            mapperService.documentMapper().mappers()::getMapper
-        );
-        assertNotNull(mapper);
-        assertEquals("join_field", mapper.name());
-        assertTrue(mapper.hasParent("other"));
-        assertFalse(mapper.hasChild("other"));
-        assertTrue(mapper.hasChild("child_other1"));
-        assertFalse(mapper.hasParent("child_other1"));
-        assertTrue(mapper.hasChild("child_other2"));
-        assertFalse(mapper.hasParent("child_other2"));
+        joiner = Joiner.getJoiner(f -> mapperService.fieldType(f) != null, mapperService::fieldType);
+        assertNotNull(joiner);
+        assertEquals("join_field", joiner.getJoinField());
+        assertTrue(joiner.childTypeExists("child2"));
+        assertFalse(joiner.parentTypeExists("child2"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child"));
+        assertEquals(new TermQuery(new Term("join_field", "parent")), joiner.parentFilter("child2"));
+        assertTrue(joiner.childTypeExists("grand_child2"));
+        assertFalse(joiner.parentTypeExists("grand_child2"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child1"));
+        assertEquals(new TermQuery(new Term("join_field", "child")), joiner.parentFilter("grand_child2"));
+        assertTrue(joiner.parentTypeExists("other"));
+        assertFalse(joiner.childTypeExists("other"));
+        assertTrue(joiner.childTypeExists("child_other1"));
+        assertFalse(joiner.parentTypeExists("child_other1"));
+        assertTrue(joiner.childTypeExists("child_other2"));
+        assertFalse(joiner.parentTypeExists("child_other2"));
+        assertEquals(new TermQuery(new Term("join_field", "other")), joiner.parentFilter("child_other2"));
     }
 
     public void testInvalidJoinFieldInsideObject() throws Exception {

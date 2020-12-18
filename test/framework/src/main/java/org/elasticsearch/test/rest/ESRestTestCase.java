@@ -421,7 +421,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (final IOException e) {
                 throw new AssertionError("error getting active tasks list", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -675,7 +675,8 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Request deleteRequest = new Request("DELETE", "*");
+            //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
+            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
             RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
             allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
@@ -706,14 +707,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeDataStreams() throws IOException {
         try {
             if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
-            // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified field or
-            // that doesn't support data streams so it's safe to ignore
-            int statusCode = e.getResponse().getStatusLine().getStatusCode();
-            if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
-                throw e;
+            // We hit a version of ES that doesn't understand expand_wildcards, try again without it
+            try {
+                if (hasXPack()) {
+                    adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                }
+            } catch (ResponseException ee) {
+                // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified
+                //field or that doesn't support data streams so it's safe to ignore
+                int statusCode = ee.getResponse().getStatusLine().getStatusCode();
+                if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+                    throw ee;
+                }
             }
         }
     }
@@ -1346,6 +1354,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "synthetics-settings":
             case "synthetics-mappings":
             case ".snapshot-blob-cache":
+            case ".deprecation-indexing-template":
                 return true;
             default:
                 return false;
@@ -1467,15 +1476,20 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Response performSyncedFlush(String indexName) throws IOException {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
+        // prior to v7.11, the deprecation message for synced flush was incorrect so we also need to handle that
+        final List<String> incorrectWarningMessage = Collections.singletonList("Synced flush is deprecated and will be removed in 8.0." +
+            " Use flush at _/flush or /{index}/_flush instead.");
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_11_0))) {
             options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+        } else if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false &&
+                warnings.equals(incorrectWarningMessage) == false);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false &&
+                warnings.equals(expectedWarnings) == false && warnings.equals(incorrectWarningMessage) == false);
         }
+        request.setOptions(options);
         return client().performRequest(request);
     }
 

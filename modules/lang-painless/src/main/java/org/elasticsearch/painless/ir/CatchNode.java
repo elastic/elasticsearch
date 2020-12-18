@@ -20,36 +20,13 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class CatchNode extends StatementNode {
 
     /* ---- begin tree structure ---- */
 
-    private Class<?> exceptionType;
-    private String symbol;
     private BlockNode blockNode;
-
-    public void setExceptionType(Class<?> exceptionType) {
-        this.exceptionType = exceptionType;
-    }
-
-    public Class<?> getExceptionType() {
-        return exceptionType;
-    }
-
-    public void setSymbol(String symbol) {
-        this.symbol = symbol;
-    }
-
-    public String getSymbol() {
-        return symbol;
-    }
 
     public void setBlockNode(BlockNode blockNode) {
         this.blockNode = blockNode;
@@ -79,27 +56,4 @@ public class CatchNode extends StatementNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeStatementOffset(getLocation());
-
-        Variable variable = writeScope.defineVariable(exceptionType, symbol);
-
-        Label jump = new Label();
-
-        methodWriter.mark(jump);
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        if (blockNode != null) {
-            blockNode.write(writeScope.newBlockScope(true));
-        }
-
-        methodWriter.visitTryCatchBlock(
-                writeScope.getTryBeginLabel(), writeScope.getTryEndLabel(), jump, variable.getAsmType().getInternalName());
-
-        if (writeScope.getCatchesEndLabel() != null && (blockNode == null || blockNode.doAllEscape() == false)) {
-            methodWriter.goTo(writeScope.getCatchesEndLabel());
-        }
-    }
 }

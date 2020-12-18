@@ -10,12 +10,12 @@ IMPORTANT: When you enable {es} {security-features}, unless you have a trial
 license, you must use Transport Layer Security (TLS) to encrypt internode
 communication. By following the steps in this tutorial tutorial, you learn how
 to meet the minimum requirements to pass the
-{ref}/bootstrap-checks-xpack.html#bootstrap-checks-tls[TLS bootstrap check].
+<<bootstrap-checks-tls,TLS bootstrap check>>.
 
 . (Optional) Name the cluster.
 +
 --
-For example, add the {ref}/cluster.name.html[cluster.name] setting in the
+For example, add the <<cluster-name,cluster name>> setting in the
 `ES_PATH_CONF/elasticsearch.yml` file:
 
 [source,yaml]
@@ -36,7 +36,7 @@ however, to ensure that your nodes join the right cluster.
 . (Optional) Name the {es} node.
 +
 --
-For example, add the {ref}/node.name.html[node.name] setting in the
+For example, add the <<node-name,node name>> setting in the
 `ES_PATH_CONF/elasticsearch.yml` file:
 
 [source,yaml]
@@ -80,8 +80,8 @@ TIP: If you are starting a cluster with multiple master-eligible nodes for the
 first time, add all of those node names to the `cluster.initial_master_nodes`
 setting.
 
-See {ref}/modules-discovery-bootstrap-cluster.html[Bootstrapping a cluster] and
-{ref}/discovery-settings.html[Important discovery and cluster formation settings].
+See <<modules-discovery-bootstrap-cluster,bootstrapping a cluster>> and
+<<discovery-settings,discovery and cluster formation settings>>.
 --
 
 . Enable Transport Layer Security (TLS/SSL) for transport (internode)
@@ -108,8 +108,8 @@ used as both a keystore and a truststore. If you use other tools to manage and
 generate your certificates, you might have different values for these settings,
 but that scenario is not covered in this tutorial.
 
-For more information, see <<get-started-enable-security>> and
-{ref}/security-settings.html#transport-tls-ssl-settings[Transport TLS settings].
+For more information, see <<get-started-enable-security,enable {es} security features>> and
+<<transport-tls-ssl-settings,transport TLS settings>>.
 --
 
 . Store the password for the PKCS#12 file in the {es} keystore.
@@ -134,7 +134,7 @@ file. We are using this file for both the transport TLS keystore and truststore,
 therefore supply the same password for both of these settings.
 --
 
-. {ref}/starting-elasticsearch.html[Start {es}].
+. <<starting-elasticsearch,Start {es}>>.
 +
 --
 For example, if you installed {es} with a `.tar.gz` package, run the following

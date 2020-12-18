@@ -412,6 +412,25 @@ public class Strings {
     }
 
     /**
+     * Concatenate two string arrays into a third
+     */
+    public static String[] concatStringArrays(String[] first, String[] second) {
+        if (first == null && second == null) {
+            return Strings.EMPTY_ARRAY;
+        }
+        if (first == null || first.length == 0) {
+            return second;
+        }
+        if (second == null || second.length == 0) {
+            return first;
+        }
+        String[] concat = new String[first.length + second.length];
+        System.arraycopy(first, 0, concat, 0, first.length);
+        System.arraycopy(second, 0, concat, first.length, second.length);
+        return concat;
+    }
+
+    /**
      * Tokenize the specified string by commas to a set, trimming whitespace and ignoring empty tokens.
      *
      * @param s the string to tokenize
@@ -855,6 +874,21 @@ public class Strings {
         return s.substring(0, length);
     }
 
+    /**
+     * Checks that the supplied string is neither null nor empty, per {@link #isNullOrEmpty(String)}.
+     * If this check fails, then an {@link IllegalArgumentException} is thrown with the supplied message.
+     *
+     * @param str the <code>String</code> to check
+     * @param message the exception message to use if {@code str} is null or empty
+     * @return the supplied {@code str}
+     */
+    public static String requireNonEmpty(String str, String message) {
+        if (isNullOrEmpty(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
     }
@@ -879,7 +913,7 @@ public class Strings {
             return sb.toString();
         }
     }
-    
+
     public static String toLowercaseAscii(String in) {
         StringBuilder out = new StringBuilder();
         Iterator<Integer> iter = in.codePoints().iterator();
@@ -892,5 +926,5 @@ public class Strings {
             }
         }
         return out.toString();
-    }    
+    }
 }

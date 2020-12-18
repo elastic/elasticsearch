@@ -28,8 +28,7 @@ public class DeleteIndexTemplateAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "indices:admin/template/delete";
 
     private DeleteIndexTemplateAction() {
-        super(NAME, AcknowledgedResponse::new
-        );
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

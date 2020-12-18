@@ -10,11 +10,9 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.Script;
@@ -150,14 +148,14 @@ public class Accuracy implements EvaluationMetric {
      * Time complexity of this method is linear wrt multiclass confusion matrix size, so O(n^2) where n is the matrix dimension.
      * This method is visible for testing only.
      */
-    static List<PerClassResult> computePerClassAccuracy(MulticlassConfusionMatrix.Result matrixResult) {
+    static List<PerClassSingleValue> computePerClassAccuracy(MulticlassConfusionMatrix.Result matrixResult) {
         assert matrixResult.getOtherActualClassCount() == 0;
         // Number of actual classes taken into account
         int n = matrixResult.getConfusionMatrix().size();
         // Total number of documents taken into account
         long totalDocCount =
             matrixResult.getConfusionMatrix().stream().mapToLong(MulticlassConfusionMatrix.ActualClass::getActualClassDocCount).sum();
-        List<PerClassResult> classes = new ArrayList<>(n);
+        List<PerClassSingleValue> classes = new ArrayList<>(n);
         for (int i = 0; i < n; ++i) {
             String className = matrixResult.getConfusionMatrix().get(i).getActualClass();
             // Start with the assumption that all the docs were predicted correctly.
@@ -172,7 +170,7 @@ public class Accuracy implements EvaluationMetric {
             }
             // Subtract errors (false negatives) for classes other than explicitly listed in confusion matrix
             correctDocCount -= matrixResult.getConfusionMatrix().get(i).getOtherPredictedClassDocCount();
-            classes.add(new PerClassResult(className, ((double)correctDocCount) / totalDocCount));
+            classes.add(new PerClassSingleValue(className, ((double)correctDocCount) / totalDocCount));
         }
         return classes;
     }
@@ -209,10 +207,10 @@ public class Accuracy implements EvaluationMetric {
 
         @SuppressWarnings("unchecked")
         private static final ConstructingObjectParser<Result, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassResult>) a[0], (double) a[1]));
+            new ConstructingObjectParser<>("accuracy_result", true, a -> new Result((List<PerClassSingleValue>) a[0], (double) a[1]));
 
         static {
-            PARSER.declareObjectArray(constructorArg(), PerClassResult.PARSER, CLASSES);
+            PARSER.declareObjectArray(constructorArg(), PerClassSingleValue.PARSER, CLASSES);
             PARSER.declareDouble(constructorArg(), OVERALL_ACCURACY);
         }
 
@@ -221,17 +219,17 @@ public class Accuracy implements EvaluationMetric {
         }
 
         /** List of per-class results. */
-        private final List<PerClassResult> classes;
+        private final List<PerClassSingleValue> classes;
         /** Fraction of documents for which predicted class equals the actual class. */
         private final double overallAccuracy;
 
-        public Result(List<PerClassResult> classes, double overallAccuracy) {
+        public Result(List<PerClassSingleValue> classes, double overallAccuracy) {
             this.classes = Collections.unmodifiableList(ExceptionsHelper.requireNonNull(classes, CLASSES));
             this.overallAccuracy = overallAccuracy;
         }
 
         public Result(StreamInput in) throws IOException {
-            this.classes = Collections.unmodifiableList(in.readList(PerClassResult::new));
+            this.classes = Collections.unmodifiableList(in.readList(PerClassSingleValue::new));
             this.overallAccuracy = in.readDouble();
         }
 
@@ -245,7 +243,7 @@ public class Accuracy implements EvaluationMetric {
             return NAME.getPreferredName();
         }
 
-        public List<PerClassResult> getClasses() {
+        public List<PerClassSingleValue> getClasses() {
             return classes;
         }
 
@@ -280,73 +278,6 @@ public class Accuracy implements EvaluationMetric {
         @Override
         public int hashCode() {
             return Objects.hash(classes, overallAccuracy);
-        }
-    }
-
-    public static class PerClassResult implements ToXContentObject, Writeable {
-
-        private static final ParseField CLASS_NAME = new ParseField("class_name");
-        private static final ParseField ACCURACY = new ParseField("accuracy");
-
-        @SuppressWarnings("unchecked")
-        private static final ConstructingObjectParser<PerClassResult, Void> PARSER =
-            new ConstructingObjectParser<>("accuracy_per_class_result", true, a -> new PerClassResult((String) a[0], (double) a[1]));
-
-        static {
-            PARSER.declareString(constructorArg(), CLASS_NAME);
-            PARSER.declareDouble(constructorArg(), ACCURACY);
-        }
-
-        /** Name of the class. */
-        private final String className;
-        /** Fraction of documents that are either true positives or true negatives wrt {@code className}. */
-        private final double accuracy;
-
-        public PerClassResult(String className, double accuracy) {
-            this.className = ExceptionsHelper.requireNonNull(className, CLASS_NAME);
-            this.accuracy = accuracy;
-        }
-
-        public PerClassResult(StreamInput in) throws IOException {
-            this.className = in.readString();
-            this.accuracy = in.readDouble();
-        }
-
-        public String getClassName() {
-            return className;
-        }
-
-        public double getAccuracy() {
-            return accuracy;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(className);
-            out.writeDouble(accuracy);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field(CLASS_NAME.getPreferredName(), className);
-            builder.field(ACCURACY.getPreferredName(), accuracy);
-            builder.endObject();
-            return builder;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            PerClassResult that = (PerClassResult) o;
-            return Objects.equals(this.className, that.className)
-                && this.accuracy == that.accuracy;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(className, accuracy);
         }
     }
 }

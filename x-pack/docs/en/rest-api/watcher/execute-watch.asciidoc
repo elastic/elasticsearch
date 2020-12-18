@@ -49,7 +49,7 @@ and debugging your watches prior to adding them to {watcher}.
 ==== {api-query-parms-title}
 
 `debug`::
-  (Optional, boolean) Defines whether the watch runs in debug mode. The default
+  (Optional, Boolean) Defines whether the watch runs in debug mode. The default
   value is `false`.
 
 [[watcher-api-execute-watch-request-body]]

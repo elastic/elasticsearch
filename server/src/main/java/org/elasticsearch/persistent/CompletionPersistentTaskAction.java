@@ -132,18 +132,8 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
                                PersistentTasksClusterService persistentTasksClusterService,
                                IndexNameExpressionResolver indexNameExpressionResolver) {
             super(CompletionPersistentTaskAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                Request::new, indexNameExpressionResolver);
+                Request::new, indexNameExpressionResolver, PersistentTaskResponse::new, ThreadPool.Names.GENERIC);
             this.persistentTasksClusterService = persistentTasksClusterService;
-        }
-
-        @Override
-        protected String executor() {
-            return ThreadPool.Names.GENERIC;
-        }
-
-        @Override
-        protected PersistentTaskResponse read(StreamInput in) throws IOException {
-            return new PersistentTaskResponse(in);
         }
 
         @Override
@@ -156,8 +146,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         protected final void masterOperation(final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+                    listener.map(PersistentTaskResponse::new));
         }
     }
 }

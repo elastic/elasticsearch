@@ -6,6 +6,8 @@
 <titleabbrev>Put autoscaling policy</titleabbrev>
 ++++
 
+experimental[]
+
 Put autoscaling policy.
 
 [[autoscaling-put-autoscaling-policy-request]]
@@ -15,10 +17,9 @@ Put autoscaling policy.
 --------------------------------------------------
 PUT /_autoscaling/policy/<name>
 {
-  "policy": {
-    "deciders": {
-      "fixed": {
-      }
+  "roles": [],
+  "deciders": {
+    "fixed": {
     }
   }
 }
@@ -51,16 +52,16 @@ This API puts an autoscaling policy with the provided name.
 ==== {api-examples-title}
 
 This example puts an autoscaling policy named `my_autoscaling_policy` using the
-always autoscaling decider.
+fixed autoscaling decider, applying to the set of nodes having (only) the
+"data_hot" role.
 
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
 {
-  "policy": {
-    "deciders": {
-      "fixed": {
-      }
+  "roles" : [ "data_hot" ],
+  "deciders": {
+    "fixed": {
     }
   }
 }

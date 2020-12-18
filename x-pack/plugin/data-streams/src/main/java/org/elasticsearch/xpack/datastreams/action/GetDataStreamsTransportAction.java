@@ -20,14 +20,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -55,18 +53,10 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
             threadPool,
             actionFilters,
             GetDataStreamAction.Request::new,
-            indexNameExpressionResolver
+            indexNameExpressionResolver,
+            GetDataStreamAction.Response::new,
+            ThreadPool.Names.SAME
         );
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetDataStreamAction.Response read(StreamInput in) throws IOException {
-        return new GetDataStreamAction.Response(in);
     }
 
     @Override
@@ -106,7 +96,7 @@ public class GetDataStreamsTransportAction extends TransportMasterNodeReadAction
         IndexNameExpressionResolver iner,
         GetDataStreamAction.Request request
     ) {
-        List<String> results = iner.dataStreamNames(clusterState, request.indicesOptions(), request.getNames());
+        List<String> results = DataStreamsActionUtil.getDataStreamNames(iner, clusterState, request.getNames(), request.indicesOptions());
         Map<String, DataStream> dataStreams = clusterState.metadata().dataStreams();
 
         return results.stream().map(dataStreams::get).sorted(Comparator.comparing(DataStream::getName)).collect(Collectors.toList());

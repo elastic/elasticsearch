@@ -13,7 +13,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -47,6 +46,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
@@ -78,6 +78,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
     private SecurityContext securityContext;
     private TokenService tokenService;
     private Client client;
+    private OperatorPrivileges operatorPrivileges;
 
     @Before
     public void setupMocks() throws Exception {
@@ -108,7 +109,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         when(client.threadPool()).thenReturn(threadPool);
 
         final TestUtils.UpdatableLicenseState licenseState = new TestUtils.UpdatableLicenseState();
-        licenseState.update(License.OperationMode.PLATINUM, true, null);
+        licenseState.update(License.OperationMode.PLATINUM, true, Long.MAX_VALUE, null);
 
         final Clock clock = Clock.systemUTC();
 
@@ -123,7 +124,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
                                                               securityIndex, clusterService,
                                                               mock(CacheInvalidatorRegistry.class),threadPool);
         authenticationService = new AuthenticationService(settings, realms, auditTrail, failureHandler, threadPool, anonymous,
-            tokenService, apiKeyService);
+            tokenService, apiKeyService, OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE);
         authenticator = new SecondaryAuthenticator(securityContext, authenticationService);
     }
 
@@ -274,9 +275,9 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
             tokenSource.set(request.source());
         });
 
-        final PlainActionFuture<Tuple<String, String>> tokenFuture = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(auth, auth, Collections.emptyMap(), false, tokenFuture);
-        final String token = tokenFuture.actionGet().v1();
+        final String token = tokenFuture.actionGet().getAccessToken();
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 

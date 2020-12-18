@@ -25,7 +25,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.Collections;
 import java.util.List;
@@ -68,7 +67,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public AllFieldMapper build(BuilderContext context) {
+        public AllFieldMapper build() {
             if (enabled.getValue().value()) {
                 throw new IllegalArgumentException("[_all] is disabled in this version.");
             }
@@ -87,7 +86,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException();
         }
 
@@ -115,7 +114,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 }

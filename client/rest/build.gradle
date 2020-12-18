@@ -48,7 +48,7 @@ tasks.withType(CheckForbiddenApis).configureEach {
   replaceSignatureFiles('jdk-signatures', 'http-signatures')
 }
 
-forbiddenPatterns {
+tasks.named("forbiddenPatterns").configure {
   exclude '**/*.der'
 }
 
@@ -60,9 +60,11 @@ tasks.named('forbiddenApisTest').configure {
 
 // JarHell is part of es server, which we don't want to pull in
 // TODO: Not anymore. Now in :libs:elasticsearch-core
-jarHell.enabled = false
+tasks.named("jarHell").configure {
+  enabled = false
+}
 
-testingConventions {
+tasks.named("testingConventions").configure {
   naming.clear()
   naming {
     Tests {
@@ -71,16 +73,18 @@ testingConventions {
   }
 }
 
-thirdPartyAudit.ignoreMissingClasses(
-  //commons-logging optional dependencies
-  'org.apache.avalon.framework.logger.Logger',
-  'org.apache.log.Hierarchy',
-  'org.apache.log.Logger',
-  'org.apache.log4j.Category',
-  'org.apache.log4j.Level',
-  'org.apache.log4j.Logger',
-  'org.apache.log4j.Priority',
-  //commons-logging provided dependencies
-  'javax.servlet.ServletContextEvent',
-  'javax.servlet.ServletContextListener'
-)
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+          //commons-logging optional dependencies
+          'org.apache.avalon.framework.logger.Logger',
+          'org.apache.log.Hierarchy',
+          'org.apache.log.Logger',
+          'org.apache.log4j.Category',
+          'org.apache.log4j.Level',
+          'org.apache.log4j.Logger',
+          'org.apache.log4j.Priority',
+          //commons-logging provided dependencies
+          'javax.servlet.ServletContextEvent',
+          'javax.servlet.ServletContextListener'
+  )
+}

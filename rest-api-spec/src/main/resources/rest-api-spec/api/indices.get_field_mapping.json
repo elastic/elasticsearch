@@ -5,6 +5,10 @@
       "description":"Returns mapping for one or more fields."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

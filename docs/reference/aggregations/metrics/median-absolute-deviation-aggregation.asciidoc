@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-median-absolute-deviation-aggregation]]
-=== Median Absolute Deviation Aggregation
+=== Median absolute deviation aggregation
+++++
+<titleabbrev>Median absolute deviation</titleabbrev>
+++++
 
 This `single-value` aggregation approximates the {wikipedia}/Median_absolute_deviation[median absolute deviation]
 of its search results.

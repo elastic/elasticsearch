@@ -5,6 +5,8 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.AttributeMap;
@@ -32,7 +34,6 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessT
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
-import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRu
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PruneLiteralsInOrderBy;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.SetAsOptimized;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.TransformDirection;
 import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
@@ -88,6 +90,7 @@ import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.session.EmptyExecutable;
 import org.elasticsearch.xpack.sql.session.SingletonExecutable;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -143,6 +146,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // needs to occur before BinaryComparison combinations (see class)
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new CombineDisjunctionsToIn(),
                 // prune/elimination
                 new PruneLiteralsInGroupBy(),
                 new PruneDuplicatesInGroupBy(),
@@ -160,6 +164,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceAggsWithMatrixStats(),
                 new ReplaceAggsWithExtendedStats(),
                 new ReplaceAggsWithStats(),
+                new ReplaceSumWithStats(),
                 new PromoteStatsToExtendedStats(),
                 new ReplaceAggsWithPercentiles(),
                 new ReplaceAggsWithPercentileRanks()
@@ -212,12 +217,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
 
             // collect aliases
-            plan.forEachUp(p -> p.forEachExpressionsUp(e -> {
+            plan.forEachExpressionsUp(e -> {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
                     collectRefs.put(a.toAttribute(), a.child());
                 }
-            }));
+            });
 
             plan = plan.transformUp(p -> {
                 // non attribute defining plans get their references removed
@@ -233,6 +238,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             });
 
             return plan;
+        }
+    }
+
+    static class CombineDisjunctionsToIn extends org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn {
+
+        @Override
+        protected In createIn(Expression key, List<Expression> values, ZoneId zoneId) {
+            return new In(key.source(), key, values, zoneId);
         }
     }
 
@@ -302,7 +315,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 OrderBy ob = (OrderBy) project.child();
 
                 // resolve function references (that maybe hiding the target)
-                final Map<Attribute, Function> collectRefs = new LinkedHashMap<>();
+                AttributeMap.Builder<Function> collectRefs = AttributeMap.builder();
 
                 // collect Attribute sources
                 // only Aliases are interesting since these are the only ones that hide expressions
@@ -316,7 +329,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }));
 
-                AttributeMap<Function> functions = new AttributeMap<>(collectRefs);
+                AttributeMap<Function> functions = collectRefs.build();
 
                 // track the direct parents
                 Map<String, Order> nestedOrders = new LinkedHashMap<>();
@@ -541,14 +554,14 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             //TODO: this need rewriting when moving functions of NamedExpression
 
             // collect aliases in the lower list
-            Map<Attribute, NamedExpression> map = new LinkedHashMap<>();
+            AttributeMap.Builder<NamedExpression> aliasesBuilder = AttributeMap.builder();
             for (NamedExpression ne : lower) {
                 if ((ne instanceof Attribute) == false) {
-                    map.put(ne.toAttribute(), ne);
+                    aliasesBuilder.put(ne.toAttribute(), ne);
                 }
             }
 
-            AttributeMap<NamedExpression> aliases = new AttributeMap<>(map);
+            AttributeMap<NamedExpression> aliases = aliasesBuilder.build();
             List<NamedExpression> replaced = new ArrayList<>();
 
             // replace any matching attribute with a lower alias (if there's a match)
@@ -971,6 +984,39 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    // This class is a workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // and SUM(all nulls)
+    // NOTE: this rule should always be applied AFTER the ReplaceAggsWithStats rule
+    static class ReplaceSumWithStats extends OptimizerBasicRule {
+        
+        @Override 
+        public LogicalPlan apply(LogicalPlan plan) {
+            final Map<Expression, Stats> statsPerField = new LinkedHashMap<>();
+            
+            plan.forEachExpressionsUp(e -> {
+                if (e instanceof Sum) {
+                    statsPerField.computeIfAbsent(((Sum) e).field(), field -> {
+                        Source source = new Source(field.sourceLocation(), "STATS(" + field.sourceText() + ")");
+                        return new Stats(source, field);
+                    });
+                }
+            });
+            
+            if (statsPerField.isEmpty() == false) {
+                plan = plan.transformExpressionsUp(e -> {
+                    if (e instanceof Sum) {
+                        Sum sum = (Sum) e;
+                        return new InnerAggregate(sum, statsPerField.get(sum.field()));
+                    }
+                    return e;
+                });
+            }
+            
+            return plan;
+        }
+    }
+
     static class PromoteStatsToExtendedStats extends OptimizerBasicRule {
 
         @Override
@@ -1006,39 +1052,50 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
+    private static class PercentileKey extends Tuple<Expression, PercentilesConfig> {
+        PercentileKey(Percentile per) {
+            super(per.field(), per.percentilesConfig());
+        }
+
+        PercentileKey(PercentileRank per) {
+            super(per.field(), per.percentilesConfig());
+        }
+        
+        private Expression field() {
+            return v1();
+        }
+        
+        private PercentilesConfig percentilesConfig() {
+            return v2();
+        }
+    }
+
     static class ReplaceAggsWithPercentiles extends OptimizerBasicRule {
 
         @Override
         public LogicalPlan apply(LogicalPlan p) {
-            // percentile per field/expression
-            Map<Expression, Set<Expression>> percentsPerField = new LinkedHashMap<>();
+            Map<PercentileKey, Set<Expression>> percentsPerAggKey = new LinkedHashMap<>();
 
-            // count gather the percents for each field
             p.forEachExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    Expression field = per.field();
-                    Set<Expression> percentiles = percentsPerField.get(field);
-
-                    if (percentiles == null) {
-                        percentiles = new LinkedHashSet<>();
-                        percentsPerField.put(field, percentiles);
-                    }
-
-                    percentiles.add(per.percent());
+                    percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>())
+                        .add(per.percent());
                 }
             });
 
-            Map<Expression, Percentiles> percentilesPerField = new LinkedHashMap<>();
-            // create a Percentile agg for each field (and its associated percents)
-            percentsPerField.forEach((k, v) -> {
-                percentilesPerField.put(k, new Percentiles(v.iterator().next().source(), k, new ArrayList<>(v)));
-            });
+            // create a Percentile agg for each agg key
+            Map<PercentileKey, Percentiles> percentilesPerAggKey = new LinkedHashMap<>();
+            percentsPerAggKey.forEach((aggKey, percents) -> percentilesPerAggKey.put(
+                    aggKey,
+                    new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents), 
+                        aggKey.percentilesConfig())));
 
             return p.transformExpressionsUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
-                    Percentiles percentiles = percentilesPerField.get(per.field());
+                    PercentileKey a = new PercentileKey(per);
+                    Percentiles percentiles = percentilesPerAggKey.get(a);
                     return new InnerAggregate(per, percentiles);
                 }
 
@@ -1051,35 +1108,27 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan p) {
-            // percentile per field/expression
-            final Map<Expression, Set<Expression>> percentPerField = new LinkedHashMap<>();
+            final Map<PercentileKey, Set<Expression>> valuesPerAggKey = new LinkedHashMap<>();
 
-            // count gather the percents for each field
             p.forEachExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    Expression field = per.field();
-                    Set<Expression> percentiles = percentPerField.get(field);
-
-                    if (percentiles == null) {
-                        percentiles = new LinkedHashSet<>();
-                        percentPerField.put(field, percentiles);
-                    }
-
-                    percentiles.add(per.value());
+                    valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>())
+                        .add(per.value());
                 }
             });
 
-            Map<Expression, PercentileRanks> ranksPerField = new LinkedHashMap<>();
-            // create a PercentileRanks agg for each field (and its associated values)
-            percentPerField.forEach((k, v) -> {
-                ranksPerField.put(k, new PercentileRanks(v.iterator().next().source(), k, new ArrayList<>(v)));
-            });
+            // create a PercentileRank agg for each agg key
+            Map<PercentileKey, PercentileRanks> ranksPerAggKey = new LinkedHashMap<>();
+            valuesPerAggKey.forEach((aggKey, values) -> ranksPerAggKey.put(
+                aggKey,
+                new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values), 
+                    aggKey.percentilesConfig())));
 
             return p.transformExpressionsUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
-                    PercentileRanks ranks = ranksPerField.get(per.field());
+                    PercentileRanks ranks = ranksPerAggKey.get(new PercentileKey(per));
                     return new InnerAggregate(per, ranks);
                 }
 

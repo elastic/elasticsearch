@@ -23,6 +23,8 @@ public class RuntimeFieldsPainlessExtension implements PainlessExtension {
             DateFieldScript.whitelist(),
             DoubleFieldScript.CONTEXT,
             DoubleFieldScript.whitelist(),
+            GeoPointFieldScript.CONTEXT,
+            GeoPointFieldScript.whitelist(),
             IpFieldScript.CONTEXT,
             IpFieldScript.whitelist(),
             LongFieldScript.CONTEXT,

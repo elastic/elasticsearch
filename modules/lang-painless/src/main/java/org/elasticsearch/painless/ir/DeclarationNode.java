@@ -20,12 +20,7 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Opcodes;
 
 public class DeclarationNode extends StatementNode {
 
@@ -41,32 +36,7 @@ public class DeclarationNode extends StatementNode {
         return expressionNode;
     }
 
-    /* ---- end tree structure, begin node data ---- */
-
-    protected String name;
-    protected Class<?> declarationType;
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setDeclarationType(Class<?> declarationType) {
-        this.declarationType = declarationType;
-    }
-
-    public Class<?> getDeclarationType() {
-        return declarationType;
-    }
-
-    public String getDeclarationCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(declarationType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -86,32 +56,4 @@ public class DeclarationNode extends StatementNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeStatementOffset(getLocation());
-
-        Variable variable = writeScope.defineVariable(declarationType, name);
-
-        if (expressionNode == null) {
-            Class<?> sort = variable.getType();
-
-            if (sort == void.class || sort == boolean.class || sort == byte.class ||
-                    sort == short.class || sort == char.class || sort == int.class) {
-                methodWriter.push(0);
-            } else if (sort == long.class) {
-                methodWriter.push(0L);
-            } else if (sort == float.class) {
-                methodWriter.push(0F);
-            } else if (sort == double.class) {
-                methodWriter.push(0D);
-            } else {
-                methodWriter.visitInsn(Opcodes.ACONST_NULL);
-            }
-        } else {
-            expressionNode.write(writeScope);
-        }
-
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-    }
 }

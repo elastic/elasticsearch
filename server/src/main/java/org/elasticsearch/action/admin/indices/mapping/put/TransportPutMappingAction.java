@@ -26,22 +26,21 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.RequestValidators;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -51,12 +50,13 @@ import java.util.Optional;
 /**
  * Put mapping action.
  */
-public class TransportPutMappingAction extends TransportMasterNodeAction<PutMappingRequest, AcknowledgedResponse> {
+public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAction<PutMappingRequest> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutMappingAction.class);
 
     private final MetadataMappingService metadataMappingService;
     private final RequestValidators<PutMappingRequest> requestValidators;
+    private final SystemIndices systemIndices;
 
     @Inject
     public TransportPutMappingAction(
@@ -66,22 +66,13 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
             final MetadataMappingService metadataMappingService,
             final ActionFilters actionFilters,
             final IndexNameExpressionResolver indexNameExpressionResolver,
-            final RequestValidators<PutMappingRequest> requestValidators) {
+            final RequestValidators<PutMappingRequest> requestValidators,
+            final SystemIndices systemIndices) {
         super(PutMappingAction.NAME, transportService, clusterService, threadPool, actionFilters, PutMappingRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.metadataMappingService = metadataMappingService;
         this.requestValidators = Objects.requireNonNull(requestValidators);
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
+        this.systemIndices = systemIndices;
     }
 
     @Override
@@ -100,12 +91,25 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                                    final ActionListener<AcknowledgedResponse> listener) {
         try {
             final Index[] concreteIndices = resolveIndices(state, request, indexNameExpressionResolver);
+            final String mappingSource = request.source();
 
             final Optional<Exception> maybeValidationException = requestValidators.validateRequest(request, state, concreteIndices);
             if (maybeValidationException.isPresent()) {
                 listener.onFailure(maybeValidationException.get());
                 return;
             }
+
+            final List<String> violations = checkForSystemIndexViolations(concreteIndices, mappingSource);
+            if (violations.isEmpty() == false) {
+                final String message = "Cannot update mappings in "
+                    + violations
+                    + ": system indices can only use mappings from their descriptors, "
+                    + "but the mappings in the request did not match those in the descriptors(s)";
+                logger.warn(message);
+                listener.onFailure(new IllegalArgumentException(message));
+                return;
+            }
+
             performMappingUpdate(concreteIndices, request, listener, metadataMappingService);
         } catch (IndexNotFoundException ex) {
             logger.debug(() -> new ParameterizedMessage("failed to put mappings on indices [{}], type [{}]",
@@ -140,11 +144,11 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
                     .indices(concreteIndices).type(request.type())
                     .source(request.source());
 
-        metadataMappingService.putMapping(updateRequest, new ActionListener<ClusterStateUpdateResponse>() {
+        metadataMappingService.putMapping(updateRequest, new ActionListener<AcknowledgedResponse>() {
 
             @Override
-            public void onResponse(ClusterStateUpdateResponse response) {
-                listener.onResponse(new AcknowledgedResponse(response.isAcknowledged()));
+            public void onResponse(AcknowledgedResponse response) {
+                listener.onResponse(response);
             }
 
             @Override
@@ -156,4 +160,21 @@ public class TransportPutMappingAction extends TransportMasterNodeAction<PutMapp
         });
     }
 
+    private List<String> checkForSystemIndexViolations(Index[] concreteIndices, String requestMappings) {
+        List<String> violations = new ArrayList<>();
+
+        for (Index index : concreteIndices) {
+            final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
+            if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+                final String descriptorMappings = descriptor.getMappings();
+
+                // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually
+                // update a descriptor's mappings.
+                if (descriptorMappings.equals(requestMappings) == false) {
+                    violations.add(index.getName());
+                }
+            }
+        }
+        return violations;
+    }
 }

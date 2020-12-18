@@ -854,20 +854,20 @@ setup:
             }
           }
 ---
-"Test for_export flag":
+"Test exclude_generated flag":
   - do:
       ml.get_trained_models:
         model_id: "a-regression-model-1"
-        for_export: true
+        exclude_generated: true
         include: "definition"
         decompress_definition: false
 
   - match: { trained_model_configs.0.description: "empty model for tests" }
+  - match: { trained_model_configs.0.model_id: "a-regression-model-1" }
   - is_true:  trained_model_configs.0.compressed_definition
   - is_true:  trained_model_configs.0.input
   - is_true:  trained_model_configs.0.inference_config
   - is_true:  trained_model_configs.0.tags
-  - is_false: trained_model_configs.0.model_id
   - is_false: trained_model_configs.0.created_by
   - is_false: trained_model_configs.0.version
   - is_false: trained_model_configs.0.create_time

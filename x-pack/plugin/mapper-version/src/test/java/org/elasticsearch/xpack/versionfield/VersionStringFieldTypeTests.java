@@ -6,13 +6,9 @@
 
 package org.elasticsearch.xpack.versionfield;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -20,10 +16,7 @@ import java.util.Collections;
 public class VersionStringFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
-        MappedFieldType mapper = new VersionStringFieldMapper.Builder("field").build(context).fieldType();
+        MappedFieldType mapper = new VersionStringFieldMapper.Builder("field").build(new ContentPath()).fieldType();
         assertEquals(Collections.singletonList("value"), fetchSourceValue(mapper, "value"));
         assertEquals(Collections.singletonList("42"), fetchSourceValue(mapper, 42L));
         assertEquals(Collections.singletonList("true"), fetchSourceValue(mapper, true));

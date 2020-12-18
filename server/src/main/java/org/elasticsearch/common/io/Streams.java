@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedReader;
 import java.io.FilterInputStream;
+import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -209,6 +210,27 @@ public abstract class Streams {
      */
     public static InputStream noCloseStream(InputStream stream) {
         return new FilterInputStream(stream) {
+            @Override
+            public void close() {
+                // noop
+            }
+        };
+    }
+
+    /**
+     * Wraps an {@link OutputStream} such that it's {@code close} method becomes a noop
+     *
+     * @param stream {@code OutputStream} to wrap
+     * @return wrapped {@code OutputStream}
+     */
+    public static OutputStream noCloseStream(OutputStream stream) {
+        return new FilterOutputStream(stream) {
+
+            @Override
+            public void write(byte[] b, int off, int len) throws IOException {
+                out.write(b, off, len);
+            }
+
             @Override
             public void close() {
                 // noop

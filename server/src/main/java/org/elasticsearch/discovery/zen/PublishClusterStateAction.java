@@ -41,7 +41,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
@@ -81,8 +80,8 @@ public class PublishClusterStateAction {
 
     // -> no need to put a timeout on the options, because we want the state response to eventually be received
     //  and not log an error if it arrives after the timeout
-    private final TransportRequestOptions stateRequestOptions = TransportRequestOptions.builder()
-        .withType(TransportRequestOptions.Type.STATE).build();
+    private static final TransportRequestOptions STATE_REQUEST_OPTIONS =
+            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE);
 
     public interface IncomingClusterStateListener {
 
@@ -294,7 +293,7 @@ public class PublishClusterStateAction {
 
             transportService.sendRequest(node, SEND_ACTION_NAME,
                     new BytesTransportRequest(bytes, node.getVersion()),
-                    stateRequestOptions,
+                    STATE_REQUEST_OPTIONS,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override
@@ -329,7 +328,7 @@ public class PublishClusterStateAction {
                 clusterState.stateUUID(), clusterState.version(), node);
             transportService.sendRequest(node, COMMIT_ACTION_NAME,
                     new CommitClusterStateRequest(clusterState.stateUUID()),
-                    stateRequestOptions,
+                    STATE_REQUEST_OPTIONS,
                     new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
 
                         @Override

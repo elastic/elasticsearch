@@ -1,0 +1,2 @@
+elasticsearch-nio: org.elasticsearch.nio.ChannelFactory
+netty-common: io.netty.util.NettyRuntime

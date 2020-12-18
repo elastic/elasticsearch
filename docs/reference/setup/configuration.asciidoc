@@ -66,6 +66,23 @@ path.data: /var/lib/elasticsearch
 path.logs: /var/log/elasticsearch
 --------------------------------------------------
 
+In YAML, you can format non-scalar values as sequences:
+
+[source,yaml]
+----
+discovery.seed_hosts:
+   - 192.168.1.10:9300
+   - 192.168.1.11
+   - seeds.mydomain.com
+----
+
+Though less common, you can also format non-scalar values as arrays:
+
+[source,yaml]
+----
+discovery.seed_hosts: ["192.168.1.10:9300", "192.168.1.11", "seeds.mydomain.com"]
+----
+
 [discrete]
 === Environment variable substitution
 

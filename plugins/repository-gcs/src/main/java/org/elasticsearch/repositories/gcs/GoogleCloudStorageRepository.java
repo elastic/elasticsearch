@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoryException;
@@ -76,8 +77,10 @@ class GoogleCloudStorageRepository extends MeteredBlobStoreRepository {
         final NamedXContentRegistry namedXContentRegistry,
         final GoogleCloudStorageService storageService,
         final ClusterService clusterService,
+        final BigArrays bigArrays,
         final RecoverySettings recoverySettings) {
-        super(metadata, getSetting(COMPRESS, metadata), namedXContentRegistry, clusterService, recoverySettings, buildLocation(metadata));
+        super(metadata, getSetting(COMPRESS, metadata), namedXContentRegistry, clusterService, bigArrays, recoverySettings,
+                buildLocation(metadata));
         this.storageService = storageService;
 
         String basePath = BASE_PATH.get(metadata.settings());

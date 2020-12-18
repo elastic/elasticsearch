@@ -87,6 +87,9 @@
         },
         "constant_keyword" : {
             "type" : "constant_keyword"
+        },
+        "bool" : {
+            "type" : "boolean"
         }
     }
 }

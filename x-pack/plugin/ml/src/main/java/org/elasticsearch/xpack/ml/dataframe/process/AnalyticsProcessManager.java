@@ -83,7 +83,7 @@ public class AnalyticsProcessManager {
         this(
             settings,
             client,
-            threadPool.generic(),
+            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME),
             threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME),
             analyticsProcessFactory,
             auditor,
@@ -451,7 +451,7 @@ public class AnalyticsProcessManager {
             }
             if (process.get() != null) {
                 try {
-                    process.get().kill();
+                    process.get().kill(true);
                 } catch (IOException e) {
                     LOGGER.error(new ParameterizedMessage("[{}] Failed to kill process", config.getId()), e);
                 }

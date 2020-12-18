@@ -25,6 +25,7 @@ import java.util.Collections;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -53,7 +54,12 @@ public class RegressionEvaluationIT extends MlNativeDataFrameAnalyticsIntegTestC
         assertThat(evaluateDataFrameResponse.getEvaluationName(), equalTo(Regression.NAME.getPreferredName()));
         assertThat(
             evaluateDataFrameResponse.getMetrics().stream().map(EvaluationMetricResult::getMetricName).collect(toList()),
-            contains(MeanSquaredError.NAME.getPreferredName(), RSquared.NAME.getPreferredName()));
+            containsInAnyOrder(
+                MeanSquaredError.NAME.getPreferredName(),
+                RSquared.NAME.getPreferredName(),
+                Huber.NAME.getPreferredName()
+            )
+        );
     }
 
     public void testEvaluate_AllMetrics() {

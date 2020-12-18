@@ -80,6 +80,10 @@ public class Huber implements EvaluationMetric {
         this.delta = in.readDouble();
     }
 
+    public Huber() {
+        this(DEFAULT_DELTA);
+    }
+
     public Huber(@Nullable Double delta) {
         this.delta = delta != null ? delta : DEFAULT_DELTA;
     }

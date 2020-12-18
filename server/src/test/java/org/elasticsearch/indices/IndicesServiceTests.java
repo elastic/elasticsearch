@@ -65,7 +65,6 @@ import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.RegexMatcher;
 
 import java.io.IOException;
@@ -457,8 +456,8 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .numberOfReplicas(0)
             .build();
         MapperService mapperService = indicesService.createIndexMapperService(indexMetadata);
-        assertNotNull(mapperService.documentMapperParser().parserContext().typeParser("fake-mapper"));
-        Similarity sim = mapperService.documentMapperParser().parserContext().getSimilarity("test").get();
+        assertNotNull(mapperService.parserContext().typeParser("fake-mapper"));
+        Similarity sim = mapperService.parserContext().getSimilarity("test").get();
         assertThat(sim, instanceOf(NonNegativeScoresSimilarity.class));
         sim = ((NonNegativeScoresSimilarity) sim).getDelegate();
         assertThat(sim, instanceOf(BM25Similarity.class));
@@ -514,15 +513,6 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertThat(indexStats.isEmpty(), equalTo(false));
         assertThat("index not defined", indexStats.containsKey(index), equalTo(true));
         assertThat("unexpected shard stats", indexStats.get(index), equalTo(shardStats));
-    }
-
-    public void testIsMetadataField() {
-        IndicesService indicesService = getIndicesService();
-        final Version randVersion = VersionUtils.randomVersionBetween(random(), Version.V_6_0_0, Version.CURRENT);
-        assertFalse(indicesService.isMetadataField(randVersion, randomAlphaOfLengthBetween(10, 15)));
-        for (String builtIn : IndicesModule.getBuiltInMetadataFields()) {
-            assertTrue(indicesService.isMetadataField(randVersion, builtIn));
-        }
     }
 
     public void testGetEngineFactory() throws IOException {

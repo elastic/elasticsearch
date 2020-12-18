@@ -9,6 +9,7 @@ import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -20,17 +21,19 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse;
+import org.elasticsearch.rest.RestRequestFilter;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 
 /**
  * Rest handler for handling access token invalidation requests
  */
-public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
+public final class RestInvalidateTokenAction extends TokenBaseRestHandler implements RestRequestFilter {
 
     static final ConstructingObjectParser<InvalidateTokenRequest, Void> PARSER =
         new ConstructingObjectParser<>("invalidate_token", a -> {
@@ -96,5 +99,12 @@ public final class RestInvalidateTokenAction extends TokenBaseRestHandler {
                     }
                 });
         }
+    }
+
+    private static final Set<String> FILTERED_FIELDS = Collections.unmodifiableSet(Sets.newHashSet("token", "refresh_token"));
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
     }
 }

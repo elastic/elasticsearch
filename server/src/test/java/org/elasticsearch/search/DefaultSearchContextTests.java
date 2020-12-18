@@ -34,9 +34,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.IndexCache;
@@ -49,7 +46,6 @@ import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.LegacyReaderContext;
 import org.elasticsearch.search.internal.ReaderContext;
@@ -84,6 +80,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
         when(shardSearchRequest.types()).thenReturn(new String[]{});
+        when(shardSearchRequest.shardIndex()).thenReturn(shardId.id());
+        when(shardSearchRequest.numberOfShards()).thenReturn(2);
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);
@@ -109,7 +107,9 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
+        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject())).thenReturn(
+            queryShardContext
+        );
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -118,8 +118,6 @@ public class DefaultSearchContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
         when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
@@ -147,7 +145,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
 
             DefaultSearchContext contextWithoutScroll = new DefaultSearchContext(readerWithoutScroll, shardSearchRequest, target, null,
-                bigArrays, null, timeout, null, false, Version.CURRENT);
+                timeout, null, false, Version.CURRENT);
             contextWithoutScroll.from(300);
             contextWithoutScroll.close();
 
@@ -163,7 +161,7 @@ public class DefaultSearchContextTests extends ESTestCase {
             ReaderContext readerContext = new LegacyReaderContext(
                 newContextId(), indexService, indexShard, searcherSupplier.get(), shardSearchRequest, randomNonNegativeLong());
             DefaultSearchContext context1 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
-                bigArrays, null, timeout, null, false, Version.CURRENT);
+                timeout, null, false, Version.CURRENT);
             context1.from(300);
             exception = expectThrows(IllegalArgumentException.class, () -> context1.preProcess(false));
             assertThat(exception.getMessage(), equalTo("Batch size is too large, size must be less than or equal to: ["
@@ -197,7 +195,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 newContextId(), indexService, indexShard, searcherSupplier.get(), randomNonNegativeLong(), false);
             // rescore is null but sliceBuilder is not null
             DefaultSearchContext context2 = new DefaultSearchContext(readerContext, shardSearchRequest, target,
-                null, bigArrays, null, timeout, null, false, Version.CURRENT);
+                null, timeout, null, false, Version.CURRENT);
 
             SliceBuilder sliceBuilder = mock(SliceBuilder.class);
             int numSlices = maxSlicesPerScroll + randomIntBetween(1, 100);
@@ -214,19 +212,18 @@ public class DefaultSearchContextTests extends ESTestCase {
             when(shardSearchRequest.indexBoost()).thenReturn(AbstractQueryBuilder.DEFAULT_BOOST);
 
             DefaultSearchContext context3 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
-                bigArrays, null, timeout, null, false, Version.CURRENT);
+                timeout, null, false, Version.CURRENT);
             ParsedQuery parsedQuery = ParsedQuery.parsedMatchAllQuery();
             context3.sliceBuilder(null).parsedQuery(parsedQuery).preProcess(false);
             assertEquals(context3.query(), context3.buildFilteredQuery(parsedQuery.query()));
 
             when(queryShardContext.getIndexSettings()).thenReturn(indexSettings);
             when(queryShardContext.getFieldType(anyString())).thenReturn(mock(MappedFieldType.class));
-            when(shardSearchRequest.indexRoutings()).thenReturn(new String[0]);
 
             readerContext.close();
             readerContext = new ReaderContext(newContextId(), indexService, indexShard,
                 searcherSupplier.get(), randomNonNegativeLong(), false);
-            DefaultSearchContext context4 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null, bigArrays, null,
+            DefaultSearchContext context4 = new DefaultSearchContext(readerContext, shardSearchRequest, target, null,
                 timeout, null, false, Version.CURRENT);
             context4.sliceBuilder(new SliceBuilder(1,2)).parsedQuery(parsedQuery).preProcess(false);
             Query query1 = context4.query();
@@ -254,9 +251,9 @@ public class DefaultSearchContextTests extends ESTestCase {
 
         IndexService indexService = mock(IndexService.class);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString())).thenReturn(queryShardContext);
-
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject())).thenReturn(
+            queryShardContext
+        );
 
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);
@@ -281,7 +278,7 @@ public class DefaultSearchContextTests extends ESTestCase {
                 newContextId(), indexService, indexShard, searcherSupplier, randomNonNegativeLong(), false);
 
             DefaultSearchContext context = new DefaultSearchContext(
-                readerContext, shardSearchRequest, target, null, bigArrays, null, timeout, null, false, Version.CURRENT);
+                readerContext, shardSearchRequest, target, null, timeout, null, false, Version.CURRENT);
             assertThat(context.searcher().hasCancellations(), is(false));
             context.searcher().addQueryCancellation(() -> {});
             assertThat(context.searcher().hasCancellations(), is(true));

@@ -1,0 +1,80 @@
+setup:
+
+  - skip:
+      version: " - 7.99.99"
+      reason: "collapse on unsigned_long was added in 8.0"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          settings:
+            index.number_of_shards: 3
+          mappings:
+            properties:
+              ul:
+                type: unsigned_long
+              k:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ul": 0, "k": "01" }
+          { "index": {"_id" : "2"} }
+          { "ul": 0, "k": "02" }
+          { "index": {"_id" : "3"} }
+          { "ul": 9223372036854775807, "k": "03" }
+          { "index": {"_id" : "4"} }
+          { "ul": 9223372036854775807, "k": "04" }
+          { "index": {"_id" : "5"} }
+          { "ul": 9223372036854775808, "k": "05" }
+          { "index": {"_id" : "6"} }
+          { "ul": 9223372036854775808, "k": "06" }
+          { "index": {"_id" : "7"} }
+          { "ul": 18446744073709551614, "k": "07" }
+          { "index": {"_id" : "8"} }
+          { "ul": 18446744073709551615, "k": "08" }
+          { "index": {"_id" : "9"} }
+          { "ul": 18446744073709551615, "k": "09" }
+          { "index": {"_id" : "10"} }
+          { "ul": 18446744073709551615, "k": "10" }
+
+---
+"Collapse":
+  - do:
+      search:
+        index: test1
+        body:
+          collapse:
+            field: ul
+            inner_hits:
+              name: my_inner_hits
+              _source : false
+              size: 3
+          sort: [ "k" ]
+
+  - match: { hits.total.value: 10 }
+
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.0.fields.ul: [0] }
+  - match: { hits.hits.0.inner_hits.my_inner_hits.hits.total.value: 2 }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.ul: [9223372036854775807] }
+  - match: { hits.hits.1.inner_hits.my_inner_hits.hits.total.value: 2 }
+
+  - match: { hits.hits.2._id: "5" }
+  - match: { hits.hits.2.fields.ul: [9223372036854775808] }
+  - match: { hits.hits.2.inner_hits.my_inner_hits.hits.total.value: 2 }
+
+  - match: { hits.hits.3._id: "7" }
+  - match: { hits.hits.3.fields.ul: [18446744073709551614] }
+  - match: { hits.hits.3.inner_hits.my_inner_hits.hits.total.value: 1 }
+
+  - match: { hits.hits.4._id: "8" }
+  - match: { hits.hits.4.fields.ul: [18446744073709551615] }
+  - match: { hits.hits.4.inner_hits.my_inner_hits.hits.total.value: 3 }

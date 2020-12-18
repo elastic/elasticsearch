@@ -5,6 +5,10 @@
       "description":"Retrieves roles in the native realm."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -14,8 +18,8 @@
           ],
           "parts":{
             "name":{
-              "type":"string",
-              "description":"Role name"
+              "type":"list",
+              "description":"A comma-separated list of role names"
             }
           }
         },

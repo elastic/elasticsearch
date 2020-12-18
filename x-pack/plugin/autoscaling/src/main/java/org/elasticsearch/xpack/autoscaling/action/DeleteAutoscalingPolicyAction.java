@@ -22,7 +22,7 @@ public class DeleteAutoscalingPolicyAction extends ActionType<AcknowledgedRespon
     public static final String NAME = "cluster:admin/autoscaling/delete_autoscaling_policy";
 
     private DeleteAutoscalingPolicyAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<DeleteAutoscalingPolicyAction.Request> {

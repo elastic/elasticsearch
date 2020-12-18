@@ -18,22 +18,27 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
@@ -48,7 +53,6 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -76,6 +80,7 @@ public class ReadOnlyEngine extends Engine {
     private final boolean requireCompleteHistory;
 
     protected volatile TranslogStats translogStats;
+    protected final String commitId;
 
     /**
      * Creates a new ReadOnlyEngine. This ctor can also be used to open a read-only engine on top of an already opened
@@ -107,6 +112,7 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
+                this.commitId = Lucene.getCommitId(lastCommittedSegmentInfos);
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -226,8 +232,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
-        return getFromSearcher(get, searcherFactory, SearcherScope.EXTERNAL);
+    public GetResult get(Get get, DocumentMapper mapper, Function<Searcher, Searcher> searcherWrapper) {
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
     }
 
     @Override
@@ -399,6 +405,16 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
                            boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
+        if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
+            // noop
+        } else if (maxNumSegments < lastCommittedSegmentInfos.size()) {
+            throw new UnsupportedOperationException("force merge is not supported on a read-only engine, " +
+                "target max number of segments[" + maxNumSegments + "], " +
+                "current number of segments[" + lastCommittedSegmentInfos.size() + "].");
+        } else {
+            logger.debug("current number of segments[{}] is not greater than target max number of segments[{}].",
+                lastCommittedSegmentInfos.size(), maxNumSegments);
+        }
     }
 
     @Override
@@ -529,5 +545,49 @@ public class ReadOnlyEngine extends Engine {
     @Override
     public CompletionStats completionStats(String... fieldNamePatterns) {
         return completionStatsCache.get(fieldNamePatterns);
+    }
+
+    /**
+     * @return a {@link ShardLongFieldRange} containing the min and max raw values of the given field for this shard, or {@link
+     * ShardLongFieldRange#EMPTY} if this field is not found or empty.
+     */
+    @Override
+    public ShardLongFieldRange getRawFieldRange(String field) throws IOException {
+        try (Searcher searcher = acquireSearcher("field_range")) {
+            final DirectoryReader directoryReader = searcher.getDirectoryReader();
+
+            final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);
+            final byte[] maxPackedValue = PointValues.getMaxPackedValue(directoryReader, field);
+
+            if (minPackedValue == null || maxPackedValue == null) {
+                assert minPackedValue == null && maxPackedValue == null
+                        : Arrays.toString(minPackedValue) + "-" + Arrays.toString(maxPackedValue);
+                return ShardLongFieldRange.EMPTY;
+            }
+
+            return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
+        }
+    }
+
+
+    @Override
+    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
+        return new SearcherSupplier(Function.identity()) {
+            @Override
+            protected void doClose() {
+                delegate.close();
+            }
+
+            @Override
+            protected Searcher acquireSearcherInternal(String source) {
+                return delegate.acquireSearcherInternal(source);
+            }
+
+            @Override
+            public String getCommitId() {
+                return commitId;
+            }
+        };
     }
 }

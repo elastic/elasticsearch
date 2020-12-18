@@ -180,7 +180,6 @@ public class TreeInferenceModel implements InferenceModel {
                     classificationLabel(classificationValue.getValue(), classificationLabels),
                     topClasses.v2(),
                     InferenceHelpers.transformFeatureImportanceClassification(decodedFeatureImportance,
-                        classificationValue.getValue(),
                         classificationLabels,
                         classificationConfig.getPredictionFieldType()),
                     config,

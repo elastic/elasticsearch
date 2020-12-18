@@ -55,7 +55,6 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.InboundPipeline;
-import org.elasticsearch.transport.OutboundHandler;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
@@ -366,15 +365,8 @@ public class MockNioTransport extends TcpTransport {
         }
 
         @Override
-        public void sendMessage(OutboundHandler.SendContext sendContext) {
-            final BytesReference message;
-            try {
-                message = sendContext.get();
-            } catch (IOException e) {
-                sendContext.onFailure(e);
-                return;
-            }
-            getContext().sendMessage(BytesReference.toByteBuffers(message), ActionListener.toBiConsumer(sendContext));
+        public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+            getContext().sendMessage(BytesReference.toByteBuffers(reference), ActionListener.toBiConsumer(listener));
         }
     }
 

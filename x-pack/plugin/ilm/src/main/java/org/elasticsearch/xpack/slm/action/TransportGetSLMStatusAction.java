@@ -15,14 +15,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 import org.elasticsearch.xpack.core.slm.action.GetSLMStatusAction;
-
-import java.io.IOException;
 
 public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSLMStatusAction.Request, GetSLMStatusAction.Response> {
 
@@ -30,17 +27,7 @@ public class TransportGetSLMStatusAction extends TransportMasterNodeAction<GetSL
     public TransportGetSLMStatusAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetSLMStatusAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetSLMStatusAction.Request::new, indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetSLMStatusAction.Response read(StreamInput in) throws IOException {
-        return new GetSLMStatusAction.Response(in);
+            GetSLMStatusAction.Request::new, indexNameExpressionResolver, GetSLMStatusAction.Response::new, ThreadPool.Names.SAME);
     }
 
     @Override

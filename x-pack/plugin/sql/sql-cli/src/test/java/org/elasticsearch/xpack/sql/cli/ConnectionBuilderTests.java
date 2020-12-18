@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.sql.cli;
 
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.client.ConnectionConfiguration;
 import org.elasticsearch.xpack.sql.client.SslConfig;
+
 import java.net.URI;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -21,12 +21,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class ConnectionBuilderTests extends ESTestCase {
+public class ConnectionBuilderTests extends SqlCliTestCase {
 
     public void testDefaultConnection() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
-        boolean binaryCommunication = randomBoolean();
+        boolean binaryCommunication = random().nextBoolean();
         ConnectionConfiguration con = connectionBuilder.buildConnection(null, null, binaryCommunication);
         assertNull(con.authUser());
         assertNull(con.authPass());
@@ -109,7 +109,7 @@ public class ConnectionBuilderTests extends ESTestCase {
 
     public void testUserGaveUpOnPassword() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
-        UserException ue = new UserException(randomInt(), randomAlphaOfLength(5));
+        UserException ue = new UserException(random().nextInt(), randomAlphaOfLength(5));
         when(testTerminal.readPassword("password: ")).thenThrow(ue);
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal);
         UserException actual = expectThrows(UserException.class, () ->
@@ -119,7 +119,7 @@ public class ConnectionBuilderTests extends ESTestCase {
 
     public void testUserGaveUpOnKeystorePassword() throws Exception {
         CliTerminal testTerminal = mock(CliTerminal.class);
-        UserException ue = new UserException(randomInt(), randomAlphaOfLength(5));
+        UserException ue = new UserException(random().nextInt(), randomAlphaOfLength(5));
         when(testTerminal.readPassword("keystore password: ")).thenThrow(ue);
         when(testTerminal.readPassword("password: ")).thenReturn("password");
         ConnectionBuilder connectionBuilder = new ConnectionBuilder(testTerminal) {
@@ -132,7 +132,7 @@ public class ConnectionBuilderTests extends ESTestCase {
             buildConnection(connectionBuilder, "https://user@foobar:9242/", "keystore_location"));
         assertSame(actual, ue);
     }
-    
+
     private ConnectionConfiguration buildConnection(ConnectionBuilder builder, String connectionStringArg,
                                                     String keystoreLocation) throws UserException {
         return builder.buildConnection(connectionStringArg, keystoreLocation, randomBoolean());

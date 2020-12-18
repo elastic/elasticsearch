@@ -31,14 +31,13 @@ import static java.util.Collections.unmodifiableMap;
  */
 public class LeafSearchLookup {
 
-    final LeafReaderContext ctx;
-    final LeafDocLookup docMap;
-    final SourceLookup sourceLookup;
-    final LeafFieldsLookup fieldsLookup;
-    final Map<String, Object> asMap;
+    private final LeafReaderContext ctx;
+    private final LeafDocLookup docMap;
+    private final SourceLookup sourceLookup;
+    private final LeafStoredFieldsLookup fieldsLookup;
+    private final Map<String, Object> asMap;
 
-    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup,
-            LeafFieldsLookup fieldsLookup) {
+    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafStoredFieldsLookup fieldsLookup) {
         this.ctx = ctx;
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
@@ -60,7 +59,7 @@ public class LeafSearchLookup {
         return this.sourceLookup;
     }
 
-    public LeafFieldsLookup fields() {
+    public LeafStoredFieldsLookup fields() {
         return this.fieldsLookup;
     }
 

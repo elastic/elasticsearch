@@ -44,7 +44,7 @@ public final class CommitStats implements Writeable, ToXContentFragment {
         userData = MapBuilder.<String, String>newMapBuilder().putAll(segmentInfos.getUserData()).immutableMap();
         // lucene calls the current generation, last generation.
         generation = segmentInfos.getLastGeneration();
-        id = Base64.getEncoder().encodeToString(segmentInfos.getId());
+        id = Lucene.getCommitId(segmentInfos);
         numDocs = Lucene.getNumDocs(segmentInfos);
     }
 

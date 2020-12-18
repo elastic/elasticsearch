@@ -41,6 +41,7 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -54,6 +55,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
@@ -75,7 +77,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
         final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()), taskManager) {
+            new ActionFilters(Collections.emptySet()), mock(Transport.Connection.class), taskManager) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
             }

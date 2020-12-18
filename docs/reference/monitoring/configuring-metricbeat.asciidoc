@@ -43,7 +43,7 @@ For more information, see <<monitoring-settings>> and <<cluster-update-settings>
 --
 
 . {metricbeat-ref}/metricbeat-installation-configuration.html[Install {metricbeat}] on each
-{es} node in the production cluster.
+{es} node in the production cluster.  Failure to install on each node may result in incomplete or missing results.
 
 . Enable the {es} {xpack} module in {metricbeat} on each {es} node.
 +

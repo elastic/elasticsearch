@@ -165,7 +165,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
                 .stream()
                 .map(i -> ((SingleValueInferenceResults)i).valueAsString())
                 .collect(Collectors.toList()),
-            contains("not_to_be", "to_be"));
+            contains("no", "yes"));
 
         // Get top classes
         request = new InternalInferModelAction.Request(modelId2, toInfer, new ClassificationConfigUpdate(2, null, null, null, null), true);
@@ -174,14 +174,14 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
         ClassificationInferenceResults classificationInferenceResults =
             (ClassificationInferenceResults)response.getInferenceResults().get(0);
 
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("not_to_be"));
-        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("no"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("yes"));
         assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(1);
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("to_be"));
-        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("not_to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("yes"));
+        assertThat(classificationInferenceResults.getTopClasses().get(1).getClassification(), equalTo("no"));
         // they should always be in order of Most probable to least
         assertThat(classificationInferenceResults.getTopClasses().get(0).getProbability(),
             greaterThan(classificationInferenceResults.getTopClasses().get(1).getProbability()));
@@ -192,7 +192,7 @@ public class ModelInferenceActionIT extends MlSingleNodeTestCase {
 
         classificationInferenceResults = (ClassificationInferenceResults)response.getInferenceResults().get(0);
         assertThat(classificationInferenceResults.getTopClasses(), hasSize(1));
-        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("to_be"));
+        assertThat(classificationInferenceResults.getTopClasses().get(0).getClassification(), equalTo("yes"));
     }
 
     public void testInferModelMultiClassModel() throws Exception {

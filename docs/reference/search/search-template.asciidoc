@@ -57,17 +57,17 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 Defaults to `true`.
 
 `ccs_minimize_roundtrips`::
-  (Optional, boolean) If `true`, network round-trips are minimized for
+  (Optional, Boolean) If `true`, network round-trips are minimized for
  cross-cluster search requests. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 
 `explain`::
-  (Optional, boolean) If `true`, the response includes additional details about
+  (Optional, Boolean) If `true`, the response includes additional details about
   score computation as part of a hit. Defaults to `false`.
 
 `ignore_throttled`::
-  (Optional, boolean) If `true`, specified concrete, expanded or aliased indices
+  (Optional, Boolean) If `true`, specified concrete, expanded or aliased indices
   are not included in the response when throttled. Defaults to `true`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
@@ -75,11 +75,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=preference]
 
 `profile`::
-  (Optional, boolean) If `true`, the query execution is profiled. Defaults
+  (Optional, Boolean) If `true`, the query execution is profiled. Defaults
   to `false`.
 
 `rest_total_hits_as_int`::
-  (Optional, boolean) If `true`, `hits.total` are rendered as an integer in
+  (Optional, Boolean) If `true`, `hits.total` are rendered as an integer in
   the response. Defaults to `false`.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
@@ -89,7 +89,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
 `typed_keys`::
-  (Optional, boolean) If `true`, aggregation and suggester names are
+  (Optional, Boolean) If `true`, aggregation and suggester names are
   prefixed by their respective types in the response. Defaults to `false`.
 
 

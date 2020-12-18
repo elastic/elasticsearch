@@ -196,7 +196,6 @@ public class TDigestPercentilesAggregatorTests extends AggregatorTestCase {
                 TDigestPercentilesAggregator aggregator = createAggregator(builder, indexSearcher, fieldType);
                 aggregator.preCollection();
                 indexSearcher.search(query, aggregator);
-                aggregator.postCollection();
                 verify.accept((InternalTDigestPercentiles) aggregator.buildAggregation(0L));
             }
         }

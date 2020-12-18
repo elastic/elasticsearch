@@ -28,7 +28,7 @@ public class PutPipelineAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ingest/pipeline/put";
 
     public PutPipelineAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

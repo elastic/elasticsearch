@@ -19,7 +19,6 @@
 package org.elasticsearch.common.geo.parsers;
 
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoShapeType;
 import org.elasticsearch.common.geo.builders.CoordinatesBuilder;
@@ -78,9 +77,8 @@ public class GeoWKTParser {
                                                  final AbstractShapeGeometryFieldMapper shapeMapper)
             throws IOException, ElasticsearchParseException {
         try (StringReader reader = new StringReader(parser.text())) {
-            Explicit<Boolean> ignoreZValue = (shapeMapper == null) ? AbstractShapeGeometryFieldMapper.Defaults.IGNORE_Z_VALUE :
-                shapeMapper.ignoreZValue();
-            Explicit<Boolean> coerce = (shapeMapper == null) ? AbstractShapeGeometryFieldMapper.Defaults.COERCE : shapeMapper.coerce();
+            boolean coerce = shapeMapper != null && shapeMapper.coerce();
+            boolean ignoreZValue = shapeMapper == null || shapeMapper.ignoreZValue();
             // setup the tokenizer; configured to read words w/o numbers
             StreamTokenizer tokenizer = new StreamTokenizer(reader);
             tokenizer.resetSyntax();
@@ -93,7 +91,7 @@ public class GeoWKTParser {
             tokenizer.wordChars('.', '.');
             tokenizer.whitespaceChars(0, ' ');
             tokenizer.commentChar('#');
-            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue.value(), coerce.value());
+            ShapeBuilder builder = parseGeometry(tokenizer, shapeType, ignoreZValue, coerce);
             checkEOF(tokenizer);
             return builder;
         }
@@ -258,7 +256,7 @@ public class GeoWKTParser {
             return null;
         }
         PolygonBuilder builder = new PolygonBuilder(parseLinearRing(stream, ignoreZValue, coerce),
-            AbstractShapeGeometryFieldMapper.Defaults.ORIENTATION.value());
+            ShapeBuilder.Orientation.RIGHT);
         while (nextCloserOrComma(stream).equals(COMMA)) {
             builder.hole(parseLinearRing(stream, ignoreZValue, coerce));
         }

@@ -7,9 +7,7 @@
 [id="{upid}-{api}"]
 === Put trained models API
 
-experimental:[]
-
-experimental::[]
+beta::[]
 
 Creates a new trained model for inference.
 The API accepts a +{request}+ object as a request and returns a +{response}+.

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.transport;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
@@ -102,7 +103,11 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
                     } else if (TransportService.HANDSHAKE_ACTION_NAME.equals(action)) {
                         TransportResponseHandler transportResponseHandler = responseHandlers.onResponseReceived(requestId, listener);
                         Version version = node.getVersion();
-                        transportResponseHandler.handleResponse(new TransportService.HandshakeResponse(node, clusterName, version));
+                        transportResponseHandler.handleResponse(new TransportService.HandshakeResponse(
+                                version,
+                                Build.CURRENT.hash(),
+                                node,
+                                clusterName));
 
                     } else {
                         throw new UnsupportedOperationException("Mock transport does not understand action " + action);

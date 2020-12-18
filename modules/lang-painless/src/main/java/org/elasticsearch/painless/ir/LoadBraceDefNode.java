@@ -19,32 +19,12 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.DefBootstrap;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
 
 public class LoadBraceDefNode extends ExpressionNode {
 
-    private Class<?> indexType;
-
-    public void setIndexType(Class<?> indexType) {
-        this.indexType = indexType;
-    }
-
-    public Class<?> getIndexType() {
-        return indexType;
-    }
-
-    public String getIndexCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(indexType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -62,14 +42,4 @@ public class LoadBraceDefNode extends ExpressionNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeDebugInfo(getLocation());
-        Type methodType = Type.getMethodType(
-                MethodWriter.getType(getExpressionType()),
-                MethodWriter.getType(def.class),
-                MethodWriter.getType(indexType));
-        methodWriter.invokeDefCall("arrayLoad", methodType, DefBootstrap.ARRAY_LOAD);
-    }
 }

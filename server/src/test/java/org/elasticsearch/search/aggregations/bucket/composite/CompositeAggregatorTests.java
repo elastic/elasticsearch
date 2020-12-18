@@ -51,18 +51,15 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -103,8 +100,6 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class CompositeAggregatorTests  extends AggregatorTestCase {
     private static MappedFieldType[] FIELD_TYPES;
@@ -129,16 +124,6 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
     public void tearDown() throws Exception {
         super.tearDown();
         FIELD_TYPES = null;
-    }
-
-    @Override
-    protected MapperService mapperServiceMock() {
-        MapperService mapperService = mock(MapperService.class);
-        DocumentMapper mapper = mock(DocumentMapper.class);
-        when(mapper.typeText()).thenReturn(new Text("_doc"));
-        when(mapper.type()).thenReturn("_doc");
-        when(mapperService.documentMapper()).thenReturn(mapper);
-        return mapperService;
     }
 
     public void testUnmappedFieldWithTerms() throws Exception {
@@ -2133,7 +2118,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             )
         );
 
-        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -2153,7 +2138,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         // source field and index sorting config have different order
-        executeTestCase(true, new TermQuery(new Term("foo", "bar")),
+        executeTestCase(true, true, new TermQuery(new Term("foo", "bar")),
             dataset,
             () ->
                 new CompositeAggregationBuilder("name",
@@ -2190,7 +2175,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         );
 
         for (SortOrder order : SortOrder.values()) {
-            executeTestCase(true, new MatchAllDocsQuery(),
+            executeTestCase(false, true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2213,7 +2198,7 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                 }
             );
 
-            executeTestCase(true, new MatchAllDocsQuery(),
+            executeTestCase(false, true, new MatchAllDocsQuery(),
                 dataset,
                 () ->
                     new CompositeAggregationBuilder("name",
@@ -2243,12 +2228,13 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
                                 Supplier<CompositeAggregationBuilder> create,
                                 Consumer<InternalComposite> verify) throws IOException {
         for (Query query : queries) {
-            executeTestCase(false, query, dataset, create, verify);
-            executeTestCase(true, query, dataset, create, verify);
+            executeTestCase(false, false, query, dataset, create, verify);
+            executeTestCase(false, true, query, dataset, create, verify);
         }
     }
 
-    private void executeTestCase(boolean useIndexSort,
+    private void executeTestCase(boolean forceMerge,
+                                 boolean useIndexSort,
                                  Query query,
                                  List<Map<String, List<Object>>> dataset,
                                  Supplier<CompositeAggregationBuilder> create,
@@ -2266,13 +2252,28 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
             }
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 Document document = new Document();
+                int id = 0;
                 for (Map<String, List<Object>> fields : dataset) {
-                    addToDocument(document, fields);
-                    indexWriter.addDocument(document);
                     document.clear();
+                    addToDocument(id, document, fields);
+                    indexWriter.addDocument(document);
+                    id++;
                 }
-                if (rarely()) {
+                if (forceMerge || rarely()) {
+                    // forceMerge randomly or if the collector-per-leaf testing stuff would break the tests.
                     indexWriter.forceMerge(1);
+                } else {
+                    if (dataset.size() > 0) {
+                        int numDeletes = randomIntBetween(1, 25);
+                        for (int i = 0; i < numDeletes; i++) {
+                            id = randomIntBetween(0, dataset.size() - 1);
+                            indexWriter.deleteDocuments(new Term("id", Integer.toString(id)));
+                            document.clear();
+                            addToDocument(id, document, dataset.get(id));
+                            indexWriter.addDocument(document);
+                        }
+                    }
+
                 }
             }
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
@@ -2298,7 +2299,8 @@ public class CompositeAggregatorTests  extends AggregatorTestCase {
         return IndexSettingsModule.newIndexSettings(new Index("_index", "0"), builder.build());
     }
 
-    private void addToDocument(Document doc, Map<String, List<Object>> keys) {
+    private void addToDocument(int id, Document doc, Map<String, List<Object>> keys) {
+        doc.add(new StringField("id", Integer.toString(id), Field.Store.NO));
         for (Map.Entry<String, List<Object>> entry : keys.entrySet()) {
             final String name = entry.getKey();
             for (Object value : entry.getValue()) {

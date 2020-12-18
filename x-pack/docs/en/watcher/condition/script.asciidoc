@@ -1,6 +1,9 @@
 [role="xpack"]
 [[condition-script]]
-=== Script condition
+=== {watcher} script condition
+++++
+<titleabbrev>Script condition</titleabbrev>
+++++
 
 A watch <<condition,condition>> that evaluates a script. The default scripting
 language is `painless`. You can use any of the scripting languages supported by

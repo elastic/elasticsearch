@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.HashMap;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.Matchers.any;
@@ -180,7 +181,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-                    System::currentTimeMillis, null, null, () -> true, null);
+                    System::currentTimeMillis, null, null, () -> true, null, emptyMap());
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
@@ -220,7 +221,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
         QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-            System::currentTimeMillis, null, null, () -> true, null);
+            System::currentTimeMillis, null, null, () -> true, null, emptyMap());
         if (randomBoolean()) {
             mockShardContext.setAllowUnmappedFields(randomBoolean());
         }

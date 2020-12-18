@@ -10,6 +10,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -35,6 +36,7 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -58,6 +60,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
 import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.junit.After;
 
@@ -428,7 +431,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
@@ -511,7 +515,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
 
@@ -726,7 +731,7 @@ public class DataStreamIT extends ESIntegTestCase {
             + "        }\n"
             + "      }\n"
             + "    }";
-        putComposableIndexTemplate("id1", mapping, List.of("logs-foo*"), null);
+        putComposableIndexTemplate("id1", mapping, List.of("logs-foo*"), null, null);
 
         CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
@@ -911,7 +916,7 @@ public class DataStreamIT extends ESIntegTestCase {
 
     public void testGetDataStream() throws Exception {
         Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, maximumNumberOfReplicas() + 2).build();
-        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings);
+        putComposableIndexTemplate("template_for_foo", null, List.of("metrics-foo*"), settings, null);
 
         int numDocsFoo = randomIntBetween(2, 16);
         indexDocs("metrics-foo", numDocsFoo);
@@ -921,7 +926,7 @@ public class DataStreamIT extends ESIntegTestCase {
             new GetDataStreamAction.Request(new String[] { "metrics-foo" })
         ).actionGet();
         assertThat(response.getDataStreams().size(), is(1));
-        GetDataStreamAction.Response.DataStreamInfo metricsFooDataStream = response.getDataStreams().get(0);
+        DataStreamInfo metricsFooDataStream = response.getDataStreams().get(0);
         assertThat(metricsFooDataStream.getDataStream().getName(), is("metrics-foo"));
         assertThat(metricsFooDataStream.getDataStreamStatus(), is(ClusterHealthStatus.YELLOW));
         assertThat(metricsFooDataStream.getIndexTemplate(), is("template_for_foo"));
@@ -973,7 +978,8 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, createTemplateRequest).actionGet();
@@ -1093,9 +1099,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "data stream [logs-foobar] could create backing indices that conflict with 1 "
-                    + "existing index(s) or alias(s) including '.ds-logs-foobar-000002'"
+            startsWith(
+                "data stream [logs-foobar] could create backing indices that conflict with 1"
+                    + " existing index(s) or alias(s) including '.ds-logs-foobar"
             )
         );
     }
@@ -1113,6 +1119,41 @@ public class DataStreamIT extends ESIntegTestCase {
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         assertThat(searchResponse.getHits().getTotalHits().relation, equalTo(TotalHits.Relation.EQUAL_TO));
+    }
+
+    public void testDataStreamMetadata() throws Exception {
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0).build();
+        putComposableIndexTemplate("id1", null, List.of("logs-*"), settings, Map.of("managed_by", "core-features"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("logs-foobar");
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(new String[] { "*" });
+        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
+            .actionGet();
+        getDataStreamResponse.getDataStreams().sort(Comparator.comparing(dataStreamInfo -> dataStreamInfo.getDataStream().getName()));
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        DataStreamInfo info = getDataStreamResponse.getDataStreams().get(0);
+        assertThat(info.getIndexTemplate(), equalTo("id1"));
+        assertThat(info.getDataStreamStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(info.getIlmPolicy(), nullValue());
+        DataStream dataStream = info.getDataStream();
+        assertThat(dataStream.getName(), equalTo("logs-foobar"));
+        assertThat(dataStream.getTimeStampField().getName(), equalTo("@timestamp"));
+        assertThat(dataStream.getIndices().size(), equalTo(1));
+        assertThat(dataStream.getIndices().get(0).getName(), equalTo(DataStream.getDefaultBackingIndexName("logs-foobar", 1)));
+        assertThat(dataStream.getMetadata(), equalTo(Map.of("managed_by", "core-features")));
+    }
+
+    public void testClusterStateIncludeDataStream() throws Exception {
+        putComposableIndexTemplate("id1", List.of("metrics-foo*"));
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("metrics-foo");
+        client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
+
+        // when querying a backing index then the data stream should be included as well.
+        ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-*000001");
+        ClusterState state = client().admin().cluster().state(request).get().getState();
+        assertThat(state.metadata().dataStreams().size(), equalTo(1));
+        assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));
     }
 
     private static void verifyResolvability(String dataStream, ActionRequestBuilder<?, ?> requestBuilder, boolean fail) {
@@ -1153,7 +1194,7 @@ public class DataStreamIT extends ESIntegTestCase {
         }
     }
 
-    private static void indexDocs(String dataStream, int numDocs) {
+    static void indexDocs(String dataStream, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
         for (int i = 0; i < numDocs; i++) {
             String value = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
@@ -1174,28 +1215,33 @@ public class DataStreamIT extends ESIntegTestCase {
         client().admin().indices().refresh(new RefreshRequest(dataStream)).actionGet();
     }
 
-    private static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
+    static void verifyDocs(String dataStream, long expectedNumHits, java.util.List<String> expectedIndices) {
         SearchRequest searchRequest = new SearchRequest(dataStream);
         searchRequest.source().size((int) expectedNumHits);
         SearchResponse searchResponse = client().search(searchRequest).actionGet();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(expectedNumHits));
 
+        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> { assertTrue(expectedIndices.contains(hit.getIndex())); });
+    }
+
+    static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {
         java.util.List<String> expectedIndices = new ArrayList<>();
         for (long k = minGeneration; k <= maxGeneration; k++) {
             expectedIndices.add(DataStream.getDefaultBackingIndexName(dataStream, k));
         }
-        Arrays.stream(searchResponse.getHits().getHits()).forEach(hit -> { assertTrue(expectedIndices.contains(hit.getIndex())); });
+        verifyDocs(dataStream, expectedNumHits, expectedIndices);
     }
 
     public static void putComposableIndexTemplate(String id, java.util.List<String> patterns) throws IOException {
-        putComposableIndexTemplate(id, null, patterns, null);
+        putComposableIndexTemplate(id, null, patterns, null, null);
     }
 
     static void putComposableIndexTemplate(
         String id,
         @Nullable String mappings,
         java.util.List<String> patterns,
-        @Nullable Settings settings
+        @Nullable Settings settings,
+        @Nullable java.util.Map<String, Object> metadata
     ) throws IOException {
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
@@ -1205,8 +1251,9 @@ public class DataStreamIT extends ESIntegTestCase {
                 null,
                 null,
                 null,
-                null,
-                new ComposableIndexTemplate.DataStreamTemplate()
+                metadata,
+                new ComposableIndexTemplate.DataStreamTemplate(),
+                null
             )
         );
         client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();

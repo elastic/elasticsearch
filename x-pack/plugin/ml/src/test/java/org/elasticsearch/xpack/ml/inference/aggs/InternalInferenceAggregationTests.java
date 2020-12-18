@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.aggs;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -53,11 +54,8 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(super.getNamedXContents());
-        entries.add(new NamedXContentRegistry.Entry(Aggregation.class,
-            new ParseField(InferencePipelineAggregationBuilder.NAME), (p, c) -> ParsedInference.fromXContent(p, (String)c)));
-
-        return entries;
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(InferencePipelineAggregationBuilder.NAME), (p, c) -> ParsedInference.fromXContent(p, (String) c)));
     }
 
     @Override

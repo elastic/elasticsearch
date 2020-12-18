@@ -125,7 +125,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -154,7 +154,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fieldMapper, instanceOf(CompletionFieldMapper.class));
         MappedFieldType completionFieldType = ((CompletionFieldMapper) fieldMapper).fieldType();
 
-        NamedAnalyzer indexAnalyzer = completionFieldType.indexAnalyzer();
+        NamedAnalyzer indexAnalyzer = (NamedAnalyzer) ((CompletionFieldMapper) fieldMapper).indexAnalyzers().values().iterator().next();
         assertThat(indexAnalyzer.name(), equalTo("simple"));
         assertThat(indexAnalyzer.analyzer(), instanceOf(CompletionAnalyzer.class));
         CompletionAnalyzer analyzer = (CompletionAnalyzer) indexAnalyzer.analyzer();
@@ -743,7 +743,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertWarnings("You have defined more than [10] completion contexts in the mapping for index [null]. " +
+        assertWarnings("You have defined more than [10] completion contexts in the mapping for field [field]. " +
             "The maximum allowed number of completion contexts in a mapping will be limited to [10] starting in version [8.0].");
     }
 

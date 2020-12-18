@@ -127,8 +127,11 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
-        long numGroupsWithoutScripts = groupConfig.getGroups().values().stream()
-            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null).count();
+        long numGroupsWithoutScripts = groupConfig.getGroups()
+            .values()
+            .stream()
+            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null)
+            .count();
 
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
@@ -191,8 +194,11 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
         AggregationConfig aggregationConfig = new AggregationConfig(Collections.emptyMap(), aggs);
         GroupConfig groupConfig = GroupConfigTests.randomGroupConfig();
         PivotConfig pivotConfig = new PivotConfig(groupConfig, aggregationConfig, null);
-        long numGroupsWithoutScripts = groupConfig.getGroups().values().stream()
-            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null).count();
+        long numGroupsWithoutScripts = groupConfig.getGroups()
+            .values()
+            .stream()
+            .filter(singleGroupSource -> singleGroupSource.getScriptConfig() == null)
+            .count();
 
         this.<Map<String, String>>assertAsync(
             listener -> SchemaUtil.deduceMappings(client, pivotConfig, new String[] { "source-index" }, listener),
@@ -219,7 +225,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                     23144,
                     AggregationResultUtilsTests.createSingleMetricAgg("max_drinks_2", 45.0, "forty_five")
                 );
-                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(asMap("max_drinks_2", 45.0)));
+                assertThat(AggregationResultUtils.getExtractor(agg).value(agg, mappings, ""), equalTo(asMap("max_drinks_2", 45L)));
 
                 agg = AggregationResultUtilsTests.createSingleBucketAgg(
                     "filter_3",

@@ -28,11 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.io.IOException;
 
 /**
  * Types exists transport action.
@@ -44,18 +41,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
                                       ThreadPool threadPool, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
         super(TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, TypesExistsRequest::new,
-            indexNameExpressionResolver);
-    }
-
-    @Override
-    protected String executor() {
-        // lightweight check
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected TypesExistsResponse read(StreamInput in) throws IOException {
-        return new TypesExistsResponse(in);
+            indexNameExpressionResolver, TypesExistsResponse::new, ThreadPool.Names.SAME);
     }
 
     @Override

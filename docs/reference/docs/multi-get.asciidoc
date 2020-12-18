@@ -97,7 +97,7 @@ Required if no index is specified in the request URI.
 Required if routing is used during indexing.
 
 `_source`::
-(Optional, boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
+(Optional, Boolean) If `false`,  excludes all `_source` fields. Defaults to `true`.
 `source_include`:::
 (Optional, array) The fields to extract and return from the `_source` field.
 `source_exclude`:::

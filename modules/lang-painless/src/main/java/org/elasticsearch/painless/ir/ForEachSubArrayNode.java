@@ -20,109 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.elasticsearch.painless.symbol.WriteScope.Variable;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
-public class ForEachSubArrayNode extends LoopNode {
+public class ForEachSubArrayNode extends ConditionNode {
 
-    /* ---- begin node data ---- */
-
-    private Class<?> variableType;
-    private String variableName;
-    private PainlessCast cast;
-    private Class<?> arrayType;
-    private String arrayName;
-    private Class<?> indexType;
-    private String indexName;
-    private Class<?> indexedType;
-
-    public void setVariableType(Class<?> variableType) {
-        this.variableType = variableType;
-    }
-
-    public Class<?> getVariableType() {
-        return variableType;
-    }
-
-    public String getVariableCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(variableType);
-    }
-
-    public void setVariableName(String variableName) {
-        this.variableName = variableName;
-    }
-
-    public String getVariableName() {
-        return variableName;
-    }
-
-    public void setCast(PainlessCast cast) {
-        this.cast = cast;
-    }
-
-    public PainlessCast getCast() {
-        return cast;
-    }
-
-    public void setArrayType(Class<?> arrayType) {
-        this.arrayType = arrayType;
-    }
-
-    public Class<?> getArrayType() {
-        return arrayType;
-    }
-
-    public String getArrayCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(arrayType);
-    }
-
-    public void setArrayName(String arrayName) {
-        this.arrayName = arrayName;
-    }
-
-    public String getArrayName() {
-        return arrayName;
-    }
-
-    public void setIndexType(Class<?> indexType) {
-        this.indexType = indexType;
-    }
-
-    public Class<?> getIndexType() {
-        return indexType;
-    }
-
-    public String getIndexCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(indexType);
-    }
-
-    public void setIndexName(String indexName) {
-        this.indexName = indexName;
-    }
-
-    public String getIndexName() {
-        return indexName;
-    }
-
-    public void setIndexedType(Class<?> indexedType) {
-        this.indexedType = indexedType;
-    }
-
-    public Class<?> getIndexedType() {
-        return indexedType;
-    }
-
-    public String getIndexedCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(indexedType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -141,46 +43,4 @@ public class ForEachSubArrayNode extends LoopNode {
         super(location);
     }
 
-    @Override
-    protected void write(WriteScope writeScope) {
-        MethodWriter methodWriter = writeScope.getMethodWriter();
-        methodWriter.writeStatementOffset(getLocation());
-
-        Variable variable = writeScope.defineVariable(variableType, variableName);
-        Variable array = writeScope.defineInternalVariable(arrayType, arrayName);
-        Variable index = writeScope.defineInternalVariable(indexType, indexName);
-
-        getConditionNode().write(writeScope);
-        methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ISTORE), array.getSlot());
-        methodWriter.push(-1);
-        methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ISTORE), index.getSlot());
-
-        Label begin = new Label();
-        Label end = new Label();
-
-        methodWriter.mark(begin);
-
-        methodWriter.visitIincInsn(index.getSlot(), 1);
-        methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.arrayLength();
-        methodWriter.ifICmp(MethodWriter.GE, end);
-
-        methodWriter.visitVarInsn(array.getAsmType().getOpcode(Opcodes.ILOAD), array.getSlot());
-        methodWriter.visitVarInsn(index.getAsmType().getOpcode(Opcodes.ILOAD), index.getSlot());
-        methodWriter.arrayLoad(MethodWriter.getType(indexedType));
-        methodWriter.writeCast(cast);
-        methodWriter.visitVarInsn(variable.getAsmType().getOpcode(Opcodes.ISTORE), variable.getSlot());
-
-        Variable loop = writeScope.getInternalVariable("loop");
-
-        if (loop != null) {
-            methodWriter.writeLoopCounter(loop.getSlot(), getLocation());
-        }
-
-        getBlockNode().write(writeScope.newLoopScope(begin, end));
-
-        methodWriter.goTo(begin);
-        methodWriter.mark(end);
-    }
 }

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security.authc.esnative;
 
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.core.security.action.role.PutRoleResponse;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.action.user.DeleteUserResponse;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -675,7 +675,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
                 .admin().cluster().prepareHealth().get();
         assertThat(response.isTimedOut(), is(false));
 
-        ChangePasswordResponse passwordResponse = securityClient(
+        ActionResponse.Empty passwordResponse = securityClient(
                 client().filterWithHeader(Collections.singletonMap("Authorization", token)))
             .prepareChangePassword("joe", SecuritySettingsSourceField.TEST_PASSWORD.toCharArray(), hasher).get();
         assertThat(passwordResponse, notNullValue());

@@ -75,27 +75,25 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         Map<String, String> requires = AllocateActionTests.randomMap(1, 5);
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED));
 
+        logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
+            includes, excludes, requires);
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(true, null));
@@ -121,6 +119,42 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
         assertAllocateStatus(index, 1, 0, step, existingSettings, node1Settings, Settings.builder(), indexRoutingTable,
             new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
+    }
+
+    public void testClusterExcludeFiltersConditionMetOnlyOneCopyAllocated() {
+        Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
+            .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
+
+        boolean primaryOnNode1 = randomBoolean();
+        IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", primaryOnNode1, ShardRoutingState.STARTED))
+            .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
+                ShardRoutingState.STARTED));
+
+        AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
+        IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(existingSettings).numberOfShards(1)
+            .numberOfReplicas(1).build();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indices = ImmutableOpenMap.<String, IndexMetadata>builder().fPut(index.getName(),
+            indexMetadata);
+
+        Settings clusterSettings = Settings.builder()
+            .put("cluster.routing.allocation.exclude._id", "node1")
+            .build();
+        Settings.Builder nodeSettingsBuilder = Settings.builder();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().indices(indices.build()).transientSettings(clusterSettings))
+            .nodes(DiscoveryNodes.builder()
+                .add(DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9200),
+                    "node1"))
+                .add(DiscoveryNode.createLocal(nodeSettingsBuilder.build(), new TransportAddress(TransportAddress.META_ADDRESS, 9201),
+                    "node2")))
+            .routingTable(RoutingTable.builder().add(indexRoutingTable).build()).build();
+        Result actualResult = step.isConditionMet(index, clusterState);
+
+        Result expectedResult = new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(1, 1));
+        assertEquals(expectedResult.isComplete(), actualResult.isComplete());
+        assertEquals(expectedResult.getInfomationContext(), actualResult.getInfomationContext());
     }
 
     public void testExcludeConditionMetOnlyOneCopyAllocated() {
@@ -174,12 +208,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._id", "node1")
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         boolean primaryOnNode1 = randomBoolean();
@@ -206,21 +238,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -228,6 +256,8 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), "node2", true, ShardRoutingState.STARTED));
 
+        logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
+            includes, excludes, requires);
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
@@ -243,21 +273,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -267,7 +293,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node2", primaryOnNode1 == false,
                         ShardRoutingState.STARTED));
 
+
         AllocationRoutedStep step = new AllocationRoutedStep(randomStepKey(), randomStepKey());
+        logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
+            includes, excludes, requires);
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, allShardsActiveAllocationInfo(0, 1)));
     }
@@ -282,21 +311,17 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
             () -> AllocateActionTests.randomMap(1, 5));
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
                 .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
         includes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
         excludes.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + k, v);
         });
         requires.forEach((k, v) -> {
             existingSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
             node1Settings.put(Node.NODE_ATTRIBUTES.getKey() + k, v);
         });
 
@@ -305,6 +330,8 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
                 .addShard(TestShardRouting.newShardRouting(new ShardId(index, 1), null, null, true, ShardRoutingState.UNASSIGNED,
                         new UnassignedInfo(randomFrom(Reason.values()), "the shard is intentionally unassigned")));
 
+        logger.info("running test with routing configurations:\n\t includes: [{}]\n\t excludes: [{}]\n\t requires: [{}]",
+            includes, excludes, requires);
         AllocationRoutedStep step = createRandomInstance();
         assertAllocateStatus(index, 2, 0, step, existingSettings, node1Settings, node2Settings, indexRoutingTable,
                 new ClusterStateWaitStep.Result(false, waitingForActiveShardsAllocationInfo(0)));
@@ -329,15 +356,10 @@ public class AllocationRoutedStepTests extends AbstractStepTestCase<AllocationRo
      */
     public void testExecuteReplicasNotAllocatedOnSingleNode() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
-        Map<String, String> requires = Collections.singletonMap("_name", "node1");
         Settings.Builder existingSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id)
             .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID());
-        Settings.Builder expectedSettings = Settings.builder();
         Settings.Builder node1Settings = Settings.builder();
         Settings.Builder node2Settings = Settings.builder();
-        requires.forEach((k, v) -> {
-            expectedSettings.put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + k, v);
-        });
 
         IndexRoutingTable.Builder indexRoutingTable = IndexRoutingTable.builder(index)
             .addShard(TestShardRouting.newShardRouting(new ShardId(index, 0), "node1", true, ShardRoutingState.STARTED))

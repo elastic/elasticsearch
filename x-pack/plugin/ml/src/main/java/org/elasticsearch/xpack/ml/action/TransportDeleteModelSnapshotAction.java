@@ -93,7 +93,7 @@ public class TransportDeleteModelSnapshotAction extends HandledTransportAction<D
                                                 auditor.info(request.getJobId(), msg);
                                                 logger.debug(() -> new ParameterizedMessage("[{}] {}", request.getJobId(), msg));
                                                 // We don't care about the bulk response, just that it succeeded
-                                                listener.onResponse(new AcknowledgedResponse(true));
+                                                listener.onResponse(AcknowledgedResponse.TRUE);
                                             }
 
                                             @Override

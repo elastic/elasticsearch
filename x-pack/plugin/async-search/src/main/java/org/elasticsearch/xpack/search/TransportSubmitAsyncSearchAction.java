@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.async.AsyncExecutionId;
 import org.elasticsearch.xpack.core.async.AsyncTaskIndexService;
@@ -136,7 +137,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
 
     private SearchRequest createSearchRequest(SubmitAsyncSearchRequest request, Task submitTask, TimeValue keepAlive) {
         String docID = UUIDs.randomBase64UUID();
-        Map<String, String> originHeaders = nodeClient.threadPool().getThreadContext().getHeaders();
+        Map<String, String> originHeaders = ClientHelper.filterSecurityHeaders(nodeClient.threadPool().getThreadContext().getHeaders());
         SearchRequest searchRequest = new SearchRequest(request.getSearchRequest()) {
             @Override
             public AsyncSearchTask createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> taskHeaders) {
@@ -173,24 +174,12 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     private void onFinalResponse(AsyncSearchTask searchTask,
                                  AsyncSearchResponse response,
                                  Runnable nextAction) {
-        if (searchTask.isCancelled()) {
-            // the task was cancelled so we ensure that there is nothing stored in the response index.
-            store.deleteResponse(searchTask.getExecutionId(), ActionListener.wrap(
-                resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
-                exc -> {
-                    logger.error(() -> new ParameterizedMessage("failed to clean async-search [{}]",
-                        searchTask.getExecutionId().getEncoded()), exc);
-                    unregisterTaskAndMoveOn(searchTask, nextAction);
-                }));
-            return;
-       }
-
         store.updateResponse(searchTask.getExecutionId().getDocId(), threadContext.getResponseHeaders(),response,
             ActionListener.wrap(resp -> unregisterTaskAndMoveOn(searchTask, nextAction),
                 exc -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(exc);
                     if (cause instanceof DocumentMissingException == false &&
-                        cause instanceof VersionConflictEngineException == false) {
+                            cause instanceof VersionConflictEngineException == false) {
                         logger.error(() -> new ParameterizedMessage("failed to store async-search [{}]",
                             searchTask.getExecutionId().getEncoded()), exc);
                     }

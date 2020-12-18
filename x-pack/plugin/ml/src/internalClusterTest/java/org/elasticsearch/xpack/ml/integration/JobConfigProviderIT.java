@@ -153,7 +153,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
         blockingCall(actionListener -> jobConfigProvider.updateJob
-                (jobId, jobUpdate, new ByteSizeValue(32), actionListener), updateJobResponseHolder, exceptionHolder);
+                (jobId, jobUpdate, ByteSizeValue.ofBytes(32), actionListener), updateJobResponseHolder, exceptionHolder);
         assertNull(exceptionHolder.get());
         assertEquals("This job has been updated", updateJobResponseHolder.get().getDescription());
 
@@ -210,7 +210,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
                 .build();
 
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
-        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, new ByteSizeValue(32),
+        blockingCall(actionListener -> jobConfigProvider.updateJob(jobId, invalidUpdate, ByteSizeValue.ofBytes(32),
             actionListener), updateJobResponseHolder, exceptionHolder);
         assertNull(updateJobResponseHolder.get());
         assertNotNull(exceptionHolder.get());
@@ -235,7 +235,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
         AtomicReference<Job> updateJobResponseHolder = new AtomicReference<>();
         // update with the no-op validator
         blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(
-            jobId, jobUpdate, new ByteSizeValue(32), validator, actionListener), updateJobResponseHolder, exceptionHolder);
+            jobId, jobUpdate, ByteSizeValue.ofBytes(32), validator, actionListener), updateJobResponseHolder, exceptionHolder);
 
         assertNull(exceptionHolder.get());
         assertNotNull(updateJobResponseHolder.get());
@@ -247,7 +247,7 @@ public class JobConfigProviderIT extends MlSingleNodeTestCase {
 
         updateJobResponseHolder.set(null);
         // Update with a validator that errors
-        blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, new ByteSizeValue(32),
+        blockingCall(actionListener -> jobConfigProvider.updateJobWithValidation(jobId, jobUpdate, ByteSizeValue.ofBytes(32),
                 validatorWithAnError, actionListener),
                 updateJobResponseHolder, exceptionHolder);
 

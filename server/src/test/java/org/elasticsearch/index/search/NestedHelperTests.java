@@ -43,6 +43,8 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
+
 public class NestedHelperTests extends ESSingleNodeTestCase {
 
     IndexService indexService;
@@ -333,7 +335,7 @@ public class NestedHelperTests extends ESSingleNodeTestCase {
     }
 
     public void testNested() throws IOException {
-        QueryShardContext context = indexService.newQueryShardContext(0, new IndexSearcher(new MultiReader()), () -> 0, null);
+        QueryShardContext context = indexService.newQueryShardContext(0, new IndexSearcher(new MultiReader()), () -> 0, null, emptyMap());
         NestedQueryBuilder queryBuilder = new NestedQueryBuilder("nested1", new MatchAllQueryBuilder(), ScoreMode.Avg);
         ESToParentBlockJoinQuery query = (ESToParentBlockJoinQuery) queryBuilder.toQuery(context);
 

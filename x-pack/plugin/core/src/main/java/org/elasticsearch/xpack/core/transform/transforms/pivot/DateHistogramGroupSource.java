@@ -348,9 +348,4 @@ public class DateHistogramGroupSource extends SingleGroupSource {
     public int hashCode() {
         return Objects.hash(field, scriptConfig, missingBucket, interval, timeZone);
     }
-
-    @Override
-    public boolean supportsIncrementalBucketUpdate() {
-        return false;
-    }
 }

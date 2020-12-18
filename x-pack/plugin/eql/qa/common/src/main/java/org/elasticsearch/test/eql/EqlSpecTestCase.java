@@ -47,7 +47,7 @@ public abstract class EqlSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     @Override
-    protected String sequenceField() {
+    protected String tiebreaker() {
         return "serial_event_id";
     }
 

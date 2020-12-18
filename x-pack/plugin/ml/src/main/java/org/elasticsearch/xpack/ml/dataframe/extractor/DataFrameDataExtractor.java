@@ -65,7 +65,7 @@ public class DataFrameDataExtractor {
     private long lastSortKey = -1;
     private boolean isCancelled;
     private boolean hasNext;
-    private boolean searchHasShardFailure;
+    private boolean hasPreviousSearchFailed;
     private final CachedSupplier<TrainTestSplitter> trainTestSplitter;
     // These are fields that are sent directly to the analytics process
     // They are not passed through a feature_processor
@@ -77,21 +77,12 @@ public class DataFrameDataExtractor {
     DataFrameDataExtractor(Client client, DataFrameDataExtractorContext context) {
         this.client = Objects.requireNonNull(client);
         this.context = Objects.requireNonNull(context);
-        Set<String> processedFieldInputs = context.extractedFields.getProcessedFieldInputs();
-        this.organicFeatures = context.extractedFields.getAllFields()
-            .stream()
-            .map(ExtractedField::getName)
-            .filter(f -> processedFieldInputs.contains(f) == false)
-            .toArray(String[]::new);
-        this.processedFeatures = context.extractedFields.getProcessedFields()
-            .stream()
-            .map(ProcessedField::getOutputFieldNames)
-            .flatMap(List::stream)
-            .toArray(String[]::new);
+        this.organicFeatures = context.extractedFields.extractOrganicFeatureNames();
+        this.processedFeatures = context.extractedFields.extractProcessedFeatureNames();
         this.extractedFieldsByName = new LinkedHashMap<>();
         context.extractedFields.getAllFields().forEach(f -> this.extractedFieldsByName.put(f.getName(), f));
         hasNext = true;
-        searchHasShardFailure = false;
+        hasPreviousSearchFailed = false;
         this.trainTestSplitter = new CachedSupplier<>(context.trainTestSplitterFactory::create);
     }
 
@@ -138,12 +129,14 @@ public class DataFrameDataExtractor {
             SearchResponse searchResponse = request.get();
             LOGGER.debug("[{}] Search response was obtained", context.jobId);
 
-            // Request was successful so we can restore the flag to retry if a future failure occurs
-            searchHasShardFailure = false;
+            List<Row> rows = processSearchResponse(searchResponse);
 
-            return processSearchResponse(searchResponse);
+            // Request was successfully executed and processed so we can restore the flag to retry if a future failure occurs
+            hasPreviousSearchFailed = false;
+
+            return rows;
         } catch (Exception e) {
-            if (searchHasShardFailure) {
+            if (hasPreviousSearchFailed) {
                 throw e;
             }
             LOGGER.warn(new ParameterizedMessage("[{}] Search resulted to failure; retrying once", context.jobId), e);
@@ -289,13 +282,16 @@ public class DataFrameDataExtractor {
             }
         }
         boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        return new Row(extractedValues, hit, isTraining);
+        Row row = new Row(extractedValues, hit, isTraining);
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
+            context.jobId, row.getSortKey(), isTraining, Arrays.toString(row.values)));
+        return row;
     }
 
     private void markScrollAsErrored() {
         // This could be a transient error with the scroll Id.
         // Reinitialise the scroll and try again but only once.
-        searchHasShardFailure = true;
+        hasPreviousSearchFailed = true;
     }
 
     public List<String> getFieldNames() {
@@ -359,8 +355,11 @@ public class DataFrameDataExtractor {
         return ExtractedFieldsDetector.getCategoricalOutputFields(context.extractedFields, analysis);
     }
 
-    private static boolean isValidValue(Object value) {
-        return value instanceof Number || value instanceof String;
+    public static boolean isValidValue(Object value) {
+        // We should allow a number, string or a boolean.
+        // It is possible for a field to be categorical and have a `keyword` mapping, but be any of these
+        // three types, in the same index.
+        return value instanceof Number || value instanceof String || value instanceof Boolean;
     }
 
     public static class DataSummary {

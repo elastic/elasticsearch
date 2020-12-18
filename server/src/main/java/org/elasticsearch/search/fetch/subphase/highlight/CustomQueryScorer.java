@@ -97,7 +97,7 @@ public final class CustomQueryScorer extends QueryScorer {
         /**
          * Workaround to detect parent/child query
          */
-        private static final String PARENT_CHILD_QUERY_NAME = "HasChildQueryBuilder$LateParsingQuery";
+        private static final String PARENT_CHILD_QUERY_NAME = "LateParsingQuery";
         private static boolean isChildOrParentQuery(Class<?> clazz) {
             return clazz.getName().endsWith(PARENT_CHILD_QUERY_NAME);
         }

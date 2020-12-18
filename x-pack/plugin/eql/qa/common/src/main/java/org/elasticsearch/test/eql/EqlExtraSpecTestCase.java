@@ -25,7 +25,7 @@ public abstract class EqlExtraSpecTestCase extends BaseEqlSpecTestCase {
     }
 
     @Override
-    protected String sequenceField() {
+    protected String tiebreaker() {
         return "sequence";
     }
 }

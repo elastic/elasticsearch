@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 
 public class IndexFieldTypeTests extends ESTestCase {
@@ -69,6 +70,6 @@ public class IndexFieldTypeTests extends ESTestCase {
 
         Predicate<String> indexNameMatcher = pattern -> Regex.simpleMatch(pattern, "index");
         return new QueryShardContext(0, indexSettings, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null);
+            null, null, System::currentTimeMillis, null, indexNameMatcher, () -> true, null, emptyMap());
     }
 }

@@ -97,13 +97,13 @@ public class OutlierDetectionEvaluationIT extends MlNativeDataFrameAnalyticsInte
 
     public void testEvaluate_AucRoc_DoNotIncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, false);
-        assertThat(aucrocResult.getScore(), is(closeTo(1.0, 0.0001)));
+        assertThat(aucrocResult.getValue(), is(closeTo(1.0, 0.0001)));
         assertThat(aucrocResult.getCurve(), hasSize(0));
     }
 
     public void testEvaluate_AucRoc_IncludeCurve() {
         AucRoc.Result aucrocResult = evaluateAucRoc(IS_PREDATOR_BOOLEAN_FIELD, IS_PREDATOR_PREDICTION_PROBABILITY_FIELD, true);
-        assertThat(aucrocResult.getScore(), is(closeTo(1.0, 0.0001)));
+        assertThat(aucrocResult.getValue(), is(closeTo(1.0, 0.0001)));
         assertThat(aucrocResult.getCurve(), hasSize(greaterThan(0)));
     }
 

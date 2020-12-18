@@ -16,7 +16,7 @@ import org.opensaml.xmlsec.crypto.XMLSigningUtil;
 /**
  * Encapsulates the rules and credentials for how and when Elasticsearch should sign outgoing SAML messages.
  */
-class SigningConfiguration {
+public class SigningConfiguration {
 
     private final Set<String> messageTypes;
     private final X509Credential credential;
@@ -30,7 +30,7 @@ class SigningConfiguration {
         return shouldSign(object.getElementQName().getLocalPart());
     }
 
-    boolean shouldSign(String elementName) {
+    public boolean shouldSign(String elementName) {
         if (credential == null) {
             return false;
         }
@@ -45,7 +45,7 @@ class SigningConfiguration {
         return XMLSigningUtil.signWithURI(this.credential, algo, content);
     }
 
-    X509Credential getCredential() {
+    public X509Credential getCredential() {
         return credential;
     }
 }

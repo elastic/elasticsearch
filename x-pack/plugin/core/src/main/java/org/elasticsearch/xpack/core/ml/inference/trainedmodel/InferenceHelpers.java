@@ -139,7 +139,6 @@ public final class InferenceHelpers {
 
     public static List<ClassificationFeatureImportance> transformFeatureImportanceClassification(
             Map<String, double[]> featureImportance,
-            final int predictedValue,
             @Nullable List<String> classificationLabels,
             @Nullable PredictionFieldType predictionFieldType) {
         List<ClassificationFeatureImportance> importances = new ArrayList<>(featureImportance.size());
@@ -148,20 +147,20 @@ public final class InferenceHelpers {
             // This indicates logistic regression (binary classification)
             // If the length > 1, we assume multi-class classification.
             if (v.length == 1) {
-                assert predictedValue == 1 || predictedValue == 0;
-                // If predicted value is `1`, then the other class is `0`
-                // If predicted value is `0`, then the other class is `1`
-                final int otherClass = 1 - predictedValue;
-                String predictedLabel = classificationLabels == null ? null : classificationLabels.get(predictedValue);
-                String otherLabel = classificationLabels == null ? null : classificationLabels.get(otherClass);
+                String zeroLabel = classificationLabels == null ? null : classificationLabels.get(0);
+                String oneLabel = classificationLabels == null ? null : classificationLabels.get(1);
+                // For feature importance, it is built off of the value in the leaves.
+                // These leaves indicate which direction the feature pulls the value
+                // The original importance is an indication of how it pushes or pulls the value towards or from `1`
+                // To get the importance for the `0` class, we simply invert it.
                 importances.add(new ClassificationFeatureImportance(k,
                     Arrays.asList(
                         new ClassificationFeatureImportance.ClassImportance(
-                            fieldType.transformPredictedValue((double)predictedValue, predictedLabel),
-                            v[0]),
+                            fieldType.transformPredictedValue(0.0, zeroLabel),
+                            -v[0]),
                         new ClassificationFeatureImportance.ClassImportance(
-                            fieldType.transformPredictedValue((double)otherClass, otherLabel),
-                            -v[0])
+                            fieldType.transformPredictedValue(1.0, oneLabel),
+                            v[0])
                     )));
             } else {
                 List<ClassificationFeatureImportance.ClassImportance> classImportance = new ArrayList<>(v.length);

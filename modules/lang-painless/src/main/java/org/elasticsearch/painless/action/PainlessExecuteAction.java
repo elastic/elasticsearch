@@ -29,9 +29,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.Version;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -89,6 +89,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -577,7 +578,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                                indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null);
+                                indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null, emptyMap());
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }

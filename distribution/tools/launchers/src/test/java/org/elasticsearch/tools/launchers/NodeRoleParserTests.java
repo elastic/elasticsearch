@@ -47,6 +47,15 @@ public class NodeRoleParserTests extends LaunchersTestCase {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.roles: [ml]"));
         assertThat(nodeRole, equalTo(ML_ONLY));
 
+        nodeRole = parseConfig(sb -> sb.append("node.roles: [ml, remote_cluster_client]"));
+        assertThat(nodeRole, equalTo(ML_ONLY));
+
+        nodeRole = parseConfig(sb -> sb.append("node.roles: [remote_cluster_client, ml]"));
+        assertThat(nodeRole, equalTo(ML_ONLY));
+
+        nodeRole = parseConfig(sb -> sb.append("node.roles: [remote_cluster_client]"));
+        assertThat(nodeRole, not(equalTo(ML_ONLY)));
+
         nodeRole = parseConfig(sb -> sb.append("node.roles: [ml, some_other_role]"));
         assertThat(nodeRole, not(equalTo(ML_ONLY)));
     }

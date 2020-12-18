@@ -29,12 +29,12 @@ a FIPS 140-2 configured JVM, the suggested approach is to first perform a rollin
 upgrade to the new version in your existing JVM and perform all necessary
 configuration changes in preparation for running in fips mode. You can then
 perform a rolling restart of the nodes, this time starting each node in a
-properly configured FIPS  140-2 JVM. This enables {es} to take care of a couple
+properly configured FIPS 140-2 JVM. This enables {es} to take care of a couple
 of things automatically for you:
 
 - <<secure-settings,Secure settings>> will be upgraded to the latest format version as
   previous format versions cannot be loaded in a FIPS 140-2 JVM. If your elasticsearch
-  keystore is not password protected, you'd still need to manually set a password, see
+  keystore is not password protected, you will still need to manually set a password, see
   the <<keystore-fips-password, keystore>> section.
 - Self-generated trial licenses will be upgraded to the latest format that
   is compliant with FIPS 140-2.
@@ -57,11 +57,11 @@ and able to run {es} successfully in a FIPS 140-2 configured JVM.
 [[keystore-fips-password]]
 ==== Elasticsearch Keystore
 
-FIPS 140-2 ( via NIST Special Publication 800-132 ) dictates that encryption keys should at
+FIPS 140-2 (via NIST Special Publication 800-132) dictates that encryption keys should at
 least have an effective strength of 112 bits.
 As such, the elasticsearch keystore that stores the node's <<secure-settings,secure settings>>
 needs to be password protected with a password that satisfies this requirement.
-This means that the  password needs to be 14 bytes long which is equivalent
+This means that the password needs to be 14 bytes long which is equivalent
 to a 14 character ASCII encoded password, or a 7 character UTF-8 encoded password.
 You can use the <<elasticsearch-keystore, elasticsearch-keystore passwd>> subcommand to change or set the
 password of an existing keystore.
@@ -111,8 +111,10 @@ keys must have corresponding length according to the following table:
 While {es} offers a number of algorithms for securely hashing credentials in memory and
 on disk, only the `PBKDF2` based family of algorithms is compliant with FIPS
 140-2 for password hashing. However, since `PBKDF2` is essentially a key derivation
-function, it is affected by the 112 bit key strength requirement (see <<keystore-fips-password>>)
-even if that requirement does not apply to password hashing. In order to comply to this,
+function, your JVM security provider may enforce a 112 bit key strength requirement
+(see <<keystore-fips-password>>), and this requirement may affect password hashing
+in {es}, even though FIPS 140-2 does not mandate password standards for user
+authentication. In order to accommodate this requirement, 
 while allowing you to use passwords that satisfy your security policy, {es} offers
 <<hashing-settings, pbkdf2_stretch>> which is the suggested hashing algorithm when running
 {es} in FIPS 140-2 environments. `pbkdf2_stretch` performs a single round of SHA-512
@@ -128,7 +130,7 @@ available `pbkdf_stretch_*` values.
 See <<hashing-settings>>.
 
 Password hashing configuration changes are not retroactive so the stored hashed
-credentials of existing users of the reserved, native and fle realms will not be
+credentials of existing users of the reserved, native and file realms will not be
 updated on disk.
 In order to ensure FIPS 140-2 compliance, you would need to recreate users or
 change their password using the <<users-command, elasticsearch-user>> CLI tool

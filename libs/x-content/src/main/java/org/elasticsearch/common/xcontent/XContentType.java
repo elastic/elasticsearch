@@ -325,9 +325,12 @@ public enum XContentType implements MediaType {
     public abstract String mediaTypeWithoutParameters();
 
     /**
-     * Returns a canonical XContentType for given this XContentType.
-     * XContentTypes can derive from other XContentType. Like application/vnd.elasticsearch+json derives from application/json
-     * A canonical is the XContentType that is being derived from.
+     * Returns a canonical XContentType for this XContentType.
+     * A canonical XContentType is used to serialize or deserialize the data from/to for HTTP.
+     * More specialized XContentType types such as vnd* variants still use the general data structure,
+     * but may have semantic differences.
+     * Example: XContentType.VND_JSON has a canonical XContentType.JSON
+     * XContentType.JSON has a canonical XContentType.JSON
      */
     public XContentType canonical(){
         return this;

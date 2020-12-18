@@ -24,6 +24,8 @@ import org.gradle.testkit.runner.GradleRunner
 import org.junit.Rule
 import org.junit.rules.TemporaryFolder
 
+import java.nio.file.Paths
+
 abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
 
     @Rule
@@ -41,7 +43,7 @@ abstract class AbstractGitAwareGradleFuncTest extends AbstractGradleFuncTest {
     File setupGitRemote() {
         URL fakeRemote = getClass().getResource("fake_git/remote")
         File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')
-        FileUtils.copyDirectory(new File(fakeRemote.toURI()), workingRemoteGit)
+        FileUtils.copyDirectory(Paths.get(fakeRemote.toURI()).toFile(), workingRemoteGit)
         fakeRemote.file + "/.git"
         gradleRunner(workingRemoteGit, "wrapper").build()
 

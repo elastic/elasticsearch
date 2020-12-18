@@ -26,6 +26,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
 
@@ -190,12 +191,26 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize, boolean failIfAlreadyExists)
-        throws IOException {
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        final Path file = path.resolve(blobName);
+        try {
+            writeToPath(bytes, file);
+        } catch (FileAlreadyExistsException faee) {
+            if (failIfAlreadyExists) {
+                throw faee;
+            }
+            deleteBlobsIgnoringIfNotExists(Collections.singletonList(blobName));
+            writeToPath(bytes, file);
+        }
+        IOUtils.fsync(path, true);
+    }
+
+    @Override
+    public void writeBlobAtomic(final String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         final String tempBlob = tempBlobName(blobName);
         final Path tempBlobPath = path.resolve(tempBlob);
         try {
-            writeToPath(inputStream, tempBlobPath, blobSize);
+            writeToPath(bytes, tempBlobPath);
             moveBlobAtomic(tempBlob, blobName, failIfAlreadyExists);
         } catch (IOException ex) {
             try {
@@ -207,6 +222,13 @@ public class FsBlobContainer extends AbstractBlobContainer {
         } finally {
             IOUtils.fsync(path, true);
         }
+    }
+
+    private void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
+        try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
+            bytes.writeTo(outputStream);
+        }
+        IOUtils.fsync(tempBlobPath, false);
     }
 
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {

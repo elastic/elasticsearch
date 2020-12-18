@@ -195,6 +195,10 @@ public class TransportService extends AbstractLifecycleComponent
         return localNode;
     }
 
+    public Transport.Connection getLocalNodeConnection() {
+        return localNodeConnection;
+    }
+
     public TaskManager getTaskManager() {
         return taskManager;
     }
@@ -586,6 +590,17 @@ public class TransportService extends AbstractLifecycleComponent
     }
 
     /**
+     * Unwraps and returns the actual underlying connection of the given connection.
+     */
+    public static Transport.Connection unwrapConnection(Transport.Connection connection) {
+        Transport.Connection unwrapped = connection;
+        while (unwrapped instanceof RemoteConnectionManager.ProxyConnection) {
+            unwrapped = ((RemoteConnectionManager.ProxyConnection) unwrapped).getConnection();
+        }
+        return unwrapped;
+    }
+
+    /**
      * Sends a request on the specified connection. If there is a failure sending the request, the specified handler is invoked.
      *
      * @param connection the connection to send the request on
@@ -602,8 +617,18 @@ public class TransportService extends AbstractLifecycleComponent
         try {
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
-                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                // If the connection is a proxy connection, then we will create a cancellable proxy task on the proxy node and an actual
+                // child task on the target node of the remote cluster.
+                //  ----> a parent task on the local cluster
+                //        |
+                //         ----> a proxy task on the proxy node on the remote cluster
+                //               |
+                //                ----> an actual child task on the target node on the remote cluster
+                // To cancel the child task on the remote cluster, we must send a cancel request to the proxy node instead of the target
+                // node as the parent task of the child task is the proxy task not the parent task on the local cluster. Hence, here we
+                // unwrap the connection and keep track of the connection to the proxy node instead of the proxy connection.
+                final Transport.Connection unwrappedConn = unwrapConnection(connection);
+                final Releasable unregisterChildNode = taskManager.registerChildConnection(request.getParentTask().getId(), unwrappedConn);
                 delegate = new TransportResponseHandler<>() {
                     @Override
                     public void handleResponse(T response) {

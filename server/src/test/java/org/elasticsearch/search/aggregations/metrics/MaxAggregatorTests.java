@@ -70,10 +70,10 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -96,9 +96,9 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class MaxAggregatorTests extends AggregatorTestCase {
 
-    private final String SCRIPT_NAME = "script_name";
+    private static final String SCRIPT_NAME = "script_name";
 
-    private final long SCRIPT_VALUE = 19L;
+    private static final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
     public static final String SUM_FIELD_PARAMS_SCRIPT = "sum_field_params";
@@ -240,7 +240,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(max.getValue(), Double.NEGATIVE_INFINITY, 0);
             assertFalse(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -252,7 +252,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         }, max -> {
             assertEquals(max.getValue(), 19.0, 0);
             assertTrue(AggregationInspectionHelper.hasValue(max));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testMissingFieldOptimization() throws IOException {
@@ -293,10 +293,14 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         testAggregation(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private void testAggregation(AggregationBuilder aggregationBuilder, Query query,
-        CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMax> verify,
-        MappedFieldType fieldType) throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+    private void testAggregation(
+        AggregationBuilder aggregationBuilder,
+        Query query,
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
+        Consumer<InternalMax> verify,
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     public void testMaxShortcutRandom() throws Exception {
@@ -906,7 +910,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         MaxAggregationBuilder aggregationBuilder = new MaxAggregationBuilder("max")
             .field("value");
 
-        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
+        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -918,7 +922,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
         // Test that an aggregation not using a script does get cached
-        assertTrue(context.getQueryShardContext().isCacheable());
+        assertTrue(context.isCacheable());
 
         multiReader.close();
         directory.close();
@@ -952,7 +956,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
+        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         MaxAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -964,12 +968,12 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
         // Test that an aggregation using a script does not get cached
-        assertTrue(context.getQueryShardContext().isCacheable());
+        assertTrue(context.isCacheable());
 
         aggregationBuilder = new MaxAggregationBuilder("max")
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
-        context = createSearchContext(indexSearcher, null, fieldType);
+        context = createAggregationContext(indexSearcher, null, fieldType);
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -982,7 +986,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(max));
 
         // Test that an aggregation using a nondeterministic script does not get cached
-        assertFalse(context.getQueryShardContext().isCacheable());
+        assertFalse(context.isCacheable());
 
         multiReader.close();
         directory.close();

@@ -38,7 +38,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig> {
 
     public static SettingsConfig randomSettingsConfig() {
-        return new SettingsConfig(randomBoolean() ? null : randomIntBetween(10, 10_000), randomBoolean() ? null : randomFloat());
+        return new SettingsConfig(
+            randomBoolean() ? null : randomIntBetween(10, 10_000),
+            randomBoolean() ? null : randomFloat(),
+            randomBoolean() ? null : randomIntBetween(-1, 1)
+        );
     }
 
     @Override
@@ -67,6 +71,7 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
 
         SettingsConfig emptyConfig = fromString("{}");
         assertNull(emptyConfig.getMaxPageSearchSize());
+        assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());
@@ -77,6 +82,15 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
+        assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
+
+        config = fromString("{\"dates_as_epoch_millis\" : null}");
+        assertFalse(config.getDatesAsEpochMillis());
+
+        settingsAsMap = xContentToMap(config);
+        assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
+        assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
     }
 
     public void testExplicitNullOnWriteBuilder() throws IOException {
@@ -87,9 +101,11 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         Map<String, Object> settingsAsMap = xContentToMap(config);
         assertNull(settingsAsMap.getOrDefault("max_page_search_size", "not_set"));
         assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
 
         SettingsConfig emptyConfig = new SettingsConfig.Builder().build();
         assertNull(emptyConfig.getMaxPageSearchSize());
+        assertNull(emptyConfig.getDatesAsEpochMillis());
 
         settingsAsMap = xContentToMap(emptyConfig);
         assertTrue(settingsAsMap.isEmpty());
@@ -100,6 +116,16 @@ public class SettingsConfigTests extends AbstractXContentTestCase<SettingsConfig
         settingsAsMap = xContentToMap(config);
         assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
         assertNull(settingsAsMap.getOrDefault("docs_per_second", "not_set"));
+        assertThat(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"), equalTo("not_set"));
+
+        config = new SettingsConfig.Builder().setDatesAsEpochMillis(null).build();
+        // returns false, however it's `null` as in "use default", checked next
+        assertFalse(config.getDatesAsEpochMillis());
+
+        settingsAsMap = xContentToMap(config);
+        assertThat(settingsAsMap.getOrDefault("max_page_search_size", "not_set"), equalTo("not_set"));
+        assertThat(settingsAsMap.getOrDefault("docs_per_second", "not_set"), equalTo("not_set"));
+        assertNull(settingsAsMap.getOrDefault("dates_as_epoch_millis", "not_set"));
     }
 
     private Map<String, Object> xContentToMap(ToXContent xcontent) throws IOException {

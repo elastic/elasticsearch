@@ -103,7 +103,6 @@ public class TransformIndexerTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                executorName,
                 transformsConfigManager,
                 checkpointProvider,
                 auditor,
@@ -262,8 +261,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final long initialPageSize = pageSize == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : pageSize;
@@ -330,8 +332,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         SearchResponse searchResponse = new SearchResponse(
             new InternalSearchResponse(
@@ -388,8 +393,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {

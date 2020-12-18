@@ -36,7 +36,7 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
         public TransportDeleteCcrRestoreSessionAction(ActionFilters actionFilters, TransportService transportService,
                                                       CcrRestoreSourceService ccrRestoreService) {
             super(NAME, transportService, actionFilters, ClearCcrRestoreSessionRequest::new, ThreadPool.Names.GENERIC);
-            TransportActionProxy.registerProxyAction(transportService, NAME, in -> ActionResponse.Empty.INSTANCE);
+            TransportActionProxy.registerProxyAction(transportService, NAME, false, in -> ActionResponse.Empty.INSTANCE);
             this.ccrRestoreService = ccrRestoreService;
         }
 

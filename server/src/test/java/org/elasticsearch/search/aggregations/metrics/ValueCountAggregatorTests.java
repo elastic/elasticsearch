@@ -219,7 +219,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, null);
+        });
     }
 
     public void testUnmappedMissingNumber() throws IOException {
@@ -233,7 +233,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        }, null);
+        });
     }
 
     public void testUnmappedMissingGeoPoint() throws IOException {
@@ -247,7 +247,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         }, valueCount -> {
             assertEquals(3, valueCount.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(valueCount));
-        },  null);
+        });
     }
 
     public void testRangeFieldValues() throws IOException {
@@ -390,8 +390,9 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalValueCount> verify,
-        MappedFieldType fieldType)  throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     private static MappedFieldType createMappedFieldType(String name, CoreValuesSourceType.ValueType valueType) {

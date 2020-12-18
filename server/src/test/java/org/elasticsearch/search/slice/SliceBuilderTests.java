@@ -32,16 +32,8 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.OperationRouting;
-import org.elasticsearch.cluster.routing.PlainShardIterator;
-import org.elasticsearch.cluster.routing.ShardIterator;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +49,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -72,7 +63,6 @@ import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -99,27 +89,23 @@ public class SliceBuilderTests extends ESTestCase {
         }
     }
 
-    private IndexSettings createIndexSettings(Version indexVersionCreated, int numShards) {
+    private IndexSettings createIndexSettings(Version indexVersionCreated) {
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build();
         IndexMetadata indexState = IndexMetadata.builder("index").settings(settings).build();
         return new IndexSettings(indexState, Settings.EMPTY);
     }
 
-    private ShardSearchRequest createRequest(int shardId) {
-        return createRequest(shardId, Strings.EMPTY_ARRAY, null);
-    }
-
-    private ShardSearchRequest createRequest(int shardId, String[] routings, String preference) {
-        return new ShardSearchRequest(OriginalIndices.NONE, new SearchRequest().preference(preference).allowPartialSearchResults(true),
-            new ShardId("index", "index", shardId), 1, null, 0f, System.currentTimeMillis(), null, routings);
+    private ShardSearchRequest createRequest(int shardIndex, int numShards) {
+        return new ShardSearchRequest(OriginalIndices.NONE, new SearchRequest().allowPartialSearchResults(true),
+            new ShardId("index", "index", 0), shardIndex, numShards, null, 0f, System.currentTimeMillis(), null);
     }
 
     private QueryShardContext createShardContext(Version indexVersionCreated, IndexReader reader,
-                                                 String fieldName, DocValuesType dvType, int numShards, int shardId) {
+                                                 String fieldName, DocValuesType dvType) {
         MappedFieldType fieldType = new MappedFieldType(fieldName, true, false, dvType != null,
             TextSearchInfo.NONE, Collections.emptyMap()) {
 
@@ -145,8 +131,7 @@ public class SliceBuilderTests extends ESTestCase {
         QueryShardContext context = mock(QueryShardContext.class);
         when(context.getFieldType(fieldName)).thenReturn(fieldType);
         when(context.getIndexReader()).thenReturn(reader);
-        when(context.getShardId()).thenReturn(shardId);
-        IndexSettings indexSettings = createIndexSettings(indexVersionCreated, numShards);
+        IndexSettings indexSettings = createIndexSettings(indexVersionCreated);
         when(context.getIndexSettings()).thenReturn(indexSettings);
         if (dvType != null) {
             IndexNumericFieldData fd = mock(IndexNumericFieldData.class);
@@ -211,15 +196,15 @@ public class SliceBuilderTests extends ESTestCase {
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
             QueryShardContext context =
-                createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED_NUMERIC, 1,0);
+                createShardContext(Version.CURRENT, reader, "_id", null);
             SliceBuilder builder = new SliceBuilder(5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context);
+            Query query = builder.toFilter(createRequest(0, 1), context);
             assertThat(query, instanceOf(TermsSliceQuery.class));
 
-            assertThat(builder.toFilter(null, createRequest(0), context), equalTo(query));
+            assertThat(builder.toFilter(createRequest(0, 1), context), equalTo(query));
             try (IndexReader newReader = DirectoryReader.open(dir)) {
                 when(context.getIndexReader()).thenReturn(newReader);
-                assertThat(builder.toFilter(null, createRequest(0), context), equalTo(query));
+                assertThat(builder.toFilter(createRequest(0, 1), context), equalTo(query));
             }
         }
     }
@@ -231,14 +216,14 @@ public class SliceBuilderTests extends ESTestCase {
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
             QueryShardContext context =
-                createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC, 1,0);
+                createShardContext(Version.CURRENT, reader, "field", DocValuesType.SORTED_NUMERIC);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
-            Query query = builder.toFilter(null, createRequest(0), context);
+            Query query = builder.toFilter(createRequest(0, 1), context);
             assertThat(query, instanceOf(DocValuesSliceQuery.class));
-            assertThat(builder.toFilter(null, createRequest(0), context), equalTo(query));
+            assertThat(builder.toFilter(createRequest(0, 1), context), equalTo(query));
             try (IndexReader newReader = DirectoryReader.open(dir)) {
                 when(context.getIndexReader()).thenReturn(newReader);
-                assertThat(builder.toFilter(null, createRequest(0), context), equalTo(query));
+                assertThat(builder.toFilter(createRequest(0, 1), context), equalTo(query));
             }
 
             // numSlices > numShards
@@ -248,8 +233,8 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
-                    Query q = slice.toFilter(null, createRequest(j), context);
+                    context = createShardContext(Version.CURRENT, reader, "_id", null);
+                    Query q = slice.toFilter(createRequest(j, numShards), context);
                     if (q instanceof TermsSliceQuery || q instanceof MatchAllDocsQuery) {
                         AtomicInteger count = numSliceMap.get(j);
                         if (count == null) {
@@ -278,8 +263,8 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
-                    Query q = slice.toFilter(null, createRequest(j), context);
+                    context = createShardContext(Version.CURRENT, reader, "_id", null);
+                    Query q = slice.toFilter(createRequest(j, numShards), context);
                     if (q instanceof MatchNoDocsQuery == false) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                         targetShards.add(j);
@@ -295,8 +280,8 @@ public class SliceBuilderTests extends ESTestCase {
             for (int i = 0; i < numSlices; i++) {
                 for (int j = 0; j < numShards; j++) {
                     SliceBuilder slice = new SliceBuilder("_id", i, numSlices);
-                    context = createShardContext(Version.CURRENT, reader, "_id", DocValuesType.SORTED, numShards, j);
-                    Query q = slice.toFilter(null, createRequest(j), context);
+                    context = createShardContext(Version.CURRENT, reader, "_id", null);
+                    Query q = slice.toFilter(createRequest(j, numShards), context);
                     if (i == j) {
                         assertThat(q, instanceOf(MatchAllDocsQuery.class));
                     } else {
@@ -313,41 +298,11 @@ public class SliceBuilderTests extends ESTestCase {
             writer.commit();
         }
         try (IndexReader reader = DirectoryReader.open(dir)) {
-            QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", null, 1,0);
+            QueryShardContext context = createShardContext(Version.CURRENT, reader, "field", null);
             SliceBuilder builder = new SliceBuilder("field", 5, 10);
             IllegalArgumentException exc = expectThrows(IllegalArgumentException.class,
-                () -> builder.toFilter(null, createRequest(0), context));
+                () -> builder.toFilter(createRequest(0, 1), context));
             assertThat(exc.getMessage(), containsString("cannot load numeric doc values"));
-        }
-    }
-
-    public void testToFilterWithRouting() throws IOException {
-        Directory dir = new ByteBuffersDirectory();
-        try (IndexWriter writer = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())))) {
-            writer.commit();
-        }
-        ClusterService clusterService = mock(ClusterService.class);
-        ClusterState state = mock(ClusterState.class);
-        when(state.metadata()).thenReturn(Metadata.EMPTY_METADATA);
-        when(clusterService.state()).thenReturn(state);
-        OperationRouting routing = mock(OperationRouting.class);
-        GroupShardsIterator<ShardIterator> it = new GroupShardsIterator<>(
-            Collections.singletonList(
-                new PlainShardIterator(new ShardId("index", "index", 1), Collections.emptyList())
-            )
-        );
-        when(routing.searchShards(any(), any(), any(), any())).thenReturn(it);
-        when(clusterService.operationRouting()).thenReturn(routing);
-        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
-        try (IndexReader reader = DirectoryReader.open(dir)) {
-            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
-            QueryShardContext context = createShardContext(version, reader, "field", DocValuesType.SORTED, 5, 0);
-            SliceBuilder builder = new SliceBuilder("field", 6, 10);
-            String[] routings = new String[] { "foo" };
-            Query query = builder.toFilter(clusterService, createRequest(1, routings, null), context);
-            assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
-            query = builder.toFilter(clusterService, createRequest(1, Strings.EMPTY_ARRAY, "foo"), context);
-            assertEquals(new DocValuesSliceQuery("field", 6, 10), query);
         }
     }
 }

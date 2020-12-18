@@ -24,14 +24,14 @@
   - do:
       autoscaling.get_autoscaling_capacity: {}
 
-  - match: { policies.my_autoscaling_policy.required_capacity.total.storage: 13370b }
-  - match: { policies.my_autoscaling_policy.required_capacity.total.memory: 73310b }
-  - match: { policies.my_autoscaling_policy.required_capacity.node.storage: 1337b }
-  - match: { policies.my_autoscaling_policy.required_capacity.node.memory: 7331b }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.storage: 13370b }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.memory: 73310b }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.storage: 1337b }
-  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.memory: 7331b }
+  - match: { policies.my_autoscaling_policy.required_capacity.total.storage: 13370 }
+  - match: { policies.my_autoscaling_policy.required_capacity.total.memory: 73310 }
+  - match: { policies.my_autoscaling_policy.required_capacity.node.storage: 1337 }
+  - match: { policies.my_autoscaling_policy.required_capacity.node.memory: 7331 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.storage: 13370 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.total.memory: 73310 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.storage: 1337 }
+  - match: { policies.my_autoscaling_policy.deciders.fixed.required_capacity.node.memory: 7331 }
   - match: { policies.my_autoscaling_policy.deciders.fixed.reason_summary: "fixed storage [1.3kb] memory [7.1kb] nodes [10]" }
   - length: { policies.my_autoscaling_policy.current_nodes: 0 }
 

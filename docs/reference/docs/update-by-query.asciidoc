@@ -213,7 +213,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=scroll_size]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_type]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=search_timeout]
+`search_timeout`::
+(Optional, <<time-units, time units>>)
+Explicit timeout for each search request.
+Defaults to no timeout.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=slices]
 

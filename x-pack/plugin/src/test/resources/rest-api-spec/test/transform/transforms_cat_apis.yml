@@ -150,16 +150,20 @@ teardown:
   - do:
       transform.start_transform:
         transform_id: "airline-transform-batch"
+  - match: { acknowledged: true }
+
   - do:
       transform.stop_transform:
         wait_for_checkpoint: true
         transform_id: "airline-transform-batch"
         wait_for_completion: true
   - match: { acknowledged: true }
+
   - do:
       cat.transforms:
         transform_id: "airline-transform-batch"
         v: true
+
   # see gh#62204 despite wait_for_completion is true, it might still not be stopped
   - match:
       $body: |

@@ -20,6 +20,7 @@ public class HyperparametersTests extends AbstractBWCSerializationTestCase<Hyper
 
     @SuppressWarnings("unchecked")
     public static Hyperparameters randomInstance() {
+        boolean supplied = randomBoolean();
         return new Hyperparameters(
             randomAlphaOfLength(10),
             randomDoubleBetween(0.0, 1.0, true),

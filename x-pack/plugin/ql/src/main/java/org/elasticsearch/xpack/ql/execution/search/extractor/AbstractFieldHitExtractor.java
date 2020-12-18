@@ -129,10 +129,10 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             if (fullFieldName != null
                     && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
                     && isFromDocValuesOnly(dataType) == false
-                    && dataType.isNumeric()) {
+                    && (dataType.isNumeric() || dataType == DataTypes.IP)) {
                 /*
-                 * ignore_malformed makes sense for extraction from _source for numeric fields only.
-                 * And we check here that the data type is actually a numeric one to rule out
+                 * ignore_malformed makes sense for extraction from _source for numeric and IP fields only.
+                 * And we check here that the data type is actually a numeric or IP one to rule out
                  * any non-numeric sub-fields (for which the "parent" field should actually be extracted from _source).
                  * For example, in the case of a malformed number, a "byte" field with "ignore_malformed: true"
                  * with a "text" sub-field should return "null" for the "byte" parent field and the actual malformed
@@ -201,7 +201,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     }
                     return result;
                 }
-            } else if (DataTypes.isString(dataType)) {
+            } else if (DataTypes.isString(dataType) || dataType == DataTypes.IP) {
                 return values.toString();
             } else {
                 return values;

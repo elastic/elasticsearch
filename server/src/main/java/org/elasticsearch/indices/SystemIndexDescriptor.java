@@ -75,7 +75,7 @@ public class SystemIndexDescriptor {
     private final String origin;
 
     /** The index type to use when creating an index. */
-    private final String taskType;
+    private final String indexType;
 
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
@@ -101,7 +101,7 @@ public class SystemIndexDescriptor {
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
      *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
-     * @param taskType the index type. Should be {@link MapperService#SINGLE_MAPPING_NAME} for any new system indices.
+     * @param indexType the index type. Should be {@link MapperService#SINGLE_MAPPING_NAME} for any new system indices.
      */
     SystemIndexDescriptor(
         String indexPattern,
@@ -113,7 +113,7 @@ public class SystemIndexDescriptor {
         int indexFormat,
         String versionMetaKey,
         String origin,
-        String taskType
+        String indexType
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -145,6 +145,8 @@ public class SystemIndexDescriptor {
                     "system primary index provided as [" + primaryIndex + "] but cannot contain special characters or patterns"
                 );
             }
+
+            Strings.requireNonEmpty(indexType, "Index type cannot be null or empty if primaryIndex is supplied");
         }
 
         if (indexFormat < 0) {
@@ -172,7 +174,7 @@ public class SystemIndexDescriptor {
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
-        this.taskType = taskType;
+        this.indexType = indexType;
     }
 
     /**
@@ -215,6 +217,15 @@ public class SystemIndexDescriptor {
         return mappings;
     }
 
+    /**
+     * Returns this descriptor's mappings JSON nested under the type. This is necessary as this is the expected format
+     * when creating an index, even though it can be retrieved again without the nesting.
+     */
+    public String getMappingsWithType() {
+        // don't reference mappings directly as a test class exists that customises the mappings returned.
+        return "{\"" + indexType + "\": " + getMappings() + "}";
+    }
+
     public Settings getSettings() {
         return settings;
     }
@@ -239,8 +250,8 @@ public class SystemIndexDescriptor {
         return this.origin;
     }
 
-    public String getTaskType() {
-        return taskType;
+    public String getIndexType() {
+        return indexType;
     }
 
     // TODO: getThreadpool()
@@ -260,7 +271,7 @@ public class SystemIndexDescriptor {
         private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
-        private String taskType = MapperService.SINGLE_MAPPING_NAME;
+        private String indexType = MapperService.SINGLE_MAPPING_NAME;
 
         private Builder() {}
 
@@ -314,8 +325,8 @@ public class SystemIndexDescriptor {
          * which is {@link MapperService#SINGLE_MAPPING_NAME}.
          */
         @Deprecated
-        public Builder setIndexType(String taskType) {
-            this.taskType = taskType;
+        public Builder setIndexType(String indexType) {
+            this.indexType = indexType;
             return this;
         }
 
@@ -332,7 +343,7 @@ public class SystemIndexDescriptor {
                 indexFormat,
                 versionMetaKey,
                 origin,
-                taskType
+                indexType
             );
         }
     }

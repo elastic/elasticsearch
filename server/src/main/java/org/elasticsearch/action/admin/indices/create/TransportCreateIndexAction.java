@@ -117,12 +117,11 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             request.index()
         );
 
-        final String taskType = descriptor.getTaskType();
         return updateRequest.ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(singletonMap(taskType, "{\"" + taskType + "\": " + descriptor.getMappings() + "}"))
+            .mappings(singletonMap(descriptor.getIndexType(), descriptor.getMappingsWithType()))
             .settings(settings);
     }
 }

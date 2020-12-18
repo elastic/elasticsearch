@@ -182,7 +182,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 
                     if (mappings != null) {
-                        updateRequest.mappings(Collections.singletonMap(descriptor.getTaskType(), mappings));
+                        updateRequest.mappings(Collections.singletonMap(descriptor.getIndexType(), descriptor.getMappingsWithType()));
                     }
                     if (settings != null) {
                         updateRequest.settings(settings);

@@ -59,6 +59,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -295,7 +296,7 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // while the ban is still there, but it should disappear shortly
         assertBusy(() -> {
             for (int i = 0; i < testNodes.length; i++) {
-                assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
+                assertThat("No bans on the node " + i, testNodes[i].transportService.getTaskManager().getBannedTaskIds(), empty());
             }
         });
     }
@@ -429,7 +430,8 @@ public class CancellableTasksTests extends TaskManagerTestCase {
             }
         }
 
-        if (randomBoolean()) {
+        boolean mainNodeClosed = randomBoolean();
+        if (mainNodeClosed) {
             testNodes[0].close();
         } else {
             for (TestNode blockOnNode : blockOnNodes) {
@@ -452,8 +454,13 @@ public class CancellableTasksTests extends TaskManagerTestCase {
         // Wait for clean up
         responseLatch.await();
         assertBusy(() -> {
-            for (int i = 0; i < testNodes.length; i++) {
-                assertEquals("No bans on the node " + i, 0, testNodes[i].transportService.getTaskManager().getBanCount());
+            // If the main node is closed, then we won't able to send unban requests to remove bans, but a direct channel never closes.
+            // Hence, we can't verify if all bans are removed.
+            if (mainNodeClosed == false) {
+                assertThat("No bans on the node " + 0, testNodes[0].transportService.getTaskManager().getBannedTaskIds(), empty());
+            }
+            for (int i = 1; i < testNodes.length; i++) {
+                assertThat("No bans on the node " + i, testNodes[i].transportService.getTaskManager().getBannedTaskIds(), empty());
             }
         });
     }

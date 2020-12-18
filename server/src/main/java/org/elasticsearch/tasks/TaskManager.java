@@ -382,15 +382,6 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Returns the number of currently banned tasks.
-     * <p>
-     * Will be used in task manager stats and for debugging.
-     */
-    public int getBanCount() {
-        return bannedParents.size();
-    }
-
-    /**
      * Bans all tasks with the specified parent task from execution, cancels all tasks that are currently executing.
      * <p>
      * This method is called when a parent task that has children is cancelled.

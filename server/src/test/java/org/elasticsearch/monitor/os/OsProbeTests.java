@@ -83,6 +83,7 @@ public class OsProbeTests extends ESTestCase {
         assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66629")
     public void testOsStats() {
         final OsProbe osProbe = new OsProbe();
         OsStats stats = osProbe.osStats();

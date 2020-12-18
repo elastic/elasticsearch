@@ -62,14 +62,8 @@ public class Hyperparameters implements ToXContentObject, Writeable {
         this.hyperparameterName = in.readString();
         this.value = in.readDouble();
         this.supplied = in.readBoolean();
-        if (this.supplied == false) {
-            this.absoluteImportance = in.readDouble();
-            this.relativeImportance = in.readDouble();
-        }
-        else {
-            this.absoluteImportance = null;
-            this.relativeImportance = null;
-        }
+        this.absoluteImportance = in.readOptionalDouble();
+        this.relativeImportance = in.readOptionalDouble();
     }
 
     Hyperparameters(String hyperparameterName, double value, Double absoluteImportance, Double relativeImportance, boolean supplied) {

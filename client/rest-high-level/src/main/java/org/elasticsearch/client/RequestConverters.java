@@ -1008,7 +1008,7 @@ final class RequestConverters {
         }
 
         Params withWaitForActiveShards(ActiveShardCount activeShardCount, ActiveShardCount defaultActiveShardCount) {
-            if (activeShardCount != null && activeShardCount != defaultActiveShardCount) {
+            if (activeShardCount != null) {
                 return putParam("wait_for_active_shards", activeShardCount.toString().toLowerCase(Locale.ROOT));
             }
             return this;

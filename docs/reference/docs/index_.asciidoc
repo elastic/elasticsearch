@@ -353,10 +353,10 @@ This default can be overridden in the index settings dynamically
 by setting `index.write.wait_for_active_shards`. To alter this behavior
 per operation, the `wait_for_active_shards` request parameter can be used.
 
-Valid values are `all` or any positive integer up to the total number
-of configured copies per shard in the index (which is `number_of_replicas+1`).
-Specifying a negative value or a number greater than the number of
-shard copies will throw an error.
+Valid values are `all`, `default`, and any positive integer up to the total
+number of configured copies per shard in the index (which is
+`number_of_replicas+1`). Specifying a negative value or a number greater than
+the number of shard copies will throw an error.
 
 For example, suppose we have a cluster of three nodes, `A`, `B`, and `C` and
 we create an index `index` with the number of replicas set to 3 (resulting in

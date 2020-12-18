@@ -106,7 +106,7 @@ public final class ActiveShardCount implements Writeable {
      * IllegalArgumentException.
      */
     public static ActiveShardCount parseString(final String str) {
-        if (str == null) {
+        if (str == null || str.equals("default")) {
             return ActiveShardCount.DEFAULT;
         } else if (str.equals("all")) {
             return ActiveShardCount.ALL;

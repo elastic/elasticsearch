@@ -130,8 +130,7 @@ public final class PutFollowAction extends ActionType<PutFollowAction.Response> 
         /**
          * Sets the number of shard copies that should be active for follower index creation to
          * return. Defaults to {@link ActiveShardCount#NONE}, which will not wait for any shards
-         * to be active. Set this value to {@link ActiveShardCount#DEFAULT} to wait for the primary
-         * shard to be active. Set this value to {@link ActiveShardCount#ALL} to  wait for all shards
+         * to be active. Set this value to {@link ActiveShardCount#ALL} to  wait for all shards
          * (primary and all replicas) to be active before returning.
          *
          * @param waitForActiveShards number of active shard copies to wait on

@@ -24,7 +24,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterGetSettingsRequest;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.cluster.RemoteInfoRequest;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -104,7 +103,7 @@ public class ClusterRequestConvertersTests extends ESTestCase {
             default:
                 throw new UnsupportedOperationException();
         }
-        RequestConvertersTests.setRandomWaitForActiveShards(healthRequest::waitForActiveShards, ActiveShardCount.NONE, expectedParams);
+        RequestConvertersTests.setRandomWaitForActiveShards(healthRequest::waitForActiveShards, expectedParams);
         if (ESTestCase.randomBoolean()) {
             ClusterHealthRequest.Level level = ESTestCase.randomFrom(ClusterHealthRequest.Level.values());
             healthRequest.level(level);

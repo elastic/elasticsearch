@@ -449,7 +449,7 @@ public class RequestConvertersTests extends ESTestCase {
             expectedParams.put("slices", "1");
         }
         setRandomTimeout(reindexRequest::setTimeout, ReplicationRequest.DEFAULT_TIMEOUT, expectedParams);
-        setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, ActiveShardCount.DEFAULT, expectedParams);
+        setRandomWaitForActiveShards(reindexRequest::setWaitForActiveShards, expectedParams);
         expectedParams.put("scroll", reindexRequest.getScrollTime().getStringRep());
         expectedParams.put("wait_for_completion", Boolean.TRUE.toString());
         Request request = RequestConverters.reindex(reindexRequest);
@@ -2053,24 +2053,19 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, Map<String, String> expectedParams) {
-        setRandomWaitForActiveShards(setter, ActiveShardCount.DEFAULT, expectedParams);
-    }
-
-    static void setRandomWaitForActiveShards(Consumer<ActiveShardCount> setter, ActiveShardCount defaultActiveShardCount,
-                                             Map<String, String> expectedParams) {
         if (randomBoolean()) {
-            int waitForActiveShardsInt = randomIntBetween(-1, 5);
+            int waitForActiveShardsInt = randomIntBetween(-2, 5);
             String waitForActiveShardsString;
             if (waitForActiveShardsInt == -1) {
                 waitForActiveShardsString = "all";
+            } else if (waitForActiveShardsInt == -2) {
+                waitForActiveShardsString = "default";
             } else {
                 waitForActiveShardsString = String.valueOf(waitForActiveShardsInt);
             }
             ActiveShardCount activeShardCount = ActiveShardCount.parseString(waitForActiveShardsString);
             setter.accept(activeShardCount);
-            if (defaultActiveShardCount.equals(activeShardCount) == false) {
-                expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
-            }
+            expectedParams.put("wait_for_active_shards", waitForActiveShardsString);
         }
     }
 

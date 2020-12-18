@@ -60,6 +60,7 @@ public class ActiveShardCountTests extends ESTestCase {
     public void testParseString() {
         assertSame(ActiveShardCount.parseString("all"), ActiveShardCount.ALL);
         assertSame(ActiveShardCount.parseString(null), ActiveShardCount.DEFAULT);
+        assertSame(ActiveShardCount.parseString("default"), ActiveShardCount.DEFAULT);
         assertSame(ActiveShardCount.parseString("0"), ActiveShardCount.NONE);
         int value = randomIntBetween(1, 50);
         assertEquals(ActiveShardCount.parseString(value + ""), ActiveShardCount.from(value));

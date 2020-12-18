@@ -123,3 +123,5 @@ This is a possible response:
 // TESTRESPONSE[s/"version": "7.0.0",/"version": "$body.native_code.version",/]
 // TESTRESPONSE[s/"build_hash": "99a07c016d5a73"/"build_hash": "$body.native_code.build_hash"/]
 // TESTRESPONSE[s/"effective_max_model_memory_limit": "28961mb"/"effective_max_model_memory_limit": "$body.limits.effective_max_model_memory_limit"/]
+// TESTRESPONSE[s/"total_ml_memory": "86883mb"/"total_ml_memory": "$body.limits.total_ml_memory"/]
+// TESTRESPONSE[skip:"AwaitsFix https://github.com/elastic/elasticsearch/issues/66629"]

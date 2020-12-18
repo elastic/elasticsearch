@@ -44,7 +44,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
             ids = in.readOptionalStringArray();
         } else {
             final String id = in.readOptionalString();
-            ids = Strings.hasText(id) == false ? null : new String[] { id };
+            ids = Strings.hasText(id) ? new String[] { id } : null;
         }
         validateIds(ids);
         name = textOrNull(in.readOptionalString());

@@ -53,7 +53,7 @@ public class VotingOnlyNodeFeatureSet implements XPackFeatureSet {
         @Override
         protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                        ActionListener<XPackUsageFeatureResponse> listener) {
-            final VotingOnlyNodeFeatureSetUsage usage = new VotingOnlyNodeFeatureSetUsage(true);
+            final VotingOnlyNodeFeatureSetUsage usage = new VotingOnlyNodeFeatureSetUsage();
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }
     }

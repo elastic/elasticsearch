@@ -362,53 +362,53 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertAllowed(STANDARD, false, s -> s.checkFeature(Feature.LOGSTASH), false);
     }
 
-    public void testSqlDefaults() {
+    public void testJdbcDefaults() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
     }
 
-    public void testSqlBasic() {
+    public void testJdbcBasic() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(BASIC, true, Long.MAX_VALUE, null);
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlStandard() {
+    public void testJdbcStandard() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(STANDARD, true, Long.MAX_VALUE, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlStandardExpired() {
+    public void testJdbcStandardExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(STANDARD, false, Long.MAX_VALUE, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlGold() {
+    public void testJdbcGold() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(GOLD, true, Long.MAX_VALUE, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlGoldExpired() {
+    public void testJdbcGoldExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(GOLD, false, Long.MAX_VALUE, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(false));
     }
 
-    public void testSqlPlatinum() {
+    public void testJdbcPlatinum() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(PLATINUM, true, Long.MAX_VALUE, null);
 
         assertThat(licenseState.checkFeature(XPackLicenseState.Feature.JDBC), is(true));
     }
 
-    public void testSqlPlatinumExpired() {
+    public void testJdbcPlatinumExpired() {
         XPackLicenseState licenseState = TestUtils.newTestLicenseState();
         licenseState.update(PLATINUM, false, Long.MAX_VALUE, null);
 

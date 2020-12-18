@@ -63,9 +63,9 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
                 }).collect(Collectors.toMap(Tuple::v1, Tuple::v2));
                 return new IndexLifecycleFeatureSetUsage.PolicyStats(phaseStats, policyUsage.getOrDefault(policy.getName(), 0));
             }).collect(Collectors.toList());
-            usage = new IndexLifecycleFeatureSetUsage(true, policyStats);
+            usage = new IndexLifecycleFeatureSetUsage(policyStats);
         } else {
-            usage = new IndexLifecycleFeatureSetUsage(true);
+            usage = new IndexLifecycleFeatureSetUsage();
         }
         listener.onResponse(new XPackUsageFeatureResponse(usage));
     }

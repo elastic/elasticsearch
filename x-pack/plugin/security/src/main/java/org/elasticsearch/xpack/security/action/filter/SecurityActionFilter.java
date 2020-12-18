@@ -70,7 +70,11 @@ public class SecurityActionFilter implements ActionFilter {
                                                                                        ActionFilterChain<Request, Response> chain) {
         /*
           A functional requirement - when the license of security is disabled (invalid/expires), security will continue
-          to operate normally, except all read operations will be blocked.
+          to operate normally, except the following read operations will be blocked:
+            - cluster:monitor/health*
+            - cluster:monitor/stats*
+            - indices:monitor/stats*
+            - cluster:monitor/nodes/stats*
           */
         if (licenseState.isActive() == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +

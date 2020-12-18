@@ -47,6 +47,6 @@ public class EnrichUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage(true)));
+        listener.onResponse(new XPackUsageFeatureResponse(new EnrichFeatureSetUsage()));
     }
 }

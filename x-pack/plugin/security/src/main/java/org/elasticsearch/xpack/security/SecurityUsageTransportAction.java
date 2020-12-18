@@ -91,7 +91,7 @@ public class SecurityUsageTransportAction extends XPackUsageFeatureTransportActi
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                var usage = new SecurityFeatureSetUsage(true, enabled,
+                var usage = new SecurityFeatureSetUsage(enabled,
                         realmsUsageRef.get(), rolesUsageRef.get(), roleMappingUsageRef.get(), sslUsage, auditUsage,
                         ipFilterUsage, anonymousUsage, tokenServiceUsage, apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage);
                 listener.onResponse(new XPackUsageFeatureResponse(usage));

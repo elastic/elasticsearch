@@ -61,9 +61,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
 }
 
 
-// Security is explicitly disabled, do not run these in FIPS mode
-if (BuildParams.inFipsJvm) {
-  project.tasks.configureEach {
-    enabled = false
-  }
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
 }

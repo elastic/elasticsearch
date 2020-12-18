@@ -59,9 +59,7 @@ tasks.named("check").configure { dependsOn 'follow-cluster' }
 // no unit tests for this module, only the rest integration test
 tasks.named("test").configure { enabled = false }
 // Security is explicitly disabled for follow-cluster and leader-cluster, do not run these in FIPS mode
-if (BuildParams.inFipsJvm) {
-  project.tasks.configureEach {
-    enabled = false
-  }
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
 }
 

@@ -13,7 +13,9 @@ import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.xpack.core.common.network.CIDRUtils;
 
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Arrays;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 

@@ -19,6 +19,20 @@
 
 package org.elasticsearch.snapshots;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.in;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -30,20 +44,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.test.MockLogAppender;
 import org.junit.Before;
-
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.in;
 
 public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
@@ -466,6 +466,60 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             + "] because an open index with same name already exists in the cluster."));
     }
 
+    /**
+     * When a feature state is restored, all indices that are part of that feature state should be deleted, then the indices in
+     * the snapshot should be restored.
+     *
+     * However, other feature states should be unaffected.
+     */
+    public void testAllSystemIndicesAreRemovedWhenThatFeatureStateIsRestored() {
+        // Create a system index we'll snapshot and restore
+        final String systemIndexInSnapshot = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-1";
+        indexDoc(systemIndexInSnapshot, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "*");
+
+        // And one we'll snapshot but not restore
+        indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+
+        // And a regular index so we can avoid matching all indices on the restore
+        final String regularIndex = "regular-index";
+        indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
+
+        // run a snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // Now index another doc and create another index in the same pattern as the first index
+        final String systemIndexNotInSnapshot = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-2";
+        indexDoc(systemIndexInSnapshot, "2", "purpose", "post-snapshot doc");
+        indexDoc(systemIndexNotInSnapshot, "1", "purpose", "post-snapshot doc");
+
+        // Add another doc to the second system index, so we can be sure it hasn't been touched
+        indexDoc(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
+
+        // Delete the regular index so we can restore it
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
+
+        // restore the snapshot
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            .setIndices(regularIndex)
+            .setFeatureStates("SystemIndexTestPlugin")
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(true)
+            .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        // The index we created after the snapshot should be gone
+        assertFalse(indexExists(systemIndexNotInSnapshot));
+        // And the first index should have a single doc
+        assertThat(getDocCount(systemIndexInSnapshot), equalTo(1L));
+        // And the system index whose state we didn't restore shouldn't have been touched and still have 2 docs
+        assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+    }
+
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),
@@ -482,7 +536,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         @Override
         public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
-            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME, "System indices for tests"));
+            return Collections.singletonList(new SystemIndexDescriptor(SYSTEM_INDEX_NAME + "*", "System indices for tests"));
         }
 
         @Override

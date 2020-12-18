@@ -146,7 +146,7 @@
             },
             "supplied": {
               "type": "boolean"
-            },
+            }
           } 
         }
       }

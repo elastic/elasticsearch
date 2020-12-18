@@ -32,7 +32,6 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
@@ -378,10 +377,13 @@ public class FetchPhase {
             rootId = rootFieldsVisitor.uid();
 
             if (needSource) {
-                BytesReference rootSource = rootFieldsVisitor.source();
-                Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootSource, false);
-                rootSourceAsMap = tuple.v2();
-                rootSourceContentType = tuple.v1();
+                if (rootFieldsVisitor.source() != null) {
+                    Tuple<XContentType, Map<String, Object>> tuple = XContentHelper.convertToMap(rootFieldsVisitor.source(), false);
+                    rootSourceAsMap = tuple.v2();
+                    rootSourceContentType = tuple.v1();
+                } else {
+                    rootSourceAsMap = Collections.emptyMap();
+                }
             }
         }
 
@@ -413,7 +415,7 @@ public class FetchPhase {
             nestedDocId,
             new SourceLookup());  // Use a clean, fresh SourceLookup for the nested context
 
-        if (rootSourceAsMap != null) {
+        if (rootSourceAsMap != null && rootSourceAsMap.isEmpty() == false) {
             // Isolate the nested json array object that matches with nested hit and wrap it back into the same json
             // structure with the nested json array object being the actual content. The latter is important, so that
             // features like source filtering and highlighting work consistent regardless of whether the field points

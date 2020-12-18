@@ -238,7 +238,7 @@ chgrp 0 esdatadir
 --------------------------------------------
 
 You can also run an {es} container using both a custom UID and GID. Unless you
-bind-mount each of the `config`, data` and `logs` directories, you must pass
+bind-mount each of the `config`, `data` and `logs` directories, you must pass
 the command line option `--group-add 0` to `docker run`. This ensures that the user
 under which {es} is running is also a member of the `root` (GID 0) group inside the
 container.

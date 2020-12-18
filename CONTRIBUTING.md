@@ -169,24 +169,22 @@ You can import the Elasticsearch project into IntelliJ IDEA via:
 If you have the [Checkstyle] plugin installed, you can configure IntelliJ to
 check the Elasticsearch code. However, the Checkstyle configuration file does
 not work by default with the IntelliJ plugin, so instead an IDE-specific config
-file is generated automatically after IntelliJ finishes syncing.
+file is generated automatically after IntelliJ finishes syncing. You can
+manually generate the file with `./gradlew configureIdeCheckstyle` in case
+it is removed due to a `./gradlew clean` or other action.
 
    1. Open **Preferences > Tools > Checkstyle**
    2. Change the "Scan Scope" to "Only Java sources (including tests)"
    3. Check the "+" under "Configuration file"
    4. Set "Description" to "Elasticsearch" (or whatever you want)
    5. Select "Use a local Checkstyle file"
-   6. For the "File", navigate to `build/checkstyle_ide.xml`
+   6. For the "File", enter `checkstyle_ide.xml`
    7. Tick "Store relative to project location"
-   8. Click "Next"
-   9. The Checkstyle config file contains the variable `config_loc`, and
-      IntelliJ will ask for a value. Fill in `buildSrc/src/main/resources`.
-      This allows the config file to reference the exclusions file in that directory.
-   10. Click "Next", then "Finish".
-   11. Click the box next to the new configuration to make it "Active". Without doing this,
-       you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
-       tool window and run the check manually. You can still do this with an active config.
-   12. Click "OK" to apply the new preferences
+   8. Click "Next", then "Finish".
+   9. Click the box next to the new configuration to make it "Active". Without doing this,
+      you'll have to explicitly choose the "Elasticsearch" configuration in the Checkstyle
+      tool window and run the check manually. You can still do this with an active config.
+   10. Click "OK" to apply the new preferences
 
 #### Formatting
 

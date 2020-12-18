@@ -4,9 +4,8 @@
 [[setting-jvm-heap-size]]
 ==== Setting JVM heap size
 
-Should you need to override the default <<heap-size-settings,heap size settings>>, you should consider
-the below recommendations. If any heap JVM options are provided those will be given
-preference over the default values provided by {es}.
+If you need to override the default <<heap-size-settings,heap size settings>>,
+follow the best practices below.
 
 {es} will assign the entire heap specified in
 <<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum

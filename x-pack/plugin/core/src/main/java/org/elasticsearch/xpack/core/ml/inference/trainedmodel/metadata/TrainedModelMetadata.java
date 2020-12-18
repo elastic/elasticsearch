@@ -86,7 +86,6 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         this.totalFeatureImportances = Collections.unmodifiableList(totalFeatureImportances);
         this.featureImportanceBaselines = featureImportanceBaselines;
         this.hyperparameters =  hyperparameters == null ? Collections.emptyList() : Collections.unmodifiableList(hyperparameters);
-
     }
 
     public String getModelId() {

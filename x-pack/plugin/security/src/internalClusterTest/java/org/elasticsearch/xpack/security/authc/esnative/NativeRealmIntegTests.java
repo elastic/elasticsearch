@@ -613,7 +613,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar", hasher).get());
+            () -> preparePutUser(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME, "foobar-password", hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,

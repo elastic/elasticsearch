@@ -68,7 +68,7 @@ public class ParsedMediaTypeTests extends ESTestCase {
     public void testWhiteSpaceInTypeSubtype() {
         String mediaType = " application/vnd.elasticsearch+json ";
         assertThat(ParsedMediaType.parseMediaType(mediaType).toMediaType(mediaTypeRegistry),
-            equalTo(XContentType.VND_JSON));
+            nullValue());
 
         assertThat(ParsedMediaType.parseMediaType(mediaType + "; compatible-with=123; charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));

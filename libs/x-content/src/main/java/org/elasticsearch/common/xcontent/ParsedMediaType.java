@@ -134,9 +134,11 @@ public class ParsedMediaType {
         T type = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
         if (type != null) {
 
+            //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
+            // iterating over registered params only at the moment.
             Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mediaTypeWithoutParameters());
-            for (Map.Entry<String, String> givenParamEntry : parameters.entrySet()) {
-                if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
+            for (Map.Entry<String, Pattern> registeredParam : registeredParams.entrySet()) {
+                if (isValidParameter(registeredParam.getKey(), registeredParam.getValue(), parameters) == false) {
                     return null;
                 }
             }
@@ -145,13 +147,12 @@ public class ParsedMediaType {
         return null;
     }
 
-    private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
-        if (registeredParams.containsKey(paramName)) {
-            Pattern regex = registeredParams.get(paramName);
-            return regex.matcher(value).matches();
+    private boolean isValidParameter(String paramName, Pattern regex, Map<String, String> parameters) {
+        if (parameters.containsKey(paramName)) {
+            String givenValue = parameters.get(paramName);
+            return regex.matcher(givenValue).matches();
         }
-        //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
-        return true;
+        return false;
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
@@ -74,9 +75,15 @@ public class Hyperparameters implements ToXContentObject, Writeable {
     Hyperparameters(String hyperparameterName, double value, Double absoluteImportance, Double relativeImportance, boolean supplied) {
         this.hyperparameterName = hyperparameterName;
         this.value = value;
-        this.absoluteImportance = absoluteImportance;
-        this.relativeImportance = relativeImportance;
         this.supplied = supplied;
+        if (this.supplied == false) {
+            this.absoluteImportance = ExceptionsHelper.requireNonNull(absoluteImportance, ABSOLUTE_IMPORTANCE.getPreferredName());
+            this.relativeImportance = ExceptionsHelper.requireNonNull(relativeImportance, RELATIVE_IMPORTANCE.getPreferredName());
+        }
+        else {
+            this.absoluteImportance = null;
+            this.relativeImportance = null;
+        }
     }
 
     @Override
@@ -85,8 +92,8 @@ public class Hyperparameters implements ToXContentObject, Writeable {
         out.writeDouble(value);
         out.writeBoolean(supplied);
         if (supplied == false) {
-            out.writeDouble(absoluteImportance);
-            out.writeDouble(relativeImportance);
+            out.writeOptionalDouble(absoluteImportance);
+            out.writeOptionalDouble(relativeImportance);
         }
     }
 
@@ -112,8 +119,14 @@ public class Hyperparameters implements ToXContentObject, Writeable {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put(HYPERPARAMETER_NAME.getPreferredName(), hyperparameterName);
         map.put(VALUE.getPreferredName(), value);
-        map.put(ABSOLUTE_IMPORTANCE.getPreferredName(), absoluteImportance);
-        map.put(RELATIVE_IMPORTANCE.getPreferredName(), relativeImportance);
+        if (supplied == false) {
+            if (absoluteImportance != null) {
+                map.put(ABSOLUTE_IMPORTANCE.getPreferredName(), absoluteImportance);
+            }
+            if (relativeImportance != null) {
+                map.put(RELATIVE_IMPORTANCE.getPreferredName(), relativeImportance);
+            }
+        }
         map.put(SUPPLIED.getPreferredName(), supplied);
         
         return map;

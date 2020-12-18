@@ -145,20 +145,20 @@ class InternalDistributionArchiveSetupPluginFuncTest extends AbstractGradleFuncT
         file("consumer/build/archives/elasticsearch.tar.gz").exists()
 
         when:
-        result = gradleRunner("copyDir", "-Pversion=1.0").build()
+        result = gradleRunner("copyDir", "-Pversion=7.11.1").build()
         then: "plain copy task executed and target folder contains plain content"
         result.task(':buildProducer').outcome == TaskOutcome.SUCCESS
         result.task(':consumer:copyDir').outcome == TaskOutcome.SUCCESS
-        file("producer-tar/build/install/someFile.txt").exists()
-        file("producer-tar/build/install/snapshot-1.0.txt").exists()
+        file("producer-tar/build/install/7.11.1/someFile.txt").exists()
+        file("producer-tar/build/install/7.11.1/snapshot-7.11.1.txt").exists()
         file("consumer/build/dir/someFile.txt").exists()
 
         when:
-        gradleRunner("copyDir", "-Pversion=2.0").build()
+        gradleRunner("copyDir", "-Pversion=7.12.0").build()
         then: "old content is cleared out"
-        file("producer-tar/build/install/someFile.txt").exists()
-        !file("producer-tar/build/install/snapshot-1.0.txt").exists()
-        file("producer-tar/build/install/snapshot-2.0.txt").exists()
+        file("producer-tar/build/install/7.12.0/someFile.txt").exists()
+        !file("producer-tar/build/install/7.12.0/snapshot-7.11.1.txt").exists()
+        file("producer-tar/build/install/7.12.0/snapshot-7.12.0.txt").exists()
     }
 
     def "builds extracted distribution via extractedAssemble"() {

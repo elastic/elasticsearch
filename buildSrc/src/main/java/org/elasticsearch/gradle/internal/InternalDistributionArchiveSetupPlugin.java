@@ -71,7 +71,11 @@ public class InternalDistributionArchiveSetupPlugin implements InternalPlugin {
             var subProjectDir = archiveToSubprojectName(name);
             var copyDistributionTaskName = "build" + capitalize(name.substring(0, name.length() - 3));
             TaskContainer tasks = project.getTasks();
-            var explodedDist = tasks.register(copyDistributionTaskName, Sync.class, sync -> sync.into(subProjectDir + "/build/install/"));
+            var explodedDist = tasks.register(
+                copyDistributionTaskName,
+                Sync.class,
+                sync -> sync.into(subProjectDir + "/build/install/" + project.getVersion())
+            );
             var archiveTaskName = "build" + capitalize(name);
             return name.endsWith("Tar")
                 ? new DistributionArchive(tasks.register(archiveTaskName, SymbolicLinkPreservingTar.class), explodedDist, name)

@@ -1,6 +1,11 @@
 [[advanced-configuration]]
 === Advanced configuration settings
 
+The settings below are considered advanced and for expert users only. In
+most cases the {es}-provided default settings should be used. Take caution
+when modifying these settings as this could result in undesired behavior or
+reduced system performance.
+
 [[setting-jvm-heap-size]]
 ==== Setting JVM heap size
 
@@ -14,7 +19,7 @@ heap size) settings. These two settings must be equal to each other.
 The value for these settings depends on the amount of RAM available on your
 server:
 
-* Set `Xmx` and `Xms` to no more than 50% of your physical RAM. {es} requires
+* Set `Xmx` and `Xms` to no more than 50% of your total system memory. {es} requires
 memory for purposes other than the JVM heap and it is important to leave
 space for this. For instance, {es} uses off-heap buffers for efficient
 network communication, relies on the operating system's filesystem cache for

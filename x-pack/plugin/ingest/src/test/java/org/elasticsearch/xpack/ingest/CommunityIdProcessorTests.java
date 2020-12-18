@@ -86,9 +86,10 @@ public class CommunityIdProcessorTests extends ESTestCase {
     public void testBeatsInvalidDestinationIp() throws Exception {
         @SuppressWarnings("unchecked")
         var destination = (Map<String, Object>) event.get("destination");
-        destination.put("ip", "308.111.1.2.3");
+        String invalidIp = "308.111.1.2.3";
+        destination.put("ip", invalidIp);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
-        assertThat(e.getMessage(), containsString("unable to parse destination IP address"));
+        assertThat(e.getMessage(), containsString("'" + invalidIp + "' is not an IP string literal"));
     }
 
     public void testBeatsInvalidDestinationPort() throws Exception {
@@ -301,4 +302,15 @@ public class CommunityIdProcessorTests extends ESTestCase {
         assertThat(hash, equalTo(expectedHash));
     }
 
+    public void testTransportEnum() {
+        for (CommunityIdProcessor.Transport t : CommunityIdProcessor.Transport.values()) {
+            assertThat(CommunityIdProcessor.Transport.fromNumber(t.getTransportNumber()), equalTo(t));
+        }
+    }
+
+    public void testIcmpTypeEnum() {
+        for (CommunityIdProcessor.IcmpType i : CommunityIdProcessor.IcmpType.values()) {
+            assertThat(CommunityIdProcessor.IcmpType.fromNumber(i.getType()), equalTo(i));
+        }
+    }
 }

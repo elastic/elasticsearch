@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ingest;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -13,7 +14,6 @@ import org.elasticsearch.ingest.Processor;
 
 import java.math.BigInteger;
 import java.net.InetAddress;
-import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -150,17 +150,8 @@ public class CommunityIdProcessor extends AbstractProcessor {
         }
 
         Flow flow = new Flow();
-        try {
-            flow.source = InetAddress.getByName(sourceIpAddrString);
-        } catch (UnknownHostException e) {
-            throw new IllegalArgumentException("unable to parse source IP address [" + sourceIpAddrString + "]");
-        }
-
-        try {
-            flow.destination = InetAddress.getByName(destIpAddrString);
-        } catch (UnknownHostException e) {
-            throw new IllegalArgumentException("unable to parse destination IP address [" + destIpAddrString + "]");
-        }
+        flow.source = InetAddresses.forString(sourceIpAddrString);
+        flow.destination = InetAddresses.forString(destIpAddrString);
 
         Object protocol = d.getFieldValue(ianaNumberField, Object.class, true);
         if (protocol == null) {

@@ -298,7 +298,7 @@ PUT _transform/ecommerce_transform2
     "index": "kibana_sample_data_ecommerce"
   },
   "latest": {
-    "unique_key": "customer_id",
+    "unique_key": ["customer_id"],
     "sort": "order_date"
   },
   "description": "Latest order for each customer",

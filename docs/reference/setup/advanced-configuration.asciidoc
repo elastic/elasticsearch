@@ -83,5 +83,4 @@ ES_JAVA_OPTS="-Xms4000m -Xmx4000m" ./bin/elasticsearch <2>
 NOTE: Configuring the heap for the <<windows-service,Windows service>> is
 different than the above. The values initially populated for the Windows
 service can be configured as above but are different after the service has been
-installed. Consult the <<windows-service,Windows service documentation>> for
-additional details.
+installed. See <<windows-service>>.

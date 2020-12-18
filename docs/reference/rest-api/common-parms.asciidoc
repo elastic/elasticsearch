@@ -975,12 +975,11 @@ The default value is `500`.
 end::transform-settings-max-page-search-size[]
 
 tag::transform-sort[]
-//TBD
+Specifies the date field that is used to identify the latest documents.
 end::transform-sort[]
 
 tag::transform-unique-key[]
-Specifies the field that is used to group the data.
-//TBD Does this need to be a keyword field?
+Specifies an array of one or more fields that are used to group the data.
 end::transform-unique-key[]
 
 tag::target-index[]

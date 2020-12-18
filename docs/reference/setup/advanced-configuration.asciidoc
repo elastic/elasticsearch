@@ -52,8 +52,8 @@ heap address: 0x0000000118400000, size: 28672 MB, Compressed Oops with base: 0x0
 ----
 
 The more heap available to {es}, the more memory it can use for its internal
-caches, but the less memory it leaves available for the operating system to use
-for the filesystem cache. Also, larger heaps can cause longer garbage
+caches. This leaves less memory for the operating system to use
+for the filesystem cache. Larger heaps can also cause longer garbage
 collection pauses.
 
 Here is an example of how to set the heap size via a `jvm.options.d/` file:

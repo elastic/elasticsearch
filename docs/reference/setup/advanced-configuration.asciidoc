@@ -7,7 +7,7 @@
 If you need to override the default <<heap-size-settings,heap size settings>>,
 follow the best practices below.
 
-{es} will assign the entire heap specified in
+{es} assigns the entire heap specified in
 <<jvm-options,jvm.options>> via the `Xms` (minimum heap size) and `Xmx` (maximum
 heap size) settings. These two settings must be equal to each other.
 

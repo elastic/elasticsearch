@@ -66,8 +66,7 @@ Here is an example of how to set the heap size via a `jvm.options.d/` file:
 <1> Set the minimum heap size to 2g.
 <2> Set the maximum heap size to 2g.
 
-Using `jvm.options.d` is the preferred method for configuring the heap size for
-production deployments.
+In production, we recommend using `jvm.options.d` to configure heap sizes.
 
 It is also possible to set the heap size via the `ES_JAVA_OPTS` environment
 variable. This is generally discouraged for production deployments but is useful

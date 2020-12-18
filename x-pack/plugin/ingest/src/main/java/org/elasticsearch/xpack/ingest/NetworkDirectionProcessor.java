@@ -165,12 +165,10 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         }
     }
 
-    // loopback - done
     private boolean isLoopback(String ip) {
         return InetAddresses.forString(ip).isLoopbackAddress();
     }
 
-    // global_unicast, unicast - done
     private boolean isUnicast(String ip) {
         var address = InetAddresses.forString(ip);
         return !Arrays.equals(address.getAddress(), BROADCAST_IP4)
@@ -180,38 +178,31 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             && !isLinkLocalUnicast(ip);
     }
 
-    // link_local_unicast - done
     private boolean isLinkLocalUnicast(String ip) {
         return InetAddresses.forString(ip).isLinkLocalAddress();
     }
 
-    // interface_local_multicast - done
     private boolean isInterfaceLocalMulticast(String ip) {
         return InetAddresses.forString(ip).isMCNodeLocal();
     }
 
-    // link_local_multicast - done
     private boolean isLinkLocalMulticast(String ip) {
         return InetAddresses.forString(ip).isMCLinkLocal();
     }
 
-    // multicast - done
     private boolean isMulticast(String ip) {
         return InetAddresses.forString(ip).isMulticastAddress();
     }
 
-    // unspecified - done
     private boolean isUnspecified(String ip) {
         var address = InetAddresses.forString(ip).getAddress();
         return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
     }
 
-    // private
     private boolean isPrivate(String ip) {
         return CIDRUtils.isInRange(ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8");
     }
 
-    // public
     private boolean isPublic(String ip) {
         return !isLocalOrPrivate(ip);
     }

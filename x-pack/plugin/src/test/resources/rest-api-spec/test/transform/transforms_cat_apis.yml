@@ -89,6 +89,9 @@ setup:
             "event_rate": 7
           }
 
+  - do:
+      indices.refresh:
+        index: airline-data
 ---
 teardown:
   - do:

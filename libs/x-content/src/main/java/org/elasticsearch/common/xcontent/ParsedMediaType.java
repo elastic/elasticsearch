@@ -160,6 +160,9 @@ public class ParsedMediaType {
         return originalHeaderValue;
     }
 
+    public String responseContentTypeHeader() {
+        return this.mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
     public String responseContentTypeHeader(Map<String,String> parameters) {
         return this.mediaTypeWithoutParameters() + formatParameters(parameters);
     }

@@ -172,7 +172,7 @@ To avoid deprecation warnings, use the `allow_no_match` parameter.
 
 [discrete]
 [[breaking_710_mapping_changes]]
-==== Mapping changes
+==== Mapping deprecations
 
 [[mapping-boosts]]
 .The `boost` parameter on field mappings has been deprecated.

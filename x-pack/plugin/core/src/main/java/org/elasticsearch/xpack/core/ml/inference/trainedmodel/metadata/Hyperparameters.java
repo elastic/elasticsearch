@@ -83,10 +83,8 @@ public class Hyperparameters implements ToXContentObject, Writeable {
         out.writeString(hyperparameterName);
         out.writeDouble(value);
         out.writeBoolean(supplied);
-        if (supplied == false) {
-            out.writeOptionalDouble(absoluteImportance);
-            out.writeOptionalDouble(relativeImportance);
-        }
+        out.writeOptionalDouble(absoluteImportance);
+        out.writeOptionalDouble(relativeImportance);
     }
 
     @Override

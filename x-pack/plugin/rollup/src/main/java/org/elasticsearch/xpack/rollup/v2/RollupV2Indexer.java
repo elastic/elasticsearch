@@ -96,12 +96,14 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
      * Ctr
      * @param client The Transport client
      * @param threadPool ThreadPool to use to fire the first request of a background job.
-     * @param executorName Name of the executor to use to fire the first request of a background job.
      * @param request The rollup request
      */
-    RollupV2Indexer(Client client, ThreadPool threadPool, String executorName, RollupAction.Request request, Map<String, String> headers,
+    RollupV2Indexer(Client client,
+                    ThreadPool threadPool,
+                    RollupAction.Request request,
+                    Map<String, String> headers,
                     ActionListener<Void> completionListener) {
-        super(threadPool, executorName, new AtomicReference<>(IndexerState.STOPPED), null, new RollupIndexerJobStats());
+        super(threadPool, new AtomicReference<>(IndexerState.STOPPED), null, new RollupIndexerJobStats());
         this.client = client;
         this.request = request;
         this.headers = headers;

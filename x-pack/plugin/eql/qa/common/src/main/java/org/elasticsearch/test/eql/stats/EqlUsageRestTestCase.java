@@ -120,6 +120,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
             DataLoader.loadDatasetIntoEs(highLevelClient(), this::createParser);
         }
 
+        String defaultPipe = "pipe_tail";
         //
         // random event queries
         //
@@ -145,7 +146,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
             runEql("sequence [process where serial_event_id == 1] [process where serial_event_id == 2]");
         }
         responseAsMap = getStats();
-        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two", "pipe_head")));
+        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two", defaultPipe)));
         assertFeaturesMetrics(randomSequenceExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -198,8 +199,8 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
                 "  [process where opcode == 2] by user");
         }
         responseAsMap = getStats();
-        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_three", "pipe_head", "join_keys_one",
-            "sequence_maxspan")));
+        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_three", "join_keys_one",
+            "sequence_maxspan", defaultPipe)));
         assertFeaturesMetrics(randomThreeQueriesSequences, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -236,7 +237,7 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
                 "  [process where opcode == 1]");
         }
         responseAsMap = getStats();
-        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two", "pipe_head", "join_keys_four")));
+        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two", "join_keys_four", defaultPipe)));
         assertFeaturesMetrics(randomFourJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);
@@ -252,8 +253,8 @@ public abstract class EqlUsageRestTestCase extends ESRestTestCase {
                 "  [process where opcode == 1]");
         }
         responseAsMap = getStats();
-        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two", "pipe_head",
-            "join_keys_five_or_more")));
+        metricsToCheck = unmodifiableSet(new HashSet<>(Arrays.asList("sequence", "sequence_queries_two",
+            "join_keys_five_or_more", defaultPipe)));
         assertFeaturesMetrics(randomFiveJoinKeysExecutions, responseAsMap, metricsToCheck);
         assertFeaturesMetricsExcept(responseAsMap, metricsToCheck);
         assertAllQueryMetrics(allTotalQueries, responseAsMap);

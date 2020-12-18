@@ -26,6 +26,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,9 +44,10 @@ import java.util.Objects;
 public final class DataStream extends AbstractDiffable<DataStream> implements ToXContentObject {
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
+    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("uuuu.MM.dd");
 
     /**
-     * The version when data stream metadata, hidden data streams and replicated data streams was introduced.
+     * The version when data stream metadata, hidden and replicated data streams, and dates in backing index names was introduced.
      */
     public static final Version NEW_FEATURES_VERSION = Version.V_7_11_0;
 
@@ -124,8 +126,8 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      *                      backing indices on data streams. See {@link #getDefaultBackingIndexName}.
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index newWriteIndex) {
-        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1));
+    public DataStream rollover(Index newWriteIndex, Version minNodeVersion) {
+        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1, minNodeVersion));
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
@@ -181,13 +183,47 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
 
     /**
      * Generates the name of the index that conforms to the default naming convention for backing indices
-     * on data streams given the specified data stream name and generation.
+     * on data streams given the specified data stream name and generation and the current system time.
      *
      * @param dataStreamName name of the data stream
      * @param generation generation of the data stream
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), Version.CURRENT);
+    }
+
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, Version minNodeVersion) {
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), minNodeVersion);
+    }
+
+    /**
+     * Generates the name of the index that conforms to the default naming convention for backing indices
+     * on data streams given the specified data stream name, generation, and time.
+     *
+     * @param dataStreamName name of the data stream
+     * @param generation generation of the data stream
+     * @param epochMillis creation time for the backing index
+     * @return backing index name
+     */
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis),
+            generation);
+    }
+
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis, Version minNodeVersion) {
+        if (minNodeVersion.onOrAfter(NEW_FEATURES_VERSION)) {
+            return String.format(Locale.ROOT,
+                BACKING_INDEX_PREFIX + "%s-%s-%06d",
+                dataStreamName,
+                DATE_FORMATTER.formatMillis(epochMillis),
+                generation);
+        } else {
+            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
+        }
+    }
+
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
         return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
     }
 

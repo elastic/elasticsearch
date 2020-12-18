@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -15,13 +14,9 @@ import org.elasticsearch.xpack.core.action.XPackInfoFeatureTransportAction;
 
 public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters,
-                                  XPackLicenseState licenseState) {
+    public EqlInfoTransportAction(TransportService transportService, ActionFilters actionFilters) {
         super(XPackInfoFeatureAction.EQL.name(), transportService, actionFilters);
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -31,7 +26,7 @@ public class EqlInfoTransportAction extends XPackInfoFeatureTransportAction {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.EQL);
+        return true;
     }
 
     @Override

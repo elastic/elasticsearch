@@ -193,6 +193,11 @@ public final class FrozenEngine extends ReadOnlyEngine {
             protected void doClose() {
                 store.decRef();
             }
+
+            @Override
+            public String getCommitId() {
+                return commitId;
+            }
         };
     }
 

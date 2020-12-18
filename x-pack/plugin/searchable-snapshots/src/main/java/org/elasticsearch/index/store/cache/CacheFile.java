@@ -158,6 +158,11 @@ public class CacheFile {
         return reference == null ? null : reference.fileChannel;
     }
 
+    // Only used in tests
+    SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+        return tracker.getCompletedRanges();
+    }
+
     public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 

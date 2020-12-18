@@ -118,6 +118,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -180,8 +181,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             IndexNameExpressionResolver expressionResolver,
             ValuesSourceRegistry valuesSourceRegistry,
             IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-            IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener
-            ) {
+            IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -191,6 +192,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry =  valuesSourceRegistry;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
@@ -484,7 +486,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
-                    circuitBreakerService);
+                    circuitBreakerService,
+                    snapshotCommitSupplier);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);

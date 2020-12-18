@@ -5,6 +5,7 @@
       "description":"Enables authentication as a user and retrieve information about the authenticated user."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

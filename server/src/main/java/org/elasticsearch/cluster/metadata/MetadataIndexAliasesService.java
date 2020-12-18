@@ -189,7 +189,7 @@ public class MetadataIndexAliasesService {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
-            throw new IllegalArgumentException("The provided index [ " + action.getIndex()
+            throw new IllegalArgumentException("The provided index [" + action.getIndex()
                 + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
                 + "]. Data streams and their backing indices don't support alias operations.");
         }

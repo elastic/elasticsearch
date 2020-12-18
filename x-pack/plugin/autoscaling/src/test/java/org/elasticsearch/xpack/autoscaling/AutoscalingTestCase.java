@@ -190,10 +190,10 @@ public abstract class AutoscalingTestCase extends ESTestCase {
     }
 
     public static NamedWriteableRegistry getAutoscalingNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(new Autoscaling(Settings.EMPTY).getNamedWriteables());
+        return new NamedWriteableRegistry(new Autoscaling().getNamedWriteables());
     }
 
     public static NamedXContentRegistry getAutoscalingXContentRegistry() {
-        return new NamedXContentRegistry(new Autoscaling(Settings.EMPTY).getNamedXContent());
+        return new NamedXContentRegistry(new Autoscaling().getNamedXContent());
     }
 }

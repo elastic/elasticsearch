@@ -272,9 +272,16 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
     // The class takes markedup format field values and returns plain text versions.
     // When asked to tokenize plain-text versions by the highlighter it tokenizes the
     // original markup form in order to inject annotations.
+    // Unlike other Analyzers, which tend to be single-instance, this class has
+    // instances created per search request and field being highlighted. This allows us to keep
+    // state about the annotations being processed and pass them into token streams
+    // being highlighted.
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
         private final Analyzer delegate;
         private AnnotatedText[] annotations;
+        // If the field has arrays of values this counter is used to keep track of
+        // which array element is currently being highlighted.
+        AtomicInteger readerNum;
 
         public AnnotatedHighlighterAnalyzer(Analyzer delegate){
             super(delegate.getReuseStrategy());
@@ -286,14 +293,15 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
           return delegate;
         }
 
+        // Called with each new doc being highlighted
         public void setAnnotations(AnnotatedText[] annotations) {
-            this.annotations = annotations;
+            this.annotations = annotations;            
+            this.readerNum = new AtomicInteger(0);
         }
 
         @Override
         protected TokenStreamComponents wrapComponents(String fieldName, TokenStreamComponents components) {
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
-            AtomicInteger readerNum = new AtomicInteger(0);
             return new TokenStreamComponents(r -> {
                 String plainText = readToString(r);
                 AnnotatedText at = annotations[readerNum.getAndIncrement()];

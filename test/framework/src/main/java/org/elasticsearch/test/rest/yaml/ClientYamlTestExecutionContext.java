@@ -19,7 +19,6 @@
 package org.elasticsearch.test.rest.yaml;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
-
 import org.apache.http.HttpEntity;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
@@ -31,8 +30,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.MediaType;
-import org.elasticsearch.common.xcontent.MediaTypeRegistry;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,7 +37,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,15 +144,12 @@ public class ClientYamlTestExecutionContext {
             return new ByteArrayEntity(bytes, getContentType(xContentType));
         }
     }
-    MediaTypeRegistry<XContentType> registry = new MediaTypeRegistry<XContentType>()
-        .register(XContentType.values());
 
     private ContentType getContentType(XContentType xContentType) {
-
         ContentType contentType = ContentType.create(xContentType.mediaTypeWithoutParameters(), StandardCharsets.UTF_8);
 
-        Map<String, Pattern> map = registry.parametersFor(xContentType.mediaTypeWithoutParameters());
-        System.out.println(map);
+        Map<String, Pattern> map = XContentType.MEDIA_TYPE_REGISTRY.parametersFor(xContentType.mediaTypeWithoutParameters());
+
         if(map.containsKey(MediaType.COMPATIBLE_WITH_PARAMETER_NAME)){
             contentType = contentType.withParameters(new BasicNameValuePair(MediaType.COMPATIBLE_WITH_PARAMETER_NAME,
                 String.valueOf(Version.CURRENT.major)));

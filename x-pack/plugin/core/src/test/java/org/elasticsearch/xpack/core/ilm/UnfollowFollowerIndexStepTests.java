@@ -23,11 +23,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestCase<UnfollowFollowIndexStep> {
+public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCase<UnfollowFollowerIndexStep> {
 
     @Override
-    protected UnfollowFollowIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey) {
-        return new UnfollowFollowIndexStep(key, nextKey, client);
+    protected UnfollowFollowerIndexStep newInstance(Step.StepKey key, Step.StepKey nextKey) {
+        return new UnfollowFollowerIndexStep(key, nextKey, client);
     }
 
     public void testUnFollow() {
@@ -49,7 +49,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
-        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
@@ -85,7 +85,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
 
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
-        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
@@ -122,7 +122,7 @@ public class UnfollowFollowIndexStepTests extends AbstractUnfollowIndexStepTestC
 
         AtomicBoolean completed = new AtomicBoolean(false);
         AtomicReference<Exception> failure = new AtomicReference<>();
-        UnfollowFollowIndexStep step = new UnfollowFollowIndexStep(randomStepKey(), randomStepKey(), client);
+        UnfollowFollowerIndexStep step = new UnfollowFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {

@@ -117,8 +117,8 @@ public class TransportFieldCapabilitiesIndexAction
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
 
-            final QueryShardContext queryShardContext = indexService.newQueryShardContext(shardId.id(), searcher,
-                request::nowInMillis, null, Collections.emptyMap());
+            final QueryShardContext queryShardContext = indexService.newQueryShardContext(shardId.id(), 0,
+                searcher, request::nowInMillis, null, Collections.emptyMap());
 
             if (canMatchShard(request, queryShardContext) == false) {
                 return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);

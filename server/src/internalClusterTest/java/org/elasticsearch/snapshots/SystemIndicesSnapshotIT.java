@@ -520,6 +520,53 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(AnotherSystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
     }
 
+    public void testSystemIndexAliasesAreAlwaysRestored() {
+        // Create a system index
+        final String systemIndexName = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-1";
+        indexDoc(systemIndexName, "1", "purpose", "pre-snapshot doc");
+
+        // And a regular index
+        // And a regular index so we can avoid matching all indices on the restore
+        final String regularIndex = "regular-index";
+        final String regularAlias = "regular-alias";
+        indexDoc(regularIndex, "1", "purpose", "pre-snapshot doc");
+
+        // And make sure they both have aliases
+        final String systemIndexAlias = SystemIndexTestPlugin.SYSTEM_INDEX_NAME + "-alias";
+        assertAcked(client().admin().indices().prepareAliases()
+            .addAlias(systemIndexName, systemIndexAlias)
+            .addAlias(regularIndex, regularAlias).get());
+
+        // run a snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // And delete both the indices
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex, systemIndexName));
+
+        // Now restore the snapshot with no aliases
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            .setIndices(regularIndex)
+            .setFeatureStates("SystemIndexTestPlugin")
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .setIncludeAliases(false)
+            .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        // The regular index should exist
+        assertTrue(indexExists(regularIndex));
+        assertFalse(indexExists(regularAlias));
+        // And the system index, queried by alias, should have a doc
+        assertTrue(indexExists(systemIndexName));
+        assertTrue(indexExists(systemIndexAlias));
+        assertThat(getDocCount(systemIndexAlias), equalTo(1L));
+
+    }
+
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
         assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(),

@@ -6,9 +6,6 @@
 package org.elasticsearch.xpack.rollup;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
@@ -17,13 +14,6 @@ import java.util.Map;
 
 public class RollupFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
-
-    @Inject
-    public RollupFeatureSet(@Nullable XPackLicenseState licenseState) {
-        this.licenseState = licenseState;
-    }
-
     @Override
     public String name() {
         return XPackField.ROLLUP;
@@ -31,7 +21,7 @@ public class RollupFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP);
+        return true;
     }
 
     @Override
@@ -47,6 +37,6 @@ public class RollupFeatureSet implements XPackFeatureSet {
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
         // TODO expose the currently running rollup tasks on this node?  Unclear the best way to do that
-        listener.onResponse(new RollupFeatureSetUsage(available()));
+        listener.onResponse(new RollupFeatureSetUsage());
     }
 }

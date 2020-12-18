@@ -26,12 +26,10 @@ import java.util.stream.Collectors;
 
 public class EqlFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
     private final Client client;
 
     @Inject
-    public EqlFeatureSet(@Nullable XPackLicenseState licenseState, Client client) {
-        this.licenseState = licenseState;
+    public EqlFeatureSet(Client client) {
         this.client = client;
     }
 
@@ -42,7 +40,7 @@ public class EqlFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.EQL);
+        return true;
     }
 
     @Override
@@ -66,7 +64,7 @@ public class EqlFeatureSet implements XPackFeatureSet {
                     .filter(Objects::nonNull)
                     .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
-            listener.onResponse(new EqlFeatureSetUsage(available(), enabled(), mergedCounters.toNestedMap()));
+            listener.onResponse(new EqlFeatureSetUsage(mergedCounters.toNestedMap()));
         }, listener::onFailure));
     }
 

@@ -49,7 +49,6 @@ import java.util.Objects;
 public class TransformFeatureSet implements XPackFeatureSet {
 
     private final Client client;
-    private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     private static final Logger logger = LogManager.getLogger(TransformFeatureSet.class);
@@ -72,10 +71,9 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
-    public TransformFeatureSet(ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
+    public TransformFeatureSet(ClusterService clusterService, Client client) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -85,7 +83,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
+        return true;
     }
 
     @Override
@@ -113,7 +111,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(
             statSummations -> listener.onResponse(
-                new TransformFeatureSetUsage(available(), transformsCountByState, statSummations)
+                new TransformFeatureSetUsage(transformsCountByState, statSummations)
             ),
             listener::onFailure
         );
@@ -128,7 +126,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
                 listener.onResponse(
-                    new TransformFeatureSetUsage(available(), transformsCountByState, new TransformIndexerStats())
+                    new TransformFeatureSetUsage(transformsCountByState, new TransformIndexerStats())
                 );
                 return;
             }

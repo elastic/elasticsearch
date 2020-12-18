@@ -72,7 +72,7 @@ public class SecurityFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.SECURITY);
+        return true;
     }
 
     @Override
@@ -107,9 +107,10 @@ public class SecurityFeatureSet implements XPackFeatureSet {
         final CountDown countDown = new CountDown(3);
         final Runnable doCountDown = () -> {
             if (countDown.countDown()) {
-                listener.onResponse(new SecurityFeatureSetUsage(available(), enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
+                listener.onResponse(new SecurityFeatureSetUsage(enabled(), realmsUsageRef.get(), rolesUsageRef.get(),
                         roleMappingUsageRef.get(), sslUsage, auditUsage, ipFilterUsage, anonymousUsage, tokenServiceUsage,
-                        apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage)); }
+                        apiKeyServiceUsage, fips140Usage, operatorPrivilegesUsage));
+            }
         };
 
         final ActionListener<Map<String, Object>> rolesStoreUsageListener =

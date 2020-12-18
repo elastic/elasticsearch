@@ -37,7 +37,7 @@ public class VectorsFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.VECTORS);
+        return true;
     }
 
     @Override
@@ -52,13 +52,11 @@ public class VectorsFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        boolean vectorsAvailable = available();
-        boolean vectorsEnabled = enabled();
         int numDenseVectorFields = 0;
         int numSparseVectorFields = 0;
         int avgDenseVectorDims = 0;
 
-        if (vectorsAvailable && clusterService.state() != null) {
+        if (clusterService.state() != null) {
             for (IndexMetadata indexMetadata : clusterService.state().metadata()) {
                 MappingMetadata mappingMetadata = indexMetadata.mapping();
                 if (mappingMetadata != null) {
@@ -85,7 +83,6 @@ public class VectorsFeatureSet implements XPackFeatureSet {
                 avgDenseVectorDims = avgDenseVectorDims / numDenseVectorFields;
             }
         }
-        listener.onResponse(new VectorsFeatureSetUsage(vectorsAvailable, vectorsEnabled,
-            numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims));
+        listener.onResponse(new VectorsFeatureSetUsage(numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims));
     }
 }

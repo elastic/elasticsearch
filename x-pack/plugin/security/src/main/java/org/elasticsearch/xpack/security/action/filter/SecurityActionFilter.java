@@ -24,7 +24,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.LicenseUtils;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackField;
@@ -74,13 +73,17 @@ public class SecurityActionFilter implements ActionFilter {
                                                                                        ActionListener<Response> listener,
                                                                                        ActionFilterChain<Request, Response> chain) {
         /*
-         A functional requirement - when the license of security is disabled (invalid/expires), security will continue
-         to operate normally, except all read operations will be blocked.
-         */
-        if (licenseState.checkFeature(Feature.SECURITY_STATS_AND_HEALTH) == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
+          A functional requirement - when the license of security is disabled (invalid/expires), security will continue
+          to operate normally, except the following read operations will be blocked:
+            - cluster:monitor/health*
+            - cluster:monitor/stats*
+            - indices:monitor/stats*
+            - cluster:monitor/nodes/stats*
+          */
+        if (licenseState.isActive() == false && LICENSE_EXPIRATION_ACTION_MATCHER.test(action)) {
             logger.error("blocking [{}] operation due to expired license. Cluster health, cluster stats and indices stats \n" +
-                    "operations are blocked on license expiration. All data operations (read and write) continue to work. \n" +
-                    "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
+                "operations are blocked on license expiration. All data operations (read and write) continue to work. \n" +
+                "If you have a new license, please update it. Otherwise, please reach out to your support contact.", action);
             throw LicenseUtils.newComplianceException(XPackField.SECURITY);
         }
 

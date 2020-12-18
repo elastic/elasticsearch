@@ -651,8 +651,8 @@ processed in batches instead of individually.
 end::pages-processed[]
 
 tag::pivot[]
-The method for transforming the data. These objects define the pivot function
-`group by` fields and the aggregation to reduce the data.
+The `pivot` method transforms the data by aggregating and grouping it. These
+objects define the `group by` fields and the aggregation to reduce the data.
 end::pivot[]
 
 tag::pivot-aggs[]
@@ -945,6 +945,11 @@ The time delay between the current time and the latest input data time. The
 default value is `60s`.
 end::sync-time-delay[]
 
+tag::transform-latest[]
+The `latest` method transforms the data by finding the latest document for each 
+unique key.
+end::transform-latest[]
+
 tag::transform-settings[]
 Defines optional {transform} settings.
 end::transform-settings[]
@@ -968,6 +973,14 @@ checkpoint. If circuit breaker exceptions occur, the page size is dynamically
 adjusted to a lower value. The minimum value is `10` and the maximum is `10,000`.
 The default value is `500`.
 end::transform-settings-max-page-search-size[]
+
+tag::transform-sort[]
+Specifies the date field that is used to identify the latest documents.
+end::transform-sort[]
+
+tag::transform-unique-key[]
+Specifies an array of one or more fields that are used to group the data.
+end::transform-unique-key[]
 
 tag::target-index[]
 `<target-index>`::

@@ -253,6 +253,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .build(new IndexFieldDataCache.None(), breakerService);
         QueryShardContext queryShardContext = new QueryShardContext(
             0,
+            -1,
             indexSettings,
             bigArrays,
             null,

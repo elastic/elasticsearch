@@ -24,7 +24,7 @@ To give you insight into what deprecated features you're using, {es}:
 - <<migration-api-deprecation, Provides a deprecation info API>> that scans a cluster's configuration 
 and mappings for deprecated functionality.
 
-For more information about {version}, 
+For more information about {minor-version}, 
 see the <<release-highlights>> and <<es-release-notes>>.
 For information about how to upgrade your cluster, see <<setup-upgrade>>.
 

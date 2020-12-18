@@ -41,8 +41,8 @@ public class Hyperparameters implements ToXContentObject, Writeable {
             a -> new Hyperparameters((String)a[0], (Double)a[1], (Double)a[2], (Double)a[3], (Boolean)a[4]));
         parser.declareString(ConstructingObjectParser.constructorArg(), HYPERPARAMETER_NAME);
         parser.declareDouble(ConstructingObjectParser.constructorArg(), VALUE);
-        parser.declareDouble(ConstructingObjectParser.constructorArg(), ABSOLUTE_IMPORTANCE);
-        parser.declareDouble(ConstructingObjectParser.constructorArg(), RELATIVE_IMPORTANCE);
+        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), ABSOLUTE_IMPORTANCE);
+        parser.declareDouble(ConstructingObjectParser.optionalConstructorArg(), RELATIVE_IMPORTANCE);
         parser.declareBoolean(ConstructingObjectParser.constructorArg(), SUPPLIED);
         return parser;
     }
@@ -52,20 +52,26 @@ public class Hyperparameters implements ToXContentObject, Writeable {
     }
 
     public final String hyperparameterName;
-    public final Double value;
+    public final double value;
     public final Double absoluteImportance;
     public final Double relativeImportance;
-    public final Boolean supplied;
+    public final boolean supplied;
 
     public Hyperparameters(StreamInput in) throws IOException {
         this.hyperparameterName = in.readString();
         this.value = in.readDouble();
-        this.absoluteImportance = in.readDouble();
-        this.relativeImportance = in.readDouble();
         this.supplied = in.readBoolean();
+        if (this.supplied == false) {
+            this.absoluteImportance = in.readDouble();
+            this.relativeImportance = in.readDouble();
+        }
+        else {
+            this.absoluteImportance = null;
+            this.relativeImportance = null;
+        }
     }
 
-    Hyperparameters(String hyperparameterName, Double value, Double absoluteImportance, Double relativeImportance, Boolean supplied) {
+    Hyperparameters(String hyperparameterName, double value, Double absoluteImportance, Double relativeImportance, boolean supplied) {
         this.hyperparameterName = hyperparameterName;
         this.value = value;
         this.absoluteImportance = absoluteImportance;
@@ -77,9 +83,11 @@ public class Hyperparameters implements ToXContentObject, Writeable {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(hyperparameterName);
         out.writeDouble(value);
-        out.writeDouble(absoluteImportance);
-        out.writeDouble(relativeImportance);
         out.writeBoolean(supplied);
+        if (supplied == false) {
+            out.writeDouble(absoluteImportance);
+            out.writeDouble(relativeImportance);
+        }
     }
 
     @Override

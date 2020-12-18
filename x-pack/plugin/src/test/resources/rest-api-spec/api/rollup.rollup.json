@@ -13,7 +13,7 @@
     "url": {
       "paths": [
         {
-          "path": "/{index}/_rollup",
+          "path": "/{index}/_rollup/{rollup_index}",
           "methods": [
             "POST"
           ],
@@ -21,6 +21,11 @@
             "index": {
               "type": "string",
               "description": "The index to roll up",
+              "required": true
+            },
+            "rollup_index": {
+              "type": "string",
+              "description": "The name of the rollup index to create",
               "required": true
             }
           }

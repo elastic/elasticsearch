@@ -91,9 +91,10 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                 project,
                 bwcVersion,
                 distributionProject.name,
-                distributionProject.getProjectPath(),
-                distributionProject.getDistFile(),
-                buildBwcTaskProvider
+                distributionProject.projectPath,
+                distributionProject.expectedBuildArtifact,
+                buildBwcTaskProvider,
+                distributionProject.getAssembleTaskName()
             );
 
             registerBwcDistributionArtifacts(project, distributionProject);
@@ -102,12 +103,21 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         // Create build tasks for the JDBC driver used for compatibility testing
         String jdbcProjectDir = "x-pack/plugin/sql/jdbc";
 
-        File jdbcProjectArtifact = new File(
-            checkoutDir.get(),
-            jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion.get() + "-SNAPSHOT.jar"
+        DistributionProjectArtifact jdbcProjectArtifact = new DistributionProjectArtifact(
+            new File(checkoutDir.get(), jdbcProjectDir + "/build/distributions/x-pack-sql-jdbc-" + bwcVersion.get() + "-SNAPSHOT.jar"),
+            null
         );
 
-        createBuildBwcTask(bwcSetupExtension, project, bwcVersion, "jdbc", jdbcProjectDir, jdbcProjectArtifact, buildBwcTaskProvider);
+        createBuildBwcTask(
+            bwcSetupExtension,
+            project,
+            bwcVersion,
+            "jdbc",
+            jdbcProjectDir,
+            jdbcProjectArtifact,
+            buildBwcTaskProvider,
+            "assemble"
+        );
     }
 
     private void registerBwcDistributionArtifacts(Project bwcProject, DistributionProject distributionProject) {
@@ -115,10 +125,11 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         String buildBwcTask = buildBwcTaskName(projectName);
 
         registerDistributionArchiveArtifact(bwcProject, distributionProject, buildBwcTask);
-        if (distributionProject.getExpandedDistDirectory() != null) {
+        File expectedExpandedDistDirectory = distributionProject.expectedBuildArtifact.expandedDistDir;
+        if (expectedExpandedDistDirectory != null) {
             String expandedDistConfiguration = "expanded-" + projectName;
             bwcProject.getConfigurations().create(expandedDistConfiguration);
-            bwcProject.getArtifacts().add(expandedDistConfiguration, distributionProject.getExpandedDistDirectory(), artifact -> {
+            bwcProject.getArtifacts().add(expandedDistConfiguration, expectedExpandedDistDirectory, artifact -> {
                 artifact.setName("elasticsearch");
                 artifact.builtBy(buildBwcTask);
                 artifact.setType("directory");
@@ -127,14 +138,15 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
     }
 
     private void registerDistributionArchiveArtifact(Project bwcProject, DistributionProject distributionProject, String buildBwcTask) {
-        String artifactFileName = distributionProject.getDistFile().getName();
+        File distFile = distributionProject.expectedBuildArtifact.distFile;
+        String artifactFileName = distFile.getName();
         String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
         int archIndex = artifactFileName.indexOf("x86_64");
 
         bwcProject.getConfigurations().create(distributionProject.name);
-        bwcProject.getArtifacts().add(distributionProject.name, distributionProject.getDistFile(), artifact -> {
+        bwcProject.getArtifacts().add(distributionProject.name, distFile, artifact -> {
             artifact.setName(artifactName);
             artifact.builtBy(buildBwcTask);
             artifact.setType(suffix);
@@ -194,28 +206,36 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         Provider<Version> bwcVersion,
         String projectName,
         String projectPath,
-        File projectArtifact,
-        TaskProvider<Task> bwcTaskProvider
+        DistributionProjectArtifact projectArtifact,
+        TaskProvider<Task> bwcTaskProvider,
+        String assembleTaskName
     ) {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
+            boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
+            File expectedOutputFile = useNativeExpanded ? projectArtifact.expandedDistDir : projectArtifact.distFile;
             c.getInputs().file(new File(project.getBuildDir(), "refspec"));
-            c.getOutputs().files(projectArtifact);
+            if (useNativeExpanded) {
+                c.getOutputs().dir(expectedOutputFile);
+            } else {
+                c.getOutputs().files(expectedOutputFile);
+            }
             c.getOutputs().cacheIf("BWC distribution caching is disabled on 'master' branch", task -> {
                 String gitBranch = System.getenv("GIT_BRANCH");
                 return BuildParams.isCi() && (gitBranch == null || gitBranch.endsWith("master") == false);
             });
-            c.args(projectPath.replace('/', ':') + ":assemble");
+            c.args(projectPath.replace('/', ':') + ":" + assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.args("--build-cache");
             }
             c.doLast(task -> {
-                if (projectArtifact.exists() == false) {
+                if (expectedOutputFile.exists() == false) {
                     throw new InvalidUserDataException(
-                        "Building " + bwcVersion.get() + " didn't generate expected file " + projectArtifact
+                        "Building " + bwcVersion.get() + " didn't generate expected artifact " + expectedOutputFile
                     );
                 }
             });
+
         });
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
     }
@@ -225,49 +245,60 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
      * we build from a bwc Version in a cloned repository
      */
     private static class DistributionProject {
-        private final String name;
-        private File checkoutDir;
-        private String projectPath;
-        private File distFile;
-        private File expandedDistDir;
+        final String name;
+        final File checkoutDir;
+        final String projectPath;
+
+        /**
+         * can be removed once we don't build 7.10 anymore
+         * from source for bwc tests.
+         * */
+        @Deprecated
+        final boolean expandedDistDirSupport;
+        final DistributionProjectArtifact expectedBuildArtifact;
+
+        private final boolean extractedAssembleSupported;
 
         DistributionProject(String name, String baseDir, Version version, String classifier, String extension, File checkoutDir) {
             this.name = name;
             this.checkoutDir = checkoutDir;
             this.projectPath = baseDir + "/" + name;
-            this.distFile = new File(
-                checkoutDir,
-                baseDir
-                    + "/"
-                    + name
-                    + "/build/distributions/elasticsearch-"
-                    + (name.startsWith("oss") ? "oss-" : "")
-                    + version
-                    + "-SNAPSHOT"
-                    + classifier
-                    + "."
-                    + extension
+            this.expandedDistDirSupport = version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"));
+            this.extractedAssembleSupported = version.onOrAfter("7.11.0") && (name.endsWith("zip") || name.endsWith("tar"));
+            this.expectedBuildArtifact = new DistributionProjectArtifact(
+                new File(
+                    checkoutDir,
+                    baseDir
+                        + "/"
+                        + name
+                        + "/build/distributions/elasticsearch-"
+                        + (name.startsWith("oss") ? "oss-" : "")
+                        + version
+                        + "-SNAPSHOT"
+                        + classifier
+                        + "."
+                        + extension
+                ),
+                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install/") : null
             );
-            // we only ported this down to the 7.x branch.
-            if (version.onOrAfter("7.10.0") && (name.endsWith("zip") || name.endsWith("tar"))) {
-                this.expandedDistDir = new File(checkoutDir, baseDir + "/" + name + "/build/install");
-            }
         }
 
-        public String getProjectPath() {
-            return projectPath;
+        /**
+         * Newer elasticsearch branches allow building extracted bwc elasticsearch versions
+         * from source without the overhead of creating an archive by using assembleExtracted instead of assemble.
+         * */
+        public String getAssembleTaskName() {
+            return extractedAssembleSupported ? "extractedAssemble" : "assemble";
         }
+    }
 
-        public File getDistFile() {
-            return distFile;
-        }
+    private static class DistributionProjectArtifact {
+        final File distFile;
+        final File expandedDistDir;
 
-        public File getExpandedDistDirectory() {
-            return expandedDistDir;
-        }
-
-        public File getCheckoutDir() {
-            return checkoutDir;
+        DistributionProjectArtifact(File distFile, File expandedDistDir) {
+            this.distFile = distFile;
+            this.expandedDistDir = expandedDistDir;
         }
     }
 }

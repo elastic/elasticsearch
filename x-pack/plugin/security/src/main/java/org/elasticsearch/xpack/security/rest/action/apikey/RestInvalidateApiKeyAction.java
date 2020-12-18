@@ -21,6 +21,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,7 +31,7 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to invalidate one or more API keys
  */
-public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
+public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
                 return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3],

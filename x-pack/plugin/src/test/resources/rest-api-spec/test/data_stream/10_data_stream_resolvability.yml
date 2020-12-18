@@ -104,11 +104,17 @@
           foo: bar
           '@timestamp': '2020-12-12'
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       ilm.explain_lifecycle:
         index: logs-foobar
   - is_false: indices.logs-foobar.managed
-  - is_true: indices.\.ds-logs-foobar-000001.managed
+  - is_true: indices.$idx0name.managed
 
   - do:
       indices.delete_data_stream:
@@ -205,18 +211,25 @@
       indices.rollover:
         alias: "simple-data-stream1"
 
-  - match: { old_index: .ds-simple-data-stream1-000001 }
-  - match: { new_index: .ds-simple-data-stream1-000002 }
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
+
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
 
   # verify policy applied to all backing indices
   - do:
       indices.get_settings:
         index: ".ds-simple-data-stream1-*"
 
-  - match: { \.ds-simple-data-stream1-000001.settings.index.lifecycle.name: my_moveable_timeseries_lifecycle }
-  - match: { \.ds-simple-data-stream1-000002.settings.index.lifecycle.name: my_moveable_timeseries_lifecycle }
+  - match: { .$idx0name.settings.index.lifecycle.name: my_moveable_timeseries_lifecycle }
+  - match: { .$idx1name.settings.index.lifecycle.name: my_moveable_timeseries_lifecycle }
 
   - do:
       ilm.remove_policy:
@@ -230,8 +243,8 @@
       indices.get_settings:
         index: ".ds-simple-data-stream1-*"
 
-  - is_false: \.ds-simple-data-stream1-000001.settings.index.lifecycle
-  - is_false: \.ds-simple-data-stream1-000002.settings.index.lifecycle
+  - is_false: .$idx0name.settings.index.lifecycle
+  - is_false: .$idx1name.settings.index.lifecycle
 
   - do:
       indices.delete_data_stream:
@@ -660,7 +673,7 @@
 
   - match: {hits.total.value: 3 }
   - length: {hits.hits: 1 }
-  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: {hits.hits.0._id: "123" }
   - match: {hits.hits.0.sort: [22, 123] }
 
@@ -678,7 +691,7 @@
 
   - match: {hits.total.value: 3}
   - length: {hits.hits: 1 }
-  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: {hits.hits.0._id: "5" }
   - match: {hits.hits.0.sort: [18, 5] }
 
@@ -697,7 +710,7 @@
 
   - match: {hits.total.value: 3}
   - length: {hits.hits: 1 }
-  - match: {hits.hits.0._index: .ds-simple-data-stream1-000001 }
+  - match: {hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
   - match: {hits.hits.0._id: "1" }
   - match: {hits.hits.0.sort: [18, 1] }
 

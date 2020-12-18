@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -21,13 +20,11 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -53,12 +50,13 @@ import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandl
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestPutAutoscalingPolicyHandler;
+import org.elasticsearch.xpack.autoscaling.storage.ProactiveStorageDeciderService;
 import org.elasticsearch.xpack.autoscaling.storage.ReactiveStorageDeciderService;
-import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -68,59 +66,25 @@ import java.util.stream.Collectors;
  */
 public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugin, AutoscalingExtension {
 
-    private static final Boolean AUTOSCALING_FEATURE_FLAG_REGISTERED;
-
     static {
         final String property = System.getProperty("es.autoscaling_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.autoscaling_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        if ("true".equals(property)) {
-            AUTOSCALING_FEATURE_FLAG_REGISTERED = true;
-        } else if ("false".equals(property)) {
-            AUTOSCALING_FEATURE_FLAG_REGISTERED = false;
-        } else if (property == null) {
-            AUTOSCALING_FEATURE_FLAG_REGISTERED = null;
-        } else {
-            throw new IllegalArgumentException(
-                "expected es.autoscaling_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
-            );
+        if (property != null) {
+            throw new IllegalArgumentException("es.autoscaling_feature_flag_registered is no longer supported");
         }
     }
-
-    public static final Setting<Boolean> AUTOSCALING_ENABLED_SETTING = Setting.boolSetting(
-        "xpack.autoscaling.enabled",
-        true,
-        Setting.Property.NodeScope
-    );
-
-    private final boolean enabled;
 
     private final List<AutoscalingExtension> autoscalingExtensions;
     private final SetOnce<ClusterService> clusterService = new SetOnce<>();
     private final SetOnce<AllocationDeciders> allocationDeciders = new SetOnce<>();
+    private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
-    public Autoscaling(final Settings settings) {
-        this.enabled = AUTOSCALING_ENABLED_SETTING.get(settings);
+    public Autoscaling() {
+        this(new AutoscalingLicenseChecker());
+    }
+
+    Autoscaling(final AutoscalingLicenseChecker autoscalingLicenseChecker) {
         this.autoscalingExtensions = new ArrayList<>(List.of(this));
-    }
-
-    /**
-     * The settings defined by autoscaling.
-     *
-     * @return the settings
-     */
-    @Override
-    public List<Setting<?>> getSettings() {
-        if (isSnapshot() || (AUTOSCALING_FEATURE_FLAG_REGISTERED != null && AUTOSCALING_FEATURE_FLAG_REGISTERED)) {
-            return List.of(AUTOSCALING_ENABLED_SETTING);
-        } else {
-            return List.of();
-        }
-    }
-
-    boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
+        this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
     }
 
     @Override
@@ -138,21 +102,17 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.clusterService.set(clusterService);
-        return List.of(new AutoscalingCalculateCapacityService.Holder(this));
+        return List.of(new AutoscalingCalculateCapacityService.Holder(this), autoscalingLicenseChecker);
     }
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled) {
-            return List.of(
-                new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
-                new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
-                new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
-                new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
-            );
-        } else {
-            return List.of();
-        }
+        return List.of(
+            new ActionHandler<>(GetAutoscalingCapacityAction.INSTANCE, TransportGetAutoscalingCapacityAction.class),
+            new ActionHandler<>(DeleteAutoscalingPolicyAction.INSTANCE, TransportDeleteAutoscalingPolicyAction.class),
+            new ActionHandler<>(GetAutoscalingPolicyAction.INSTANCE, TransportGetAutoscalingPolicyAction.class),
+            new ActionHandler<>(PutAutoscalingPolicyAction.INSTANCE, TransportPutAutoscalingPolicyAction.class)
+        );
     }
 
     @Override
@@ -165,16 +125,12 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         final IndexNameExpressionResolver indexNameExpressionResolver,
         final Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        if (enabled) {
-            return List.of(
-                new RestGetAutoscalingCapacityHandler(),
-                new RestDeleteAutoscalingPolicyHandler(),
-                new RestGetAutoscalingPolicyHandler(),
-                new RestPutAutoscalingPolicyHandler()
-            );
-        } else {
-            return List.of();
-        }
+        return List.of(
+            new RestGetAutoscalingCapacityHandler(),
+            new RestDeleteAutoscalingPolicyHandler(),
+            new RestGetAutoscalingPolicyHandler(),
+            new RestPutAutoscalingPolicyHandler()
+        );
     }
 
     @Override
@@ -191,6 +147,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 AutoscalingDeciderResult.Reason.class,
                 ReactiveStorageDeciderService.NAME,
                 ReactiveStorageDeciderService.ReactiveReason::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                AutoscalingDeciderResult.Reason.class,
+                ProactiveStorageDeciderService.NAME,
+                ProactiveStorageDeciderService.ProactiveReason::new
             )
         );
     }
@@ -200,10 +161,6 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         return List.of(
             new NamedXContentRegistry.Entry(Metadata.Custom.class, new ParseField(AutoscalingMetadata.NAME), AutoscalingMetadata::parse)
         );
-    }
-
-    protected XPackLicenseState getLicenseState() {
-        return XPackPlugin.getSharedLicenseState();
     }
 
     @Override
@@ -220,6 +177,11 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
                 clusterService.get().getSettings(),
                 clusterService.get().getClusterSettings(),
                 allocationDeciders.get()
+            ),
+            new ProactiveStorageDeciderService(
+                clusterService.get().getSettings(),
+                clusterService.get().getClusterSettings(),
+                allocationDeciders.get()
             )
         );
     }
@@ -228,4 +190,5 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         this.allocationDeciders.set(allocationDeciders);
         return autoscalingExtensions.stream().flatMap(p -> p.deciders().stream()).collect(Collectors.toSet());
     }
+
 }

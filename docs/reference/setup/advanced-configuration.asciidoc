@@ -32,8 +32,8 @@ heap size [1.9gb], compressed ordinary object pointers [true]
 ----
 
 * Set `Xmx` and `Xms` to no more than the threshold for zero-based
-compressed oops. The exact threshold varies but 26 GB is safe on most
-systems and can be as large as 30 GB on some systems. You can verify that
+compressed oops. The exact threshold varies but 26GB is safe on most
+systems and can be as large as 30GB on some systems. You can verify that
 you are under this threshold by starting {es} with the JVM options
 `-XX:+UnlockDiagnosticVMOptions -XX:+PrintCompressedOopsMode` and looking for
 a line like the following:

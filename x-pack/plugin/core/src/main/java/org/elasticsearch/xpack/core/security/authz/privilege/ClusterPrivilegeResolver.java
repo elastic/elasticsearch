@@ -69,7 +69,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/nodes/liveness", "cluster:monitor/state"));
     private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet("indices:admin/template/*",
-            "indices:admin/index_template/*"));
+            "indices:admin/index_template/*", "cluster:admin/component_template/*"));
     private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Collections.singleton("cluster:admin/ingest/pipeline/*");
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*"));

@@ -68,9 +68,9 @@ Here is an example of how to set the heap size via a `jvm.options.d/` file:
 
 In production, we recommend using `jvm.options.d` to configure heap sizes.
 
-It is also possible to set the heap size via the `ES_JAVA_OPTS` environment
-variable. This is generally discouraged for production deployments but is useful
-for testing because it overrides all other means of setting JVM options.
+For testing, you can also set the heap sizes using the `ES_JAVA_OPTS`
+environment variable. The `ES_JAVA_OPTS` variable overrides all other JVM
+options. We do not recommend using `ES_JAVA_OPTS` in production.
 
 [source,sh]
 ------------------

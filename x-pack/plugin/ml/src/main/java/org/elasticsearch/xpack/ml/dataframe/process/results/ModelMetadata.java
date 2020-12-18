@@ -42,8 +42,9 @@ public class ModelMetadata implements ToXContentObject {
     private final FeatureImportanceBaseline featureImportanceBaseline;
     private final List<Hyperparameters> hyperparameters;
 
-    public ModelMetadata(List<TotalFeatureImportance> featureImportances, FeatureImportanceBaseline featureImportanceBaseline, 
-    List<Hyperparameters> hyperparameters) {
+    public ModelMetadata(List<TotalFeatureImportance> featureImportances, 
+        FeatureImportanceBaseline featureImportanceBaseline, 
+        List<Hyperparameters> hyperparameters) {
         this.featureImportances = featureImportances;
         this.featureImportanceBaseline = featureImportanceBaseline;
         this.hyperparameters = hyperparameters;

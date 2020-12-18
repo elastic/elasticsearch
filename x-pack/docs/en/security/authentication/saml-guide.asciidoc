@@ -626,6 +626,15 @@ The Elastic Stack supports generating such a metadata file using the
 <<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
 <<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
+You can generate the SAML metadata issuing the API request to Elasticsearch and storing metadata as an XML file using tools like `jq`.
+
+Following command, for example, will generate the metadata for the SAML realm `realm1` and save it to `metadata.xml` file:
+
+["source","console"]
+--
+curl -X GET -H "Content-Type: application/json" -u user_name:password http://localhost:9200/_security/saml/metadata/saml1 |jq -r '.[]' > metadata.xml
+--
+
 [[saml-role-mapping]]
 === Configuring role mappings
 

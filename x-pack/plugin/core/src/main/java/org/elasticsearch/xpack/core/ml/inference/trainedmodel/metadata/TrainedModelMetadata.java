@@ -131,7 +131,6 @@ public class TrainedModelMetadata implements ToXContentObject, Writeable {
         out.writeList(totalFeatureImportances);
         out.writeOptionalWriteable(featureImportanceBaselines);
         out.writeList(hyperparameters);
-
     }
 
     @Override

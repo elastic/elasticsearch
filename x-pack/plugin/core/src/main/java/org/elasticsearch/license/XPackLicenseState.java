@@ -490,7 +490,7 @@ public class XPackLicenseState {
 
     // Package private for tests
     /** Return true if the license is currently within its time boundaries, false otherwise. */
-    boolean isActive() {
+    public boolean isActive() {
         return checkAgainstStatus(status -> status.active);
     }
 

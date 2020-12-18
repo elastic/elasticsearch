@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
@@ -20,12 +19,10 @@ import java.util.Map;
 
 public class FlattenedFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     @Inject
-    public FlattenedFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
-        this.licenseState = licenseState;
+    public FlattenedFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
@@ -36,7 +33,7 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.FLATTENED);
+        return true;
     }
 
     @Override
@@ -74,6 +71,6 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
             }
         }
 
-        listener.onResponse(new FlattenedFeatureSetUsage(available(), fieldCount));
+        listener.onResponse(new FlattenedFeatureSetUsage(fieldCount));
     }
 }

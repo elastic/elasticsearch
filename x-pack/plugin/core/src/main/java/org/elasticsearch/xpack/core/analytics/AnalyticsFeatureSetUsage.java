@@ -21,8 +21,8 @@ public class AnalyticsFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final AnalyticsStatsAction.Response response;
 
-    public AnalyticsFeatureSetUsage(boolean available, boolean enabled, AnalyticsStatsAction.Response response) {
-        super(XPackField.ANALYTICS, available, enabled);
+    public AnalyticsFeatureSetUsage(AnalyticsStatsAction.Response response) {
+        super(XPackField.ANALYTICS, true, true);
         this.response = response;
     }
 

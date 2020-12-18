@@ -10,7 +10,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.vectors.VectorsFeatureSetUsage;
@@ -21,12 +20,10 @@ import java.util.Map;
 
 public class VectorsFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     @Inject
-    public VectorsFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
-        this.licenseState = licenseState;
+    public VectorsFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 

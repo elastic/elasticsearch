@@ -28,9 +28,12 @@ node by default.
 If you use the `node.roles` setting, then all required roles must be explicitly
 set. Consult <<modules-node>> to learn more.
 +
-IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
+[IMPORTANT]
+====
+* On dedicated coordinating nodes or dedicated master nodes, do not set
 the `ml` role.
-
+* It is strongly recommended that dedicated {ml} nodes also have the `remote_cluster_client` role; otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
+====
 
 `xpack.ml.enabled`::
 (<<static-cluster-setting,Static>>) Set to `true` (default) to enable {ml} APIs

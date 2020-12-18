@@ -128,6 +128,6 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("[7.11.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
         normalized(result.output)
                 .contains("distfile /distribution/bwc/minor/build/bwc/checkout-7.x/" +
-                        "distribution/archives/darwin-tar/build/install")
+                        "distribution/archives/darwin-tar/build/install/elasticsearch-7.11.0-SNAPSHOT")
     }
 }

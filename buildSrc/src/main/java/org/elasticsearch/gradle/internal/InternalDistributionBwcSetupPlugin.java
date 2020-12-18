@@ -279,7 +279,9 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                         + "."
                         + extension
                 ),
-                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install/") : null
+                expandedDistDirSupport
+                    ? new File(checkoutDir, baseDir + "/" + name + "/build/install/elasticsearch-" + version + "-SNAPSHOT")
+                    : null
             );
         }
 

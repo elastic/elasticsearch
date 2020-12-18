@@ -28,6 +28,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,9 +37,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RestStatus;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Collection;
@@ -221,10 +220,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             final BlobContainer container = store.blobContainer(new BlobPath());
             for (int i = 0; i < numberOfBlobs; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
-                try (InputStream inputStream = new ByteArrayInputStream(bytes)) {
-                    String blobName = randomAlphaOfLength(10);
-                    container.writeBlob(blobName, inputStream, bytes.length, false);
-                }
+                String blobName = randomAlphaOfLength(10);
+                container.writeBlob(blobName, new BytesArray(bytes), false);
             }
 
             container.delete();

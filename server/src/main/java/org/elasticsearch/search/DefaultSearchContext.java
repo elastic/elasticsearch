@@ -172,7 +172,8 @@ final class DefaultSearchContext extends SearchContext {
         this.minNodeVersion = minNodeVersion;
         queryShardContext = indexService.newQueryShardContext(
             request.shardId().id(),
-            this.searcher,
+            request.shardRequestIndex(),
+            searcher,
             request::nowInMillis,
             shardTarget.getClusterAlias(),
             request.getRuntimeMappings()

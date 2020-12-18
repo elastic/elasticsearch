@@ -455,7 +455,8 @@ public class TrainedModelProvider {
 
         ActionListener<TrainedModelConfig.Builder> getTrainedModelListener = ActionListener.wrap(
             modelBuilder -> {
-                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()) == false) {
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()
+                  || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilder.build());
                     return;
                 }
@@ -468,6 +469,9 @@ public class TrainedModelProvider {
                             }
                             if (includes.isIncludeFeatureImportanceBaseline()) {
                                 modelBuilder.setBaselineFeatureImportance(modelMetadata.getFeatureImportanceBaselines());
+                            }
+                            if (includes.isIncludeHyperparameters()) {
+                                modelBuilder.setHyperparameters(modelMetadata.getHyperparameters());
                             }
                         }
                         finalListener.onResponse(modelBuilder.build());
@@ -606,7 +610,8 @@ public class TrainedModelProvider {
 
         ActionListener<List<TrainedModelConfig.Builder>> getTrainedModelListener = ActionListener.wrap(
             modelBuilders -> {
-                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance()) == false) {
+                if ((includes.isIncludeFeatureImportanceBaseline() || includes.isIncludeTotalFeatureImportance() 
+                  || includes.isIncludeHyperparameters()) == false) {
                     finalListener.onResponse(modelBuilders.stream()
                         .map(TrainedModelConfig.Builder::build)
                         .sorted(Comparator.comparing(TrainedModelConfig::getModelId))
@@ -625,6 +630,10 @@ public class TrainedModelProvider {
                                     if (includes.isIncludeFeatureImportanceBaseline()) {
                                         builder.setBaselineFeatureImportance(modelMetadata.getFeatureImportanceBaselines());
                                     }
+                                    if (includes.isIncludeHyperparameters()) {
+                                        builder.setHyperparameters(modelMetadata.getHyperparameters());
+                                    }
+                                    
                                 }
                                 return builder.build();
                             })

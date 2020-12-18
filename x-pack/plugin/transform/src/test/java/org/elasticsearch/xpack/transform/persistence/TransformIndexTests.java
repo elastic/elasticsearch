@@ -95,10 +95,8 @@ public class TransformIndexTests extends ESTestCase {
                 put("a.b", "keyword");
             }}),
             is(equalTo(new HashMap<String, Object>() {{
-                put("a", new HashMap<String, Object>() {{
-                    put("type", "long");
-                    put("fields", singletonMap("b", singletonMap("type", "keyword")));
-                }});
+                put("a", singletonMap("type", "long"));
+                put("a.b", singletonMap("type", "keyword"));
             }}))
         );
         assertThat(
@@ -108,17 +106,9 @@ public class TransformIndexTests extends ESTestCase {
                 put("a.b.c", "keyword");
             }}),
             is(equalTo(new HashMap<String, Object>() {{
-                put("a", new HashMap<String, Object>() {{
-                    put("type", "long");
-                    put("fields", new HashMap<String, Object>() {{
-                        put("b", new HashMap<String, Object>() {{
-                            put("type", "text");
-                            put("fields", new HashMap<String, Object>() {{
-                                put("c", singletonMap("type", "keyword"));
-                            }});
-                        }});
-                    }});
-                }});
+                put("a", singletonMap("type", "long"));
+                put("a.b", singletonMap("type", "text"));
+                put("a.b.c", singletonMap("type", "keyword"));
             }}))
         );
         assertThat(
@@ -133,38 +123,14 @@ public class TransformIndexTests extends ESTestCase {
                 put("f.g.h.i", "text");
             }}),
             is(equalTo(new HashMap<String, Object>() {{
-                put("a", new HashMap<String, Object>() {{
-                    put("type", "object");
-                    put("properties", new HashMap<String, Object>() {{
-                        put("b", new HashMap<String, Object>() {{
-                            put("type", "long");
-                        }});
-                    }});
-                }});
-                put("c", new HashMap<String, Object>() {{
-                    put("type", "nested");
-                    put("properties", new HashMap<String, Object>() {{
-                        put("d", new HashMap<String, Object>() {{
-                            put("type", "boolean");
-                        }});
-                    }});
-                }});
-                put("f", new HashMap<String, Object>() {{
-                    put("type", "object");
-                    put("properties", new HashMap<String, Object>() {{
-                        put("g", new HashMap<String, Object>() {{
-                            put("type", "object");
-                            put("properties", new HashMap<String, Object>() {{
-                                put("h", new HashMap<String, Object>() {{
-                                    put("type", "text");
-                                    put("fields", new HashMap<String, Object>() {{
-                                        put("i", singletonMap("type", "text"));
-                                    }});
-                                }});
-                            }});
-                        }});
-                    }});
-                }});
+                put("a", singletonMap("type", "object"));
+                put("a.b", singletonMap("type", "long"));
+                put("c", singletonMap("type", "nested"));
+                put("c.d", singletonMap("type", "boolean"));
+                put("f", singletonMap("type", "object"));
+                put("f.g", singletonMap("type", "object"));
+                put("f.g.h", singletonMap("type", "text"));
+                put("f.g.h.i", singletonMap("type", "text"));
             }}))
         );
     }

@@ -662,10 +662,10 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param rootBlobs         Blobs at the repository root
      * @return RepositoryData
      */
-    private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetadata> rootBlobs) throws IOException {
+    private RepositoryData safeRepositoryData(long repositoryStateId, Map<String, BlobMetadata> rootBlobs) {
         final long generation = latestGeneration(rootBlobs.keySet());
         final long genToLoad;
-        final Tuple<Long, BytesReference> cached;
+        final CachedRepositoryData cached;
         if (bestEffortConsistency) {
             genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, repositoryStateId));
             cached = null;
@@ -684,8 +684,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             throw new RepositoryException(metadata.name(), "concurrent modification of the index-N file, expected current generation [" +
                 repositoryStateId + "], actual current generation [" + genToLoad + "]");
         }
-        if (cached != null && cached.v1() == genToLoad) {
-            return repositoryDataFromCachedEntry(cached);
+        if (cached != null && cached.generation() == genToLoad && cached.hasData()) {
+            return cached.repositoryData();
         }
         return getRepositoryData(genToLoad);
     }
@@ -1272,7 +1272,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 String seed = UUIDs.randomBase64UUID();
                 byte[] testBytes = Strings.toUTF8Bytes(seed);
                 BlobContainer testContainer = blobStore().blobContainer(basePath().add(testBlobPrefix(seed)));
-                BytesArray bytes = new BytesArray(testBytes);
                 testContainer.writeBlobAtomic("master.dat", new BytesArray(testBytes), true);
                 return seed;
             }
@@ -1298,7 +1297,49 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private final AtomicLong latestKnownRepoGen = new AtomicLong(RepositoryData.UNKNOWN_REPO_GEN);
 
     // Best effort cache of the latest known repository data and its generation, cached serialized as compressed json
-    private final AtomicReference<Tuple<Long, BytesReference>> latestKnownRepositoryData = new AtomicReference<>();
+    private final AtomicReference<CachedRepositoryData> latestKnownRepositoryData =
+            new AtomicReference<>(new CachedRepositoryData(RepositoryData.EMPTY_REPO_GEN, null));
+
+    /**
+     * Cached serialized repository data or placeholder to keep track of the fact that data for a generation was too large to be cached.
+     */
+    private static final class CachedRepositoryData {
+
+        private final long generation;
+
+        @Nullable
+        private final BytesReference repositoryData;
+
+        CachedRepositoryData(long generation, @Nullable BytesReference repositoryData) {
+            this.generation = generation;
+            this.repositoryData = repositoryData;
+        }
+
+        long generation() {
+            return generation;
+        }
+
+        boolean hasData() {
+            return generation == RepositoryData.EMPTY_REPO_GEN || repositoryData != null;
+        }
+
+        @Nullable
+        RepositoryData repositoryData() {
+            if (generation == RepositoryData.EMPTY_REPO_GEN) {
+                return RepositoryData.EMPTY;
+            }
+            if (repositoryData == null) {
+                return null;
+            }
+            try (InputStream input = CompressorFactory.COMPRESSOR.threadLocalInputStream(repositoryData.streamInput())) {
+                return RepositoryData.snapshotsFromXContent(
+                        XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, input),
+                        generation, false);
+            } catch (IOException e) {
+                throw new AssertionError("no actual IO happens here", e);
+            }
+        }
+    }
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
@@ -1306,12 +1347,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             listener.onFailure(corruptedStateException(null));
             return;
         }
-        final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
+        final CachedRepositoryData cached = latestKnownRepositoryData.get();
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
-        if (bestEffortConsistency == false && cached != null && cached.v1() == latestKnownRepoGen.get()) {
+        if (bestEffortConsistency == false && cached.generation() == latestKnownRepoGen.get() && cached.hasData()) {
             try {
-                listener.onResponse(repositoryDataFromCachedEntry(cached));
+                listener.onResponse(cached.repositoryData());
             } catch (Exception e) {
                 listener.onFailure(e);
             }
@@ -1341,26 +1382,28 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 }
                 genToLoad = latestKnownRepoGen.updateAndGet(known -> Math.max(known, generation));
                 if (genToLoad > generation) {
-                    logger.info("Determined repository generation [" + generation
-                        + "] from repository contents but correct generation must be at least [" + genToLoad + "]");
+                    logger.info("Determined repository generation [{}] from repository contents but correct generation must be at " +
+                            "least [{}]", generation, genToLoad);
                 }
             } else {
                 // We only rely on the generation tracked in #latestKnownRepoGen which is exclusively updated from the cluster state
                 genToLoad = latestKnownRepoGen.get();
             }
             try {
-                final Tuple<Long, BytesReference> cached = latestKnownRepositoryData.get();
+                final CachedRepositoryData cached = latestKnownRepositoryData.get();
                 final RepositoryData loaded;
                 // Caching is not used with #bestEffortConsistency see docs on #cacheRepositoryData for details
-                if (bestEffortConsistency == false && cached != null && cached.v1() == genToLoad) {
-                    loaded = repositoryDataFromCachedEntry(cached);
+                if (bestEffortConsistency == false && cached.generation() == genToLoad && cached.hasData()) {
+                    loaded = cached.repositoryData();
                 } else {
                     loaded = getRepositoryData(genToLoad);
-                    // We can cache serialized in the most recent version here without regard to the actual repository metadata version
-                    // since we're only caching the information that we just wrote and thus won't accidentally cache any information that
-                    // isn't safe
-                    cacheRepositoryData(compressRepoDataForCache(BytesReference.bytes(
-                            loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))), genToLoad);
+                    if (cached == null || cached.generation() < genToLoad) {
+                        // We can cache serialized in the most recent version here without regard to the actual repository metadata version
+                        // since we're only caching the information that we just wrote and thus won't accidentally cache any information
+                        // that isn't safe
+                        cacheRepositoryData(compressRepoDataForCache(BytesReference.bytes(
+                                loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))), genToLoad);
+                    }
                 }
                 listener.onResponse(loaded);
                 return;
@@ -1400,11 +1443,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * @param generation repository generation of the given repository data
      */
     private void cacheRepositoryData(@Nullable BytesReference serialized, long generation) {
+        assert generation >= 0 : "No need to cache abstract generations but attempted to cache [" + generation + "]";
         latestKnownRepositoryData.updateAndGet(known -> {
-            if (known != null && known.v1() > generation) {
+            if (known.generation() > generation) {
                 return known;
             }
-            return serialized == null ? null : new Tuple<>(generation, serialized);
+            return new CachedRepositoryData(generation, serialized);
         });
     }
 
@@ -1437,14 +1481,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             assert false : new AssertionError("Impossible, no IO happens here", e);
             logger.warn("Failed to serialize repository data", e);
             return null;
-        }
-    }
-
-    private RepositoryData repositoryDataFromCachedEntry(Tuple<Long, BytesReference> cacheEntry) throws IOException {
-        try (InputStream input = CompressorFactory.COMPRESSOR.threadLocalInputStream(cacheEntry.v2().streamInput())) {
-            return RepositoryData.snapshotsFromXContent(
-                    XContentType.JSON.xContent().createParser(NamedXContentRegistry.EMPTY,
-                            LoggingDeprecationHandler.INSTANCE, input), cacheEntry.v1(), false);
         }
     }
 

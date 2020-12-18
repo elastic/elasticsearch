@@ -127,7 +127,7 @@ public class StringMatcher implements Predicate<String> {
             return new StringMatcher(description, predicate);
         }
 
-        private String describe(List<String> strings) {
+        private static String describe(List<String> strings) {
             if (strings.size() == 1) {
                 return strings.get(0);
             }

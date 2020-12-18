@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.security.support;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -30,6 +29,28 @@ public class StringMatcherTests extends ESTestCase {
             assertMatch(matcher, prefix + randomAlphaOfLengthBetween(i, 20));
             assertNoMatch(matcher, randomAlphaOfLengthBetween(1, prefix.length() - 1));
             assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(prefix), () -> randomAlphaOfLengthBetween(1, 8)));
+        }
+    }
+
+    public void testSingleQuestionMark() throws Exception {
+        final String prefix = randomAlphaOfLengthBetween(3, 5);
+        final StringMatcher matcher = StringMatcher.of(prefix + "?");
+
+        assertMatch(matcher, prefix + randomAlphaOfLength(1));
+        assertNoMatch(matcher, prefix + randomAlphaOfLengthBetween(2, 100));
+        assertNoMatch(matcher, randomAlphaOfLengthBetween(1, prefix.length() - 1));
+        assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(prefix), () -> randomAlphaOfLengthBetween(1, 8)));
+    }
+
+    public void testUnicodeWildcard() throws Exception {
+        // Lucene automatons don't work correctly on strings with high surrogates
+        final String prefix = randomValueOtherThanMany(StringMatcherTests::hasHighSurrogate,
+            () -> randomRealisticUnicodeOfLengthBetween(3, 5));
+        final StringMatcher matcher = StringMatcher.of(prefix + "*");
+        for (int i = 0; i < 10; i++) {
+            assertMatch(matcher, prefix + randomRealisticUnicodeOfLengthBetween(i, 20));
+            assertNoMatch(matcher, randomRealisticUnicodeOfLengthBetween(1, prefix.length() - 1));
+            assertNoMatch(matcher, randomValueOtherThanMany(s -> s.startsWith(prefix), () -> randomUnicodeOfLengthBetween(1, 8)));
         }
     }
 
@@ -85,19 +106,21 @@ public class StringMatcherTests extends ESTestCase {
         assertMatch(matcher, prefix2 + randomAlphaOfLength(1));
         assertMatch(matcher, prefix3 + randomAlphaOfLengthBetween(1, 5));
 
-        assertNoMatch(matcher, prefix2 + randomAlphaOfLength(2));
-
         final char[] nonAlpha = "@/#$0123456789()[]{}<>;:%&".toCharArray();
-        assertNoMatch(matcher, randomFrom(nonAlpha) + randomFrom(exact1, prefix1, suffix1) + randomFrom(nonAlpha));
-        assertNoMatch(matcher, randomFrom(nonAlpha) + randomFrom(exact2, prefix2, suffix2) + randomFrom(nonAlpha));
-        assertNoMatch(matcher, randomFrom(nonAlpha) + randomFrom(exact3, prefix3) + randomFrom(nonAlpha));
+
+        // Prefix 2 uses a `?`
+        assertNoMatch(matcher, prefix2 + randomFrom(nonAlpha));
+
+        for (String pattern : List.of(exact1, exact2, exact3, suffix1, suffix2, exact1, exact2, exact3)) {
+            assertNoMatch(matcher, randomFrom(nonAlpha) + pattern + randomFrom(nonAlpha));
+        }
     }
 
     public void testToString() throws Exception {
         // Replace any '/' characters because they're meaningful at the start, and just removing them all is simpler
-        final String text1 = RandomizedTest.randomUnicodeOfLengthBetween(5, 80).replace('/', '.');
-        final String text2 = RandomizedTest.randomUnicodeOfLength(20).replace('/', '.');
-        final String text3 = RandomizedTest.randomUnicodeOfLength(50).replace('/', '.');
+        final String text1 = randomUnicodeOfLengthBetween(5, 80).replace('/', '.');
+        final String text2 = randomUnicodeOfLength(20).replace('/', '.');
+        final String text3 = randomUnicodeOfLength(50).replace('/', '.');
         final String text4 = randomAlphaOfLength(100);
         final String text5 = randomAlphaOfLength(100);
 
@@ -122,6 +145,15 @@ public class StringMatcherTests extends ESTestCase {
         if (matcher.test(str)) {
             fail(String.format(Locale.ROOT, "Matcher [%s] matched [%s] but should not", matcher, str));
         }
+    }
+
+    static boolean hasHighSurrogate(String s) {
+        for (int i = 0; i < s.length(); i++) {
+            if (Character.isHighSurrogate(s.charAt(i))) {
+                return true;
+            }
+        }
+        return false;
     }
 
 

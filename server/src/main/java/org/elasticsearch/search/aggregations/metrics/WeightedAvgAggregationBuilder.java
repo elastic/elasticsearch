@@ -52,7 +52,7 @@ public class WeightedAvgAggregationBuilder extends MultiValuesSourceAggregationB
     public static final ObjectParser<WeightedAvgAggregationBuilder, String> PARSER =
             ObjectParser.fromBuilder(NAME, WeightedAvgAggregationBuilder::new);
     static {
-        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.NUMERIC);
+        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(VALUE_FIELD.getPreferredName(), PARSER, true, false, false);
         MultiValuesSourceParseHelper.declareField(WEIGHT_FIELD.getPreferredName(), PARSER, true, false, false);
     }

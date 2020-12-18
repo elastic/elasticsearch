@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.support;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -29,7 +30,12 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValuesSourceAggregationBuilder<AB>>
     extends AbstractAggregationBuilder<AB> {
@@ -74,7 +80,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     /* The parser doesn't support setting userValueTypeHint (aka valueType), but we do serialize and deserialize it, so keeping it around
     for now so as to not break BWC.  Future refactors should feel free to remove this field. --Tozzi 2020-01-16
      */
-    private ValuesSourceType userValueTypeHint = null;
+    private CoreValuesSourceType.ValueType userValueTypeHint = null;
     private String format = null;
     private Object missing = null;
     private Map<String, Object> missingMap = Collections.emptyMap();
@@ -105,7 +111,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = (ArrayList<String>)in.readGenericValue();
-        userValueTypeHint = CoreValuesSourceType.fromString(in.readString());
+        userValueTypeHint = in.readOptionalWriteable(CoreValuesSourceType.ValueType::readFromStream);
         format = in.readOptionalString();
         missingMap = in.readMap();
     }
@@ -113,7 +119,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeGenericValue(fields);
-        out.writeString(userValueTypeHint.typeName().toUpperCase(Locale.ROOT));
+        out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         out.writeMap(missingMap);
         innerWriteTo(out);
@@ -220,7 +226,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
         if (userValueTypeHint != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.typeName());
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getCoreValuesSourceType().typeName());
         }
         doXContentBody(builder, params);
         builder.endObject();

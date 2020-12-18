@@ -55,7 +55,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -114,7 +113,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
 
 
     public void testGeoField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.GEOPOINT, iw -> {
+        testAggregation(new MatchAllDocsQuery(), CoreValuesSourceType.ValueType.GEOPOINT, iw -> {
             for (int i = 0; i < 10; i++) {
                 Document document = new Document();
                 document.add(new LatLonDocValuesField("field", 10, 10));
@@ -124,7 +123,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testDoubleField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.DOUBLE, iw -> {
+        testAggregation(new MatchAllDocsQuery(), CoreValuesSourceType.ValueType.DOUBLE, iw -> {
             for (int i = 0; i < 15; i++) {
                 Document document = new Document();
                 document.add(new DoubleDocValuesField(FIELD_NAME, 23D));
@@ -134,7 +133,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testKeyWordField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.STRING, iw -> {
+        testAggregation(new MatchAllDocsQuery(), CoreValuesSourceType.ValueType.STRING, iw -> {
             for (int i = 0; i < 20; i++) {
                 Document document = new Document();
                 document.add(new SortedSetDocValuesField(FIELD_NAME, new BytesRef("stringValue")));
@@ -145,7 +144,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoDocs() throws IOException {
-        for (ValueType valueType : ValueType.values()) {
+        for (CoreValuesSourceType.ValueType valueType : CoreValuesSourceType.ValueType.values()) {
             testAggregation(new MatchAllDocsQuery(), valueType, iw -> {
                 // Intentionally not writing any docs
             }, count -> {
@@ -156,7 +155,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testNoMatchingField() throws IOException {
-        testAggregation(new MatchAllDocsQuery(), ValueType.LONG, iw -> {
+        testAggregation(new MatchAllDocsQuery(), CoreValuesSourceType.ValueType.LONG, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 1)));
         }, count -> {
@@ -166,7 +165,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesSortedNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMERIC, iw -> {
+        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), CoreValuesSourceType.ValueType.NUMERIC, iw -> {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField(FIELD_NAME, 1)));
@@ -177,7 +176,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testSomeMatchesNumericDocValues() throws IOException {
-        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), ValueType.NUMBER, iw -> {
+        testAggregation(new DocValuesFieldExistsQuery(FIELD_NAME), CoreValuesSourceType.ValueType.NUMBER, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 1)));
         }, count -> {
@@ -187,7 +186,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltering() throws IOException {
-        testAggregation(IntPoint.newRangeQuery("level", 0, 5), ValueType.STRING, iw -> {
+        testAggregation(IntPoint.newRangeQuery("level", 0, 5), CoreValuesSourceType.ValueType.STRING, iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("level", 0), new SortedDocValuesField(FIELD_NAME, new BytesRef("foo"))));
             iw.addDocument(Arrays.asList(new IntPoint("level", 1), new SortedDocValuesField(FIELD_NAME, new BytesRef("bar"))));
             iw.addDocument(Arrays.asList(new IntPoint("level", 3), new SortedDocValuesField(FIELD_NAME, new BytesRef("foo"))));
@@ -200,7 +199,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     public void testQueryFiltersAll() throws IOException {
-        testAggregation(IntPoint.newRangeQuery("level", -1, 0), ValueType.STRING, iw -> {
+        testAggregation(IntPoint.newRangeQuery("level", -1, 0), CoreValuesSourceType.ValueType.STRING, iw -> {
             iw.addDocument(Arrays.asList(new IntPoint("level", 3), new SortedDocValuesField(FIELD_NAME, new BytesRef("foo"))));
             iw.addDocument(Arrays.asList(new IntPoint("level", 5), new SortedDocValuesField(FIELD_NAME, new BytesRef("baz"))));
         }, count -> {
@@ -274,7 +273,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             .field(FIELD_NAME)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, NUMBER_VALUE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
+        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, CoreValuesSourceType.ValueType.NUMERIC);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField(FIELD_NAME, 7)));
@@ -290,7 +289,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.NUMERIC);
+        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, CoreValuesSourceType.ValueType.NUMERIC);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             Document doc = new Document();
@@ -320,7 +319,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
             .field(FIELD_NAME)
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, STRING_VALUE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
+        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, CoreValuesSourceType.ValueType.STRING);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new SortedDocValuesField(FIELD_NAME, new BytesRef("1"))));
@@ -336,7 +335,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("name")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, SINGLE_SCRIPT, Collections.emptyMap()));
 
-        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, ValueType.STRING);
+        MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, CoreValuesSourceType.ValueType.STRING);
 
         testAggregation(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             Document doc = new Document();
@@ -363,7 +362,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     private void testAggregation(Query query,
-                          ValueType valueType,
+                          CoreValuesSourceType.ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify) throws IOException {
         // Test both with and without the userValueTypeHint
@@ -372,14 +371,14 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
     }
 
     private void testAggregation(Query query,
-                          ValueType valueType,
+                          CoreValuesSourceType.ValueType valueType,
                           CheckedConsumer<RandomIndexWriter, IOException> indexer,
                           Consumer<InternalValueCount> verify, boolean testWithHint) throws IOException {
         MappedFieldType fieldType = createMappedFieldType(FIELD_NAME, valueType);
 
         ValueCountAggregationBuilder aggregationBuilder = new ValueCountAggregationBuilder("_name");
         if (valueType != null && testWithHint) {
-            aggregationBuilder.userValueTypeHint(valueType.getValuesSourceType());
+            aggregationBuilder.userValueTypeHint(valueType);
         }
         aggregationBuilder.field(FIELD_NAME);
 
@@ -395,7 +394,7 @@ public class ValueCountAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
     }
 
-    private static MappedFieldType createMappedFieldType(String name, ValueType valueType) {
+    private static MappedFieldType createMappedFieldType(String name, CoreValuesSourceType.ValueType valueType) {
         switch (valueType) {
             case BOOLEAN:
                 return new BooleanFieldMapper.BooleanFieldType(name);

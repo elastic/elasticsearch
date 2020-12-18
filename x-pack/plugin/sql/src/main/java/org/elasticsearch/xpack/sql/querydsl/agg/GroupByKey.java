@@ -7,7 +7,6 @@ package org.elasticsearch.xpack.sql.querydsl.agg;
 
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort.Direction;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -43,21 +42,21 @@ public abstract class GroupByKey extends Agg {
         if (script != null) {
             builder.script(script.toPainless());
             if (script.outputType().isInteger()) {
-                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.LONG);
             } else if (script.outputType().isRational()) {
-                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.DOUBLE);
             } else if (DataTypes.isString(script.outputType())) {
-                builder.userValuetypeHint(CoreValuesSourceType.BYTES);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.STRING);
             } else if (script.outputType() == DATE) {
-                builder.userValuetypeHint(CoreValuesSourceType.DATE);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.DATE);
             } else if (script.outputType() == TIME) {
-                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.LONG);
             } else if (script.outputType() == DATETIME) {
-                builder.userValuetypeHint(CoreValuesSourceType.NUMERIC);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.LONG);
             } else if (script.outputType() == BOOLEAN) {
-                builder.userValuetypeHint(CoreValuesSourceType.BOOLEAN);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.BOOLEAN);
             } else if (script.outputType() == IP) {
-                builder.userValuetypeHint(CoreValuesSourceType.IP);
+                builder.userValuetypeHint(CoreValuesSourceType.ValueType.IP);
             }
         }
         // field based

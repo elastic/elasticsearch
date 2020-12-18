@@ -67,7 +67,7 @@ public class WeightedAvgAggregationBuilderTests extends AbstractSerializingTestC
         MultiValuesSourceFieldConfig valueConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("value_field").build();
         MultiValuesSourceFieldConfig weightConfig = new MultiValuesSourceFieldConfig.Builder().setFieldName("weight_field").build();
         WeightedAvgAggregationBuilder aggregationBuilder = new WeightedAvgAggregationBuilder(aggregationName)
-            .userValueTypeHint(CoreValuesSourceType.NUMERIC)
+            .userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC)
             .value(valueConfig)
             .weight(weightConfig);
         return aggregationBuilder;

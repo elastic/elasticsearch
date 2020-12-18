@@ -25,12 +25,16 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.search.aggregations.support.*;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -41,7 +45,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     protected final String name;
     private String field = null;
     private Script script = null;
-    private ValuesSourceType userValueTypeHint = null;
+    private CoreValuesSourceType.ValueType userValueTypeHint = null;
     private boolean missingBucket = false;
     private SortOrder order = SortOrder.ASC;
     private String format = null;
@@ -57,7 +61,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
             this.script = new Script(in);
         }
         if (in.readBoolean()) {
-            this.userValueTypeHint = CoreValuesSourceType.fromString(in.readString());
+            this.userValueTypeHint = CoreValuesSourceType.ValueType.readFromStream(in);;
         }
         this.missingBucket = in.readBoolean();
         this.order = SortOrder.readFromStream(in);
@@ -76,7 +80,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         boolean hasValueType = userValueTypeHint != null;
         out.writeBoolean(hasValueType);
         if (hasValueType) {
-            out.writeString(userValueTypeHint.typeName().toUpperCase(Locale.ROOT));
+            userValueTypeHint.writeTo(out);
         }
         out.writeBoolean(missingBucket);
         order.writeTo(out);
@@ -99,7 +103,7 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
         }
         builder.field("missing_bucket", missingBucket);
         if (userValueTypeHint != null) {
-            builder.field("value_type", userValueTypeHint.typeName());
+            builder.field("value_type", userValueTypeHint.getCoreValuesSourceType().typeName());
         }
         if (format != null) {
             builder.field("format", format);
@@ -175,10 +179,10 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Sets the {@link ValueType} for the value produced by this source
+     * Sets the {@link CoreValuesSourceType.ValueType} for the value produced by this source
      */
     @SuppressWarnings("unchecked")
-    public AB userValuetypeHint(ValuesSourceType valueType) {
+    public AB userValuetypeHint(CoreValuesSourceType.ValueType valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[userValueTypeHint] must not be null");
         }
@@ -187,9 +191,9 @@ public abstract class CompositeValuesSourceBuilder<AB extends CompositeValuesSou
     }
 
     /**
-     * Gets the {@link ValueType} for the value produced by this source
+     * Gets the {@link CoreValuesSourceType.ValueType} for the value produced by this source
      */
-    public ValuesSourceType userValuetypeHint() {
+    public CoreValuesSourceType.ValueType userValuetypeHint() {
         return userValueTypeHint;
     }
 

@@ -33,8 +33,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,7 +63,7 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
 
         testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD),
-            agg -> assertEquals(0, agg.getBuckets().size()), CoreValuesSourceType.BYTES // with type hint
+            agg -> assertEquals(0, agg.getBuckets().size()), CoreValuesSourceType.ValueType.STRING // with type hint
         );
     }
 
@@ -93,13 +91,13 @@ public class KeywordTermsAggregatorTests extends AggregatorTestCase {
                     assertThat(bucket.getKey(), equalTo(String.valueOf(9L - i)));
                     assertThat(bucket.getDocCount(), equalTo(9L - i));
                 }
-            }, CoreValuesSourceType.BYTES // with type hint
+            }, CoreValuesSourceType.ValueType.STRING // with type hint
         );
     }
 
     private void testSearchCase(Query query, List<String> dataset,
                                 Consumer<TermsAggregationBuilder> configure,
-                                Consumer<InternalMappedTerms> verify, ValuesSourceType valueType) throws IOException {
+                                Consumer<InternalMappedTerms> verify, CoreValuesSourceType.ValueType valueType) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();

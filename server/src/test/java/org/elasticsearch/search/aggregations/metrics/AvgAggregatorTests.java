@@ -510,7 +510,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
     public void testOrderByEmptyAggregation() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.NUMERIC)
+        AggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>avg", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))

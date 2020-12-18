@@ -77,7 +77,6 @@ import org.elasticsearch.search.aggregations.metrics.WeightedAvg;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
@@ -261,7 +260,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithTermsAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.BYTES)
+        searchSourceBuilder.aggregation(new TermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
             .field("type.keyword"));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
@@ -285,7 +284,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithRareTermsAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest();
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        searchSourceBuilder.aggregation(new RareTermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.BYTES)
+        searchSourceBuilder.aggregation(new RareTermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
             .field("type.keyword").maxDocCount(2));
         searchSourceBuilder.size(0);
         searchRequest.source(searchSourceBuilder);
@@ -374,7 +373,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithTermsAndRangeAgg() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.BYTES).field("type.keyword");
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.ValueType.STRING).field("type.keyword");
         agg.subAggregation(new RangeAggregationBuilder("subagg").field("num")
                 .addRange("first", 0, 30).addRange("second", 31, 200));
         searchSourceBuilder.aggregation(agg);
@@ -428,7 +427,7 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testSearchWithTermsAndWeightedAvg() throws IOException {
         SearchRequest searchRequest = new SearchRequest("index");
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
-        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.BYTES).field("type.keyword");
+        TermsAggregationBuilder agg = new TermsAggregationBuilder("agg1").userValueTypeHint(CoreValuesSourceType.ValueType.STRING).field("type.keyword");
         agg.subAggregation(new WeightedAvgAggregationBuilder("subagg")
             .value(new MultiValuesSourceFieldConfig.Builder().setFieldName("num").build())
             .weight(new MultiValuesSourceFieldConfig.Builder().setFieldName("num2").build())
@@ -555,10 +554,10 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         client().performRequest(new Request(HttpPost.METHOD_NAME, "/_refresh"));
 
         TermsAggregationBuilder leafTermAgg = new TermsAggregationBuilder("top-names")
-                .userValueTypeHint(CoreValuesSourceType.BYTES)
+                .userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("owner.display_name.keyword").size(10);
         ChildrenAggregationBuilder childrenAgg = new ChildrenAggregationBuilder("to-answers", "answer").subAggregation(leafTermAgg);
-        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("top-tags").userValueTypeHint(CoreValuesSourceType.BYTES)
+        TermsAggregationBuilder termsAgg = new TermsAggregationBuilder("top-tags").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("tags.keyword")
                 .size(10).subAggregation(childrenAgg);
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
@@ -771,17 +770,17 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
     public void testMultiSearch_withAgg() throws Exception {
         MultiSearchRequest multiSearchRequest = new MultiSearchRequest();
         SearchRequest searchRequest1 = new SearchRequest("index1");
-        searchRequest1.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(CoreValuesSourceType.BYTES)
+        searchRequest1.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("field.keyword")
                 .order(BucketOrder.key(true)));
         multiSearchRequest.add(searchRequest1);
         SearchRequest searchRequest2 = new SearchRequest("index2");
-        searchRequest2.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(CoreValuesSourceType.BYTES)
+        searchRequest2.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("field.keyword")
                 .order(BucketOrder.key(true)));
         multiSearchRequest.add(searchRequest2);
         SearchRequest searchRequest3 = new SearchRequest("index3");
-        searchRequest3.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(CoreValuesSourceType.BYTES)
+        searchRequest3.source().size(0).aggregation(new TermsAggregationBuilder("name").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("field.keyword")
                 .order(BucketOrder.key(true)));
         multiSearchRequest.add(searchRequest3);

@@ -67,7 +67,6 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
@@ -927,10 +926,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     public void testUnsupportedMetric() throws IOException {
 
 
-        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(CoreValuesSourceType.NUMERIC)
+        AggregationBuilder nonRollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(CoreValuesSourceType.ValueType.LONG)
             .field("foo");
         String fieldName = "foo.max." + RollupField.VALUE;
-        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(CoreValuesSourceType.NUMERIC)
+        AggregationBuilder rollup = new CardinalityAggregationBuilder("test_metric").userValueTypeHint(CoreValuesSourceType.ValueType.LONG)
             .field(fieldName);
 
         MappedFieldType nrFTvalue = new NumberFieldMapper.NumberFieldType("foo", NumberFieldMapper.NumberType.LONG);
@@ -955,10 +954,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testStringTerms() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.BYTES)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("stringField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.BYTES)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
                 .field("stringfield.terms." + RollupField.VALUE)
                 .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("stringfield.terms." + RollupField.COUNT_FIELD));
@@ -987,10 +986,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testStringTermsNullValue() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.BYTES)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
             .field("stringField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.BYTES)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
             .field("stringfield.terms." + RollupField.VALUE)
             .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                 .field("stringfield.terms." + RollupField.COUNT_FIELD));
@@ -1025,10 +1024,10 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
     }
 
     public void testLongTerms() throws IOException {
-        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.NUMERIC)
+        TermsAggregationBuilder nonRollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.LONG)
                 .field("longField");
 
-        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.NUMERIC)
+        TermsAggregationBuilder rollupTerms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.LONG)
                 .field("longfield.terms." + RollupField.VALUE)
                 .subAggregation(new SumAggregationBuilder("terms." + RollupField.COUNT_FIELD)
                         .field("longfield.terms." + RollupField.COUNT_FIELD));

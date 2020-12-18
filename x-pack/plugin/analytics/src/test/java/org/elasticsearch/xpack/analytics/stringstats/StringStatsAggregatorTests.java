@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -225,9 +224,9 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         textFieldType.setFielddata(true);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms")
-            .userValueTypeHint(CoreValuesSourceType.NUMERIC)
+            .userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC)
             .field("value")
-            .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").userValueTypeHint(CoreValuesSourceType.BYTES));
+            .subAggregation(new StringStatsAggregationBuilder("text_stats").field("text").userValueTypeHint(CoreValuesSourceType.ValueType.STRING));
 
         Directory directory = newDirectory();
         RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory);

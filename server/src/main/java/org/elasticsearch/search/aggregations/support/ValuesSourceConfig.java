@@ -55,7 +55,7 @@ public class ValuesSourceConfig {
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
     public static ValuesSourceConfig resolve(AggregationContext context,
-                                             ValuesSourceType userValueTypeHint,
+                                             CoreValuesSourceType.ValueType userValueTypeHint,
                                              String field,
                                              Script script,
                                              Object missing,
@@ -85,7 +85,7 @@ public class ValuesSourceConfig {
      * @return - An initialized {@link ValuesSourceConfig} that will yield the appropriate {@link ValuesSourceType}
      */
     public static ValuesSourceConfig resolveUnregistered(AggregationContext context,
-                                                         ValuesSourceType userValueTypeHint,
+                                                         CoreValuesSourceType.ValueType userValueTypeHint,
                                                          String field,
                                                          Script script,
                                                          Object missing,
@@ -105,7 +105,7 @@ public class ValuesSourceConfig {
     }
 
     private static ValuesSourceConfig internalResolve(AggregationContext context,
-                                                      ValuesSourceType userValueTypeHint,
+                                                      CoreValuesSourceType.ValueType userValueTypeHint,
                                                       String field,
                                                       Script script,
                                                       Object missing,
@@ -116,13 +116,13 @@ public class ValuesSourceConfig {
                                                      ) {
         ValuesSourceConfig config;
         ValuesSourceType valuesSourceType = null;
-        ValuesSourceType scriptValueType = userValueTypeHint;
+        CoreValuesSourceType.ValueType scriptValueType = userValueTypeHint;
         FieldContext fieldContext = null;
         AggregationScript.LeafFactory aggregationScript = createScript(script, context); // returns null if script is null
         boolean unmapped = false;
         if (userValueTypeHint != null) {
             // If the user gave us a type hint, respect that.
-            valuesSourceType = userValueTypeHint;
+            valuesSourceType = userValueTypeHint.getCoreValuesSourceType();
         }
         if (field == null) {
             if (script == null) {
@@ -169,14 +169,14 @@ public class ValuesSourceConfig {
     private interface FieldResolver {
         ValuesSourceType getValuesSourceType(
             FieldContext fieldContext,
-            ValuesSourceType userValueTypeHint,
+            CoreValuesSourceType.ValueType userValueTypeHint,
             ValuesSourceType defaultValuesSourceType);
 
     }
 
     private static ValuesSourceType getMappingFromRegistry(
         FieldContext fieldContext,
-        ValuesSourceType userValueTypeHint,
+        CoreValuesSourceType.ValueType userValueTypeHint,
         ValuesSourceType defaultValuesSourceType
     ) {
         return fieldContext.indexFieldData().getValuesSourceType();
@@ -184,7 +184,7 @@ public class ValuesSourceConfig {
 
     private static ValuesSourceType getLegacyMapping(
         FieldContext fieldContext,
-        ValuesSourceType userValueTypeHint,
+        CoreValuesSourceType.ValueType userValueTypeHint,
         ValuesSourceType defaultValuesSourceType
     ) {
         IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
@@ -198,7 +198,7 @@ public class ValuesSourceConfig {
             if (userValueTypeHint == null) {
                 return defaultValuesSourceType;
             } else {
-                return userValueTypeHint;
+                return userValueTypeHint.getCoreValuesSourceType();
             }
         }
     }
@@ -242,7 +242,7 @@ public class ValuesSourceConfig {
     private final ValuesSourceType valuesSourceType;
     private final FieldContext fieldContext;
     private final AggregationScript.LeafFactory script;
-    private final ValuesSourceType scriptValueType;
+    private final CoreValuesSourceType.ValueType scriptValueType;
     private final boolean unmapped;
     private final DocValueFormat format;
     private final Object missing;
@@ -258,7 +258,7 @@ public class ValuesSourceConfig {
         FieldContext fieldContext,
         boolean unmapped,
         AggregationScript.LeafFactory script,
-        ValuesSourceType scriptValueType,
+        CoreValuesSourceType.ValueType scriptValueType,
         Object missing,
         ZoneId timeZone,
         DocValueFormat format,
@@ -341,7 +341,7 @@ public class ValuesSourceConfig {
         return fieldContext != null || script != null || unmapped;
     }
 
-    public ValuesSourceType scriptValueType() {
+    public CoreValuesSourceType.ValueType scriptValueType() {
         return this.scriptValueType;
     }
 
@@ -403,7 +403,7 @@ public class ValuesSourceConfig {
      */
     public String getDescription() {
         if (script != null) {
-            return "Script yielding [" + (scriptValueType != null ? scriptValueType.typeName() : "unknown type") + "]";
+            return "Script yielding [" + (scriptValueType != null ? scriptValueType.getCoreValuesSourceType().typeName() : "unknown type") + "]";
         }
 
         MappedFieldType fieldType = fieldType();

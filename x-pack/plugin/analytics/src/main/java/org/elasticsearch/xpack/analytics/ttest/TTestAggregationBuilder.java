@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatio
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -44,7 +43,7 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
         ObjectParser.fromBuilder(NAME, TTestAggregationBuilder::new);
 
     static {
-        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.NUMERIC);
+        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(A_FIELD.getPreferredName(), PARSER, true, false, true);
         MultiValuesSourceParseHelper.declareField(B_FIELD.getPreferredName(), PARSER, true, false, true);
         PARSER.declareString(TTestAggregationBuilder::testType, TYPE_FIELD);

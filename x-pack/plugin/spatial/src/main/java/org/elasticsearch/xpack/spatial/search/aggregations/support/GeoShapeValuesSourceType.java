@@ -14,12 +14,7 @@ import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.MissingValues;
-import org.elasticsearch.search.aggregations.support.ValueType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.search.aggregations.support.*;
 import org.elasticsearch.xpack.spatial.index.fielddata.IndexGeoShapeFieldData;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
@@ -39,7 +34,7 @@ public class GeoShapeValuesSourceType implements Writeable, ValuesSourceType {
     }
 
     @Override
-    public ValuesSource getScript(AggregationScript.LeafFactory script, ValuesSourceType scriptValueType) {
+    public ValuesSource getScript(AggregationScript.LeafFactory script, CoreValuesSourceType.ValueType scriptValueType) {
         // TODO (support scripts)
         throw new UnsupportedOperationException("geo_shape");
     }

@@ -64,7 +64,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -238,7 +237,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         SearchSourceBuilder source = new SearchSourceBuilder();
         source.size(0);
         originalRequest.source(source);
-        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.NUMERIC);
+        TermsAggregationBuilder terms = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC);
         terms.field("price");
         terms.size(1);
         source.aggregation(terms);

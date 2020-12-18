@@ -29,10 +29,10 @@ public final class MultiValuesSourceParseHelper {
 
     public static <T> void declareCommon(
             AbstractObjectParser<? extends MultiValuesSourceAggregationBuilder<?>, T> objectParser, boolean formattable,
-            ValuesSourceType expectedValueType) {
+            CoreValuesSourceType.ValueType expectedValueType) {
 
         objectParser.declareField(MultiValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-            ValuesSourceType valueType = CoreValuesSourceType.fromString(p.text());
+            CoreValuesSourceType.ValueType valueType = CoreValuesSourceType.ValueType.fromString(p.text());
             if (expectedValueType != null && !valueType.equals(expectedValueType)) {
                 throw new ParsingException(p.getTokenLocation(),
                     "Aggregation [" + objectParser.getName() + "] was configured with an incompatible value type ["

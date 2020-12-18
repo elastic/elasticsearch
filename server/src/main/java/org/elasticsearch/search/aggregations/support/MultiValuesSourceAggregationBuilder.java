@@ -78,7 +78,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
 
 
     private Map<String, MultiValuesSourceFieldConfig> fields = new HashMap<>();
-    private ValuesSourceType userValueTypeHint = null;
+    private CoreValuesSourceType.ValueType userValueTypeHint = null;
     private String format = null;
 
     protected MultiValuesSourceAggregationBuilder(String name) {
@@ -109,15 +109,14 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     @SuppressWarnings("unchecked")
     private void read(StreamInput in) throws IOException {
         fields = in.readMap(StreamInput::readString, MultiValuesSourceFieldConfig::new);
-        userValueTypeHint = CoreValuesSourceType.fromString(in.readString());
+        userValueTypeHint = in.readOptionalWriteable(CoreValuesSourceType.ValueType::readFromStream);
         format = in.readOptionalString();
     }
 
     @Override
     protected final void doWriteTo(StreamOutput out) throws IOException {
         out.writeMap(fields, StreamOutput::writeString, (o, value) -> value.writeTo(o));
-        String type = userValueTypeHint.typeName();
-        out.writeString(type.toUpperCase(Locale.ROOT));
+        out.writeOptionalWriteable(userValueTypeHint);
         out.writeOptionalString(format);
         innerWriteTo(out);
     }
@@ -137,10 +136,10 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     }
 
     /**
-     * Sets the {@link ValuesSourceType} for the value produced by this aggregation
+     * Sets the {@link CoreValuesSourceType.ValueType} for the value produced by this aggregation
      */
     @SuppressWarnings("unchecked")
-    public AB userValueTypeHint(ValuesSourceType valueType) {
+    public AB userValueTypeHint(CoreValuesSourceType.ValueType valueType) {
         if (valueType == null) {
             throw new IllegalArgumentException("[userValueTypeHint] must not be null: [" + name + "]");
         }
@@ -185,13 +184,13 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
     }
 
 
-    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable ValuesSourceType valueType,
+    private static DocValueFormat resolveFormat(@Nullable String format, @Nullable CoreValuesSourceType.ValueType valueType,
                                                 ValuesSourceType defaultValuesSourceType) {
         if (valueType == null) {
             // If the user didn't send a hint, all we can do is fall back to the default
             return defaultValuesSourceType.getFormatter(format, null);
         }
-        DocValueFormat valueFormat = valueType.getFormatter(format, null);
+        DocValueFormat valueFormat = valueType.getCoreValuesSourceType().getFormatter(format,null);
         if (valueFormat instanceof DocValueFormat.Decimal && format != null) {
             valueFormat = new DocValueFormat.Decimal(format);
         }
@@ -217,7 +216,7 @@ public abstract class MultiValuesSourceAggregationBuilder<AB extends MultiValues
             builder.field(CommonFields.FORMAT.getPreferredName(), format);
         }
         if (userValueTypeHint != null) {
-            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.typeName());
+            builder.field(CommonFields.VALUE_TYPE.getPreferredName(), userValueTypeHint.getCoreValuesSourceType().typeName());
         }
         doXContentBody(builder, params);
         builder.endObject();

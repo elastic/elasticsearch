@@ -22,7 +22,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatio
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceParseHelper;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -46,7 +45,7 @@ public class GeoLineAggregationBuilder
     public static final ObjectParser<GeoLineAggregationBuilder, String> PARSER =
         ObjectParser.fromBuilder(NAME, GeoLineAggregationBuilder::new);
     static {
-        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.NUMERIC);
+        MultiValuesSourceParseHelper.declareCommon(PARSER, true, CoreValuesSourceType.ValueType.NUMERIC);
         MultiValuesSourceParseHelper.declareField(POINT_FIELD.getPreferredName(), PARSER, true, false, false);
         MultiValuesSourceParseHelper.declareField(SORT_FIELD.getPreferredName(), PARSER, true, false, false);
         PARSER.declareString((builder, order) -> builder.sortOrder(SortOrder.fromString(order)), ORDER_FIELD);

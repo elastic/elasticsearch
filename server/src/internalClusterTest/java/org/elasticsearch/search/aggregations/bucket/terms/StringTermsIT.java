@@ -45,7 +45,6 @@ import org.elasticsearch.search.aggregations.metrics.ExtendedStats;
 import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -1190,7 +1189,7 @@ public class StringTermsIT extends AbstractTermsTestCase {
             .size(0)
             .aggregation(terms("terms")
                 .script(new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "42", Collections.emptyMap()))
-                .userValueTypeHint(randomFrom(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.NUMERIC)));
+                .userValueTypeHint(randomFrom(CoreValuesSourceType.ValueType.NUMERIC, CoreValuesSourceType.ValueType.NUMBER)));
         String source = builder.toString();
 
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {

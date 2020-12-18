@@ -398,7 +398,7 @@ public class PointInTimeIT extends ESIntegTestCase {
             createIndex(index, Settings.builder().put("index.number_of_shards", 1).build());
             int numDocs = randomIntBetween(3, 20);
             for (int j = 0; j < numDocs; j++) {
-                client().prepareIndex(index).setSource("value", randomIntBetween(0, 2)).get();
+                client().prepareIndex(index, "_doc").setSource("value", randomIntBetween(0, 2)).get();
                 expectedNumDocs ++;
             }
         }

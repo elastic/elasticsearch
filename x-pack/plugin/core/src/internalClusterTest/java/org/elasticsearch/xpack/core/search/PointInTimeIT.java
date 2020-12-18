@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.core.search;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -25,8 +27,12 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchContextMissingException;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.SortBuilders;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -37,6 +43,7 @@ import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
@@ -368,6 +375,85 @@ public class PointInTimeIT extends ESIntegTestCase {
         } finally {
             closePointInTime(pitId);
         }
+    }
+
+    public void testPITTiebreak() throws Exception {
+        assertAcked(client().admin().indices().prepareDelete("index-*").get());
+        int numIndex = randomIntBetween(2, 10);
+        int expectedNumDocs = 0;
+        for (int i = 0; i < numIndex; i++) {
+            String index = "index-" + i;
+            createIndex(index, Settings.builder().put("index.number_of_shards", 1).build());
+            int numDocs = randomIntBetween(3, 20);
+            for (int j = 0; j < numDocs; j++) {
+                client().prepareIndex(index).setSource("value", randomIntBetween(0, 2)).get();
+                expectedNumDocs ++;
+            }
+        }
+        refresh("index-*");
+        String pit = openPointInTime(new String[] { "index-*" }, TimeValue.timeValueHours(1));
+        try {
+            for (int size = 1; size <= numIndex; size++) {
+                SortOrder order = randomBoolean() ? SortOrder.ASC : SortOrder.DESC;
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.pitTiebreaker().order(order));
+                assertPagination(new PointInTimeBuilder(pit), expectedNumDocs, size,
+                    SortBuilders.fieldSort("value"), SortBuilders.pitTiebreaker().order(order));
+            }
+        } finally {
+            closePointInTime(pit);
+        }
+    }
+
+    private void assertPagination(PointInTimeBuilder pit, int expectedNumDocs, int size, SortBuilder<?>... sort) throws Exception {
+        Set<String> seen = new HashSet<>();
+        SearchRequestBuilder builder = client().prepareSearch()
+            .setSize(size)
+            .setPointInTime(pit);
+
+        final int[] reverseMuls = new int[sort.length];
+        for (int i = 0; i < sort.length; i++) {
+            builder.addSort(sort[i]);
+            reverseMuls[i] = sort[i].order() == SortOrder.ASC ? 1 : -1;
+        }
+        final SearchRequest searchRequest = builder.request();
+        SearchResponse response = client().search(searchRequest).get();
+        Object[] lastSortValues = null;
+        while (response.getHits().getHits().length > 0) {
+            Object[] lastHitSortValues = null;
+            for (SearchHit hit : response.getHits().getHits()) {
+                assertTrue(seen.add(hit.getIndex() + hit.getId()));
+
+                if (lastHitSortValues != null) {
+                    for (int i = 0; i < sort.length; i++) {
+                        Comparable value = (Comparable) hit.getRawSortValues()[i];
+                        int cmp = value.compareTo(lastHitSortValues[i]) * reverseMuls[i];
+                        if (cmp != 0) {
+                            assertThat(cmp, equalTo(1));
+                            break;
+                        }
+                    }
+                }
+                lastHitSortValues = hit.getRawSortValues();
+            }
+            int len = response.getHits().getHits().length;
+            SearchHit last = response.getHits().getHits()[len - 1];
+            if (lastSortValues != null) {
+                for (int i = 0; i < sort.length; i++) {
+                    Comparable value = (Comparable) last.getSortValues()[i];
+                    int cmp = value.compareTo(lastSortValues[i]) * reverseMuls[i];
+                    if (cmp != 0) {
+                        assertThat(cmp, equalTo(1));
+                        break;
+                    }
+                }
+            }
+            assertThat(last.getSortValues().length, equalTo(sort.length));
+            lastSortValues = last.getSortValues();
+            searchRequest.source().searchAfter(last.getSortValues());
+            response = client().search(searchRequest).get();
+        }
+        assertThat(seen.size(), equalTo(expectedNumDocs));
     }
 
     private String openPointInTime(String[] indices, TimeValue keepAlive) {

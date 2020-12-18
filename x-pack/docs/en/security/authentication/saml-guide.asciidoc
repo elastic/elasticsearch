@@ -622,13 +622,14 @@ Some Identity Providers support importing a metadata file from the Service
 Provider. This will automatically configure many of the integration options
 between the IdP and the SP.
 
-The Elastic Stack supports generating such a metadata file using the
+The {stack} supports generating such a metadata file using the
 <<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
 <<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-You can generate the SAML metadata issuing the API request to Elasticsearch and storing metadata as an XML file using tools like `jq`.
-
-Following command, for example, will generate the metadata for the SAML realm `realm1` and save it to `metadata.xml` file:
+You can generate the SAML metadata by issuing the API request to {es} and store 
+it as an XML file using tools like `jq`. For example, the following command 
+generates the metadata for the SAML realm `realm1` and saves it to a 
+`metadata.xml` file:
 
 ["source","console"]
 --

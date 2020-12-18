@@ -150,7 +150,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         final List<User> existingUsers = Arrays.asList(new GetUsersRequestBuilder(client()).get().users());
         final int existing = existingUsers.size();
         logger.error("--> creating user");
-        preparePutUser("joe", "s3kirt", hasher, "role1", "user").get();
+        preparePutUser("joe", "s3krit-password", hasher, "role1", "user").get();
         logger.error("--> waiting for .security index");
         ensureGreen(SECURITY_MAIN_ALIAS);
         logger.info("--> retrieving user");
@@ -161,8 +161,8 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertArrayEquals(joe.roles(), new String[]{"role1", "user"});
 
         logger.info("--> adding two more users");
-        preparePutUser("joe2", "s3kirt2", hasher, "role2", "user").get();
-        preparePutUser("joe3", "s3kirt3", hasher, "role3", "user").get();
+        preparePutUser("joe2", "s3krit-password2", hasher, "role2", "user").get();
+        preparePutUser("joe3", "s3krit-password3", hasher, "role3", "user").get();
         GetUsersResponse allUsersResp = new GetUsersRequestBuilder(client()).get();
         assertTrue("users should exist", allUsersResp.hasUsers());
         assertEquals("should be " + (3 + existing) + " users total", 3 + existing, allUsersResp.users().length);
@@ -609,7 +609,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
         exception = expectThrows(IllegalArgumentException.class,
             () -> new ChangePasswordRequestBuilder(client()).username(AnonymousUser.DEFAULT_ANONYMOUS_USERNAME)
-                .password("foobar".toCharArray(), hasher).get());
+                .password("foobar-password".toCharArray(), hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
@@ -617,12 +617,12 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         assertThat(exception.getMessage(), containsString("user [" + AnonymousUser.DEFAULT_ANONYMOUS_USERNAME + "] is anonymous"));
 
         exception = expectThrows(IllegalArgumentException.class,
-            () -> preparePutUser(SystemUser.NAME, "foobar", hasher).get());
+            () -> preparePutUser(SystemUser.NAME, "foobar-password", hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,
             () -> new ChangePasswordRequestBuilder(client()).username(SystemUser.NAME)
-                .password("foobar".toCharArray(), hasher).get());
+                .password("foobar-password".toCharArray(), hasher).get());
         assertThat(exception.getMessage(), containsString("user [" + SystemUser.NAME + "] is internal"));
 
         exception = expectThrows(IllegalArgumentException.class,

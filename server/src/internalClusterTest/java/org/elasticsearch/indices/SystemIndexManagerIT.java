@@ -20,7 +20,6 @@
 package org.elasticsearch.indices;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
@@ -125,29 +124,24 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
      * a dumb string comparison, so order of keys matters.
      */
     private void assertMappings(String expectedMappings) {
-        client().admin().indices().getMappings(new GetMappingsRequest().indices(INDEX_NAME), new ActionListener<>() {
-            @Override
-            public void onResponse(GetMappingsResponse getMappingsResponse) {
-                final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
-                assertThat(
-                    "Expected mappings to contain a key for [" + PRIMARY_INDEX_NAME + "], but found: " + mappings.toString(),
-                    mappings.containsKey(PRIMARY_INDEX_NAME),
-                    equalTo(true)
-                );
-                final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap();
+        final GetMappingsResponse getMappingsResponse = client().admin()
+            .indices()
+            .getMappings(new GetMappingsRequest().indices(INDEX_NAME))
+            .actionGet();
 
-                try {
-                    assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            }
+        final ImmutableOpenMap<String, MappingMetadata> mappings = getMappingsResponse.getMappings();
+        assertThat(
+            "Expected mappings to contain a key for [" + PRIMARY_INDEX_NAME + "], but found: " + mappings.toString(),
+            mappings.containsKey(PRIMARY_INDEX_NAME),
+            equalTo(true)
+        );
+        final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).getSourceAsMap();
 
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Couldn't fetch mappings for " + INDEX_NAME, e);
-            }
-        });
+        try {
+            assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     /** A special kind of {@link SystemIndexDescriptor} that can toggle what kind of mappings it

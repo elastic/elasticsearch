@@ -70,13 +70,11 @@ public class Hyperparameters implements ToXContentObject, Writeable {
         this.hyperparameterName = hyperparameterName;
         this.value = value;
         this.supplied = supplied;
+        this.absoluteImportance = absoluteImportance;
+        this.relativeImportance = relativeImportance;
         if (this.supplied == false) {
-            this.absoluteImportance = ExceptionsHelper.requireNonNull(absoluteImportance, ABSOLUTE_IMPORTANCE.getPreferredName());
-            this.relativeImportance = ExceptionsHelper.requireNonNull(relativeImportance, RELATIVE_IMPORTANCE.getPreferredName());
-        }
-        else {
-            this.absoluteImportance = null;
-            this.relativeImportance = null;
+            ExceptionsHelper.requireNonNull(absoluteImportance, ABSOLUTE_IMPORTANCE.getPreferredName());
+            ExceptionsHelper.requireNonNull(relativeImportance, RELATIVE_IMPORTANCE.getPreferredName());
         }
     }
 

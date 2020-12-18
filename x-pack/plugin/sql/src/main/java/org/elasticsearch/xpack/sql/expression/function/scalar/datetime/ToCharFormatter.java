@@ -113,7 +113,7 @@ class ToCharFormatter {
             ToCharFormatter.of("OF")
                 .lowercaseAccepted(false)
                 .formatFn("ZZZZZ", ToCharFormatter::formatOffset)
-                .text(ToCharFormatter::fillOffset)).stream().map(Builder::build).collect(Collectors.toList());
+                .text(ToCharFormatter::removeLeadingZerosFromOffset)).stream().map(Builder::build).collect(Collectors.toList());
 
         Map<String, ToCharFormatter> formatterMap = new LinkedHashMap<>();
         for (ToCharFormatter formatter : formatters) {
@@ -173,19 +173,18 @@ class ToCharFormatter {
             boolean foundPattern = false;
             for (int length = Math.min(MAX_TO_CHAR_FORMAT_STRING_LENGTH, toCharPattern.length()); length >= 1; length--) {
                 final String potentialPattern = toCharPattern.substring(0, length);
-                if ("FM".equals(potentialPattern) || "fm".equals(potentialPattern)) {
+                if (isFillModeModifier(potentialPattern)) {
                     // try to apply the fill mode modifier to the next formatter
                     fillModeModifierActive = true;
                     foundPattern = true;
-                } else if ("TH".equals(potentialPattern) || "th".equals(potentialPattern)) {
+                } else if (isOrdinalSuffixModifier(potentialPattern)) {
                     // try to apply the ordinal suffix modifier to the last formatter
                     ToCharFormatter lastFormatter = formatters.removeLast();
                     if (lastFormatter == null) {
+                        // if there was no previous pattern, simply prints the ordinal suffix pattern
                         lastFormatter = literal(potentialPattern);
                     } else if (lastFormatter.hasOrdinalSuffix) {
-                        // if there was no previous pattern, simply prints the ordinal suffix pattern
-                        final boolean upperCase = "TH".equals(potentialPattern);
-                        lastFormatter = lastFormatter.withModifier(s -> appendOrdinalSuffix(potentialPattern, upperCase, s));
+                        lastFormatter = lastFormatter.withModifier(s -> appendOrdinalSuffix(potentialPattern, s));
                     }
                     formatters.addLast(lastFormatter);
                     foundPattern = true;
@@ -214,6 +213,14 @@ class ToCharFormatter {
             }
         }
         return formatters;
+    }
+
+    private static boolean isOrdinalSuffixModifier(String potentialPattern) {
+        return "TH".equals(potentialPattern) || "th".equals(potentialPattern);
+    }
+
+    private static boolean isFillModeModifier(String potentialPattern) {
+        return "FM".equals(potentialPattern) || "fm".equals(potentialPattern);
     }
 
     public static Function<TemporalAccessor, String> ofPattern(String pattern) {
@@ -245,22 +252,23 @@ class ToCharFormatter {
         }
     }
 
-    private static String appendOrdinalSuffix(String defaultSuffix, boolean upperCase, String s) {
+    private static String appendOrdinalSuffix(String defaultSuffix, String s) {
         try {
             // the Y,YYY pattern might can cause problems with the parsing, but thankfully the last 3
             // characters is enough to calculate the suffix
             int i = Integer.parseInt(lastNCharacter(s, 3));
+            final boolean upperCase = defaultSuffix.equals(defaultSuffix.toUpperCase(Locale.ROOT));
             return s + (upperCase ? ordinalSuffix(i).toUpperCase(Locale.ROOT) : ordinalSuffix(i));
         } catch (NumberFormatException ex) {
             return s + defaultSuffix;
         }
     }
 
-    private static String fillNumeric(String paddedNumber) {
-        return String.valueOf(Integer.parseInt(paddedNumber));
+    private static String removeLeadingZeros(String number) {
+        return String.valueOf(Integer.parseInt(number));
     }
 
-    private static String fillText(String paddedText) {
+    private static String removePadding(String paddedText) {
         return paddedText.replaceAll(" +$", "");
     }
 
@@ -278,8 +286,7 @@ class ToCharFormatter {
         return offset.substring(0, Math.min(offset.length(), 6));
     }
 
-    private static String fillOffset(String offset) {
-        //offset = offset.replace(":{0,1}00$", "");
+    private static String removeLeadingZerosFromOffset(String offset) {
         if (offset.matches("[+-]0{1,2}")) {
             return offset.substring(0, 2);
         } else {
@@ -316,7 +323,7 @@ class ToCharFormatter {
 
         private final String pattern;
         private boolean lowercaseAccepted = true;
-        private Function<String, String> fillMode = ToCharFormatter::fillNumeric;
+        private Function<String, String> fillMode = ToCharFormatter::removeLeadingZeros;
         private boolean hasOrdinalSuffix = true;
         private Function<TemporalAccessor, String> formatFn;
 
@@ -324,16 +331,14 @@ class ToCharFormatter {
             this.pattern = pattern;
         }
 
-        public Builder formatFn(final String javaPatterm) {
-            return formatFn(javaPatterm, null);
+        public Builder formatFn(final String javaPattern) {
+            return formatFn(javaPattern, null);
         }
 
         public Builder formatFn(final String javaPattern, final Function<String, String> additionalMapper) {
             this.formatFn = temporalAccessor -> {
-                String
-                    formatted =
-                    DateTimeFormatter.ofPattern(javaPattern != null ? javaPattern : "'" + pattern + "'", Locale.ROOT)
-                        .format(temporalAccessor);
+                String formatted = DateTimeFormatter.ofPattern(javaPattern != null ? javaPattern : "'" + pattern + "'", Locale.ROOT)
+                    .format(temporalAccessor);
                 return additionalMapper == null ? formatted : additionalMapper.apply(formatted);
             };
             return this;
@@ -350,7 +355,7 @@ class ToCharFormatter {
         }
 
         public Builder text() {
-            return text(ToCharFormatter::fillText);
+            return text(ToCharFormatter::removePadding);
         }
 
         public Builder text(Function<String, String> fillMode) {

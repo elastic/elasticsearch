@@ -613,23 +613,23 @@ TO_CHAR('11:22:33.123456789Z'::time, 'HH24:MI:SS.FF2') AS df_time;
 ;
 
 selectToCharWithField
-schema::birth_date:ts|df_birth_date1:s|df_birth_date2:s
-SELECT birth_date, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, TO_CHAR(birth_date, concat(gender, 'M/DD')) AS df_birth_date2
-FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s
+SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, 
+TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2 FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
 
-       birth_date        | df_birth_date1 | df_birth_date2
--------------------------+----------------+----------------
-1963-07-22 00:00:00.000Z | 07/22/1963     | 07/22
-1960-07-20 00:00:00.000Z | 07/20/1960     | 07/20
-1959-10-01 00:00:00.000Z | 10/01/1959     | 10/01
-null                     | null           | null
-null                     | null           | null
-null                     | null           | null
-null                     | null           | null
-null                     | null           | null
-1958-05-21 00:00:00.000Z | 05/21/1958     | 05/21
-1953-07-28 00:00:00.000Z | 07/28/1953     | 07/28
-1961-02-26 00:00:00.000Z | 02/26/1961     | 02/26
+       birth_date       |    gender     |df_birth_date1 |df_birth_date2 
+------------------------+---------------+---------------+---------------
+null                    |M              |null           |null           
+null                    |M              |null           |null           
+null                    |F              |null           |null           
+1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           
+1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           
+1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           
+1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             
+1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           
+1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           
+1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              
+1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             
 ;
 
 toCharWhere

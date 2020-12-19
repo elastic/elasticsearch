@@ -54,7 +54,7 @@ import java.util.stream.Stream;
 public class TransportResyncReplicationAction extends TransportWriteAction<ResyncReplicationRequest,
     ResyncReplicationRequest, ResyncReplicationResponse> implements PrimaryReplicaSyncer.SyncAction {
 
-    private static String ACTION_NAME = "internal:index/seq_no/resync";
+    private static final String ACTION_NAME = "internal:index/seq_no/resync";
     private static final Function<IndexShard, String> EXECUTOR_NAME_FUNCTION = shard -> {
         if (shard.indexSettings().getIndexMetadata().isSystem()) {
             return Names.SYSTEM_WRITE;
@@ -113,6 +113,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
     }
 
+    @Override
+    protected int primaryOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
+    }
+
     public static ResyncReplicationRequest performOnPrimary(ResyncReplicationRequest request) {
         return request;
     }
@@ -129,6 +134,11 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
     @Override
     protected long replicaOperationSize(ResyncReplicationRequest request) {
         return Stream.of(request.getOperations()).mapToLong(Translog.Operation::estimateSize).sum();
+    }
+
+    @Override
+    protected int replicaOperationCount(ResyncReplicationRequest request) {
+        return request.getOperations().length;
     }
 
     public static Translog.Location performOnReplica(ResyncReplicationRequest request, IndexShard replica) throws Exception {
@@ -167,11 +177,6 @@ public class TransportResyncReplicationAction extends TransportWriteAction<Resyn
                 @Override
                 public ResyncReplicationResponse read(StreamInput in) throws IOException {
                     return newResponseInstance(in);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
 
                 @Override

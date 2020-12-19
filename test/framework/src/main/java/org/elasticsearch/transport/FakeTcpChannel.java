@@ -22,7 +22,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.concurrent.CompletableContext;
 
-import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -89,14 +88,9 @@ public class FakeTcpChannel implements TcpChannel {
     }
 
     @Override
-    public void sendMessage(OutboundHandler.SendContext sendContext) {
-        try {
-            messageCaptor.set(sendContext.get());
-        } catch (IOException e) {
-            sendContext.onFailure(e);
-            return;
-        }
-        listenerCaptor.set(sendContext);
+    public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+        messageCaptor.set(reference);
+        listenerCaptor.set(listener);
     }
 
     @Override

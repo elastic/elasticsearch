@@ -90,8 +90,6 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
                         checkpoint.generation, checkpoint.minSeqNo, checkpoint.maxSeqNo,
                         checkpoint.globalCheckpoint, checkpoint.minTranslogGeneration, aboveSeqNo);
                     Checkpoint.write(channelFactory, checkpointFile, newCheckpoint, StandardOpenOption.WRITE);
-
-                    IOUtils.fsync(checkpointFile, false);
                     IOUtils.fsync(checkpointFile.getParent(), true);
 
                     newReader = new TranslogReader(newCheckpoint, channel, path, header);

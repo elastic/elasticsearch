@@ -42,6 +42,7 @@ import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutorTests.jobWithRules;
 import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Matchers.anyString;
+import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,6 +50,7 @@ import static org.mockito.Mockito.when;
 public class JobNodeSelectorTests extends ESTestCase {
 
     // To simplify the logic in this class all jobs have the same memory requirement
+    private static final long MAX_JOB_BYTES = ByteSizeValue.ofGb(1).getBytes();
     private static final ByteSizeValue JOB_MEMORY_REQUIREMENT = ByteSizeValue.ofMb(10);
 
     private MlMemoryTracker memoryTracker;
@@ -119,7 +121,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job = jobBuilder.build();
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertEquals("", result.getExplanation());
         assertEquals("_node_id3", result.getExecutorNode());
     }
@@ -140,8 +147,12 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node is full. Number of opened jobs ["
             + maxRunningJobsPerNode + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
@@ -164,8 +175,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
             node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, createTaskParams(dataFrameAnalyticsId)));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node is full. Number of opened jobs ["
             + maxRunningJobsPerNode + "], xpack.ml.max_open_jobs [" + maxRunningJobsPerNode + "]"));
@@ -193,8 +208,12 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
             + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
@@ -217,8 +236,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
             node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, createTaskParams(dataFrameAnalyticsId)));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNotNull(result.getExecutorNode());
     }
 
@@ -239,8 +262,12 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker,
             0, node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
             + "Available memory for ML [" + (firstJobTotalMemory - 1)
@@ -270,8 +297,13 @@ public class JobNodeSelectorTests extends ESTestCase {
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
             node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, createTaskParams(dataFrameAnalyticsId)));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(
+            maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
             + "Available memory for ML [" + currentlyRunningJobMemory + "], memory required by existing jobs ["
@@ -296,8 +328,13 @@ public class JobNodeSelectorTests extends ESTestCase {
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), dataFrameAnalyticsId,
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME, memoryTracker, 0,
             node -> TransportStartDataFrameAnalyticsAction.TaskExecutor.nodeFilter(node, createTaskParams(dataFrameAnalyticsId)));
-        PersistentTasksCustomMetadata.Assignment result =
-            jobNodeSelector.selectNode(maxRunningJobsPerNode, 2, maxMachineMemoryPercent, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(
+            maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull(result.getExecutorNode());
         assertThat(result.getExplanation(), containsString("because this node has insufficient available memory. "
             + "Available memory for ML [" + (firstJobTotalMemory - 1)
@@ -326,7 +363,13 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(20, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(
+            20,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertTrue(result.getExplanation().contains("because this node isn't a ml node"));
         assertNull(result.getExecutorNode());
     }
@@ -362,8 +405,15 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         ClusterState cs = csBuilder.build();
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs, job6.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
+
             node -> nodeFilter(node, job6));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(
+            10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertEquals("_node_id3", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
@@ -376,8 +426,14 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         Job job7 = BaseMlIntegTestCase.createFareQuoteJob("job_id7", JOB_MEMORY_REQUIREMENT).build(new Date());
         jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
+
             node -> nodeFilter(node, job7));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -391,7 +447,7 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job7));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because stale task", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
 
@@ -403,8 +459,9 @@ public class JobNodeSelectorTests extends ESTestCase {
         csBuilder.metadata(Metadata.builder(cs.metadata()).putCustom(PersistentTasksCustomMetadata.TYPE, tasks));
         cs = csBuilder.build();
         jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
+
             node -> nodeFilter(node, job7));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because null state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -445,8 +502,14 @@ public class JobNodeSelectorTests extends ESTestCase {
 
         // Allocation won't be possible if the stale failed job is treated as opening
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs, job7.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
+
             node -> nodeFilter(node, job7));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertEquals("_node_id1", result.getExecutorNode());
 
         tasksBuilder = PersistentTasksCustomMetadata.builder(tasks);
@@ -458,8 +521,9 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs = csBuilder.build();
         Job job8 = BaseMlIntegTestCase.createFareQuoteJob("job_id8", JOB_MEMORY_REQUIREMENT).build(new Date());
         jobNodeSelector = new JobNodeSelector(cs, job8.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
+
             node -> nodeFilter(node, job8));
-        result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        result = jobNodeSelector.selectNode(10, 2, 30, MAX_JOB_BYTES, isMemoryTrackerRecentlyRefreshed, false);
         assertNull("no node selected, because OPENING state", result.getExecutorNode());
         assertTrue(result.getExplanation().contains("because node exceeds [2] the maximum number of jobs [2] in opening state"));
     }
@@ -492,8 +556,14 @@ public class JobNodeSelectorTests extends ESTestCase {
         metadata.putCustom(PersistentTasksCustomMetadata.TYPE, tasks);
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
+
             node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertThat(result.getExplanation(), containsString("because this node does not support jobs of type [incompatible_type]"));
         assertNull(result.getExecutorNode());
     }
@@ -525,7 +595,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         cs.metadata(metadata);
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(),
             MlTasks.JOB_TASK_NAME, memoryTracker, 0, node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertThat(result.getExplanation(), containsString(
             "because the job's model snapshot requires a node of version [6.3.0] or higher"));
         assertNull(result.getExecutorNode());
@@ -555,7 +630,12 @@ public class JobNodeSelectorTests extends ESTestCase {
         Job job = jobWithRules("job_with_rules");
         JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker, 0,
             node -> nodeFilter(node, job));
-        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10, 2, 30, isMemoryTrackerRecentlyRefreshed, false);
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(10,
+            2,
+            30,
+            MAX_JOB_BYTES,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
         assertNotNull(result.getExecutorNode());
     }
 
@@ -598,6 +678,37 @@ public class JobNodeSelectorTests extends ESTestCase {
         assertEquals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT.getExplanation(), result.getExplanation());
         assertNull(result.getExecutorNode());
     }
+
+    public void testMaximumPossibleNodeMemoryTooSmall() {
+        int numNodes = randomIntBetween(1, 10);
+        int maxRunningJobsPerNode = randomIntBetween(1, 100);
+        int maxMachineMemoryPercent = 30;
+        long machineMemory = (maxRunningJobsPerNode + 1) * JOB_MEMORY_REQUIREMENT.getBytes() * 100 / maxMachineMemoryPercent;
+
+        Map<String, String> nodeAttr = new HashMap<>();
+        nodeAttr.put(MachineLearning.MAX_OPEN_JOBS_NODE_ATTR, Integer.toString(maxRunningJobsPerNode));
+        nodeAttr.put(MachineLearning.MACHINE_MEMORY_NODE_ATTR, Long.toString(machineMemory));
+
+        ClusterState.Builder cs = fillNodesWithRunningJobs(nodeAttr, numNodes, maxRunningJobsPerNode);
+
+        Job job = BaseMlIntegTestCase.createFareQuoteJob("job_id1000", ByteSizeValue.ofMb(10)).build(new Date());
+        when(memoryTracker.getJobMemoryRequirement(anyString(), eq("job_id1000"))).thenReturn(1000L);
+
+        JobNodeSelector jobNodeSelector = new JobNodeSelector(cs.build(), job.getId(), MlTasks.JOB_TASK_NAME, memoryTracker,
+            randomIntBetween(1, 3),
+            node -> nodeFilter(node, job));
+        PersistentTasksCustomMetadata.Assignment result = jobNodeSelector.selectNode(maxRunningJobsPerNode,
+            2,
+            maxMachineMemoryPercent,
+            10L,
+            isMemoryTrackerRecentlyRefreshed,
+            false);
+        assertNull(result.getExecutorNode());
+        assertThat(result.getExplanation(),
+            containsString("[job_id1000] not waiting for node assignment as estimated job size " +
+                "[31458280] is greater than largest possible job size [3]"));
+    }
+
 
     private ClusterState.Builder fillNodesWithRunningJobs(Map<String, String> nodeAttr, int numNodes, int numRunningJobsPerNode) {
 

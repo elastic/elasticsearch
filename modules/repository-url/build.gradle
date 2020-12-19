@@ -40,8 +40,8 @@ restResources {
 File repositoryDir = new File(project.buildDir, "shared-repository")
 
 /** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
-task urlFixture(type: AntFixture) {
-  dependsOn testClasses
+def urlFixtureTaskProvider = tasks.register("urlFixture", AntFixture) {
+  dependsOn "testClasses"
   doFirst {
     repositoryDir.mkdirs()
   }
@@ -49,13 +49,15 @@ task urlFixture(type: AntFixture) {
   executable = "${BuildParams.runtimeJavaHome}/bin/java"
   args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
-yamlRestTest {
-  dependsOn urlFixture
+
+tasks.named("yamlRestTest").configure {
+  dependsOn urlFixtureTaskProvider
 }
 
-internalClusterTest {
-  dependsOn urlFixture
+tasks.named("internalClusterTest").configure {
+  dependsOn urlFixtureTaskProvider
 }
+
 testClusters.all {
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE

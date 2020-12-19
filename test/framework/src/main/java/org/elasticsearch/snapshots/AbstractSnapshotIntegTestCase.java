@@ -20,9 +20,12 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -42,6 +45,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -55,6 +59,7 @@ import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
+import org.elasticsearch.repositories.blobstore.ChecksumBlobStoreFormat;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -75,17 +80,18 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -318,7 +324,8 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         final CreateSnapshotResponse createSnapshotResponse = clusterAdmin()
                 .prepareCreateSnapshot(repoName, oldVersionSnapshot).setIndices("does-not-exist-for-sure-*")
                 .setWaitForCompletion(true).get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().totalShards(), is(0));
+        final SnapshotInfo snapshotInfo = createSnapshotResponse.getSnapshotInfo();
+        assertThat(snapshotInfo.totalShards(), is(0));
 
         logger.info("--> writing downgraded RepositoryData for repository metadata version [{}]", version);
         final RepositoryData repositoryData = getRepositoryData(repoName);
@@ -333,6 +340,17 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 BytesReference.toBytes(BytesReference.bytes(
                         downgradedRepoData.snapshotsToXContent(XContentFactory.jsonBuilder(), version))),
                 StandardOpenOption.TRUNCATE_EXISTING);
+        final SnapshotInfo downgradedSnapshotInfo = SnapshotInfo.fromXContentInternal(
+                JsonXContent.jsonXContent.createParser(
+                        NamedXContentRegistry.EMPTY,
+                        DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                        Strings.toString(snapshotInfo, ChecksumBlobStoreFormat.SNAPSHOT_ONLY_FORMAT_PARAMS)
+                                .replace(String.valueOf(Version.CURRENT.id), String.valueOf(version.id))));
+        final BlobStoreRepository blobStoreRepository = getRepositoryOnMaster(repoName);
+        PlainActionFuture.get(f -> blobStoreRepository.threadPool().generic().execute(ActionRunnable.run(f, () ->
+                BlobStoreRepository.SNAPSHOT_FORMAT.write(downgradedSnapshotInfo,
+                        blobStoreRepository.blobStore().blobContainer(blobStoreRepository.basePath()), snapshotInfo.snapshotId().getUUID(),
+                        randomBoolean(), internalCluster().getCurrentMasterNodeInstance(BigArrays.class)))));
         return oldVersionSnapshot;
     }
 
@@ -359,7 +377,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();
         assertThat(snapshotInfo.state(), is(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.successfulShards(), greaterThan(0));
+        assertThat(snapshotInfo.successfulShards(), equalTo(snapshotInfo.totalShards()));
         assertThat(snapshotInfo.failedShards(), equalTo(0));
         return snapshotInfo;
     }
@@ -416,6 +434,12 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         PlainActionFuture.<RepositoryData, Exception>get(f -> repo.finalizeSnapshot(
                 ShardGenerations.EMPTY, getRepositoryData(repoName).getGenId(), state.metadata(), snapshotInfo,
                 SnapshotsService.OLD_SNAPSHOT_FORMAT, Function.identity(), f));
+    }
+
+    protected void awaitNDeletionsInProgress(int count) throws Exception {
+        logger.info("--> wait for [{}] deletions to show up in the cluster state", count);
+        awaitClusterState(state ->
+                state.custom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.EMPTY).getEntries().size() == count);
     }
 
     protected void awaitNoMoreRunningOperations() throws Exception {
@@ -536,17 +560,34 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         return snapshotInfos.get(0);
     }
 
+    protected static ThreadPoolStats.Stats snapshotThreadPoolStats(final String node) {
+        return StreamSupport.stream(internalCluster().getInstance(ThreadPool.class, node).stats().spliterator(), false)
+                .filter(threadPool -> threadPool.getName().equals(ThreadPool.Names.SNAPSHOT))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Failed to find snapshot pool on node [" + node + "]"));
+    }
+
     protected void awaitMasterFinishRepoOperations() throws Exception {
         logger.info("--> waiting for master to finish all repo operations on its SNAPSHOT pool");
-        final ThreadPool masterThreadPool = internalCluster().getCurrentMasterNodeInstance(ThreadPool.class);
-        assertBusy(() -> {
-            for (ThreadPoolStats.Stats stat : masterThreadPool.stats()) {
-                if (ThreadPool.Names.SNAPSHOT.equals(stat.getName())) {
-                    assertEquals(stat.getActive(), 0);
-                    break;
-                }
-            }
-        });
+        final String masterName = internalCluster().getMasterName();
+        assertBusy(() -> assertEquals(snapshotThreadPoolStats(masterName).getActive(), 0));
+    }
+
+    protected List<String> createNSnapshots(String repoName, int count) throws Exception {
+        final PlainActionFuture<Collection<CreateSnapshotResponse>> allSnapshotsDone = PlainActionFuture.newFuture();
+        final ActionListener<CreateSnapshotResponse> snapshotsListener = new GroupedActionListener<>(allSnapshotsDone, count);
+        final List<String> snapshotNames = new ArrayList<>(count);
+        final String prefix = "snap-" + UUIDs.randomBase64UUID(random()).toLowerCase(Locale.ROOT) + "-";
+        for (int i = 0; i < count; i++) {
+            final String snapshot = prefix + i;
+            snapshotNames.add(snapshot);
+            client().admin().cluster().prepareCreateSnapshot(repoName, snapshot).setWaitForCompletion(true).execute(snapshotsListener);
+        }
+        for (CreateSnapshotResponse snapshotResponse : allSnapshotsDone.get()) {
+            assertThat(snapshotResponse.getSnapshotInfo().state(), is(SnapshotState.SUCCESS));
+        }
+        logger.info("--> created {} in [{}]", snapshotNames, repoName);
+        return snapshotNames;
     }
 
     public static void forEachFileRecursively(Path path,

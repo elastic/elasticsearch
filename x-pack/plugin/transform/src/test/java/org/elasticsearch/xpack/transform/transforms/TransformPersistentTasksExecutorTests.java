@@ -203,6 +203,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             );
         }
 
+        csBuilder = ClusterState.builder(cs);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
         List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(

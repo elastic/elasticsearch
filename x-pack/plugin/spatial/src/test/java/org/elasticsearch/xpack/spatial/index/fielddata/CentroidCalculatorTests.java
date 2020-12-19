@@ -20,7 +20,9 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -38,9 +40,10 @@ public class CentroidCalculatorTests extends ESTestCase {
 
     public void testPoint() {
         Point point = GeometryTestUtils.randomPoint(false);
-        CentroidCalculator calculator = new CentroidCalculator(point);
-        assertThat(calculator.getX(), equalTo(GeoUtils.normalizeLon(point.getX())));
-        assertThat(calculator.getY(), equalTo(GeoUtils.normalizeLat(point.getY())));
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(point);
+        assertThat(calculator.getX(), equalTo(point.getX()));
+        assertThat(calculator.getY(), equalTo(point.getY()));
         assertThat(calculator.sumWeight(), equalTo(1.0));
         assertThat(calculator.getDimensionalShapeType(), equalTo(POINT));
     }
@@ -67,7 +70,8 @@ public class CentroidCalculatorTests extends ESTestCase {
                 "-4.3847623 55.2260539,-4.3847341 55.2260432,-4.3847046 55.2260279,-4.3846738 55.2260062,-4.3846496 55.2259844," +
                 "-4.3846429 55.2259737,-4.3846523 55.2259714,-4.384651 55.2259629,-4.3846541 55.2259549)," +
                 "(-4.3846608 55.2259374,-4.3846559 55.2259502,-4.3846541 55.2259549,-4.3846608 55.2259374))");
-        CentroidCalculator calculator = new CentroidCalculator(geometry);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(geometry);
         assertThat(calculator.getX(), closeTo( -4.3848, 1e-4));
         assertThat(calculator.getY(), closeTo(55.22595, 1e-4));
         assertThat(calculator.sumWeight(), closeTo(0, 1e-5));
@@ -82,7 +86,8 @@ public class CentroidCalculatorTests extends ESTestCase {
         double[] xRunningAvg = new double[] { 10, 15, 20, 25, 30, 35, 40, 45, 50, 55 };
 
         Point point = new Point(x[0], y[0]);
-        CentroidCalculator calculator = new CentroidCalculator(point);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(point);
         assertThat(calculator.getX(), equalTo(xRunningAvg[0]));
         assertThat(calculator.getY(), equalTo(yRunningAvg[0]));
         for (int i = 1; i < 10; i++) {
@@ -91,79 +96,74 @@ public class CentroidCalculatorTests extends ESTestCase {
             System.arraycopy(x, 0, subX, 0, i + 1);
             System.arraycopy(y, 0, subY, 0, i + 1);
             Geometry geometry  = new Line(subX, subY);
-            calculator = new CentroidCalculator(geometry);
+            calculator = new CentroidCalculator();
+            calculator.add(geometry);
             assertEquals(xRunningAvg[i], calculator.getX(), DELTA);
             assertEquals(yRunningAvg[i], calculator.getY(), DELTA);
         }
-        CentroidCalculator otherCalculator = new CentroidCalculator(new Point(0, 0));
-        calculator.addFrom(otherCalculator);
+        calculator.add(new Point(0, 0));
         assertEquals(55.0, calculator.getX(), DELTA);
         assertEquals(5.5, calculator.getY(), DELTA);
     }
 
     public void testMultiLine() {
         MultiLine multiLine = GeometryTestUtils.randomMultiLine(false);
-        double sumLineX = 0;
-        double sumLineY = 0;
-        double sumLineWeight = 0;
+        CentroidCalculator lineCalculator = new CentroidCalculator();
         for (Line line : multiLine) {
-            CentroidCalculator calculator = new CentroidCalculator(line);
-            sumLineX += calculator.compSumX.value();
-            sumLineY += calculator.compSumY.value();
-            sumLineWeight += calculator.compSumWeight.value();
+            lineCalculator.add(line);
         }
-        CentroidCalculator calculator = new CentroidCalculator(multiLine);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(multiLine);
 
-        assertEquals(sumLineX / sumLineWeight, calculator.getX(), DELTA);
-        assertEquals(sumLineY / sumLineWeight, calculator.getY(), DELTA);
-        assertEquals(sumLineWeight, calculator.sumWeight(), DELTA);
+        assertEquals(lineCalculator.getX(), calculator.getX(), DELTA);
+        assertEquals(lineCalculator.getY(), calculator.getY(), DELTA);
+        assertEquals(lineCalculator.sumWeight(), calculator.sumWeight(), DELTA);
+        assertThat(lineCalculator.getDimensionalShapeType(), equalTo(calculator.getDimensionalShapeType()));
         assertThat(calculator.getDimensionalShapeType(), equalTo(LINE));
     }
 
     public void testMultiPoint() {
         MultiPoint multiPoint = GeometryTestUtils.randomMultiPoint(false);
-        double sumPointX = 0;
-        double sumPointY = 0;
-        double sumPointWeight = 0;
+        CentroidCalculator pointCalculator = new CentroidCalculator();
         for (Point point : multiPoint) {
-            sumPointX += point.getX();
-            sumPointY += point.getY();
-            sumPointWeight += 1;
+            pointCalculator.add(point);
         }
-
-        CentroidCalculator calculator = new CentroidCalculator(multiPoint);
-        assertEquals(sumPointX / sumPointWeight, calculator.getX(), DELTA);
-        assertEquals(sumPointY / sumPointWeight, calculator.getY(), DELTA);
-        assertEquals(sumPointWeight, calculator.sumWeight(), DELTA);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(multiPoint);
+        assertEquals(pointCalculator.getX(), calculator.getX(), DELTA);
+        assertEquals(pointCalculator.getY(), calculator.getY(), DELTA);
+        assertEquals(pointCalculator.sumWeight(), calculator.sumWeight(), DELTA);
         assertThat(calculator.getDimensionalShapeType(), equalTo(POINT));
 
     }
 
-    public void testRoundingErrorAndNormalization() {
+    public void testRoundingErrorAndNormalization() throws IOException {
         double lonA = GeometryTestUtils.randomLon();
         double latA = GeometryTestUtils.randomLat();
         double lonB = randomValueOtherThanMany((l) -> Math.abs(l - lonA) <= GeoUtils.TOLERANCE, GeometryTestUtils::randomLon);
         double latB = randomValueOtherThanMany((l) -> Math.abs(l - latA) <= GeoUtils.TOLERANCE, GeometryTestUtils::randomLat);
         {
             Line line = new Line(new double[]{180.0, 180.0}, new double[]{latA, latB});
-            assertThat(new CentroidCalculator(line).getX(), anyOf(equalTo(179.99999999999997),
-                equalTo(180.0), equalTo(-179.99999999999997)));
+            GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
+            assertThat(value.lon(), anyOf(equalTo(179.99999991618097), equalTo(-180.0)));
         }
 
         {
             Line line = new Line(new double[]{-180.0, -180.0}, new double[]{latA, latB});
-            assertThat(new CentroidCalculator(line).getX(), anyOf(equalTo(179.99999999999997),
-                equalTo(180.0), equalTo(-179.99999999999997)));
+            GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
+            assertThat(value.lon(), anyOf(equalTo(179.99999991618097), equalTo(-180.0)));
         }
 
         {
             Line line = new Line(new double[]{lonA, lonB}, new double[] { 90.0, 90.0 });
-            assertThat(new CentroidCalculator(line).getY(), anyOf(equalTo(90.0), equalTo(89.99999999999999)));
+            GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
+            assertThat(value.lat(), equalTo(89.99999995809048));
         }
 
         {
             Line line = new Line(new double[]{lonA, lonB}, new double[] { -90.0, -90.0 });
-            assertThat(new CentroidCalculator(line).getY(), anyOf(equalTo(-90.0), equalTo(-89.99999999999999)));
+            GeoShapeValues.GeoShapeValue value = GeoTestUtils.geoShapeValue(line);
+            assertThat(value.lat(), equalTo(-90.0));
         }
     }
 
@@ -183,7 +183,8 @@ public class CentroidCalculatorTests extends ESTestCase {
                     inner = new LinearRing(new double[]{-40, -40, 30, 30, -40}, new double[]{-40, 30, 30, -40, -40});
                 }
                 final double POLY_CENTROID = 4.803921568627451;
-                CentroidCalculator calculator = new CentroidCalculator(new Polygon(outer, Collections.singletonList(inner)));
+                CentroidCalculator calculator = new CentroidCalculator();
+                calculator.add(new Polygon(outer, Collections.singletonList(inner)));
                 assertEquals(POLY_CENTROID, calculator.getX(), DELTA);
                 assertEquals(POLY_CENTROID, calculator.getY(), DELTA);
                 assertThat(calculator.sumWeight(), equalTo(5100.0));
@@ -193,7 +194,8 @@ public class CentroidCalculatorTests extends ESTestCase {
 
     public void testRectangle() {
         for (int i = 0; i < 100; i++) {
-            CentroidCalculator calculator = new CentroidCalculator(GeometryTestUtils.randomRectangle());
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(GeometryTestUtils.randomRectangle());
             assertThat(calculator.sumWeight(), greaterThan(0.0));
         }
     }
@@ -201,9 +203,10 @@ public class CentroidCalculatorTests extends ESTestCase {
     public void testLineAsClosedPoint() {
         double lon = GeometryTestUtils.randomLon();
         double lat = GeometryTestUtils.randomLat();
-        CentroidCalculator calculator = new CentroidCalculator(new Line(new double[] {lon, lon}, new double[] { lat, lat}));
-        assertThat(calculator.getX(), equalTo(GeoUtils.normalizeLon(lon)));
-        assertThat(calculator.getY(), equalTo(GeoUtils.normalizeLat(lat)));
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(new Line(new double[] {lon, lon}, new double[] { lat, lat}));
+        assertThat(calculator.getX(), equalTo(lon));
+        assertThat(calculator.getY(), equalTo(lat));
         assertThat(calculator.sumWeight(), equalTo(1.0));
     }
 
@@ -225,10 +228,12 @@ public class CentroidCalculatorTests extends ESTestCase {
         }
 
         Line line = new Line(x, y);
-        CentroidCalculator lineCalculator = new CentroidCalculator(line);
+        CentroidCalculator lineCalculator = new CentroidCalculator();
+        lineCalculator.add(line);
 
         Polygon polygon = new Polygon(new LinearRing(x, y));
-        CentroidCalculator calculator = new CentroidCalculator(polygon);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(polygon);
 
         // sometimes precision issues yield non-zero areas. must verify that area is close to zero
         if (calculator.getDimensionalShapeType() == POLYGON) {
@@ -237,14 +242,15 @@ public class CentroidCalculatorTests extends ESTestCase {
             assertThat(calculator.getDimensionalShapeType(), equalTo(LINE));
             assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
             assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
-            assertThat(calculator.sumWeight(), equalTo(lineCalculator.compSumWeight.value()));
+            assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
         }
     }
 
     public void testPolygonWithEqualSizedHole() {
         Polygon polyWithHole = new Polygon(new LinearRing(new double[]{-50, 50, 50, -50, -50}, new double[]{-50, -50, 50, 50, -50}),
             Collections.singletonList(new LinearRing(new double[]{-50, -50, 50, 50, -50}, new double[]{-50, 50, 50, -50, -50})));
-        CentroidCalculator calculator = new CentroidCalculator(polyWithHole);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(polyWithHole);
         assertThat(calculator.getX(), equalTo(0.0));
         assertThat(calculator.getY(), equalTo(0.0));
         assertThat(calculator.sumWeight(), equalTo(400.0));
@@ -255,12 +261,11 @@ public class CentroidCalculatorTests extends ESTestCase {
         Point point = GeometryTestUtils.randomPoint(false);
         Polygon polygon = new Polygon(new LinearRing(new double[] { point.getX(), point.getX(), point.getX(), point.getX() },
             new double[] { point.getY(), point.getY(), point.getY(), point.getY() }));
-        CentroidCalculator calculator = new CentroidCalculator(polygon);
-        double normLon = GeoUtils.normalizeLon(point.getX());
-        double normLat = GeoUtils.normalizeLat(point.getY());
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(polygon);
         // make calculation to account for floating-point arithmetic
-        assertThat(calculator.getX(), equalTo((3 * normLon) / 3));
-        assertThat(calculator.getY(), equalTo((3 * normLat) / 3));
+        assertThat(calculator.getX(), equalTo((3 * point.getX()) / 3));
+        assertThat(calculator.getY(), equalTo((3 * point.getY()) / 3));
         assertThat(calculator.sumWeight(), equalTo(3.0));
         assertThat(calculator.getDimensionalShapeType(), equalTo(POINT));
     }
@@ -301,16 +306,12 @@ public class CentroidCalculatorTests extends ESTestCase {
         DimensionalShapeType dimensionalShapeType = numPolygons > 0 ? POLYGON : numLines > 0 ? LINE : POINT;
 
         // addFromCalculator is only adding from shapes with the highest dimensionalShapeType
-        CentroidCalculator addFromCalculator = null;
+        CentroidCalculator addFromCalculator = new CentroidCalculator();
         for (Geometry shape : shapes) {
             if ((shape.type() == ShapeType.MULTIPOLYGON || shape.type() == ShapeType.POLYGON) ||
                 (dimensionalShapeType == LINE && (shape.type() == ShapeType.LINESTRING || shape.type() == ShapeType.MULTILINESTRING)) ||
                 (dimensionalShapeType == POINT && (shape.type() == ShapeType.POINT || shape.type() == ShapeType.MULTIPOINT))) {
-                if (addFromCalculator == null) {
-                    addFromCalculator = new CentroidCalculator(shape);
-                } else {
-                    addFromCalculator.addFrom(new CentroidCalculator(shape));
-                }
+                addFromCalculator.add(shape);
             }
         }
 
@@ -322,7 +323,8 @@ public class CentroidCalculatorTests extends ESTestCase {
         }
 
         GeometryCollection<Geometry> collection = new GeometryCollection<>(shapes);
-        CentroidCalculator calculator = new CentroidCalculator(collection);
+        CentroidCalculator calculator = new CentroidCalculator();
+        calculator.add(collection);
 
         assertNotNull(addFromCalculator.getDimensionalShapeType());
         assertThat(addFromCalculator.getDimensionalShapeType(), equalTo(dimensionalShapeType));
@@ -332,25 +334,28 @@ public class CentroidCalculatorTests extends ESTestCase {
         assertEquals(calculator.sumWeight(), addFromCalculator.sumWeight(), DELTA);
     }
 
-    public void testAddFrom() {
+    public void testAddDifferentDimensionalType() {
         Point point = GeometryTestUtils.randomPoint(false);
         Line line = GeometryTestUtils.randomLine(false);
         Polygon polygon = GeometryTestUtils.randomPolygon(false);
 
         // point add point
         {
-            CentroidCalculator calculator = new CentroidCalculator(point);
-            calculator.addFrom(new CentroidCalculator(point));
-            assertThat(calculator.compSumX.value(), equalTo(2 * point.getX()));
-            assertThat(calculator.compSumY.value(), equalTo(2 * point.getY()));
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(point);
+            calculator.add(point);
+            assertThat(calculator.getX(), equalTo(point.getX()));
+            assertThat(calculator.getY(), equalTo(point.getY()));
             assertThat(calculator.sumWeight(), equalTo(2.0));
         }
 
         // point add line/polygon
         {
-            CentroidCalculator lineCalculator = new CentroidCalculator(line);
-            CentroidCalculator calculator = new CentroidCalculator(point);
-            calculator.addFrom(lineCalculator);
+            CentroidCalculator lineCalculator = new CentroidCalculator();
+            lineCalculator.add(line);
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(point);
+            calculator.add(line);
             assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
             assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
             assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
@@ -358,9 +363,11 @@ public class CentroidCalculatorTests extends ESTestCase {
 
         // line add point
         {
-            CentroidCalculator lineCalculator = new CentroidCalculator(line);
-            CentroidCalculator calculator = new CentroidCalculator(line);
-            calculator.addFrom(new CentroidCalculator(point));
+            CentroidCalculator lineCalculator = new CentroidCalculator();
+            lineCalculator.add(line);
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(line);
+            calculator.add(point);
             assertThat(calculator.getX(), equalTo(lineCalculator.getX()));
             assertThat(calculator.getY(), equalTo(lineCalculator.getY()));
             assertThat(calculator.sumWeight(), equalTo(lineCalculator.sumWeight()));
@@ -368,19 +375,23 @@ public class CentroidCalculatorTests extends ESTestCase {
 
         // line add line
         {
-            CentroidCalculator lineCalculator = new CentroidCalculator(line);
-            CentroidCalculator calculator = new CentroidCalculator(line);
-            calculator.addFrom(lineCalculator);
-            assertEquals(2 * lineCalculator.compSumX.value(), calculator.compSumX.value(), DELTA);
-            assertEquals(2 * lineCalculator.compSumY.value(), calculator.compSumY.value(), DELTA);
+            CentroidCalculator lineCalculator = new CentroidCalculator();
+            lineCalculator.add(line);
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(line);
+            calculator.add(line);
+            assertEquals(lineCalculator.getX(), calculator.getX(), DELTA);
+            assertEquals(lineCalculator.getY(), calculator.getY(), DELTA);
             assertEquals(2 * lineCalculator.sumWeight(), calculator.sumWeight(), DELTA);
         }
 
         // line add polygon
         {
-            CentroidCalculator polygonCalculator = new CentroidCalculator(polygon);
-            CentroidCalculator calculator = new CentroidCalculator(line);
-            calculator.addFrom(polygonCalculator);
+            CentroidCalculator polygonCalculator = new CentroidCalculator();
+            polygonCalculator.add(polygon);
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(line);
+            calculator.add(polygon);
             assertThat(calculator.getX(), equalTo(polygonCalculator.getX()));
             assertThat(calculator.getY(), equalTo(polygonCalculator.getY()));
             assertThat(calculator.sumWeight(), equalTo(calculator.sumWeight()));
@@ -388,9 +399,11 @@ public class CentroidCalculatorTests extends ESTestCase {
 
         // polygon add point/line
         {
-            CentroidCalculator polygonCalculator = new CentroidCalculator(polygon);
-            CentroidCalculator calculator = new CentroidCalculator(polygon);
-            calculator.addFrom(new CentroidCalculator(randomBoolean() ? point : line));
+            CentroidCalculator polygonCalculator = new CentroidCalculator();
+            polygonCalculator.add(polygon);
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(polygon);
+            calculator.add(randomBoolean() ? point : line);
             assertThat(calculator.getX(), equalTo(polygonCalculator.getX()));
             assertThat(calculator.getY(), equalTo(polygonCalculator.getY()));
             assertThat(calculator.sumWeight(), equalTo(calculator.sumWeight()));
@@ -398,11 +411,13 @@ public class CentroidCalculatorTests extends ESTestCase {
 
         // polygon add polygon
         {
-            CentroidCalculator polygonCalculator = new CentroidCalculator(polygon);
-            CentroidCalculator calculator = new CentroidCalculator(polygon);
-            calculator.addFrom(polygonCalculator);
-            assertThat(calculator.compSumX.value(), equalTo(2 * polygonCalculator.compSumX.value()));
-            assertThat(calculator.compSumY.value(), equalTo(2 * polygonCalculator.compSumY.value()));
+            CentroidCalculator polygonCalculator = new CentroidCalculator();
+            polygonCalculator.add(polygon);
+            CentroidCalculator calculator = new CentroidCalculator();
+            calculator.add(polygon);
+            calculator.add(polygon);
+            assertEquals(polygonCalculator.getX(), calculator.getX(), DELTA);
+            assertEquals(polygonCalculator.getY(), calculator.getY(), DELTA);
             assertThat(calculator.sumWeight(), equalTo(2 * polygonCalculator.sumWeight()));
         }
     }

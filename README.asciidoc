@@ -192,22 +192,24 @@ We have just covered a very small portion of what Elasticsearch is all about. Fo
 
 Elasticsearch uses https://gradle.org[Gradle] for its build system.
 
-For a local distribution, you can run:
+To build a distribution for your local OS and print its output location upon 
+completion, run:
 ----
 ./gradlew localDistro 
 ----
-which will build the appropriate distribution for the current platform as well as  prints the output location 
 
-In order to create a distribution:
-----
-./gradlew assemble
-----
-To build the distribution for a specific platform, run the related command:
+To build a distribution for another platform, run the related command:
 ----
 ./gradlew :distribution:archives:linux-tar:assemble
 ./gradlew :distribution:archives:darwin-tar:assemble
 ./gradlew :distribution:archives:windows-zip:assemble
 ----
+
+To build distributions for all supported platforms, run:
+----
+./gradlew assemble
+----
+
 Finished distributions are output to `distributions/archives`.
 
 See the xref:TESTING.asciidoc[TESTING] for more information about running the Elasticsearch test suite.

@@ -68,8 +68,8 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
                 .masterTimeout(request.masterNodeTimeout()),
             new MetadataIndexTemplateService.RemoveListener() {
                 @Override
-                public void onResponse(MetadataIndexTemplateService.RemoveResponse response) {
-                    listener.onResponse(AcknowledgedResponse.of(response.acknowledged()));
+                public void onResponse(AcknowledgedResponse response) {
+                    listener.onResponse(response);
                 }
 
                 @Override

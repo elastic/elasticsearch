@@ -394,7 +394,7 @@ public class Archives {
         assertThat(pid, is(not(emptyOrNullString())));
 
         final Shell sh = new Shell();
-        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + "; tail --pid=" + pid + " -f /dev/null"));
+        Platforms.onLinux(() -> sh.run("kill -SIGTERM " + pid + " && tail --pid=" + pid + " -f /dev/null"));
         Platforms.onWindows(() -> {
             sh.run("Get-Process -Id " + pid + " | Stop-Process -Force; Wait-Process -Id " + pid);
 

@@ -69,6 +69,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.stats.FeatureMetric.COMMAND;
@@ -179,7 +180,7 @@ public final class Verifier {
 
         if (failures.isEmpty()) {
             Set<Failure> localFailures = new LinkedHashSet<>();
-            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
+            AttributeMap.Builder<Expression> collectRefs = AttributeMap.builder();
 
             checkFullTextSearchInSelect(plan, localFailures);
 
@@ -193,7 +194,7 @@ public final class Verifier {
                 }
             });
 
-            AttributeMap<Expression> attributeRefs = new AttributeMap<>(collectRefs);
+            AttributeMap<Expression> attributeRefs = collectRefs.build();
 
             // for filtering out duplicated errors
             final Set<LogicalPlan> groupingFailures = new LinkedHashSet<>();
@@ -208,6 +209,7 @@ public final class Verifier {
                     return;
                 }
 
+                checkFilterConditionType(p, localFailures);
                 checkGroupingFunctionInGroupBy(p, localFailures);
                 checkFilterOnAggs(p, localFailures, attributeRefs);
                 checkFilterOnGrouping(p, localFailures, attributeRefs);

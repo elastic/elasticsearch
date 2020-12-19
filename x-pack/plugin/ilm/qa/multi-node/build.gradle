@@ -7,12 +7,12 @@ dependencies {
 }
 
 // let the javaRestTest see the classpath of main
-GradleUtils.extendSourceSet(project, "main", "javaRestTest", javaRestTest)
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
 
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-javaRestTest {
+tasks.named("javaRestTest").configure {
   /* To support taking index snapshots, we have to set path.repo setting */
   systemProperty 'tests.path.repo', repoDir
 }

@@ -48,7 +48,7 @@ public class FakeRestRequest extends RestRequest {
         super(xContentRegistry, params, httpRequest.uri(), httpRequest.getHeaders(), httpRequest, httpChannel);
     }
 
-    private static class FakeHttpRequest implements HttpRequest {
+    public static class FakeHttpRequest implements HttpRequest {
 
         private final Method method;
         private final String uri;
@@ -56,7 +56,7 @@ public class FakeRestRequest extends RestRequest {
         private final Map<String, List<String>> headers;
         private final Exception inboundException;
 
-        private FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
+        public FakeHttpRequest(Method method, String uri, BytesReference content, Map<String, List<String>> headers) {
             this(method, uri, content, headers, null);
         }
 

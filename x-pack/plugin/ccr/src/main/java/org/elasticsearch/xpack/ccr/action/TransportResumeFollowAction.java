@@ -47,6 +47,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrLicenseChecker;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
 
@@ -56,7 +57,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public class TransportResumeFollowAction extends AcknowledgedTransportMasterNodeAction<ResumeFollowAction.Request> {
 
@@ -132,7 +132,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
             listener::onFailure,
             (leaderHistoryUUID, leaderIndexMetadata) -> {
                 try {
-                    start(request, leaderCluster, leaderIndexMetadata, followerIndexMetadata, leaderHistoryUUID, listener);
+                    start(request, leaderCluster, leaderIndexMetadata.v1(), followerIndexMetadata, leaderHistoryUUID, listener);
                 } catch (final IOException e) {
                     listener.onFailure(e);
                 }
@@ -161,9 +161,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         validate(request, leaderIndexMetadata, followIndexMetadata, leaderIndexHistoryUUIDs, mapperService);
         final int numShards = followIndexMetadata.getNumberOfShards();
         final ResponseHandler handler = new ResponseHandler(numShards, listener);
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> ShardFollowTask.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
 
         for (int shardId = 0; shardId < numShards; shardId++) {
             String taskId = followIndexMetadata.getIndexUUID() + "-" + shardId;
@@ -445,7 +443,7 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         settings.remove(CcrSettings.CCR_FOLLOWING_INDEX_SETTING.getKey());
         // soft deletes setting is checked manually
         settings.remove(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey());
-        settings.remove(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey());
+        settings.remove(IndexMetadata.SETTING_VERSION_CREATED);
         settings.remove(IndexMetadata.SETTING_INDEX_UUID);
         settings.remove(IndexMetadata.SETTING_HISTORY_UUID);
         settings.remove(IndexMetadata.SETTING_INDEX_PROVIDED_NAME);

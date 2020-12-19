@@ -123,6 +123,11 @@ public class ProfilingAggregator extends Aggregator {
         return delegate.toString();
     }
 
+    @Override
+    public Aggregator[] subAggregators() {
+        return delegate.subAggregators();
+    }
+
     public static Aggregator unwrap(Aggregator agg) {
         if (agg instanceof ProfilingAggregator) {
             return ((ProfilingAggregator) agg).delegate;

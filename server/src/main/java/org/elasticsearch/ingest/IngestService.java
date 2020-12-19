@@ -248,18 +248,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return AcknowledgedResponse.of(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerDelete(request, currentState);
-            }
-        });
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerDelete(request, currentState);
+                }
+            });
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -333,22 +327,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Stores the specified pipeline definition in the request.
      */
     public void putPipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
-        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            // validates the pipeline and processor configuration before submitting a cluster update task:
-            validatePipeline(ingestInfos, request);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                    @Override
-                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return AcknowledgedResponse.of(acknowledged);
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return innerPut(request, currentState);
-                    }
-                });
+                            ActionListener<AcknowledgedResponse> listener) throws Exception {
+        // validates the pipeline and processor configuration before submitting a cluster update task:
+        validatePipeline(ingestInfos, request);
+        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerPut(request, currentState);
+                }
+            });
     }
 
     /**

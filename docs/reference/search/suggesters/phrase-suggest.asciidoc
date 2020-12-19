@@ -149,7 +149,7 @@ The response contains suggestions scored by the most likely spelling correction 
     `gram_size` is set to the `max_shingle_size` if not explicitly set.
 
 `real_word_error_likelihood`::
-    The likelihood of a term being a
+    The likelihood of a term being
     misspelled even if the term exists in the dictionary. The default is
     `0.95`, meaning 5% of the real words are misspelled.
 

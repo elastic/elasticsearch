@@ -67,6 +67,8 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSou
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.RareTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.RareTermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.matrix.stats.MatrixStats;
@@ -275,6 +277,26 @@ public class SearchIT extends ESRestHighLevelClientTestCase {
         assertEquals(3, type1.getDocCount());
         assertEquals(0, type1.getAggregations().asList().size());
         Terms.Bucket type2 = termsAgg.getBucketByKey("type2");
+        assertEquals(2, type2.getDocCount());
+        assertEquals(0, type2.getAggregations().asList().size());
+    }
+
+    public void testSearchWithRareTermsAgg() throws IOException {
+        SearchRequest searchRequest = new SearchRequest();
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder();
+        searchSourceBuilder.aggregation(new RareTermsAggregationBuilder("agg1").userValueTypeHint(ValueType.STRING)
+            .field("type.keyword").maxDocCount(2));
+        searchSourceBuilder.size(0);
+        searchRequest.source(searchSourceBuilder);
+        SearchResponse searchResponse = execute(searchRequest, highLevelClient()::search, highLevelClient()::searchAsync);
+        assertSearchHeader(searchResponse);
+        assertNull(searchResponse.getSuggest());
+        assertEquals(Collections.emptyMap(), searchResponse.getProfileResults());
+        assertEquals(0, searchResponse.getHits().getHits().length);
+        RareTerms termsAgg = searchResponse.getAggregations().get("agg1");
+        assertEquals("agg1", termsAgg.getName());
+        assertEquals(1, termsAgg.getBuckets().size());
+        RareTerms.Bucket type2 = termsAgg.getBucketByKey("type2");
         assertEquals(2, type2.getDocCount());
         assertEquals(0, type2.getAggregations().asList().size());
     }

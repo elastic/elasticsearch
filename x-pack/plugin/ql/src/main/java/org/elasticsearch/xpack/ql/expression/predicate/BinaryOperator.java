@@ -36,4 +36,9 @@ public abstract class BinaryOperator<T, U, R, F extends PredicateBiFunction<T, U
         }
         return resolveInputType(right(), ParamOrdinal.SECOND);
     }
+
+    @Override
+    protected Expression canonicalize() {
+        return left().semanticHash() > right().semanticHash() ? swapLeftAndRight() : this;
+    }
 }

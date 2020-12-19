@@ -10,7 +10,7 @@ dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'default')
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
   keystorePassword 's3cr3t'

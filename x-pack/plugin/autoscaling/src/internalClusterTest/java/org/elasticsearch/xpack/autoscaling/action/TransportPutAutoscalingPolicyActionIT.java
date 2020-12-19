@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.autoscaling.action;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -15,7 +16,10 @@ import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingDeciders;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingDeciders;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomAutoscalingPolicy;
+import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.randomRoles;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.sameInstance;
@@ -54,6 +58,18 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         assertThat(
             beforeState.metadata().custom(AutoscalingMetadata.NAME),
             sameInstance(afterState.metadata().custom(AutoscalingMetadata.NAME))
+        );
+    }
+
+    public void testPutPolicyIllegalName() {
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> putAutoscalingPolicy(new AutoscalingPolicy(randomAlphaOfLength(8) + "*", randomRoles(), randomAutoscalingDeciders()))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("name must not contain the following characters " + Strings.INVALID_FILENAME_CHARS)
         );
     }
 

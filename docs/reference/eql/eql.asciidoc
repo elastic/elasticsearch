@@ -6,8 +6,6 @@
 <titleabbrev>EQL</titleabbrev>
 ++++
 
-beta::[]
-
 Event Query Language (EQL) is a query language for event-based time series
 data, such as logs, metrics, and traces.
 
@@ -61,7 +59,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-By default, basic EQL queries return the top 10 matching events in the
+By default, basic EQL queries return the 10 most recent matching events in the
 `hits.events` property. These hits are sorted by timestamp, converted to
 milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 
@@ -141,7 +139,7 @@ GET /my-index-000001/_eql/search
 === Search for a sequence of events
 
 Use EQL's <<eql-sequences,sequence syntax>> to search for a series of
-ordered events. List the event items in ascending chronological order, 
+ordered events. List the event items in ascending chronological order,
 with the most recent event listed last:
 
 [source,console]
@@ -157,7 +155,8 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-Matching sequences are returned in the `hits.sequences` property.
+The response's `hits.sequences` property contains the 10 most recent matching
+sequences.
 
 [source,console-result]
 ----
@@ -388,18 +387,23 @@ or event category field.
 [[eql-search-specify-a-sort-tiebreaker]]
 === Specify a sort tiebreaker
 
-By default, the EQL search API returns matching events by timestamp. If two or
+By default, the EQL search API returns matching hits by timestamp. If two or
 more events share the same timestamp, {es} uses a tiebreaker field value to sort
-the events in ascending, lexicographic order.
+the events in ascending order. {es} orders events with no
+tiebreaker value after events with a value.
 
-`event.sequence` is the default tiebreaker field. To specify another tiebreaker
-field, use the `tiebreaker_field` parameter:
+If you don't specify a tiebreaker field or the events also share the same
+tiebreaker value, {es} considers the events concurrent. Concurrent events cannot
+be part of the same sequence and may not be returned in a consistent sort order.
+
+To specify a tiebreaker field, use the `tiebreaker_field` parameter. If you use
+the {ecs-ref}[ECS], we recommend using `event.sequence` as the tiebreaker field.
 
 [source,console]
 ----
 GET /my-index-000001/_eql/search
 {
-  "tiebreaker_field": "event.id",
+  "tiebreaker_field": "event.sequence",
   "query": """
     process where process.name == "cmd.exe" and stringContains(process.executable, "System32")
   """

@@ -56,7 +56,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     private static final ParseField DATA_STREAM = new ParseField("data_stream");
     private static final ParseField ALLOW_AUTO_CREATE = new ParseField("allow_auto_create");
 
-    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_8_0_0;
+    private static final Version ALLOW_AUTO_CREATE_VERSION = Version.V_7_11_0;
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ComposableIndexTemplate, Void> PARSER = new ConstructingObjectParser<>("index_template",
@@ -300,7 +300,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
-            hidden = in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION) && in.readBoolean();
+            hidden = in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION) && in.readBoolean();
         }
 
         public String getTimestampField() {
@@ -321,7 +321,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
                 out.writeBoolean(hidden);
             }
         }

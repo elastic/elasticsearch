@@ -189,10 +189,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-        final AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        final User user = result.getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
     }
 
@@ -208,8 +205,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
         // Thor does not have a UPN of form CN=Thor@ad.test.elasticsearch.com
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(containsString("Avengers")));
     }
 
@@ -345,8 +341,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining(equalTo("group_role")));
     }
 
@@ -363,8 +358,7 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
-        User user = future.actionGet().getUser();
-        assertThat(user, is(notNullValue()));
+        final User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContainingInAnyOrder(equalTo("group_role"), equalTo("user_role")));
     }
 
@@ -409,18 +403,12 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
 
         PlainActionFuture<AuthenticationResult> future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=Thor", new SecureString(PASSWORD)), future);
-        AuthenticationResult result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        User user = result.getUser();
-        assertThat(user, notNullValue());
+        User user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining("_role_13"));
 
         future = new PlainActionFuture<>();
         realm.authenticate(new UsernamePasswordToken("CN=ironman", new SecureString(PASSWORD)), future);
-        result = future.actionGet();
-        assertThat(result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
-        user = result.getUser();
-        assertThat(user, notNullValue());
+        user = getAndVerifyAuthUser(future);
         assertThat(user.roles(), arrayContaining("_role_12"));
     }
 
@@ -556,5 +544,13 @@ public class ActiveDirectoryRealmTests extends ESTestCase {
                     randomBoolean() ? VerificationMode.CERTIFICATE : VerificationMode.NONE);
         }
         return builder.put(extraSettings).build();
+    }
+
+    private User getAndVerifyAuthUser(PlainActionFuture<AuthenticationResult> future) {
+        final AuthenticationResult result = future.actionGet();
+        assertThat(result.toString(), result.getStatus(), is(AuthenticationResult.Status.SUCCESS));
+        final User user = result.getUser();
+        assertThat(user, is(notNullValue()));
+        return user;
     }
 }

@@ -138,6 +138,7 @@ public final class ReservedFieldNames {
             DataCounts.LAST_DATA_TIME.getPreferredName(),
             DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
             DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
+            DataCounts.LOG_TIME.getPreferredName(),
 
             Detector.DETECTOR_INDEX.getPreferredName(),
 
@@ -179,6 +180,7 @@ public final class ReservedFieldNames {
             ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName(),
+            ModelSizeStats.ASSIGNMENT_MEMORY_BASIS_FIELD.getPreferredName(),
             ModelSizeStats.LOG_TIME_FIELD.getPreferredName(),
 
             ModelSnapshot.DESCRIPTION.getPreferredName(),

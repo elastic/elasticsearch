@@ -286,7 +286,7 @@ public class IRTreeBaseVisitor<Scope> implements IRTreeVisitor<Scope> {
     }
 
     @Override
-    public void visitTypeCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope) {
+    public void visitTypedCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope) {
         irTypedCaptureReferenceNode.visitChildren(this, scope);
     }
 

@@ -29,9 +29,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSource.NumericArrayValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,7 +46,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     /** array of descriptive stats, per shard, needed to compute the correlation */
     ObjectArray<RunningStats> stats;
 
-    MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, SearchContext context,
+    MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
                                  Aggregator parent, MultiValueMode multiValueMode, Map<String,Object> metadata) throws IOException {
         super(name, context, parent, metadata);
         if (valuesSources != null && !valuesSources.isEmpty()) {

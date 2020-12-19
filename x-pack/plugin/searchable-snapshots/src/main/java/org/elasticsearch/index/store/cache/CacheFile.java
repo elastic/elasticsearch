@@ -13,6 +13,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -20,10 +21,12 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
@@ -62,10 +65,23 @@ public class CacheFile {
     };
 
     private final SparseFileTracker tracker;
-    private final String description;
+    private final CacheKey cacheKey;
     private final Path file;
 
     private final Set<EvictionListener> listeners = new HashSet<>();
+
+    /**
+     * Indicates whether the cache file requires to be synchronized with the storage device that contains it in order to persist in a
+     * durable manner its ranges of cached data. An empty cache file does not need to be fsync; and writing new data to the cache file
+     * will toggle the flag to {@code true}.
+     **/
+    private final AtomicBoolean needsFsync = new AtomicBoolean();
+
+    /**
+     * A runnable that is executed every time the {@link #needsFsync} flag is toggled to {@code true}, which indicates that the cache file
+     * has been updated. See {@link #markAsNeedsFSync()} method.
+     */
+    private final Runnable needsFsyncRunnable;
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -107,11 +123,24 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(String description, long length, Path file) {
-        this.tracker = new SparseFileTracker(file.toString(), length);
-        this.description = Objects.requireNonNull(description);
+    public CacheFile(CacheKey cacheKey, long length, Path file, Runnable onNeedFSync) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, onNeedFSync);
+    }
+
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, Runnable onNeedFSync) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, onNeedFSync);
+    }
+
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, Runnable onNeedFSync) {
+        this.cacheKey = Objects.requireNonNull(cacheKey);
+        this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
+        this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
         assert invariant();
+    }
+
+    public CacheKey getCacheKey() {
+        return cacheKey;
     }
 
     public long getLength() {
@@ -129,6 +158,11 @@ public class CacheFile {
         return reference == null ? null : reference.fileChannel;
     }
 
+    // Only used in tests
+    SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+        return tracker.getCompletedRanges();
+    }
+
     public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 
@@ -138,12 +172,12 @@ public class CacheFile {
             try {
                 synchronized (listeners) {
                     ensureOpen();
-                    final boolean added = listeners.add(listener);
-                    assert added : "listener already exists " + listener;
-                    if (listeners.size() == 1) {
+                    if (listeners.isEmpty()) {
                         assert channelRef == null;
                         channelRef = new FileChannelReference();
                     }
+                    final boolean added = listeners.add(listener);
+                    assert added : "listener already exists " + listener;
                 }
                 success = true;
             } finally {
@@ -230,8 +264,8 @@ public class CacheFile {
     public String toString() {
         synchronized (listeners) {
             return "CacheFile{"
-                + "desc='"
-                + description
+                + "key='"
+                + cacheKey
                 + "', file="
                 + file
                 + ", length="
@@ -310,6 +344,7 @@ public class CacheFile {
                             reference.decRef();
                         }
                         gap.onCompletion();
+                        markAsNeedsFSync();
                     }
 
                     @Override
@@ -402,5 +437,61 @@ public class CacheFile {
     public Tuple<Long, Long> getAbsentRangeWithin(long start, long end) {
         ensureOpen();
         return tracker.getAbsentRangeWithin(start, end);
+    }
+
+    // used in tests
+    boolean needsFsync() {
+        return needsFsync.get();
+    }
+
+    /**
+     * Marks the current cache file as "fsync needed" and notifies the corresponding listener.
+     */
+    private void markAsNeedsFSync() {
+        if (needsFsync.getAndSet(true) == false) {
+            needsFsyncRunnable.run();
+        }
+    }
+
+    /**
+     * Ensure that all ranges of data written to the cache file are written to the storage device that contains it. This method performs
+     * synchronization only if data has been written to the cache since the last time the method was called. If calling this method
+     * resulted in performing a synchronization, a sorted set of all successfully written ranges of data since the creation of the cache
+     * file is returned. If the cache file is evicted or if a concurrent thread is already fsyncing the file this method returns an empty
+     * set of ranges.
+     *
+     * @return a sorted set of ranges of data available in cache iff calling this method resulted in performing a fsync
+     * @throws IOException                       if the cache file failed to be fsync
+     * @throws java.nio.file.NoSuchFileException if the cache file does not exist
+     */
+    public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
+        if (refCounter.tryIncRef()) {
+            try {
+                if (needsFsync.compareAndSet(true, false)) {
+                    boolean success = false;
+                    try {
+                        // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
+                        // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
+                        // fsync is effectively executed
+                        final SortedSet<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
+                        assert completedRanges != null;
+                        assert completedRanges.isEmpty() == false;
+
+                        IOUtils.fsync(file, false, false);
+                        success = true;
+                        return completedRanges;
+                    } finally {
+                        if (success == false) {
+                            markAsNeedsFSync();
+                        }
+                    }
+                }
+            } finally {
+                refCounter.decRef();
+            }
+        } else {
+            assert evicted.get();
+        }
+        return Collections.emptySortedSet();
     }
 }

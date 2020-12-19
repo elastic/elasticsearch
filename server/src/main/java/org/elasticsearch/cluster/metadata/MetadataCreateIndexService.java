@@ -32,10 +32,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
-import org.elasticsearch.cluster.ack.CreateIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -98,6 +98,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Collections.emptyMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
@@ -253,18 +254,18 @@ public class MetadataCreateIndexService {
      * Creates an index in the cluster state and waits for the specified number of shard copies to
      * become active (as specified in {@link CreateIndexClusterStateUpdateRequest#waitForActiveShards()})
      * before sending the response on the listener. If the index creation was successfully applied on
-     * the cluster state, then {@link CreateIndexClusterStateUpdateResponse#isAcknowledged()} will return
+     * the cluster state, then {@link ShardsAcknowledgedResponse#isAcknowledged()} will return
      * true, otherwise it will return false and no waiting will occur for started shards
-     * ({@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will also be false).  If the index
+     * ({@link ShardsAcknowledgedResponse#isShardsAcknowledged()} will also be false).  If the index
      * creation in the cluster state was successful and the requisite shard copies were started before
-     * the timeout, then {@link CreateIndexClusterStateUpdateResponse#isShardsAcknowledged()} will
+     * the timeout, then {@link ShardsAcknowledgedResponse#isShardsAcknowledged()} will
      * return true, otherwise if the operation timed out, then it will return false.
      *
      * @param request the index creation cluster state update request
      * @param listener the listener on which to send the index creation cluster state update response
      */
     public void createIndex(final CreateIndexClusterStateUpdateRequest request,
-                            final ActionListener<CreateIndexClusterStateUpdateResponse> listener) {
+                            final ActionListener<ShardsAcknowledgedResponse> listener) {
         logger.trace("createIndex[{}]", request);
         onlyCreateIndex(request, ActionListener.wrap(response -> {
             if (response.isAcknowledged()) {
@@ -278,25 +279,21 @@ public class MetadataCreateIndexService {
                         } else {
                             logger.trace("[{}] index created and shards acknowledged", request.index());
                         }
-                        listener.onResponse(new CreateIndexClusterStateUpdateResponse(response.isAcknowledged(), shardsAcknowledged));
+                        listener.onResponse(ShardsAcknowledgedResponse.of(true, shardsAcknowledged));
                     }, listener::onFailure);
             } else {
                 logger.trace("index creation not acknowledged for [{}]", request);
-                listener.onResponse(new CreateIndexClusterStateUpdateResponse(false, false));
+                listener.onResponse(ShardsAcknowledgedResponse.NOT_ACKNOWLEDGED);
             }
         }, listener::onFailure));
     }
 
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request,
-                                 final ActionListener<ClusterStateUpdateResponse> listener) {
+                                 final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, listener) {
-                @Override
-                protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                    return new ClusterStateUpdateResponse(acknowledged);
-                }
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -490,7 +487,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
+                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
@@ -523,7 +520,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null)),
+                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -569,7 +566,7 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newQueryShardContext(0, null, () -> 0L, null)),
+                indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
             List.of(), metadataTransformer);
     }
 
@@ -679,10 +676,10 @@ public class MetadataCreateIndexService {
         // now, put the request settings, so they override templates
         indexSettingsBuilder.put(requestSettings.build());
 
-        if (indexSettingsBuilder.get(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey()) == null) {
+        if (indexSettingsBuilder.get(IndexMetadata.SETTING_VERSION_CREATED) == null) {
             final DiscoveryNodes nodes = currentState.nodes();
             final Version createdVersion = Version.min(Version.CURRENT, nodes.getSmallestNonClientNodeVersion());
-            indexSettingsBuilder.put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), createdVersion);
+            indexSettingsBuilder.put(IndexMetadata.SETTING_VERSION_CREATED, createdVersion);
         }
         if (INDEX_NUMBER_OF_SHARDS_SETTING.exists(indexSettingsBuilder) == false) {
             indexSettingsBuilder.put(SETTING_NUMBER_OF_SHARDS, INDEX_NUMBER_OF_SHARDS_SETTING.get(settings));
@@ -1132,7 +1129,7 @@ public class MetadataCreateIndexService {
         }
 
         indexSettingsBuilder
-            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), sourceMetadata.getCreationVersion())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, sourceMetadata.getCreationVersion())
             .put(IndexMetadata.SETTING_VERSION_UPGRADED, sourceMetadata.getUpgradedVersion())
             .put(builder.build())
             .put(IndexMetadata.SETTING_ROUTING_PARTITION_SIZE, sourceMetadata.getRoutingPartitionSize())

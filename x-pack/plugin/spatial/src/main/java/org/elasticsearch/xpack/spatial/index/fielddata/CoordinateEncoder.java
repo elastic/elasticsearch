@@ -25,4 +25,10 @@ public interface CoordinateEncoder {
 
     /** decode Y value */
     double decodeY(int y);
+
+    /** normalize X value */
+    double normalizeX(double x);
+
+    /** normalize Y value */
+    double normalizeY(double y);
 }

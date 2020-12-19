@@ -203,11 +203,6 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
                         public void handleException(TransportException exp) {
                             getResponseHandler().handleException(exp);
                         }
-
-                        @Override
-                        public String executor() {
-                            return ThreadPool.Names.SAME;
-                        }
                     });
             }
         };

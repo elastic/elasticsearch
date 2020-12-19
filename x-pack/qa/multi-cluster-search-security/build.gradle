@@ -15,7 +15,7 @@ restResources {
 }
 
 task 'remote-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
   systemProperty 'tests.rest.suite', 'remote_cluster'
 }
 

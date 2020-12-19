@@ -9,7 +9,7 @@ dependencies {
 }
 
 task 'leader-cluster'(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 testClusters.'leader-cluster' {
@@ -48,4 +48,4 @@ task followClusterRestartTest(type: StandaloneRestIntegTestTask) {
 }
 
 check.dependsOn followClusterRestartTest
-test.enabled = false
+tasks.named("test").configure { enabled = false }

@@ -9,6 +9,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.disruption.NetworkDisruption;
@@ -21,7 +22,6 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -32,9 +32,7 @@ public class NetworkDisruptionIT extends BaseMlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(MockTransportService.TestPlugin.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), MockTransportService.TestPlugin.class);
     }
 
     public void testJobRelocation() throws Exception {

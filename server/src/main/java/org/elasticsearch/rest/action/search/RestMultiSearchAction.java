@@ -28,6 +28,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -81,7 +82,7 @@ public class RestMultiSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        final MultiSearchRequest multiSearchRequest = parseRequest(request, allowExplicitIndex);
+        final MultiSearchRequest multiSearchRequest = parseRequest(request, client.getNamedWriteableRegistry(), allowExplicitIndex);
         return channel -> {
             final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
             cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
@@ -91,7 +92,9 @@ public class RestMultiSearchAction extends BaseRestHandler {
     /**
      * Parses a {@link RestRequest} body and returns a {@link MultiSearchRequest}
      */
-    public static MultiSearchRequest parseRequest(RestRequest restRequest, boolean allowExplicitIndex) throws IOException {
+    public static MultiSearchRequest parseRequest(RestRequest restRequest,
+                                                  NamedWriteableRegistry namedWriteableRegistry,
+                                                  boolean allowExplicitIndex) throws IOException {
         MultiSearchRequest multiRequest = new MultiSearchRequest();
         IndicesOptions indicesOptions = IndicesOptions.fromRequest(restRequest, multiRequest.indicesOptions());
         multiRequest.indicesOptions(indicesOptions);
@@ -116,6 +119,13 @@ public class RestMultiSearchAction extends BaseRestHandler {
         parseMultiLineRequest(restRequest, multiRequest.indicesOptions(), allowExplicitIndex, (searchRequest, parser) -> {
             searchRequest.source(SearchSourceBuilder.fromXContent(parser, false));
             RestSearchAction.checkRestTotalHits(restRequest, searchRequest);
+            if (searchRequest.pointInTimeBuilder() != null) {
+                RestSearchAction.preparePointInTime(searchRequest, restRequest, namedWriteableRegistry);
+            } else {
+                searchRequest.setCcsMinimizeRoundtrips(
+                    restRequest.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())
+                );
+            }
             multiRequest.add(searchRequest);
         });
         List<SearchRequest> requests = multiRequest.requests();

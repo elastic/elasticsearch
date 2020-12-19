@@ -55,12 +55,15 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
             SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
             assertFalse(values.advanceExact(0));
+            assertTrue(config.alignesWithSearchIndex());
+
             config = ValuesSourceConfig.resolve(context, null, "field", null, "abc", null, null, CoreValuesSourceType.BYTES);
             valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             values = valuesSource.bytesValues(ctx);
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());
+            assertFalse(config.alignesWithSearchIndex());
         });
     }
 
@@ -72,6 +75,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             ValuesSource.Bytes valuesSource = (ValuesSource.Bytes) config.getValuesSource();
             assertNotNull(valuesSource);
             assertFalse(config.hasValues());
+            assertFalse(config.alignesWithSearchIndex());
 
             config = ValuesSourceConfig.resolve(context, ValueType.STRING, "field", null, "abc", null, null, CoreValuesSourceType.BYTES);
             valuesSource = (ValuesSource.Bytes) config.getValuesSource();
@@ -80,6 +84,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("abc"), values.nextValue());
+            assertFalse(config.alignesWithSearchIndex());
         });
     }
 
@@ -94,6 +99,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(42, values.nextValue());
+            assertTrue(config.alignesWithSearchIndex());
         });
     }
 
@@ -106,6 +112,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertFalse(values.advanceExact(0));
+            assertTrue(config.alignesWithSearchIndex());
 
             config = ValuesSourceConfig.resolve(context, null, "field", null, 42, null, null, CoreValuesSourceType.BYTES);
             valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -113,6 +120,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(42, values.nextValue());
+            assertFalse(config.alignesWithSearchIndex());
         });
     }
 
@@ -124,6 +132,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             assertNotNull(valuesSource);
             assertFalse(config.hasValues());
+            assertFalse(config.alignesWithSearchIndex());
 
             config = ValuesSourceConfig.resolve(context, ValueType.NUMBER, "field", null, 42, null, null, CoreValuesSourceType.BYTES);
             valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -132,6 +141,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(42, values.nextValue());
+            assertFalse(config.alignesWithSearchIndex());
         });
     }
 
@@ -146,6 +156,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
+            assertTrue(config.alignesWithSearchIndex());
         });
     }
 
@@ -158,6 +169,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             LeafReaderContext ctx = context.searcher().getIndexReader().leaves().get(0);
             SortedNumericDocValues values = valuesSource.longValues(ctx);
             assertFalse(values.advanceExact(0));
+            assertTrue(config.alignesWithSearchIndex());
 
             config = ValuesSourceConfig.resolve(context, null, "field", null, true, null, null, CoreValuesSourceType.BYTES);
             valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -165,6 +177,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
+            assertFalse(config.alignesWithSearchIndex());
         });
     }
 
@@ -176,6 +189,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             ValuesSource.Numeric valuesSource = (ValuesSource.Numeric) config.getValuesSource();
             assertNotNull(valuesSource);
             assertFalse(config.hasValues());
+            assertFalse(config.alignesWithSearchIndex());
 
             config = ValuesSourceConfig.resolve(context, ValueType.BOOLEAN, "field", null, true, null, null, CoreValuesSourceType.BYTES);
             valuesSource = (ValuesSource.Numeric) config.getValuesSource();
@@ -184,6 +198,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(1, values.nextValue());
+            assertFalse(config.alignesWithSearchIndex());
         });
     }
 
@@ -214,6 +229,7 @@ public class ValuesSourceConfigTests extends MapperServiceTestCase {
             assertTrue(values.advanceExact(0));
             assertEquals(1, values.docValueCount());
             assertEquals(new BytesRef("value"), values.nextValue());
+            assertTrue(config.alignesWithSearchIndex());
         });
     }
 }

@@ -69,7 +69,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
   }
 
   tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     useCluster testClusters."${baseName}"
     dependsOn copyTestNodeKeyMaterial
     doFirst {
@@ -83,7 +83,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
 
 
   tasks.register("${baseName}#upgradedClusterTest", StandaloneRestIntegTestTask) {
-    mustRunAfter(precommit)
+    mustRunAfter("precommit")
     useCluster testClusters."${baseName}"
     dependsOn "${baseName}#oldClusterTest"
     doFirst {

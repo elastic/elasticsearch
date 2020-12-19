@@ -134,6 +134,13 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         if (length > MAX_LENGTH) {
             throw ExceptionsHelper.badRequestException("[{}] must be not be greater than [{}]", LENGTH.getPreferredName(), MAX_LENGTH);
         }
+        if (Arrays.stream(this.nGrams).anyMatch(i -> i > length)) {
+            throw ExceptionsHelper.badRequestException(
+                "[{}] and [{}] are invalid; all ngrams must be shorter than or equal to length [{}]",
+                NGRAMS.getPreferredName(),
+                LENGTH.getPreferredName(),
+                length);
+        }
         this.custom = custom;
     }
 
@@ -292,6 +299,9 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         int totalNgrams = 0;
         for (int nGram : nGrams) {
             totalNgrams += (length - (nGram - 1));
+        }
+        if (totalNgrams <= 0) {
+            return Collections.emptyList();
         }
         List<String> ngramOutputs = new ArrayList<>(totalNgrams);
 

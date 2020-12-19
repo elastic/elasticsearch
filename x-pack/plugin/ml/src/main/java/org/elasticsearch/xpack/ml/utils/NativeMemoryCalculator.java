@@ -41,12 +41,12 @@ public final class NativeMemoryCalculator {
             settings.get(USE_AUTO_MACHINE_MEMORY_PERCENT));
     }
 
-    public static OptionalLong allowedBytesForMl(DiscoveryNode node, int maxMemoryPercent, boolean useAuto) {
+    public static OptionalLong allowedBytesForMl(DiscoveryNode node, int maxMemoryPercent, boolean useAutoPercent) {
         return allowedBytesForMl(
             node.getAttributes().get(MACHINE_MEMORY_NODE_ATTR),
             node.getAttributes().get(MAX_JVM_SIZE_NODE_ATTR),
             maxMemoryPercent,
-            useAuto);
+            useAutoPercent);
     }
 
     private static OptionalLong allowedBytesForMl(String nodeBytes, String jvmBytes, int maxMemoryPercent, boolean useAuto) {
@@ -70,6 +70,36 @@ public final class NativeMemoryCalculator {
         return OptionalLong.of(allowedBytesForMl(machineMemory, jvmMemory, maxMemoryPercent, useAuto));
     }
 
+    public static int modelMemoryPercent(long machineMemory, long jvmSize, int maxMemoryPercent, boolean useAuto) {
+        if (useAuto) {
+            // It is conceivable that there is a machine smaller than 200MB.
+            // If the administrator wants to use the auto configuration, the node should be larger.
+            if (machineMemory - jvmSize < OS_OVERHEAD || machineMemory == 0) {
+                return 0;
+            }
+            // This calculation is dynamic and designed to maximally take advantage of the underlying machine for machine learning
+            // We only allow 200MB for the Operating system itself and take up to 90% of the underlying native memory left
+            // Example calculations:
+            // 1GB node -> 41%
+            // 2GB node -> 66%
+            // 16GB node -> 87%
+            // 64GB node -> 90%
+            return Math.min(90, (int)Math.ceil(((machineMemory - jvmSize - OS_OVERHEAD) / (double)machineMemory) * 100.0D));
+        }
+        return maxMemoryPercent;
+    }
+
+    public static int modelMemoryPercent(long machineMemory, double jvmFraction, int maxMemoryPercent, boolean useAuto) {
+        return modelMemoryPercent(machineMemory, (long) (jvmFraction * machineMemory), maxMemoryPercent, useAuto);
+    }
+
+    public static int modelMemoryPercent(long machineMemory, int maxMemoryPercent, boolean useAuto) {
+        return modelMemoryPercent(machineMemory,
+            useAuto ? dynamicallyCalculateJvm(machineMemory) : machineMemory / 2,
+            maxMemoryPercent,
+            useAuto);
+    }
+
     private static long allowedBytesForMl(long machineMemory, Long jvmSize, int maxMemoryPercent, boolean useAuto) {
         if (useAuto && jvmSize != null) {
             // It is conceivable that there is a machine smaller than 200MB.
@@ -89,6 +119,24 @@ public final class NativeMemoryCalculator {
         }
 
         return machineMemory * maxMemoryPercent / 100;
+    }
+
+    public static long allowedBytesForMl(long machineMemory, int maxMemoryPercent, boolean useAuto) {
+        return allowedBytesForMl(machineMemory,
+            useAuto ? dynamicallyCalculateJvm(machineMemory) : machineMemory / 2,
+            maxMemoryPercent,
+            useAuto);
+    }
+
+    // TODO replace with official ergonomic calculation
+    private static long dynamicallyCalculateJvm(long nodeSize) {
+        if (nodeSize < ByteSizeValue.ofGb(2).getBytes()) {
+            return (long)(nodeSize * 0.40);
+        }
+        if (nodeSize < ByteSizeValue.ofGb(8).getBytes()) {
+            return (long) (nodeSize * 0.25);
+        }
+        return ByteSizeValue.ofGb(2).getBytes();
     }
 
 }

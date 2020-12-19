@@ -37,6 +37,7 @@ import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer.ResyncTask;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -407,5 +408,11 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
             }
             this.term = newTerm;
         }
+
+        @Override
+        public ShardLongFieldRange getTimestampMillisRange() {
+            return ShardLongFieldRange.EMPTY;
+        }
+
     }
 }

@@ -20,14 +20,14 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
 
     private final SpatialStatsAction.Response statsResponse;
 
-    public SpatialFeatureSetUsage(boolean available, boolean enabled, SpatialStatsAction.Response statsResponse) {
-        super(XPackField.SPATIAL, available, enabled);
+    public SpatialFeatureSetUsage(SpatialStatsAction.Response statsResponse) {
+        super(XPackField.SPATIAL, true, true);
         this.statsResponse = statsResponse;
     }
 
     public SpatialFeatureSetUsage(StreamInput input) throws IOException {
         super(input);
-        if (input.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (input.getVersion().onOrAfter(Version.V_7_11_0)) {
             this.statsResponse = new SpatialStatsAction.Response(input);
         } else {
             this.statsResponse = null;
@@ -46,7 +46,7 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
             this.statsResponse.writeTo(out);
         }
     }
@@ -65,8 +65,6 @@ public class SpatialFeatureSetUsage extends XPackFeatureSet.Usage {
             return false;
         }
         SpatialFeatureSetUsage other = (SpatialFeatureSetUsage) obj;
-        return Objects.equals(available, other.available)
-            && Objects.equals(enabled, other.enabled)
-            && Objects.equals(statsResponse, other.statsResponse);
+        return Objects.equals(statsResponse, other.statsResponse);
     }
 }

@@ -236,7 +236,8 @@ public class BulkProcessorIT extends ESRestHighLevelClientTestCase {
                 .setFlushInterval(TimeValue.timeValueHours(24)).setBulkSize(new ByteSizeValue(1, ByteSizeUnit.GB)).build()) {
 
             for (int i = 1; i <= numDocs; i++) {
-                if (randomBoolean()) {
+                // let's make sure we get at least 1 item in the MultiGetRequest regardless of the randomising roulette
+                if (randomBoolean() || multiGetRequest.getItems().size() == 0) {
                     testDocs++;
                     processor.add(new IndexRequest("test").id(Integer.toString(testDocs))
                             .source(XContentType.JSON, "field", "value"));

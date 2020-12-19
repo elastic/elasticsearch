@@ -10,6 +10,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.DocValueFormat;
@@ -113,14 +114,10 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> extendedNamedXContents = new ArrayList<>(super.getNamedXContents());
-        extendedNamedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class,
-            new ParseField(TTestAggregationBuilder.NAME),
-            (p, c) -> {
-                assumeTrue("There is no ParsedTTest yet", false);
-                return null;
-            }
-        ));
-        return extendedNamedXContents;
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(
+                TTestAggregationBuilder.NAME), (p, c) -> {
+                    assumeTrue("There is no ParsedTTest yet", false);
+                    return null;
+        }));
     }
 }

@@ -626,6 +626,95 @@ PUT _ml/data_frame/analytics/student_performance_mathematics_0.3
 <1> The percentage of the data set that is used for training the model.
 <2> The seed that is used to randomly pick which data is used for training.
 
+The following example uses custom feature processors to transform the
+categorical values for `DestWeather` into numerical values using one-hot,
+target-mean, and frequency encoding techniques:
+
+[source,console]
+--------------------------------------------------
+PUT _ml/data_frame/analytics/flight_prices
+{
+  "source": {
+    "index": [
+      "kibana_sample_data_flights"
+    ]
+  },
+  "dest": {
+    "index": "kibana_sample_flight_prices"
+  },
+  "analysis": {
+    "regression": {
+      "dependent_variable": "AvgTicketPrice",
+      "num_top_feature_importance_values": 2,
+      "feature_processors": [
+        {
+          "frequency_encoding": {
+            "field": "DestWeather",
+            "feature_name": "DestWeather_frequency",
+            "frequency_map": {
+              "Rain": 0.14604811155570188,
+              "Heavy Fog": 0.14604811155570188,
+              "Thunder & Lightning": 0.14604811155570188,
+              "Cloudy": 0.14604811155570188,
+              "Damaging Wind": 0.14604811155570188,
+              "Hail": 0.14604811155570188,
+              "Sunny": 0.14604811155570188,
+              "Clear": 0.14604811155570188
+            }
+          }
+        },
+        {
+          "target_mean_encoding": {
+            "field": "DestWeather",
+            "feature_name": "DestWeather_targetmean",
+            "target_map": {
+              "Rain": 626.5588814585794,
+              "Heavy Fog": 626.5588814585794,
+              "Thunder & Lightning": 626.5588814585794,
+              "Hail": 626.5588814585794,
+              "Damaging Wind": 626.5588814585794,
+              "Cloudy": 626.5588814585794,
+              "Clear": 626.5588814585794,
+              "Sunny": 626.5588814585794
+            },
+            "default_value": 624.0249512020454
+          }
+        },
+        {
+          "one_hot_encoding": {
+            "field": "DestWeather",
+            "hot_map": {
+              "Rain": "DestWeather_Rain",
+              "Heavy Fog": "DestWeather_Heavy Fog",
+              "Thunder & Lightning": "DestWeather_Thunder & Lightning",
+              "Cloudy": "DestWeather_Cloudy",
+              "Damaging Wind": "DestWeather_Damaging Wind",
+              "Hail": "DestWeather_Hail",
+              "Clear": "DestWeather_Clear",
+              "Sunny": "DestWeather_Sunny"
+            }
+          }
+        }
+      ]
+    }
+  },
+  "analyzed_fields": {
+    "includes": [
+      "AvgTicketPrice",
+      "Cancelled",
+      "DestWeather",
+      "FlightDelayMin",
+      "DistanceMiles"
+    ]
+  },
+  "model_memory_limit": "30mb"
+}
+--------------------------------------------------
+// TEST[skip:TBD]
+
+NOTE: These custom feature processors are optional; automatic
+{ml-docs}/ml-feature-encoding.html[feature encoding] still occurs for all
+categorical features.
 
 [[ml-put-dfanalytics-example-c]]
 === {classification-cap} example

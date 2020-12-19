@@ -160,7 +160,7 @@ public class WatcherTemplateTests extends ESTestCase {
             return template;
         }
         return new StringBuilder("__")
-                .append(contentType.format().toLowerCase(Locale.ROOT))
+                .append(contentType.queryParameter().toLowerCase(Locale.ROOT))
                 .append("__::")
                 .append(template)
                 .toString();

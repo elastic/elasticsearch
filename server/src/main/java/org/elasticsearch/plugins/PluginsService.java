@@ -119,7 +119,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
             Plugin plugin = loadPlugin(pluginClass, settings, configPath);
             PluginInfo pluginInfo = new PluginInfo(pluginClass.getName(), "classpath plugin", "NA", Version.CURRENT, "1.8",
-                                                   pluginClass.getName(), Collections.emptyList(), false, PluginType.ISOLATED, "");
+                                                   pluginClass.getName(), Collections.emptyList(), false, PluginType.ISOLATED, "", false);
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
@@ -351,15 +351,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         final Set<Bundle> bundles = new HashSet<>();
         for (final Path plugin : findPluginDirs(directory)) {
             final Bundle bundle = readPluginBundle(plugin, type);
-            if (bundle.plugin.getType() == PluginType.BOOTSTRAP) {
-                logger.trace("--- skipping bootstrap plugin [{}] [{}]", type, plugin.toAbsolutePath());
-            } else {
-                if (bundles.add(bundle) == false) {
-                    throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
-                }
-                if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
-                    throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
-                }
+            if (bundles.add(bundle) == false) {
+                throw new IllegalStateException("duplicate " + type + ": " + bundle.plugin);
+            }
+            if (type.equals("module") && bundle.plugin.getName().startsWith("test-") && Build.CURRENT.isSnapshot() == false) {
+                throw new IllegalStateException("external test module [" + plugin.getFileName() + "] found in non-snapshot build");
             }
         }
 
@@ -443,10 +439,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
         for (Bundle bundle : sortedBundles) {
-            checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
+            if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
+                checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
 
-            final Plugin plugin = loadBundle(bundle, loaded);
-            plugins.add(new Tuple<>(bundle.plugin, plugin));
+                final Plugin plugin = loadBundle(bundle, loaded);
+                plugins.add(new Tuple<>(bundle.plugin, plugin));
+            }
         }
 
         loadExtensions(plugins);
@@ -536,7 +534,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // jar-hell check the bundle against the parent classloader and extended plugins
-    // the plugin cli does it, but we do it again, in case lusers mess with jar files manually
+    // the plugin cli does it, but we do it again, in case users mess with jar files manually
     static void checkBundleJarHell(Set<URL> classpath, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();

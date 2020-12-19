@@ -52,7 +52,7 @@ public final class FetchDocValuesPhase implements FetchSubPhase {
          */
         List<DocValueField> fields = new ArrayList<>();
         for (FieldAndFormat fieldAndFormat : context.docValuesContext().fields()) {
-            MappedFieldType ft = context.mapperService().fieldType(fieldAndFormat.field);
+            MappedFieldType ft = context.getQueryShardContext().getFieldType(fieldAndFormat.field);
             if (ft == null) {
                 continue;
             }

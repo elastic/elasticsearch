@@ -26,11 +26,7 @@ apply plugin: 'elasticsearch.publish'
 
 group = "org.elasticsearch.distribution.integ-test-zip"
 
-integTest {
-  dependsOn assemble
-}
-
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(project(':distribution').restTestExpansions)
   MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
 }
@@ -48,7 +44,8 @@ publishing {
   }
 }
 
-integTest {
+tasks.named("integTest").configure {
+  dependsOn "assemble"
   /*
    * There are two unique things going on here:
    * 1. These tests can be run against an external cluster with
@@ -56,7 +53,7 @@ integTest {
    * 2. *One* of these tests is incompatible with that and should be skipped
    *    when running against an external cluster.
    */
-  if (System.getProperty("tests.rest.cluster") == null) {
+  if (project.providers.systemProperty("tests.rest.cluster").forUseAtConfigurationTime().isPresent()) {
     nonInputProperties.systemProperty 'tests.logfile',
       "${-> testClusters.integTest.singleNode().getServerLog()}"
   } else {

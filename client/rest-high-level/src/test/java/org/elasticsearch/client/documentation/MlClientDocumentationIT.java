@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.documentation;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -135,6 +136,8 @@ import org.elasticsearch.client.ml.UpdateFilterRequest;
 import org.elasticsearch.client.ml.UpdateJobRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotRequest;
 import org.elasticsearch.client.ml.UpdateModelSnapshotResponse;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotRequest;
+import org.elasticsearch.client.ml.UpgradeJobModelSnapshotResponse;
 import org.elasticsearch.client.ml.calendars.Calendar;
 import org.elasticsearch.client.ml.calendars.ScheduledEvent;
 import org.elasticsearch.client.ml.calendars.ScheduledEventTests;
@@ -238,6 +241,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -246,6 +250,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
 
     @After
     public void cleanUp() throws IOException {
@@ -706,6 +714,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-config-set-scroll-size
             datafeedBuilder.setScrollSize(1000); // <1>
             // end::put-datafeed-config-set-scroll-size
+
+            // tag::put-datafeed-config-set-runtime-mappings
+            Map<String, Object> fieldProperties = new HashMap<>();
+            fieldProperties.put("type", "keyword");
+            fieldProperties.put("script", "emit(params._source.agent.toLowerCase())");
+            Map<String, Object> runtimeMappings = new HashMap<>();
+            runtimeMappings.put("agent_lowercase", fieldProperties);
+
+            datafeedBuilder.setRuntimeMappings(runtimeMappings); // <1>
+            // end::put-datafeed-config-set-runtime-mappings
 
             // tag::put-datafeed-request
             PutDatafeedRequest request = new PutDatafeedRequest(datafeedBuilder.build()); // <1>
@@ -1368,7 +1386,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         ForecastJobResponse forecastJobResponse = client.machineLearning().
@@ -1505,7 +1524,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         {
@@ -1774,9 +1794,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             postDataRequest.setResetEnd(null);
             postDataRequest.setResetStart(null);
 
+            // Post data is deprecated, so expect a deprecation warning
+            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute
             PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
             // end::post-data-execute
+            */
 
             // tag::post-data-response
             DataCounts dataCounts = postDataResponse.getDataCounts(); // <1>
@@ -1808,9 +1833,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
+            // Post data is deprecated, so expect a deprecation warning
+            client.machineLearning().postDataAsync(postDataRequest, POST_DATA_OPTIONS, listener);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute-async
             client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::post-data-execute-async
+            */
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -2332,6 +2362,83 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
     }
 
+    public void testUpgradeJobSnapshot() throws IOException, InterruptedException {
+        RestHighLevelClient client = highLevelClient();
+
+        String jobId = "test-upgrade-job-model-snapshot";
+        String snapshotId = "1541587919";
+        Job job = MachineLearningIT.buildJob(jobId);
+        client.machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
+
+        // Let us index a snapshot
+        String documentId = jobId + "_model_snapshot_" + snapshotId;
+        IndexRequest indexRequest = new IndexRequest(".ml-anomalies-shared").id(documentId);
+        indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        indexRequest.source("{\"job_id\":\"test-upgrade-job-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"description\":\"State persisted due to job close at 2018-11-07T10:51:59+0000\", " +
+            "\"snapshot_id\":\"1541587919\", \"snapshot_doc_count\":1, \"model_size_stats\":{" +
+            "\"job_id\":\"test-revert-model-snapshot\", \"result_type\":\"model_size_stats\",\"model_bytes\":51722, " +
+            "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
+            "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
+            "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, " +
+            "\"quantiles\":{\"job_id\":\"test-revert-model-snapshot\", \"timestamp\":1541587919000, " +
+            "\"quantile_state\":\"state\"}}", XContentType.JSON);
+        client.index(indexRequest, RequestOptions.DEFAULT);
+
+        {
+            // tag::upgrade-job-model-snapshot-request
+            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(
+                jobId, // <1>
+                snapshotId, // <2>
+                TimeValue.timeValueMinutes(30), // <3>
+                true); // <4>
+            // end::upgrade-job-model-snapshot-request
+
+            try {
+                // tag::upgrade-job-model-snapshot-execute
+                UpgradeJobModelSnapshotResponse response = client.machineLearning().upgradeJobSnapshot(request, RequestOptions.DEFAULT);
+                // end::upgrade-job-model-snapshot-execute
+                fail("upgrade model snapshot should not have succeeded.");
+            } catch (ElasticsearchException ex) {
+                assertThat(ex.getMessage(), containsString("Unexpected state [failed] while waiting for to be assigned to a node"));
+            }
+            UpgradeJobModelSnapshotResponse response = new UpgradeJobModelSnapshotResponse(true, "");
+
+            // tag::upgrade-job-model-snapshot-response
+            boolean completed = response.isCompleted(); // <1>
+            String node = response.getNode(); // <2>
+            // end::upgrade-job-model-snapshot-response
+        }
+        {
+            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
+
+            // tag::upgrade-job-model-snapshot-execute-listener
+            ActionListener<UpgradeJobModelSnapshotResponse> listener =
+                new ActionListener<UpgradeJobModelSnapshotResponse>() {
+                    @Override
+                    public void onResponse(UpgradeJobModelSnapshotResponse revertModelSnapshotResponse) {
+                        // <1>
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        // <2>
+                    }
+                };
+            // end::upgrade-job-model-snapshot-execute-listener
+
+            // Replace the empty listener by a blocking listener in test
+            final CountDownLatch latch = new CountDownLatch(1);
+            listener = new LatchedActionListener<>(listener, latch);
+
+            // tag::upgrade-job-model-snapshot-execute-async
+            client.machineLearning().upgradeJobSnapshotAsync(request, RequestOptions.DEFAULT, listener); // <1>
+            // end::upgrade-job-model-snapshot-execute-async
+
+            assertTrue(latch.await(30L, TimeUnit.SECONDS));
+        }
+    }
 
     public void testUpdateModelSnapshot() throws IOException, InterruptedException {
         RestHighLevelClient client = highLevelClient();

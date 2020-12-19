@@ -6,9 +6,6 @@
 package org.elasticsearch.xpack.aggregatemetric;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
@@ -17,15 +14,6 @@ import java.util.Map;
 
 public class AggregateMetricFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
-    private final ClusterService clusterService;
-
-    @Inject
-    public AggregateMetricFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
-        this.licenseState = licenseState;
-        this.clusterService = clusterService;
-    }
-
     @Override
     public String name() {
         return XPackField.AGGREGATE_METRIC;
@@ -33,7 +21,7 @@ public class AggregateMetricFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.AGGREGATE_METRIC);
+        return true;
     }
 
     @Override
@@ -48,6 +36,6 @@ public class AggregateMetricFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<Usage> listener) {
-        listener.onResponse(new AggregateMetricFeatureSetUsage(available(), enabled()));
+        listener.onResponse(new AggregateMetricFeatureSetUsage());
     }
 }

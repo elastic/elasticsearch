@@ -20,8 +20,8 @@ public class AggregateMetricFeatureSetUsage extends XPackFeatureSet.Usage {
         super(input);
     }
 
-    public AggregateMetricFeatureSetUsage(boolean available, boolean enabled) {
-        super(XPackField.AGGREGATE_METRIC, available, enabled);
+    public AggregateMetricFeatureSetUsage() {
+        super(XPackField.AGGREGATE_METRIC, true, true);
     }
 
     @Override public Version getMinimalSupportedVersion() {

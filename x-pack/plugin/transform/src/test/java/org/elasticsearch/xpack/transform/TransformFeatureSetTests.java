@@ -9,13 +9,11 @@ package org.elasticsearch.xpack.transform;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,30 +26,14 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransformFeatureSetTests extends ESTestCase {
-    private XPackLicenseState licenseState;
-
-    @Before
-    public void init() {
-        licenseState = mock(XPackLicenseState.class);
-    }
 
     public void testAvailable() {
-        TransformFeatureSet featureSet = new TransformFeatureSet(
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState
-        );
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        TransformFeatureSet featureSet = new TransformFeatureSet(mock(ClusterService.class), mock(Client.class));
+        assertThat(featureSet.available(), is(true));
     }
 
-    public void testEnabledSetting() {
-        TransformFeatureSet featureSet = new TransformFeatureSet(
-            mock(ClusterService.class),
-            mock(Client.class),
-            licenseState
-        );
+    public void testEnabled() {
+        TransformFeatureSet featureSet = new TransformFeatureSet(mock(ClusterService.class), mock(Client.class));
         assertThat(featureSet.enabled(), is(true));
     }
 

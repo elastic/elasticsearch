@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.client.SecurityClient;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,7 +30,7 @@ import static org.elasticsearch.rest.RestRequest.Method.PUT;
 /**
  * Rest action to create an API key
  */
-public final class RestCreateApiKeyAction extends ApiKeyBaseRestHandler {
+public final class RestCreateApiKeyAction extends SecurityBaseRestHandler {
 
     /**
      * @param settings the node's settings

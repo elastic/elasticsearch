@@ -73,10 +73,6 @@ public abstract class Collector {
      * @param isElectedMaster true if the current local node is the elected master node
      */
     protected boolean shouldCollect(final boolean isElectedMaster) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.MONITORING) == false) {
-            logger.trace("collector [{}] can not collect data due to invalid license", name());
-            return false;
-        }
         return true;
     }
 

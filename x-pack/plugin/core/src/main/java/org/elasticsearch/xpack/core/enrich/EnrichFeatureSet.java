@@ -7,10 +7,7 @@ package org.elasticsearch.xpack.core.enrich;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 
@@ -19,13 +16,6 @@ import java.util.Map;
 
 public class EnrichFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
-
-    @Inject
-    public EnrichFeatureSet(@Nullable XPackLicenseState licenseState) {
-        this.licenseState = licenseState;
-    }
-
     @Override
     public String name() {
         return XPackField.ENRICH;
@@ -33,7 +23,7 @@ public class EnrichFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState.isAllowed(XPackLicenseState.Feature.ENRICH);
+        return true;
     }
 
     @Override
@@ -48,13 +38,13 @@ public class EnrichFeatureSet implements XPackFeatureSet {
 
     @Override
     public void usage(ActionListener<XPackFeatureSet.Usage> listener) {
-        listener.onResponse(new Usage(available(), enabled()));
+        listener.onResponse(new Usage());
     }
 
     public static class Usage extends XPackFeatureSet.Usage {
 
-        Usage(boolean available, boolean enabled) {
-            super(XPackField.ENRICH, available, enabled);
+        Usage() {
+            super(XPackField.ENRICH, true, true);
         }
 
         public Usage(StreamInput input) throws IOException {

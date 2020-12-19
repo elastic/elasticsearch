@@ -52,6 +52,7 @@ setup:
   - do:
       search:
         rest_total_hits_as_int: true
+        index: my-index
         body:
           aggs:
             to-users:
@@ -77,12 +78,62 @@ setup:
   - match: { aggregations.to-users.users.hits.hits.2._nested.field: users }
   - match: { aggregations.to-users.users.hits.hits.2._nested.offset: 1 }
 
+---
+"top_hits aggregation with nested documents and disabled _source":
+  - skip:
+      version: " - 7.99.99"
+      reason: "bug fix is not yet backported"
+  - do:
+      indices.create:
+        index: disabled-source
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              users:
+                type: nested
+
+  - do:
+      index:
+        index:  disabled-source
+        id:     1
+        refresh: true
+        body:
+          users:
+            - first: "John"
+              last:  "Smith"
+
+  - do:
+      search:
+        index: disabled-source
+        rest_total_hits_as_int: true
+        body:
+          aggs:
+            to-users:
+              nested:
+                path: users
+              aggs:
+                users:
+                  top_hits: {}
+
+  - match: { hits.total: 1 }
+  - length: { aggregations.to-users.users.hits.hits: 1 }
+  - match: { aggregations.to-users.users.hits.hits.0._id: "1" }
+  - match: { aggregations.to-users.users.hits.hits.0._index: disabled-source }
+  - match: { aggregations.to-users.users.hits.hits.0._nested.field: users }
+  - match: { aggregations.to-users.users.hits.hits.0._nested.offset: 0 }
+  - is_false: aggregations.to-users.users.hits.hits.0._source
 
 ---
 "top_hits aggregation with sequence numbers":
 
   - do:
       search:
+        index: my-index
         rest_total_hits_as_int: true
         body:
           aggs:

@@ -28,7 +28,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -209,8 +208,6 @@ public abstract class SearchContext implements Releasable {
     public abstract ContextIndexSearcher searcher();
 
     public abstract IndexShard indexShard();
-
-    public abstract BigArrays bigArrays();  // TODO this is only used in aggs land and should be contained
 
     public abstract BitsetFilterCache bitsetFilterCache();
 

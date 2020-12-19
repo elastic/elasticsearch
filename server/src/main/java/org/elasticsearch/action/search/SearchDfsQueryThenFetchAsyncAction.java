@@ -32,7 +32,6 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
@@ -45,14 +44,14 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     SearchDfsQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
                                        final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                        final Map<String, AliasFilter> aliasFilter,
-                                       final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
+                                       final Map<String, Float> concreteIndexBoosts,
                                        final SearchPhaseController searchPhaseController, final Executor executor,
                                        final QueryPhaseResultConsumer queryPhaseResultConsumer,
                                        final SearchRequest request, final ActionListener<SearchResponse> listener,
                                        final GroupShardsIterator<SearchShardIterator> shardsIts,
                                        final TransportSearchAction.SearchTimeProvider timeProvider,
                                        final ClusterState clusterState, final SearchTask task, SearchResponse.Clusters clusters) {
-        super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
+        super("dfs", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
                 executor, request, listener,
                 shardsIts, timeProvider, clusterState, task, new ArraySearchPhaseResults<>(shardsIts.size()),
                 request.getMaxConcurrentShardRequests(), clusters);
@@ -68,7 +67,7 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     protected void executePhaseOnShard(final SearchShardIterator shardIt, final SearchShardTarget shard,
                                        final SearchActionListener<DfsSearchResult> listener) {
         getSearchTransport().sendExecuteDfs(getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt) , getTask(), listener);
+            buildShardSearchRequest(shardIt, listener.requestIndex) , getTask(), listener);
     }
 
     @Override

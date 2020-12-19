@@ -43,7 +43,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"%c", "MM"},
         {"%D", "d"},
         {"%d", "dd"},
-        {"%e", "dd"},
+        {"%e", "d"},
         {"%f", "SSSSSS"},
         {"%H", "HH"},
         {"%h", "hh"},
@@ -51,7 +51,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"%i", "mm"},
         {"%j", "DDD"},
         {"%k", "H"},
-        {"%l", "hh"},
+        {"%l", "h"},
         {"%M", "MMMM"},
         {"%m", "MM"},
         {"%p", "a"},
@@ -66,9 +66,10 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"%W", "EEEE"},
         {"%w", "e"},
         {"%X", "Y"},
-        {"%x", "w"},
+        {"%x", "Y"},
         {"%Y", "yyyy"},
-        {"%y", "yy"}
+        {"%y", "yy"},
+        {"%%", "%"}
     };
 
     private final Formatter formatter;

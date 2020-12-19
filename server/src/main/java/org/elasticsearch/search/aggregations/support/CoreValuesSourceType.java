@@ -264,7 +264,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**
                  * Proper dates get a real implementation of
-                 * {@link #roundingPreparer(IndexReader)}. If the field is
+                 * {@link #roundingPreparer()}. If the field is
                  * configured with a script or a missing value then we'll
                  * wrap this without delegating so those fields will ignore
                  * this implementation. Which is correct.
@@ -304,12 +304,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                     return QueryVisitor.EMPTY_VISITOR;
                                 }
                                 return this;
-                            };
+                            }
 
                             @Override
                             public boolean acceptField(String field) {
                                 return field.equals(fieldContext.fieldType().name());
-                            };
+                            }
 
                             @Override
                             public void visitLeaf(Query query) {
@@ -318,7 +318,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                     range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
                                     range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
                                 }
-                            };
+                            }
                         });
                     }
 
@@ -375,20 +375,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
         }
     }
     ;
-
-    /*public static final Map<ValueType, CoreValuesSourceType> valueTypeMap = new EnumMap<>(ValueType.class);
-    static {
-        valueTypeMap.put(ValueType.STRING, BYTES);
-        valueTypeMap.put(ValueType.LONG, NUMERIC);
-        valueTypeMap.put(ValueType.DOUBLE, NUMERIC);
-        valueTypeMap.put(ValueType.NUMBER, NUMERIC);
-        valueTypeMap.put(ValueType.DATE, DATE);
-        valueTypeMap.put(ValueType.IP, IP);
-        valueTypeMap.put(ValueType.NUMERIC, NUMERIC);
-        valueTypeMap.put(ValueType.GEOPOINT, GEOPOINT);
-        valueTypeMap.put(ValueType.BOOLEAN, BOOLEAN);
-        valueTypeMap.put(ValueType.RANGE, RANGE);
-    }*/
 
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));

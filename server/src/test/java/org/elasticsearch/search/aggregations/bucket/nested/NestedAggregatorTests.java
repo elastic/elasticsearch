@@ -748,7 +748,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
             }
             try (IndexReader indexReader = wrapInMockESDirectoryReader(DirectoryReader.open(directory))) {
                 NestedAggregationBuilder nestedBuilder = new NestedAggregationBuilder(NESTED_AGG, NESTED_OBJECT)
-                    .subAggregation(new TermsAggregationBuilder("terms").field(VALUE_FIELD_NAME).userValueTypeHint(CoreValuesSourceType.ValueType.STRING)
+                    .subAggregation(new TermsAggregationBuilder("terms").field(VALUE_FIELD_NAME).userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC)
                         .subAggregation(new MaxAggregationBuilder(MAX_AGG_NAME).field(VALUE_FIELD_NAME))
                         .subAggregation(new BucketScriptPipelineAggregationBuilder("bucketscript",
                             Collections.singletonMap("_value", MAX_AGG_NAME),

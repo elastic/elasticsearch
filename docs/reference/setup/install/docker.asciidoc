@@ -293,7 +293,7 @@ unless you are pinning one container per host.
 ===== Manually set the heap size
 
 By default, {es} automatically sizes JVM heap based on a nodes's
-<<node-roles,roles>> and total memory available to the node's container. We
+<<node-roles,roles>> and the total memory available to the node's container. We
 recommend this default sizing for most production environments. If needed, you
 can override default sizing by manually setting JVM heap size.
 

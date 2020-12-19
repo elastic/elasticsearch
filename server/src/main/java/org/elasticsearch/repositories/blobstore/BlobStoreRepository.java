@@ -1040,7 +1040,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         try {
             final BlockingQueue<Map.Entry<String, BlobContainer>> staleIndicesToDelete = new LinkedBlockingQueue<>();
             for (Map.Entry<String, BlobContainer> indexEntry : foundIndices.entrySet()) {
-                staleIndicesToDelete.put(indexEntry);
+                if (survivingIndexIds.contains(indexEntry.getKey()) == false) {
+                    staleIndicesToDelete.put(indexEntry);
+                }
             }
 
             // Start as many workers as fit into the snapshot pool at once at the most

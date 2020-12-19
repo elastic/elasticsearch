@@ -89,7 +89,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
     }
 
     public void testThatClearingAllScrollIdsWorks() throws Exception {
-        String user = "allowed_user:change_me";
+        String user = "allowed_user:"+SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         String basicAuth = basicAuthHeaderValue("allowed_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);
@@ -103,7 +103,7 @@ public class SecurityClearScrollTests extends SecurityIntegTestCase {
     }
 
     public void testThatClearingAllScrollIdsRequirePermissions() throws Exception {
-        String user = "denied_user:change_me";
+        String user = "denied_user:"+SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
         String basicAuth = basicAuthHeaderValue("denied_user", SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         Map<String, String> headers = new HashMap<>();
         headers.put(SecurityField.USER_SETTING.getKey(), user);

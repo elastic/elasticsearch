@@ -85,7 +85,7 @@ include::docker-compose.yml[]
 --------------------------------------------
 endif::[]
 
-NOTE: This sample `docker-compose.yml` file contains uses the `ES_JAVA_OPTS`
+NOTE: This sample `docker-compose.yml` file uses the `ES_JAVA_OPTS`
 environment variable to manually set the heap size to 512MB. We do not recommend
 using `ES_JAVA_OPTS` in production. See <<docker-set-heap-size>>.
 

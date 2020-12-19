@@ -5,13 +5,19 @@
  */
 package org.elasticsearch.xpack.spatial;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.spatial.SpatialFeatureSetUsageTests;
+import org.elasticsearch.xpack.core.spatial.action.SpatialStatsAction;
 import org.junit.Before;
 
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 
 public class SpatialFeatureSetTests extends ESTestCase {
@@ -23,20 +29,19 @@ public class SpatialFeatureSetTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testAvailable() throws Exception {
+    public void testAvailableAndEnabled() throws Exception {
         SpatialFeatureSet featureSet = new SpatialFeatureSet(client);
+        doAnswer(invocationOnMock -> {
+                ActionListener<SpatialStatsAction.Response> listener =
+                    (ActionListener<SpatialStatsAction.Response>) invocationOnMock.getArguments()[2];
+                listener.onResponse(SpatialFeatureSetUsageTests.randomStatsResponse());
+                return null;
+            }
+        ).when(client).execute(eq(SpatialStatsAction.INSTANCE), any(), any());
         PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
         featureSet.usage(future);
         XPackFeatureSet.Usage usage = future.get();
         assertThat(usage.available(), is(true));
-    }
-
-    @SuppressWarnings("unchecked")
-    public void testEnabled() throws Exception {
-        SpatialFeatureSet featureSet = new SpatialFeatureSet(client);
-        PlainActionFuture<XPackFeatureSet.Usage> future = new PlainActionFuture<>();
-        featureSet.usage(future);
-        XPackFeatureSet.Usage usage = future.get();
         assertThat(usage.enabled(), is(true));
     }
 }

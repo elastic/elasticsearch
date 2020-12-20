@@ -12,6 +12,7 @@ import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.MediaType;
@@ -63,8 +64,13 @@ public class SecurityRestFilter implements RestHandler {
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        if (licenseState.isSecurityEnabled() && request.method() != Method.OPTIONS) {
+        if (request.method() == Method.OPTIONS){
             // CORS - allow for preflight unauthenticated OPTIONS request
+            restHandler.handleRequest(request, channel, client);
+            return;
+        }
+
+        if (licenseState.isSecurityEnabled()) {
             if (extractClientCertificate) {
                 HttpChannel httpChannel = request.getHttpChannel();
                 SSLEngineUtils.extractClientCertificates(logger, threadContext, httpChannel);
@@ -89,7 +95,7 @@ public class SecurityRestFilter implements RestHandler {
                         e -> handleException("Secondary authentication", request, channel, e)));
                 }, e -> handleException("Authentication", request, channel, e)));
         } else {
-            restHandler.handleRequest(request, channel, client);
+            HeaderWarning.addWarning("Security is disabled. No authentication available for REST request.");
         }
     }
 

@@ -88,6 +88,16 @@ public final class HttpTransportSettings {
         Setting.byteSizeSetting("http.max_warning_header_size", new ByteSizeValue(-1), Property.NodeScope);
     public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_INITIAL_LINE_LENGTH =
         Setting.byteSizeSetting("http.max_initial_line_length", new ByteSizeValue(4, ByteSizeUnit.KB), Property.NodeScope);
+        
+    // This is a new setting that should be used to limit the size of the elastic response
+    public static final Setting<ByteSizeValue> SETTING_HTTP_MAX_RESPONSE_SIZE =
+        Setting.bytesSizeSetting(
+                "http.max_response_size",
+                new ByteSizeValue(100, ByteSizeUnit.MB),
+                new ByteSizeValue(100, ByteSizeUnit.MB),
+                new ByteSizeValue(512, ByteSizeUnit.MB),
+                Property.NodeScope);
+    
     // don't reset cookies by default, since I don't think we really need to
     // note, parsing cookies was fixed in netty 3.5.1 regarding stack allocation, but still, currently, we don't need cookies
     public static final Setting<Boolean> SETTING_HTTP_RESET_COOKIES =

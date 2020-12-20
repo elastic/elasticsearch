@@ -32,6 +32,7 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_INIT
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_READ_TIMEOUT;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_RESET_COOKIES;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_PIPELINING_MAX_EVENTS;
+import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_MAX_RESPONSE_SIZE;
 
 public class HttpHandlingSettings {
 
@@ -39,6 +40,7 @@ public class HttpHandlingSettings {
     private final int maxChunkSize;
     private final int maxHeaderSize;
     private final int maxInitialLineLength;
+    private final int maxResponseSize;
     private final boolean resetCookies;
     private final boolean compression;
     private final int compressionLevel;
@@ -47,13 +49,14 @@ public class HttpHandlingSettings {
     private final long readTimeoutMillis;
     private boolean corsEnabled;
 
-    public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength,
+    public HttpHandlingSettings(int maxContentLength, int maxChunkSize, int maxHeaderSize, int maxInitialLineLength, int maxResponseSize,
                                 boolean resetCookies, boolean compression, int compressionLevel, boolean detailedErrorsEnabled,
                                 int pipeliningMaxEvents, long readTimeoutMillis, boolean corsEnabled) {
         this.maxContentLength = maxContentLength;
         this.maxChunkSize = maxChunkSize;
         this.maxHeaderSize = maxHeaderSize;
         this.maxInitialLineLength = maxInitialLineLength;
+        this.maxReponseSize = maxResponseSize;
         this.resetCookies = resetCookies;
         this.compression = compression;
         this.compressionLevel = compressionLevel;
@@ -68,6 +71,7 @@ public class HttpHandlingSettings {
             Math.toIntExact(SETTING_HTTP_MAX_CHUNK_SIZE.get(settings).getBytes()),
             Math.toIntExact(SETTING_HTTP_MAX_HEADER_SIZE.get(settings).getBytes()),
             Math.toIntExact(SETTING_HTTP_MAX_INITIAL_LINE_LENGTH.get(settings).getBytes()),
+            Math.toIntExact(SETTING_HTTP_MAX_RESPONSE_SIZE.get(settings).getBytes()),
             SETTING_HTTP_RESET_COOKIES.get(settings),
             SETTING_HTTP_COMPRESSION.get(settings),
             SETTING_HTTP_COMPRESSION_LEVEL.get(settings),
@@ -91,6 +95,10 @@ public class HttpHandlingSettings {
 
     public int getMaxInitialLineLength() {
         return maxInitialLineLength;
+    }
+
+    public int getMaxResponseSize() {
+        return maxResponseSize;
     }
 
     public boolean isResetCookies() {

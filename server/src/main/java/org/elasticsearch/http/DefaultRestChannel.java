@@ -128,6 +128,13 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             // If our response doesn't specify a content-type header, set one
             setHeaderField(httpResponse, CONTENT_TYPE, restResponse.contentType(), false);
             // If our response has no content-length, calculate and set one
+
+            //Checks if response size is larger then the clusters settings max
+            if(restResponse.content().length() < settings.getMaxResponseSize())
+            {
+                //
+            }
+
             contentLength = String.valueOf(restResponse.content().length());
             setHeaderField(httpResponse, CONTENT_LENGTH, contentLength, false);
 

@@ -33,6 +33,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -40,6 +43,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -50,11 +54,12 @@ import java.util.stream.Collectors;
  */
 @SuppressForbidden(reason = "Uses a HttpServer to emulate an Azure endpoint")
 public class AzureHttpHandler implements HttpHandler {
-
     private final Map<String, BytesReference> blobs;
+    private final String account;
     private final String container;
 
-    public AzureHttpHandler(final String container) {
+    public AzureHttpHandler(final String account, final String container) {
+        this.account = Objects.requireNonNull(account);
         this.container = Objects.requireNonNull(container);
         this.blobs = new ConcurrentHashMap<>();
     }
@@ -67,7 +72,7 @@ public class AzureHttpHandler implements HttpHandler {
             assert read == -1 : "Request body should have been empty but saw [" + read + "]";
         }
         try {
-            if (Regex.simpleMatch("PUT /" + container + "/*blockid=*", request)) {
+            if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*blockid=*", request)) {
                 // Put Block (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block)
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -76,7 +81,7 @@ public class AzureHttpHandler implements HttpHandler {
                 blobs.put(blockId, Streams.readFully(exchange.getRequestBody()));
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("PUT /" + container + "/*comp=blocklist*", request)) {
+            } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*comp=blocklist*", request)) {
                 // Put Block List (https://docs.microsoft.com/en-us/rest/api/storageservices/put-block-list)
                 final String blockList = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
                 final List<String> blockIds = Arrays.stream(blockList.split("<Latest>"))
@@ -91,9 +96,10 @@ public class AzureHttpHandler implements HttpHandler {
                     block.writeTo(blob);
                 }
                 blobs.put(exchange.getRequestURI().getPath(), new BytesArray(blob.toByteArray()));
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("PUT /" + container + "/*", request)) {
+            } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
                 final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 if ("*".equals(ifNoneMatch)) {
@@ -104,9 +110,10 @@ public class AzureHttpHandler implements HttpHandler {
                 } else {
                     blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
                 }
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted",  "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("HEAD /" + container + "/*", request)) {
+            } else if (Regex.simpleMatch("HEAD /" + account + "/" + container + "/*", request)) {
                 // Get Blob Properties (see https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties)
                 final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
                 if (blob == null) {
@@ -114,10 +121,11 @@ public class AzureHttpHandler implements HttpHandler {
                     return;
                 }
                 exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(blob.length()));
-                exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
+                exchange.getResponseHeaders().add("x-ms-blob-type", "BlockBlob");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("GET /" + container + "/*", request)) {
+            } else if (Regex.simpleMatch("GET /" + account + "/" + container + "/*", request)) {
                 // GET Object (https://docs.aws.amazon.com/AmazonS3/latest/API/RESTObjectGET.html)
                 final BytesReference blob = blobs.get(exchange.getRequestURI().getPath());
                 if (blob == null) {
@@ -138,15 +146,16 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(length));
                 exchange.getResponseHeaders().add("x-ms-blob-type", "blockblob");
+                exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), length);
                 exchange.getResponseBody().write(blob.toBytesRef().bytes, start, length);
 
-            } else if (Regex.simpleMatch("DELETE /" + container + "/*", request)) {
+            } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {
                 // Delete Blob (https://docs.microsoft.com/en-us/rest/api/storageservices/delete-blob)
                 blobs.entrySet().removeIf(blob -> blob.getKey().startsWith(exchange.getRequestURI().getPath()));
                 exchange.sendResponseHeaders(RestStatus.ACCEPTED.getStatus(), -1);
 
-            } else if (Regex.simpleMatch("GET /container?restype=container&comp=list*", request)) {
+            } else if (Regex.simpleMatch("GET /" + account + "/" + container + "?*restype=container*comp=list*", request)) {
                 // List Blobs (https://docs.microsoft.com/en-us/rest/api/storageservices/list-blobs)
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
@@ -162,10 +171,10 @@ public class AzureHttpHandler implements HttpHandler {
                 }
                 list.append("<Blobs>");
                 for (Map.Entry<String, BytesReference> blob : blobs.entrySet()) {
-                    if (prefix != null && blob.getKey().startsWith("/" + container + "/" + prefix) == false) {
+                    if (prefix != null && blob.getKey().startsWith("/" + account + "/" + container + "/" + prefix) == false) {
                         continue;
                     }
-                    String blobPath = blob.getKey().replace("/" + container + "/", "");
+                    String blobPath = blob.getKey().replace("/" + account + "/" + container + "/", "");
                     if (delimiter != null) {
                         int fromIndex = (prefix != null ? prefix.length() : 0);
                         int delimiterPosition = blobPath.indexOf(delimiter, fromIndex);
@@ -183,6 +192,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 }
                 list.append("</Blobs>");
+                list.append("<NextMarker />");
                 list.append("</EnumerationResults>");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);

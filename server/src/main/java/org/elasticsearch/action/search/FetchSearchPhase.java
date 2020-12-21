@@ -153,7 +153,7 @@ final class FetchSearchPhase extends SearchPhase {
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getContextId(), i, entry,
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices(), queryResult.getShardSearchRequest(),
                             queryResult.getRescoreDocIds());
-                        executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
+                        executeFetch(queryResult.getShardIndex(), searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
                             connection);
                     }
                 }

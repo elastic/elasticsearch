@@ -183,6 +183,14 @@ to `2099-12-01T23:59:59.999_999_999Z`. This date uses the provided year (`2099`)
 and month (`12`) but uses the default day (`01`), hour (`23`), minute (`59`),
 second (`59`), and nanosecond (`999_999_999`).
 
+[[numeric-date]]
+====== Numeric date range value
+
+When no date format is specified and the range query is targeting a date field, numeric
+values are interpreted representing milliseconds-since-the-epoch. If you want the value
+to represent a year, e.g. 2020, you need to pass it as a String value (e.g. "2020") that
+will be parsed according to the default format or the set format.
+
 [[range-query-date-math-rounding]]
 ====== Date math and rounding
 {es} rounds <<date-math,date math>> values in parameters as follows:

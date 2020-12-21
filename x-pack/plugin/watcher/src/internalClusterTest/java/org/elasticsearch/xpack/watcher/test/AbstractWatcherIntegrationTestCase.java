@@ -587,7 +587,7 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             this.clock = clock;
         }
 
-        public void trigger(String jobName) {
+        public void trigger(String jobName) throws Exception {
             trigger(jobName, 1, null);
         }
 
@@ -595,15 +595,17 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
             return clock;
         }
 
-        public void trigger(String watchId, int times, TimeValue timeValue) {
-            long triggeredCount = schedulers.stream()
-                .filter(scheduler -> scheduler.trigger(watchId, times, timeValue))
-                .count();
-            String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
-            if (triggeredCount > 1) {
-                logger.warn(msg);
-            }
-            assertThat(msg, triggeredCount, greaterThanOrEqualTo(1L));
+        public void trigger(String watchId, int times, TimeValue timeValue) throws Exception {
+            assertBusy(() -> {
+                long triggeredCount = schedulers.stream()
+                    .filter(scheduler -> scheduler.trigger(watchId, times, timeValue))
+                    .count();
+                String msg = String.format(Locale.ROOT, "watch was triggered on [%d] schedulers, expected [1]", triggeredCount);
+                if (triggeredCount > 1) {
+                    logger.warn(msg);
+                }
+                assertThat(msg, triggeredCount, greaterThanOrEqualTo(1L));
+            });
         }
     }
 

@@ -11,14 +11,14 @@ dependencies {
 
 File repoDir = file("$buildDir/testclusters/repo")
 
-task 'leader-cluster'(type: RestIntegTestTask) {
+tasks.register('leader-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
     systemProperty 'tests.target_cluster', 'leader'
     /* To support taking index snapshots, we have to set path.repo setting */
     systemProperty 'tests.path.repo', repoDir.absolutePath
 }
 
-testClusters.'leader-cluster' {
+testClusters.matching { it.name == 'leader-cluster' }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.ccr.enabled', 'true'
@@ -29,19 +29,19 @@ testClusters.'leader-cluster' {
   setting 'indices.lifecycle.poll_interval', '1000ms'
 }
 
-task 'follow-cluster'(type: RestIntegTestTask) {
-  dependsOn 'leader-cluster'
-    useCluster testClusters.'leader-cluster'
-    systemProperty 'tests.target_cluster', 'follow'
-    nonInputProperties.systemProperty 'tests.leader_host',
-      "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
-    nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed',
-      "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
-    /* To support taking index snapshots, we have to set path.repo setting */
-    systemProperty 'tests.path.repo', repoDir.absolutePath
+tasks.register('follow-cluster', RestIntegTestTask) {
+  dependsOn tasks.findByName('leader-cluster')
+  useCluster testClusters.'leader-cluster'
+  systemProperty 'tests.target_cluster', 'follow'
+  nonInputProperties.systemProperty 'tests.leader_host',
+    "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
+  nonInputProperties.systemProperty 'tests.leader_remote_cluster_seed',
+    "${-> testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}"
+  /* To support taking index snapshots, we have to set path.repo setting */
+  systemProperty 'tests.path.repo', repoDir.absolutePath
 }
 
-testClusters.'follow-cluster' {
+testClusters.matching{ it.name == 'follow-cluster' }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'path.repo', repoDir.absolutePath
   setting 'xpack.ccr.enabled', 'true'
@@ -54,5 +54,6 @@ testClusters.'follow-cluster' {
     { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().get(0)}\"" }
 }
 
-check.dependsOn 'follow-cluster'
-test.enabled = false // no unit tests for this module, only the rest integration test
+tasks.named("check").configure { dependsOn 'follow-cluster' }
+// no unit tests for this module, only the rest integration test
+tasks.named("test").configure { enabled = false }

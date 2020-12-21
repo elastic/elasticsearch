@@ -1,7 +1,11 @@
 plugins {
   id 'java'
-  id 'elasticsearch.build'
+  id 'elasticsearch.global-build-info'
 }
+import org.elasticsearch.gradle.info.BuildParams
+BuildParams.init { it.setIsInternal(true) }
+
+apply plugin:'elasticsearch.build'
 
 ext.licenseFile = file("LICENSE")
 ext.noticeFile = file("NOTICE")
@@ -46,18 +50,17 @@ repositories {
 }
 
 // todo remove offending rules
-tasks.named('forbiddenApisMain').configure { onlyIf { false } }
-tasks.named('forbiddenApisTest').configure { onlyIf { false } }
+
 // requires dependency on testing fw
-jarHell.enabled = false
+tasks.named("jarHell").configure {enabled = false }
 // we don't have tests for now
-test.enabled = false
-// This requires an additional Jar not part of build-tools
-loggerUsageCheck.enabled = false
-
+tasks.named("test").configure {enabled = false }
+// we don't have tests for now
+tasks.named("forbiddenApisMain").configure {enabled = false }
 // TODO: shouldn't be part of BuildPlugin, should be tested separately
-validateNebulaPom.enabled = false
-
+tasks.named("validateNebulaPom").configure {enabled = false }
+// requires further classpath
+tasks.named("loggerUsageCheck").configure {enabled = false }
 tasks.register("hello") {
   doFirst {
     println "build plugin can be applied"

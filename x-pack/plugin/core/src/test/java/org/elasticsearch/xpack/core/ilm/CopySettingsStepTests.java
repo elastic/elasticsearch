@@ -65,14 +65,15 @@ public class CopySettingsStepTests extends AbstractStepTestCase<CopySettingsStep
         IndexMetadata.Builder targetIndexMetadataBuilder = IndexMetadata.builder(targetIndex).settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5));
 
+        final IndexMetadata sourceIndexMetadata = sourceIndexMetadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(emptyClusterState()).metadata(
-            Metadata.builder().put(sourceIndexMetadataBuilder).put(targetIndexMetadataBuilder).build()
+            Metadata.builder().put(sourceIndexMetadata, false).put(targetIndexMetadataBuilder).build()
         ).build();
 
         CopySettingsStep copySettingsStep = new CopySettingsStep(randomStepKey(), randomStepKey(), indexPrefix,
             LifecycleSettings.LIFECYCLE_NAME);
 
-        ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadataBuilder.build().getIndex(), clusterState);
+        ClusterState newClusterState = copySettingsStep.performAction(sourceIndexMetadata.getIndex(), clusterState);
         IndexMetadata newTargetIndexMetadata = newClusterState.metadata().index(targetIndex);
         assertThat(newTargetIndexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME), is(policyName));
     }

@@ -65,6 +65,11 @@ Specifies the address of the proxy server to use to connect to HTTP services.
 (<<static-cluster-setting,Static>>)
 Specifies the port number to use to connect to the proxy server.
 
+`xpack.http.proxy.scheme`::
+(<<static-cluster-setting,Static>>)
+Protocol used to communicate with the proxy server. Valid values are `http` and
+`https`. Defaults to the protocol used in the request.
+
 `xpack.http.default_connection_timeout`::
 (<<static-cluster-setting,Static>>)
 The maximum period to wait until abortion of the request, when a

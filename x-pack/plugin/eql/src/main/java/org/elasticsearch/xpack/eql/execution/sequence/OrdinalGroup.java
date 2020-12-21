@@ -22,7 +22,6 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
  */
 abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
-    private final SequenceKey key;
     private final Function<E, Ordinal> extractor;
 
     // NB: since the size varies significantly, use a LinkedList
@@ -32,13 +31,8 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     private Ordinal start, stop;
 
-    protected OrdinalGroup(SequenceKey key, Function<E, Ordinal> extractor) {
-        this.key = key;
+    protected OrdinalGroup(Function<E, Ordinal> extractor) {
         this.extractor = extractor;
-    }
-
-    SequenceKey key() {
-        return key;
     }
 
     void add(E element) {
@@ -58,11 +52,27 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
      * The element and everything before it is removed.
      */
     E trimBefore(Ordinal ordinal) {
+        return trimBefore(ordinal, true);
+    }
+
+    /**
+     * Returns the latest element from the group that has its timestamp
+     * less than the given argument alongside its position in the list.
+     * Everything before the element it is removed. The element is kept.
+     */
+    E trimBeforeLast(Ordinal ordinal) {
+        return trimBefore(ordinal, false);
+    }
+
+    private E trimBefore(Ordinal ordinal, boolean removeMatch) {
         Tuple<E, Integer> match = findBefore(ordinal);
 
         // trim
         if (match != null) {
-            int pos = match.v2() + 1;
+            int pos = match.v2();
+            if (removeMatch) {
+                pos = pos + 1;
+            }
             elements.subList(0, pos).clear();
 
             // update min time
@@ -80,16 +90,6 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     E before(Ordinal ordinal) {
         Tuple<E, Integer> match = findBefore(ordinal);
         return match != null ? match.v1() : null;
-    }
-
-    void trimToLast() {
-        E last = elements.peekLast();
-        if (last != null) {
-            elements.clear();
-            start = null;
-            stop = null;
-            add(last);
-        }
     }
 
     private Tuple<E, Integer> findBefore(Ordinal ordinal) {
@@ -132,7 +132,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
 
     @Override
     public int hashCode() {
-        return key.hashCode();
+        return elements.hashCode();
     }
 
     @Override
@@ -146,12 +146,11 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
         }
 
         OrdinalGroup<?> other = (OrdinalGroup<?>) obj;
-        return Objects.equals(key, other.key)
-                && Objects.equals(elements, other.elements);
+        return Objects.equals(elements, other.elements);
     }
 
     @Override
     public String toString() {
-        return format(null, "[{}][{}-{}]({} seqs)", key, start, stop, elements.size());
+        return format(null, "[{}-{}]({} seqs)", start, stop, elements.size());
     }
 }

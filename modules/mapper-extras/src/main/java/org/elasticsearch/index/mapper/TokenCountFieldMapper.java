@@ -24,7 +24,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -93,11 +92,11 @@ public class TokenCountFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (hasDocValues() == false) {
                 return lookup -> List.of();
             }
-            return new DocValueFetcher(docValueFormat(format, null), searchLookup.doc().getForField(this));
+            return new DocValueFetcher(docValueFormat(format, null), context.getForField(this));
         }
     }
 

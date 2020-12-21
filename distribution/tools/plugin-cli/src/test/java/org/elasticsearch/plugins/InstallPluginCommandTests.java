@@ -1477,7 +1477,7 @@ public class InstallPluginCommandTests extends ESTestCase {
     public void testPolicyConfirmation() throws Exception {
         Tuple<Path, Environment> env = createEnv(fs, temp);
         Path pluginDir = createPluginDir(temp);
-        writePluginSecurityPolicy(pluginDir, "setAccessible", "setFactory");
+        writePluginSecurityPolicy(pluginDir, "createClassLoader", "setFactory");
         String pluginZip = createPluginUrl("fake", pluginDir);
 
         assertPolicyConfirmation(env, pluginZip, "plugin requires additional permissions");

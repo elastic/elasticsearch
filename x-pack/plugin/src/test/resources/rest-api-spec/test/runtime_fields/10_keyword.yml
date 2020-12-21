@@ -151,6 +151,21 @@ setup:
   - match: {hits.hits.0._source.voltage: 5.8}
 
 ---
+"highlight term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              day_of_week: Monday
+          highlight:
+            fields:
+              day_of_week: {}
+
+  - match: { hits.hits.0.highlight.day_of_week : [ "<em>Monday</em>" ] }
+
+---
 "explain term query":
   - do:
       search:

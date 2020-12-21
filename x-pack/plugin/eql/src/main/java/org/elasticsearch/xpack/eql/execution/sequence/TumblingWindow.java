@@ -26,7 +26,9 @@ import org.elasticsearch.xpack.eql.util.ReversedIterator;
 import org.elasticsearch.xpack.ql.util.ActionListeners;
 
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
@@ -47,7 +49,22 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHi
  */
 public class TumblingWindow implements Executable {
 
+    private static final int CACHE_MAX_SIZE = 64;
+
     private final Logger log = LogManager.getLogger(TumblingWindow.class);
+
+    /**
+     * Simple cache for removing duplicate strings (such as index name or common keys).
+     * Designed to be low-effort, non-concurrent (not needed) and thus optimistic in nature.
+     * Thus it has a small, upper limit so that it doesn't require any cleaning up.
+     */
+    // start with the default size and allow growth until the max size
+    private final Map<String, String> stringCache = new LinkedHashMap<>(16, 0.75f, true) {
+        @Override
+        protected boolean removeEldestEntry(Map.Entry<String, String> eldest) {
+            return this.size() >= CACHE_MAX_SIZE;
+        }
+    };
 
     private final QueryClient client;
     private final List<Criterion<BoxedQueryRequest>> criteria;
@@ -57,12 +74,9 @@ public class TumblingWindow implements Executable {
     private final int maxStages;
     private final int windowSize;
 
-    private final boolean hasKeys;
-
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
     private boolean restartWindowFromTailQuery;
-    private final boolean earlyUntil;
 
     private long startTime;
 
@@ -91,9 +105,7 @@ public class TumblingWindow implements Executable {
 
         Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
-        this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
-        this.earlyUntil = baseRequest.descending();
     }
 
     @Override
@@ -123,27 +135,19 @@ public class TumblingWindow implements Executable {
         // for descending queries clean everything
         if (restartWindowFromTailQuery) {
             if (currentStage == 0) {
-                matcher.trim(true);
+                matcher.trim(null);
             }
         }
-        // trim to last
         else {
-           // check case when a rebase occurred and the current query
-           // has a lot more results than the first once and hasn't
-           // covered the whole window. Running a trim early data before
-           // the whole window is matched
-           boolean trimToLast = false;
-           if (currentStage == 0) {
-               trimToLast = true;
-           }
-           else {
-               Ordinal current = criteria.get(currentStage).queryRequest().after();
-               Ordinal previous = criteria.get(currentStage - 1).queryRequest().after();
-               trimToLast = current.after(previous);
-           }
-           if (trimToLast) {
-               matcher.trim(false);
-           }
+            // trim to last until the current window
+            // that's because some stages can be sparse, other dense
+            // and results from the sparse stage can be after those in the dense one
+            // trimming to last removes these results
+            // same applies for rebase
+            Ordinal marker = criteria.get(currentStage).queryRequest().after();
+            if (marker != null) {
+                matcher.trim(marker);
+            }
         }
 
         advance(currentStage, listener);
@@ -170,7 +174,7 @@ public class TumblingWindow implements Executable {
     }
 
     /**
-     * Start the base query but, to account for until, do not match the results right away.
+     * Execute the base query.
      */
     private void baseCriterion(int baseStage, SearchResponse r, ActionListener<Payload> listener) {
         Criterion<BoxedQueryRequest> base = criteria.get(baseStage);
@@ -186,22 +190,22 @@ public class TumblingWindow implements Executable {
             // get borders for the rest of the queries - but only when at least one result is found
             begin = headOrdinal(hits, base);
             end = tailOrdinal(hits, base);
-            boolean desc = base.descending();
             // always create an ASC window
             info = new WindowInfo(baseStage, begin, end);
 
-            log.trace("Found {}base [{}] window {}->{}", base.descending() ? "tail ": "", base.stage(), begin, end);
+            log.trace("Found {}base [{}] window {}->{}", base.descending() ? "tail " : "", base.stage(), begin, end);
 
             // update current query for the next request
             base.queryRequest().nextAfter(end);
 
-            // early until check if dealing with a TAIL sequence
             // execute UNTIL *before* matching the results
+            // but after the window has been created
+            //
             // this is needed for TAIL sequences since the base of the window
             // is called once with the DESC query, then with the ASC one
             // thus UNTIL needs to be executed before matching the second query
             // that is the ASC base of the window
-            if (earlyUntil && until != null && baseStage == 1) {
+            if (until != null && baseStage > 0) {
                 // find "until" ordinals - early on to discard data in-flight to avoid matching
                 // hits that can occur in other documents
                 untilCriterion(info, listener, () -> completeBaseCriterion(baseStage, hits, info, listener));
@@ -210,8 +214,6 @@ public class TumblingWindow implements Executable {
         } else {
             info = null;
         }
-
-        // match the results
         completeBaseCriterion(baseStage, hits, info, listener);
     }
 
@@ -269,8 +271,7 @@ public class TumblingWindow implements Executable {
                         if (restartWindowFromTailQuery == false) {
                             shouldTerminate = true;
                         } else {
-                            tumbleWindow(0, listener);
-                            return;
+                            next = () -> tumbleWindow(0, listener);
                         }
                     }
                 }
@@ -293,7 +294,7 @@ public class TumblingWindow implements Executable {
             }
 
             // until check for HEAD queries
-            if (earlyUntil == false && until != null && info != null) {
+            if (until != null && info != null && info.baseStage == 0) {
                 untilCriterion(info, listener, next);
             } else {
                 next.run();
@@ -318,12 +319,17 @@ public class TumblingWindow implements Executable {
 
     private void untilCriterion(WindowInfo window, ActionListener<Payload> listener, Runnable next) {
         final BoxedQueryRequest request = until.queryRequest();
-
-        // before doing a new query, clean all previous until hits
-        // including dropping any in-flight sequences that were not dropped (because they did not match)
-        matcher.dropUntil();
-
         boxQuery(window, until);
+
+        // in case the base query returns less results than the fetch window
+        // the rebase query might take a while to catch up to the until limit
+        // the query can be executed but will return 0 results so avoid this case
+        // by checking for it explicitly
+        if (request.after().after(window.end)) {
+            log.trace("Skipping until stage {}", request);
+            next.run();
+            return;
+        }
 
         log.trace("Querying until stage {}", request);
 
@@ -522,6 +528,28 @@ public class TumblingWindow implements Executable {
         return new TimeValue(System.currentTimeMillis() - startTime);
     }
 
+    private String cache(String string) {
+        String value = stringCache.putIfAbsent(string, string);
+        return value == null ? string : value;
+    }
+
+    private SequenceKey key(Object[] keys) {
+        SequenceKey key;
+        if (keys == null) {
+            key = SequenceKey.NONE;
+        } else {
+            for (int i = 0; i < keys.length; i++) {
+                Object o = keys[i];
+                if (o instanceof String) {
+                    keys[i] = cache((String) o);
+                }
+            }
+            key = new SequenceKey(keys);
+        }
+
+        return key;
+    }
+
     private static Ordinal headOrdinal(List<SearchHit> hits, Criterion<BoxedQueryRequest> criterion) {
         return criterion.ordinal(hits.get(0));
     }
@@ -565,9 +593,9 @@ public class TumblingWindow implements Executable {
                 @Override
                 public Tuple<KeyAndOrdinal, HitReference> next() {
                     SearchHit hit = delegate.next();
-                    SequenceKey k = criterion.key(hit);
+                    SequenceKey k = key(criterion.key(hit));
                     Ordinal o = criterion.ordinal(hit);
-                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(hit));
+                    return new Tuple<>(new KeyAndOrdinal(k, o), new HitReference(cache(hit.getIndex()), hit.getId()));
                 }
             };
         };

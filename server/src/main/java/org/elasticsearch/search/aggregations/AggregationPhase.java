@@ -47,8 +47,7 @@ public class AggregationPhase {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
-                AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators(context);
+                aggregators = context.aggregations().factories().createTopLevelAggregators();
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
@@ -116,7 +115,10 @@ public class AggregationPhase {
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        context.aggregations().resetBucketMultiConsumer();
+        if (context.aggregations().factories().context() != null) {
+            // Rollup can end up here with a null context but not null factories.....
+            context.aggregations().factories().context().multiBucketConsumer().reset();
+        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
                 aggregations.add(aggregator.buildTopLevel());

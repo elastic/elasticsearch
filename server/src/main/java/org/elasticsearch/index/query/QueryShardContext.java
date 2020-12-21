@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -41,12 +42,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -76,6 +76,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -93,6 +94,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BitsetFilterCache bitsetFilterCache;
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
+    private final int shardRequestIndex;
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
@@ -113,6 +115,7 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public QueryShardContext(
         int shardId,
+        int shardRequestIndex,
         IndexSettings indexSettings,
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
@@ -133,6 +136,7 @@ public class QueryShardContext extends QueryRewriteContext {
     ) {
         this(
             shardId,
+            shardRequestIndex,
             indexSettings,
             bigArrays,
             bitsetFilterCache,
@@ -157,13 +161,30 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.mapperService, source.similarityService, source.scriptService, source.getXContentRegistry(),
-            source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry, source.runtimeMappings);
+        this(
+            source.shardId,
+            source.shardRequestIndex,
+            source.indexSettings,
+            source.bigArrays,
+            source.bitsetFilterCache,
+            source.indexFieldDataService,
+            source.mapperService,
+            source.similarityService,
+            source.scriptService,
+            source.getXContentRegistry(),
+            source.getWriteableRegistry(),
+            source.client, source.searcher,
+            source.nowInMillis,
+            source.indexNameMatcher,
+            source.fullyQualifiedIndex,
+            source.allowExpensiveQueries,
+            source.valuesSourceRegistry,
+            source.runtimeMappings
+        );
     }
 
     private QueryShardContext(int shardId,
+                              int shardRequestIndex,
                               IndexSettings indexSettings,
                               BigArrays bigArrays,
                               BitsetFilterCache bitsetFilterCache,
@@ -183,6 +204,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               Map<String, MappedFieldType> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
+        this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.bigArrays = bigArrays;
@@ -254,11 +276,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     public ParsedDocument parseDocument(SourceToParse source) throws MapperParsingException {
         return mapperService.documentMapper() == null ? null : mapperService.documentMapper().parse(source);
-    }
-
-    public FieldNameAnalyzer getFieldNameIndexAnalyzer() {
-        DocumentMapper documentMapper = mapperService.documentMapper();
-        return documentMapper == null ? null : documentMapper.mappers().indexAnalyzer();
     }
 
     public boolean hasNested() {
@@ -353,8 +370,17 @@ public class QueryShardContext extends QueryRewriteContext {
         return mapperService.getIndexAnalyzers();
     }
 
-    public Analyzer getIndexAnalyzer() {
-        return mapperService.indexAnalyzer();
+    /**
+     * Return the index-time analyzer for the current index
+     * @param unindexedFieldAnalyzer    a function that builds an analyzer for unindexed fields
+     */
+    public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+        return new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
+            @Override
+            protected Analyzer getWrappedAnalyzer(String fieldName) {
+                return mapperService.indexAnalyzer(fieldName, unindexedFieldAnalyzer);
+            }
+        };
     }
 
     public ValuesSourceRegistry getValuesSourceRegistry() {
@@ -374,7 +400,7 @@ public class QueryShardContext extends QueryRewriteContext {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder
-                = new TextFieldMapper.Builder(name, () -> mapperService.getIndexAnalyzers().getDefaultIndexAnalyzer());
+                = new TextFieldMapper.Builder(name, mapperService.getIndexAnalyzers());
             return builder.build(new ContentPath(1)).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
@@ -402,20 +428,6 @@ public class QueryShardContext extends QueryRewriteContext {
             );
         }
         return this.lookup;
-    }
-
-    /**
-     * Build a lookup customized for the fetch phase. Use {@link #lookup()}
-     * in other phases.
-     */
-    public SearchLookup newFetchLookup() {
-        /*
-         * Real customization coming soon, I promise!
-         */
-        return new SearchLookup(
-            this::getFieldType,
-            (fieldType, searchLookup) -> indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(), searchLookup)
-        );
     }
 
     public NestedScope nestedScope() {
@@ -529,6 +541,14 @@ public class QueryShardContext extends QueryRewriteContext {
         return shardId;
     }
 
+    /**
+     * Returns the shard request ordinal that is used by the main search request
+     * to reference this shard.
+     */
+    public int getShardRequestIndex() {
+        return shardRequestIndex;
+    }
+
     @Override
     public final long nowInMillis() {
         failIfFrozen();
@@ -579,7 +599,7 @@ public class QueryShardContext extends QueryRewriteContext {
     /**
      * Return the {@link BigArrays} instance for this node.
      */
-    public BigArrays bigArrays() {
+    public BigArrays bigArrays() {  // TODO this is only used in agg land, maybe remove it from here?
         return bigArrays;
     }
 

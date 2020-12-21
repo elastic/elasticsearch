@@ -31,9 +31,8 @@ setup:
 ---
 "Test numeric terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
-
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -52,8 +51,8 @@ setup:
 ---
 "Test keyword terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -72,8 +71,8 @@ setup:
 
 "Test unmapped string terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       bulk:
         index: test_2
@@ -97,8 +96,8 @@ setup:
 ---
 "Test composite str_terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true
@@ -124,8 +123,8 @@ setup:
 ---
 "Test composite num_terms agg with doc_count":
   - skip:
-      version: " - 7.99.99"
-      reason: "Doc count fields are only implemented in 8.0"
+      version: " - 7.10.99"
+      reason: "doc_count field has been added in 7.11"
   - do:
       search:
         rest_total_hits_as_int: true

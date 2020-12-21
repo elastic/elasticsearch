@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.tasks.Task;
@@ -115,6 +116,23 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         return anomalyDetectorsDefaults;
     }
 
+    static ByteSizeValue calculateTotalMlMemory(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
+
+        long totalMlMemory = 0;
+
+        for (DiscoveryNode node : nodes) {
+            OptionalLong limit = NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings);
+            if (limit.isEmpty()) {
+                continue;
+            }
+            totalMlMemory += limit.getAsLong();
+        }
+
+        // Round down to a whole number of megabytes, since we generally deal with model
+        // memory limits in whole megabytes
+        return ByteSizeValue.ofMb(ByteSizeUnit.BYTES.toMB(totalMlMemory));
+    }
+
     static ByteSizeValue calculateEffectiveMaxModelMemoryLimit(ClusterSettings clusterSettings, DiscoveryNodes nodes) {
 
         long maxMlMemory = -1;
@@ -135,7 +153,7 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
 
         maxMlMemory -= Math.max(Job.PROCESS_MEMORY_OVERHEAD.getBytes(), DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes());
         maxMlMemory -= MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes();
-        return ByteSizeValue.ofMb(Math.max(0L, maxMlMemory) / 1024 / 1024);
+        return ByteSizeValue.ofMb(ByteSizeUnit.BYTES.toMB(Math.max(0L, maxMlMemory)));
     }
 
     private Map<String, Object> limits() {
@@ -153,6 +171,8 @@ public class TransportMlInfoAction extends HandledTransportAction<MlInfoAction.R
         if (effectiveMaxModelMemoryLimit != null) {
             limits.put("effective_max_model_memory_limit", effectiveMaxModelMemoryLimit.getStringRep());
         }
+        limits.put("total_ml_memory",
+            calculateTotalMlMemory(clusterService.getClusterSettings(), clusterService.state().getNodes()).getStringRep());
         return limits;
     }
 }

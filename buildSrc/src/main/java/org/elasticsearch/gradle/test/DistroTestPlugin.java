@@ -114,7 +114,7 @@ public class DistroTestPlugin implements Plugin<Project> {
             String taskname = destructiveDistroTestTaskName(distribution);
             TaskProvider<?> depsTask = project.getTasks().register(taskname + "#deps");
             // explicitly depend on the archive not on the implicit extracted distribution
-            depsTask.configure(t -> t.dependsOn(distribution.getArchive(), examplePlugin, quotaAwareFsPlugin));
+            depsTask.configure(t -> t.dependsOn(distribution.getArchiveDependencies(), examplePlugin, quotaAwareFsPlugin));
             depsTasks.put(taskname, depsTask);
             TaskProvider<Test> destructiveTask = configureTestTask(project, taskname, distribution, t -> {
                 t.onlyIf(t2 -> distribution.isDocker() == false || dockerSupport.get().getDockerAvailability().isAvailable);

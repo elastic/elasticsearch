@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
 import java.nio.file.Path;
@@ -685,5 +687,18 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
                         .setRenamePattern("test-index").setRenameReplacement("new-index")
                         .get());
         assertThat(restoreError.getMessage(), containsString("cannot disable setting [index.soft_deletes.enabled] on restore"));
+    }
+
+    public void testFailOnAncientVersion() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, FsRepository.TYPE, repoPath);
+        final Version oldVersion = Version.CURRENT.previousMajor().previousMajor();
+        final String oldSnapshot = initWithSnapshotVersion(repoName, repoPath, oldVersion);
+        final SnapshotRestoreException snapshotRestoreException = expectThrows(SnapshotRestoreException.class,
+                () -> client().admin().cluster().prepareRestoreSnapshot(repoName, oldSnapshot).execute().actionGet());
+        assertThat(snapshotRestoreException.getMessage(), containsString( "the snapshot was created with Elasticsearch version ["
+                + oldVersion + "] which is below the current versions minimum index compatibility version [" +
+                Version.CURRENT.minimumIndexCompatibilityVersion() + "]"));
     }
 }

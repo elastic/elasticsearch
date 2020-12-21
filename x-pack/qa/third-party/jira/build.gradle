@@ -38,10 +38,10 @@ tasks.register("cleanJira", DefaultTask) {
 
 // require network access for this one, exit early instead of starting up the cluster if we dont have network
 if (!jiraUrl && !jiraUser && !jiraPassword && !jiraProject) {
-  integTest.enabled = false
-  testingConventions.enabled = false
+  tasks.named("integTest").configure { enabled = false }
+  tasks.named("testingConventions").configure { enabled = false }
 } else {
-  testClusters.integTest {
+  testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'
     setting 'xpack.security.enabled', 'false'
     setting 'xpack.ml.enabled', 'false'

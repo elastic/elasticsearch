@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
@@ -270,7 +271,8 @@ public class FollowingEngineTests extends ESTestCase {
                 globalCheckpoint::longValue,
                 () -> RetentionLeases.EMPTY,
                 () -> primaryTerm.get(),
-                EngineTestCase.tombstoneDocSupplier());
+                EngineTestCase.tombstoneDocSupplier(),
+                IndexModule.DEFAULT_SNAPSHOT_COMMIT_SUPPLIER);
     }
 
     private static Store createStore(
@@ -279,7 +281,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private FollowingEngine createEngine(Store store, EngineConfig config) throws IOException {
-        store.createEmpty(config.getIndexSettings().getIndexVersionCreated().luceneVersion);
+        store.createEmpty();
         final String translogUuid = Translog.createEmptyTranslog(config.getTranslogConfig().getTranslogPath(),
                 SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L);
         store.associateIndexWithNewTranslog(translogUuid);
@@ -491,7 +493,7 @@ public class FollowingEngineTests extends ESTestCase {
         IndexMetadata leaderIndexMetadata = IndexMetadata.builder(index.getName()).settings(leaderSettings).build();
         IndexSettings leaderIndexSettings = new IndexSettings(leaderIndexMetadata, leaderSettings);
         try (Store leaderStore = createStore(shardId, leaderIndexSettings, newDirectory())) {
-            leaderStore.createEmpty(leaderIndexMetadata.getCreationVersion().luceneVersion);
+            leaderStore.createEmpty();
             EngineConfig leaderConfig = engineConfig(shardId, leaderIndexSettings, threadPool, leaderStore, logger, xContentRegistry());
             leaderStore.associateIndexWithNewTranslog(Translog.createEmptyTranslog(
                 leaderConfig.getTranslogConfig().getTranslogPath(), SequenceNumbers.NO_OPS_PERFORMED, shardId, 1L));

@@ -10,6 +10,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.plugins.Plugin;
@@ -19,7 +20,6 @@ import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,9 +39,7 @@ public class FrozenIndexRecoveryTests extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(FrozenIndices.class);
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), FrozenIndices.class);
     }
 
     public void testRecoverExistingReplica() throws Exception {

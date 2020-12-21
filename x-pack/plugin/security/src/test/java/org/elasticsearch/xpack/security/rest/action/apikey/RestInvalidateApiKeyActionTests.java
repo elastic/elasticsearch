@@ -20,7 +20,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
@@ -55,9 +54,7 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
                 .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
                 .build();
         threadPool = new ThreadPool(settings);
-        when(mockLicenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(mockLicenseState.isSecurityEnabled()).thenReturn(true);
-        when(mockLicenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
     }
 
     @Override
@@ -72,7 +69,9 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         final String json3 = "{ \"username\": \"user-x\" }";
         final String json4 = "{ \"id\" : \"api-key-id-1\" }";
         final String json5 = "{ \"name\" : \"api-key-name-1\" }";
-        final String json = randomFrom(json1, json2, json3, json4, json5);
+        final String json6 = "{ \"ids\" : [\"api-key-id-1\"] }";
+        final String json = randomFrom(json1, json2, json3, json4, json5, json6);
+        final boolean assertDeprecationWarning = json == json4;  // we want object identity comparison here
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withContent(new BytesArray(json), XContentType.JSON).build();
 
@@ -120,7 +119,9 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             assertThat(actual.getPreviouslyInvalidatedApiKeys(),
                     equalTo(invalidateApiKeyResponseExpected.getPreviouslyInvalidatedApiKeys()));
             assertThat(actual.getErrors(), equalTo(invalidateApiKeyResponseExpected.getErrors()));
-
+            if (assertDeprecationWarning) {
+                assertWarnings("Deprecated field [id] used, replaced by [ids]");
+            }
         }
 
     }

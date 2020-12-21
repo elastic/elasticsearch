@@ -89,9 +89,8 @@ public class IdFieldMapper extends MetadataFieldMapper {
             NESTED_FIELD_TYPE = new FieldType();
             NESTED_FIELD_TYPE.setTokenized(false);
             NESTED_FIELD_TYPE.setIndexOptions(IndexOptions.DOCS);
-            NESTED_FIELD_TYPE.setStored(true);
-            NESTED_FIELD_TYPE.setOmitNorms(true);
             NESTED_FIELD_TYPE.setStored(false);
+            NESTED_FIELD_TYPE.setOmitNorms(true);
             NESTED_FIELD_TYPE.freeze();
         }
     }
@@ -119,7 +118,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup lookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 

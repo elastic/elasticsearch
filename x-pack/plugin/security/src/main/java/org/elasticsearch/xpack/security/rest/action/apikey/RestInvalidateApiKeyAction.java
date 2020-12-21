@@ -42,7 +42,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
+        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id").withAllDeprecated("ids"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ids"));
@@ -77,5 +77,4 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     public String getName() {
         return "xpack_security_invalidate_api_key";
     }
-
 }

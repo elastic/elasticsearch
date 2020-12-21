@@ -136,8 +136,8 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             Map.of(
                 "xpack.security.http.filter.enabled",
                 "false",
-                "xpack.security.transport.filter.enabled",
-                "false",
+                "xpack.security.http.filter.allow",
+                "example.com",
                 "search.default_keep_alive",
                 "10m"
             ),
@@ -145,10 +145,13 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         );
         takeSnapshot(repoName, snapshotName);
         // change to different values
+        deleteSettings(List.of("xpack.security.http.filter.enabled"), OPERATOR_AUTH_HEADER);
         updateSettings(
             Map.of(
                 "xpack.security.transport.filter.enabled",
                 "true",
+                "xpack.security.http.filter.allow",
+                "tutorial.com",
                 "search.default_keep_alive",
                 "1m",
                 "search.allow_expensive_queries",
@@ -156,13 +159,13 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             ),
             OPERATOR_AUTH_HEADER
         );
-        deleteSettings(List.of("xpack.security.http.filter.enabled"), OPERATOR_AUTH_HEADER);
 
         // Restore with non-operator and the operator settings will not be touched
         restoreSnapshot(repoName, snapshotName, null);
         Map<String, Object> persistentSettings = getPersistentSettings();
         assertNull(persistentSettings.get("xpack.security.http.filter.enabled"));
         assertThat(persistentSettings.get("xpack.security.transport.filter.enabled"), equalTo("true"));
+        assertThat(persistentSettings.get("xpack.security.http.filter.allow"), equalTo("tutorial.com"));
         assertThat(persistentSettings.get("search.default_keep_alive"), equalTo("10m"));
         assertNull(persistentSettings.get("search.allow_expensive_queries"));
 
@@ -170,7 +173,8 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         restoreSnapshot(repoName, snapshotName, OPERATOR_AUTH_HEADER);
         persistentSettings = getPersistentSettings();
         assertThat(persistentSettings.get("xpack.security.http.filter.enabled"), equalTo("false"));
-        assertThat(persistentSettings.get("xpack.security.transport.filter.enabled"), equalTo("false"));
+        assertNull(persistentSettings.get("xpack.security.transport.filter.enabled"));
+        assertThat(persistentSettings.get("xpack.security.http.filter.allow"), equalTo("example.com"));
         assertThat(persistentSettings.get("search.default_keep_alive"), equalTo("10m"));
     }
 

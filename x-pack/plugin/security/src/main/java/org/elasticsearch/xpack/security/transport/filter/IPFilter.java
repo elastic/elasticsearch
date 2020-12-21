@@ -55,29 +55,29 @@ public class IPFilter {
             true, Property.DynamicOperator, Property.NodeScope);
 
     public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(setting("transport.filter.allow"),
-            Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            Collections.emptyList(), Function.identity(), Property.DynamicOperator, Property.NodeScope);
 
     public static final Setting<List<String>> TRANSPORT_FILTER_DENY_SETTING = Setting.listSetting(setting("transport.filter.deny"),
-            Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);
+            Collections.emptyList(), Function.identity(), Property.DynamicOperator, Property.NodeScope);
 
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_DENY_SETTING = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.filter.deny", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-            Property.Dynamic, Property.NodeScope));
+            Property.DynamicOperator, Property.NodeScope));
     public static final Setting.AffixSetting<List<String>> PROFILE_FILTER_ALLOW_SETTING = Setting.affixKeySetting("transport.profiles.",
             "xpack.security.filter.allow", key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(),
-            Property.Dynamic, Property.NodeScope));
+            Property.DynamicOperator, Property.NodeScope));
 
     private static final Setting<List<String>> HTTP_FILTER_ALLOW_FALLBACK =
             Setting.listSetting("transport.profiles.default.xpack.security.filter.allow", TRANSPORT_FILTER_ALLOW_SETTING, s -> s,
                     Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_ALLOW_SETTING = Setting.listSetting(setting("http.filter.allow"),
-            HTTP_FILTER_ALLOW_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
+            HTTP_FILTER_ALLOW_FALLBACK, Function.identity(), Property.DynamicOperator, Property.NodeScope);
 
     private static final Setting<List<String>> HTTP_FILTER_DENY_FALLBACK =
             Setting.listSetting("transport.profiles.default.xpack.security.filter.deny", TRANSPORT_FILTER_DENY_SETTING, s -> s,
                     Property.NodeScope);
     public static final Setting<List<String>> HTTP_FILTER_DENY_SETTING = Setting.listSetting(setting("http.filter.deny"),
-            HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.Dynamic, Property.NodeScope);
+            HTTP_FILTER_DENY_FALLBACK, Function.identity(), Property.DynamicOperator, Property.NodeScope);
 
     public static final Map<String, Object> DISABLED_USAGE_STATS = Map.of(
             "http", false,

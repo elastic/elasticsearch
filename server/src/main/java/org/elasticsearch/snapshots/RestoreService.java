@@ -92,6 +92,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
@@ -449,7 +450,8 @@ public class RestoreService implements ClusterStateApplier {
                                 // * operator setting, any value from the snapshot is ignored and any value from current cluster state
                                 //   is retained
                                 if (request.filterOperatorSettings()) {
-                                    Set<String> operatorSettingKeys = settings.keySet().stream()
+                                    Set<String> operatorSettingKeys = Stream.concat(
+                                        settings.keySet().stream(), currentState.metadata().persistentSettings().keySet().stream())
                                         .filter(k -> {
                                             final Setting<?> setting = clusterSettings.get(k);
                                             return setting != null && setting.isDynamicOperator();

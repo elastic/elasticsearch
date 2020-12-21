@@ -61,6 +61,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private boolean includeAliases = true;
     private Settings indexSettings = EMPTY_SETTINGS;
     private String[] ignoreIndexSettings = Strings.EMPTY_ARRAY;
+    private boolean filterOperatorSettings = false;
 
     @Nullable // if any snapshot UUID will do
     private String snapshotUuid;
@@ -446,6 +447,14 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     @Nullable
     public String snapshotUuid() {
         return snapshotUuid;
+    }
+
+    public boolean filterOperatorSettings() {
+        return filterOperatorSettings;
+    }
+
+    public void filterOperatorSettings(boolean filterOperatorSettings) {
+        this.filterOperatorSettings = filterOperatorSettings;
     }
 
     /**

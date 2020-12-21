@@ -213,6 +213,7 @@ public class AuthorizationService {
                 listener.onFailure(denialException(authentication, action, operatorException));
                 return;
             }
+            operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
 
             if (SystemUser.is(authentication.getUser())) {
                 // this never goes async so no need to wrap the listener

@@ -66,6 +66,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -443,6 +444,24 @@ public class RestoreService implements ClusterStateApplier {
                             if (metadata.persistentSettings() != null) {
                                 Settings settings = metadata.persistentSettings();
                                 clusterSettings.validateUpdate(settings);
+                                // Filter out operator only settings if required so that the behaviour is as follows:
+                                // * normal setting, will be either overridden from snapshot or wiped if snapshot does not contain it
+                                // * operator setting, any value from the snapshot is ignored and any value from current cluster state
+                                //   is retained
+                                if (request.filterOperatorSettings()) {
+                                    Set<String> operatorSettingKeys = settings.keySet().stream()
+                                        .filter(k -> {
+                                            final Setting<?> setting = clusterSettings.get(k);
+                                            return setting != null && setting.isDynamicOperator();
+                                        })
+                                        .collect(Collectors.toSet());
+                                    if (false == operatorSettingKeys.isEmpty()) {
+                                        settings = Settings.builder()
+                                            .put(settings.filter(k -> false == operatorSettingKeys.contains(k)))
+                                            .put(currentState.metadata().persistentSettings().filter(operatorSettingKeys::contains))
+                                            .build();
+                                    }
+                                }
                                 mdBuilder.persistentSettings(settings);
                             }
                             if (metadata.templates() != null) {

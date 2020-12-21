@@ -411,8 +411,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         QueryShardContext createShardContext(IndexSearcher searcher) {
-<<<<<<< HEAD
             return new QueryShardContext(
+                0,
                 0,
                 idxSettings,
                 BigArrays.NON_RECYCLING_INSTANCE,
@@ -433,11 +433,6 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 null,
                 emptyMap()
             );
-=======
-            return new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache,
-                indexFieldDataService::getForField, mapperService, similarityService, scriptService, xContentRegistry,
-                namedWriteableRegistry, this.client, searcher, () -> nowInMillis, null, indexNameMatcher(), () -> true, null, emptyMap());
->>>>>>> master
         }
 
         ScriptModule createScriptModule(List<ScriptPlugin> scriptPlugins) {

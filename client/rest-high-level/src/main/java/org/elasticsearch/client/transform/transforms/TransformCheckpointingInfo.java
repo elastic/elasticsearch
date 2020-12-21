@@ -35,11 +35,13 @@ public class TransformCheckpointingInfo {
     public static final ParseField NEXT_CHECKPOINT = new ParseField("next", "in_progress");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
     public static final ParseField CHANGES_LAST_DETECTED_AT = new ParseField("changes_last_detected_at");
+    public static final ParseField CHANGES_LAST_SEARCHED_AT = new ParseField("changes_last_searched_at");
 
     private final TransformCheckpointStats last;
     private final TransformCheckpointStats next;
     private final long operationsBehind;
     private final Instant changesLastDetectedAt;
+    private final Instant changesLastSearchedAt;
 
     private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER =
             new ConstructingObjectParser<>(
@@ -48,11 +50,13 @@ public class TransformCheckpointingInfo {
                 a -> {
                         long behind = a[2] == null ? 0L : (Long) a[2];
                         Instant changesLastDetectedAt = (Instant)a[3];
+                        Instant changesLastSearchedAt = (Instant)a[4];
                         return new TransformCheckpointingInfo(
                             a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
                             a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
                             behind,
-                            changesLastDetectedAt);
+                            changesLastDetectedAt,
+                            changesLastSearchedAt);
                     });
 
     static {
@@ -65,16 +69,22 @@ public class TransformCheckpointingInfo {
             p -> TimeUtil.parseTimeFieldToInstant(p, CHANGES_LAST_DETECTED_AT.getPreferredName()),
             CHANGES_LAST_DETECTED_AT,
             ObjectParser.ValueType.VALUE);
+        LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            p -> TimeUtil.parseTimeFieldToInstant(p, CHANGES_LAST_SEARCHED_AT.getPreferredName()),
+            CHANGES_LAST_SEARCHED_AT,
+            ObjectParser.ValueType.VALUE);
     }
 
     public TransformCheckpointingInfo(TransformCheckpointStats last,
                                       TransformCheckpointStats next,
                                       long operationsBehind,
-                                      Instant changesLastDetectedAt) {
+                                      Instant changesLastDetectedAt,
+                                      Instant changesLastSearchedAt) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
         this.changesLastDetectedAt = changesLastDetectedAt;
+        this.changesLastSearchedAt = changesLastSearchedAt;
     }
 
     public TransformCheckpointStats getLast() {
@@ -94,13 +104,18 @@ public class TransformCheckpointingInfo {
         return changesLastDetectedAt;
     }
 
+    @Nullable
+    public Instant getChangesLastSearchedAt() {
+        return changesLastSearchedAt;
+    }
+
     public static TransformCheckpointingInfo fromXContent(XContentParser p) {
         return LENIENT_PARSER.apply(p, null);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(last, next, operationsBehind, changesLastDetectedAt);
+        return Objects.hash(last, next, operationsBehind, changesLastDetectedAt, changesLastSearchedAt);
     }
 
     @Override
@@ -118,7 +133,8 @@ public class TransformCheckpointingInfo {
         return Objects.equals(this.last, that.last) &&
             Objects.equals(this.next, that.next) &&
             this.operationsBehind == that.operationsBehind &&
-            Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt);
+            Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt) &&
+            Objects.equals(this.changesLastSearchedAt, that.changesLastSearchedAt);
     }
 
 }

@@ -38,6 +38,7 @@ public class TransformCheckpointingInfoTests extends AbstractResponseTestCase<
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomNonNegativeLong(),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 

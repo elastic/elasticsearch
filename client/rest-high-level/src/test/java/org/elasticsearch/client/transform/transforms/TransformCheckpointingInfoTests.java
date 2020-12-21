@@ -43,6 +43,7 @@ public class TransformCheckpointingInfoTests extends ESTestCase {
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomLongBetween(0, 10000),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
     }
 

@@ -104,4 +104,4 @@ xpack.monitoring.exporters.my_local.enabled: false <2>
 ----
 
 <1> Adds a local exporter named `my_local`
-<2> Disabled the local exporter. This also disables the cleaner service.
+<2> Disables the local exporter. This also disables the cleaner service.

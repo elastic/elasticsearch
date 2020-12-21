@@ -33,7 +33,7 @@ Use the <<certutil-ca,`elasticsearch-certutil ca`>> command:
 
 [source,shell]
 ----
-bin/elasticsearch-certutil ca
+./bin/elasticsearch-certutil ca
 ----
 
 You can configure the cluster to trust all nodes that have a certificate that
@@ -55,7 +55,7 @@ Use the <<certutil-cert,`elasticsearch-certutil cert`>> command:
 
 [source,shell]
 ----
-bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
+./bin/elasticsearch-certutil cert --ca elastic-stack-ca.p12
 ----
 You are prompted for a password. You can enter a password for your
 certificate and key, or you can leave the password blank.
@@ -88,12 +88,34 @@ Use the <<certutil-http,`elasticsearch-certutil http`>> command:
 
 [source,shell]
 ----
-bin/elasticsearch-certutil http
+./bin/elasticsearch-certutil http
 ----
 
 This command guides you through the process of generating the appropriate
 certificates for use in {es} and {kib}. If you created a CA for your cluster,
 you can re-use it by supplying its location when prompted.
+
+NOTE: The first question that the `elasticsearch-certutil` tool prompts you
+with is whether you want to generate a Certificate Signing Request (CSR).
+Answer `y` if a trusted authority, such as in internal security team or a
+commercial certificate authority, will sign your certificates. Answer `n` if
+you have access to a trusted CA and will sign your own certificates.
+
+The output is a `.zip` file containing one directory each for both Elasticsearch
+and Kibana:
+
+[source,shell]
+----
+/elasticsearch
+|_ README.txt
+|_ http.p12
+|_ sample-elasticsearch.yml
+
+/kibana
+|_ README.txt
+|_ elasticsearch-ca.pem
+|_ sample-kibana.yml
+----
 --
 
 . Copy the node certificate to the appropriate locations.
@@ -105,12 +127,12 @@ your security certificates. For example, create a `certs` folder in the
 NOTE: The <<config-files-location,{es} configuration directory>> varies
 depending on your {es} installation.
 
-.. Copy the node certificates into the `certs` directory that you created in the
-previous step.
+.. On each node, copy the certificate that you created into the `/certs`
+directory. This certificate is typically a single `.p12` (PKCS#12) file, such
+as `elastic-certificates.p12`.
 
-.. Copy the `.p12` keystore file into the {es} configuration directory. {es}
-will fail to start if the keystore file is located anywhere except this
-directory.
+.. If you generated HTTP certificates, copy the `http.p12` file into the
+`certs` directory as well.
 
 .. For each additional Elastic product that you want to configure, copy the
 certificates to the relevant configuration directory.

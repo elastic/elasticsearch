@@ -19,9 +19,13 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.storage.blob.BlobContainerClient;
-import com.azure.storage.blob.BlobServiceClient;
-import com.azure.storage.blob.models.BlobStorageException;
+import static org.hamcrest.Matchers.blankOrNullString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
+import java.net.HttpURLConnection;
+import java.util.Collection;
+
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -33,12 +37,9 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.AbstractThirdPartyRepositoryTestCase;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 
-import java.net.HttpURLConnection;
-import java.util.Collection;
-
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
+import com.azure.storage.blob.BlobContainerClient;
+import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.models.BlobStorageException;
 
 public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyRepositoryTestCase {
 
@@ -120,5 +121,12 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
             }
         }));
         future.actionGet();
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66633")
+    @Override
+    // This override is only here so we can mute the test without muting the whole suite, remove it when the test is fixed
+    public void testCleanup() throws Exception {
+        super.testCleanup();
     }
 }

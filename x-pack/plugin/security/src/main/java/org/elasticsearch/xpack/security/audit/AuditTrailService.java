@@ -12,6 +12,7 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
@@ -147,6 +148,11 @@ public class AuditTrailService {
         public void explicitIndexAccessEvent(String requestId, AuditLevel eventType, Authentication authentication,
                                              String action, String indices, String requestName, TransportAddress remoteAddress,
                                              AuthorizationInfo authorizationInfo) {}
+
+        @Override
+        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                               TransportRequest transportRequest,
+                                               TransportResponse transportResponse) { }
     }
 
     private static class CompositeAuditTrail implements AuditTrail {
@@ -251,6 +257,15 @@ public class AuditTrailService {
                                  AuthorizationInfo authorizationInfo) {
             for (AuditTrail auditTrail : auditTrails) {
                 auditTrail.accessDenied(requestId, authentication, action, transportRequest, authorizationInfo);
+            }
+        }
+
+        @Override
+        public void coordinatingActionResponse(String requestId, Authentication authentication, String action,
+                                               TransportRequest transportRequest,
+                                               TransportResponse transportResponse) {
+            for (AuditTrail auditTrail : auditTrails) {
+                auditTrail.coordinatingActionResponse(requestId, authentication, action, transportRequest, transportResponse);
             }
         }
 

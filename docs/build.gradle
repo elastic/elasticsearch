@@ -1340,6 +1340,10 @@ setups['kibana_sample_data_ecommerce'] = '''
             settings:
               number_of_shards: 1
               number_of_replicas: 0
+            mappings:
+              properties:
+                order_date:
+                  type: date
 '''
 setups['add_timestamp_pipeline'] = '''
   - do:

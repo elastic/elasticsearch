@@ -34,7 +34,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 [[cluster-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its stats. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
 
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]

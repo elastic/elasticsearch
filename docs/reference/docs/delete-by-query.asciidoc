@@ -232,7 +232,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=stats]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=terminate_after]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period each deletion request <<index-wait-for-active-shards,waits for active
+shards>>. Defaults to `1m` (one minute).
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=version]
 

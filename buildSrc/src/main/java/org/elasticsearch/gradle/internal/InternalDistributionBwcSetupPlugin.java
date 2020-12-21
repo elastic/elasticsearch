@@ -215,7 +215,9 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         String bwcTaskName = buildBwcTaskName(projectName);
         bwcSetupExtension.bwcTask(bwcTaskName, c -> {
             boolean useNativeExpanded = projectArtifact.expandedDistDir != null;
-            File expectedOutputFile = useNativeExpanded ? projectArtifact.expandedDistDir : projectArtifact.distFile;
+            File expectedOutputFile = useNativeExpanded
+                ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
+                : projectArtifact.distFile;
             c.getInputs().file(new File(project.getBuildDir(), "refspec"));
             if (useNativeExpanded) {
                 c.getOutputs().dir(expectedOutputFile);
@@ -281,7 +283,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                         + "."
                         + extension
                 ),
-                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install/") : null
+                expandedDistDirSupport ? new File(checkoutDir, baseDir + "/" + name + "/build/install") : null
             );
         }
 

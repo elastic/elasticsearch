@@ -3,11 +3,10 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rollup.v2;
+package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
 
 import java.util.Map;
@@ -21,7 +20,7 @@ public class RollupTask extends CancellableTask {
     private RollupActionConfig config;
     private RollupJobStatus status;
 
-    RollupTask(long id, String type, String action, TaskId parentTask, String rollupIndex, RollupActionConfig config,
+    public RollupTask(long id, String type, String action, TaskId parentTask, String rollupIndex, RollupActionConfig config,
                Map<String, String> headers) {
         super(id, type, action, RollupField.NAME + "_" + rollupIndex, parentTask, headers);
         this.rollupIndex = rollupIndex;

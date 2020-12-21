@@ -240,7 +240,7 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             if (docMapper != null) {
                 if (docMapper.mappers().hasNested()) {
                     warmUp.add(Queries.newNonNestedFilter());
-                    docMapper.mappers().getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
+                    docMapper.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
                 }
             }
 

@@ -85,6 +85,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingLookupUtils;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -103,6 +104,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
@@ -237,7 +239,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             true
         ) {
             @Override
-            public boolean hasNested() {
+            public boolean hasNested() { // NOCOMMIT still needed?
                 /*
                  * Disable fetching nested documents. Luckily if confusingly, this does
                  * not disable nested aggregations which we need to test.
@@ -343,6 +345,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(ctx.indexShard()).thenReturn(indexShard);
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.hasNested()).thenReturn(false);
+        NestedDocuments nested = new NestedDocuments(mapperService, bitsetFilterCache::getBitSetProducer);
+        when(ctx.getNestedDocuments()).thenReturn(nested);
         return new SubSearchContext(ctx);
     }
 

@@ -115,13 +115,13 @@ public class DocumentMapper implements ToXContentFragment {
         this.documentParser = documentParser;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
+        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
-        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
 
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,
             SeqNoFieldMapper.NAME, SeqNoFieldMapper.PRIMARY_TERM_NAME, SeqNoFieldMapper.TOMBSTONE_NAME);
@@ -183,6 +183,10 @@ public class DocumentMapper implements ToXContentFragment {
 
     public IndexFieldMapper IndexFieldMapper() {
         return metadataMapper(IndexFieldMapper.class);
+    }
+
+    public boolean hasNestedObjects() {
+        return mappers().hasNested();
     }
 
     public MappingLookup mappers() {
@@ -306,7 +310,7 @@ public class DocumentMapper implements ToXContentFragment {
                     + "required for partitioned index [" + settings.getIndex().getName() + "]");
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && fieldMappers.hasNested()) {
+        if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         if (checkLimits) {

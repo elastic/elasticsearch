@@ -53,7 +53,10 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
-        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
+        final int numberOfReplicas = between(0, 2);
+        final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).build();
+        internalCluster().ensureAtLeastNumDataNodes(numberOfReplicas + 1);
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, indexSettings);
         ensureGreen(indexName);
 
         final String[] searcherIds = new String[numberOfShards];

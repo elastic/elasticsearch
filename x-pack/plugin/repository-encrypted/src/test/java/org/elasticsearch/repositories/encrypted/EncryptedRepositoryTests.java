@@ -14,7 +14,6 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -31,7 +30,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -42,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Matchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -97,10 +94,10 @@ public class EncryptedRepositoryTests extends ESTestCase {
             // write atomic
             doAnswer(invocationOnMockBlobContainer -> {
                 String DEKId = ((String) invocationOnMockBlobContainer.getArguments()[0]);
-                InputStream DEKInputStream = ((InputStream) invocationOnMockBlobContainer.getArguments()[1]);
-                this.blobsMap.put(blobPath.add(DEKId), BytesReference.toBytes(Streams.readFully(DEKInputStream)));
+                this.blobsMap.put(blobPath.add(DEKId),
+                        BytesReference.toBytes((BytesReference) invocationOnMockBlobContainer.getArguments()[1]));
                 return null;
-            }).when(blobContainer).writeBlobAtomic(any(String.class), any(InputStream.class), anyLong(), anyBoolean());
+            }).when(blobContainer).writeBlobAtomic(any(String.class), any(BytesReference.class), anyBoolean());
             // read
             doAnswer(invocationOnMockBlobContainer -> {
                 String DEKId = ((String) invocationOnMockBlobContainer.getArguments()[0]);

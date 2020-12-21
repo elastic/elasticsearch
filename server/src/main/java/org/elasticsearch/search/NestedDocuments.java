@@ -30,7 +30,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ObjectMapper;
 
 import java.io.IOException;
@@ -47,24 +47,24 @@ public class NestedDocuments {
     private final Map<String, Weight> childObjectFilters = new HashMap<>();
     private final Map<String, ObjectMapper> childObjectMappers = new HashMap<>();
     private final BitSetProducer parentDocumentFilter;
-    private final MappingLookup mappingLookup;
+    private final MapperService mapperService;
 
     /**
      * Create a new NestedDocuments object for an index
-     * @param mappingLookup     a snapshot of the index's mapping
+     * @param mapperService     the index's MapperService
      * @param filterProducer    a function to build BitSetProducers from filter queries
      */
-    public NestedDocuments(MappingLookup mappingLookup, Function<Query, BitSetProducer> filterProducer) {
-        this.mappingLookup = mappingLookup;
-        if (mappingLookup.hasNested() == false) {
+    public NestedDocuments(MapperService mapperService, Function<Query, BitSetProducer> filterProducer) {
+        this.mapperService = mapperService;
+        if (mapperService.hasNested() == false) {
             this.parentDocumentFilter = null;
         } else {
             this.parentDocumentFilter = filterProducer.apply(Queries.newNonNestedFilter());
-            for (ObjectMapper mapper : mappingLookup.getNestedParentMappers()) {
+            for (ObjectMapper mapper : mapperService.documentMapper().getNestedParentMappers()) {
                 parentObjectFilters.put(mapper.name(),
                     filterProducer.apply(mapper.nestedTypeFilter()));
             }
-            for (ObjectMapper mapper : mappingLookup.getNestedMappers()) {
+            for (ObjectMapper mapper : mapperService.documentMapper().getNestedMappers()) {
                 childObjectFilters.put(mapper.name(), null);
                 childObjectMappers.put(mapper.name(), mapper);
             }
@@ -98,7 +98,7 @@ public class NestedDocuments {
      * Given an object path, returns whether or not any of its parents are plain objects
      */
     public boolean hasNonNestedParent(String path) {
-        return mappingLookup.hasNonNestedParent(path);
+        return mapperService.documentMapper().hasNonNestedParent(path);
     }
 
     private class HasNestedDocuments implements LeafNestedDocuments {
@@ -185,7 +185,7 @@ public class NestedDocuments {
             int parentNameLength;
             String path = findObjectPath(doc);
             while (path != null) {
-                String parent = mappingLookup.getNestedParent(path);
+                String parent = mapperService.documentMapper().getNestedParent(path);
                 // We have to pull a new scorer for each document here, because we advance from
                 // the last parent which will be behind the doc
                 Scorer childScorer = getNestedChildWeight(ctx, path).scorer(ctx);

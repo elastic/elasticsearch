@@ -18,10 +18,16 @@
  */
 package org.elasticsearch.index.engine;
 
+import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -332,10 +338,21 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         IOUtils.close(engine, store);
         AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
         try (Store store = createStore()) {
-            final EngineConfig config =
-                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            final MergePolicy mergePolicy = new FilterMergePolicy(NoMergePolicy.INSTANCE) {
+                @Override
+                public boolean keepFullyDeletedSegment(IOSupplier<CodecReader> readerIOSupplier) {
+                    return true;
+                }
+            };
+            final EngineConfig config = config(defaultSettings, store, createTempDir(), mergePolicy, null, null, globalCheckpoint::get);
+            final SetOnce<IndexWriter> indexWriter = new SetOnce<>();
+            final IndexWriterFactory indexWriterFactory = (dir, iwc) -> {
+                final IndexWriter writer = new IndexWriter(dir, iwc);
+                indexWriter.set(writer);
+                return writer;
+            };
             String lastSearcherId;
-            try (InternalEngine engine = createEngine(config)) {
+            try (InternalEngine engine = createEngine(indexWriterFactory, null, null, config)) {
                 lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
                 assertNotNull(lastSearcherId);
                 int iterations = randomIntBetween(0, 10);
@@ -343,7 +360,14 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(lastSearcherId));
                     final List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100),
                         engine.getProcessedLocalCheckpoint() + 1L, false, randomBoolean(), randomBoolean());
+                    final long indexWriterSeqNo = indexWriter.get().getMaxCompletedSequenceNumber();
                     applyOperations(engine, operations);
+                    if (indexWriter.get().getMaxCompletedSequenceNumber() == indexWriterSeqNo) {
+                        assertFalse(
+                            "we don't add documents for no-ops or deletes of non existing documents iff soft-deletes is disabled",
+                            config.getIndexSettings().isSoftDeleteEnabled());
+                        continue;
+                    }
                     engine.flush(randomBoolean(), true);
                     final String newCommitId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
                     assertThat(newCommitId, not(equalTo(lastSearcherId)));

@@ -178,16 +178,11 @@ GET /_cat/transforms?v&format=json
 [
   {
     "id" : "ecommerce_transform",
-    "create_time" : "2020-03-20T20:31:25.077Z",
-    "version" : "7.7.0",
-    "source_index" : "kibana_sample_data_ecommerce",
-    "dest_index" : "kibana_sample_data_ecommerce_transform",
-    "pipeline" : null,
-    "description" : "Maximum priced ecommerce data by customer_id in Asia",
-    "transform_type" : "continuous",
-    "frequency" : "5m",
-    "max_page_search_size" : "500",
-    "state" : "STARTED"
+    "state" : "started",
+    "checkpoint" : "1",
+    "documents_processed" : "705",
+    "checkpoint_progress" : "100.00",
+    "changes_last_detection_time" : null
   }
 ]
 ----

@@ -17,18 +17,19 @@
  * under the License.
  */
 
-package org.elasticsearch.indices;
+package org.elasticsearch.action.admin.indices.create;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
-import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.indices.TestSystemIndexDescriptor;
+import org.elasticsearch.indices.TestSystemIndexPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
@@ -36,8 +37,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
@@ -47,7 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-public class SystemIndexManagerIT extends ESIntegTestCase {
+public class CreateSystemIndicesIT extends ESIntegTestCase {
 
     @Before
     public void beforeEach() {
@@ -60,57 +59,60 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
     }
 
     /**
-     * Check that if the the SystemIndexManager finds a managed index with out-of-date mappings, then
-     * the manager updates those mappings.
+     * Check that a system index is auto-created with the expected mappings and
+     * settings when it is first used, when it is referenced via its alias.
      */
-    public void testSystemIndexManagerUpgradesMappings() throws Exception {
+    public void testSystemIndexIsAutoCreatedViaAlias() {
+        doCreateTest(() -> indexDoc(INDEX_NAME, "1", "foo", "bar"));
+    }
+
+    /**
+     * Check that a system index is auto-created with the expected mappings and
+     * settings when it is first used, when it is referenced via its concrete
+     * index name.
+     */
+    public void testSystemIndexIsAutoCreatedViaConcreteName() {
+        doCreateTest(() -> indexDoc(PRIMARY_INDEX_NAME, "1", "foo", "bar"));
+    }
+
+    /**
+     * Check that a system index is created with the expected mappings and
+     * settings when it is explicitly created, when it is referenced via its alias.
+     */
+    public void testCreateSystemIndexViaAlias() {
+        doCreateTest(() -> assertAcked(prepareCreate(INDEX_NAME)));
+    }
+
+    /**
+     * Check that a system index is created with the expected mappings and
+     * settings when it is explicitly created, when it is referenced via its
+     * concrete index name.
+     */
+    public void testCreateSystemIndexViaConcreteName() {
+        doCreateTest(() -> assertAcked(prepareCreate(PRIMARY_INDEX_NAME)));
+    }
+
+    private void doCreateTest(Runnable runnable) {
         internalCluster().startNodes(1);
 
         // Trigger the creation of the system index
-        assertAcked(prepareCreate(INDEX_NAME));
+        runnable.run();
         ensureGreen(INDEX_NAME);
 
         assertMappingsAndSettings(TestSystemIndexDescriptor.getOldMappings());
 
-        // Poke the test descriptor so that the mappings are now "updated"
+        // Remove the index and alias...
+        assertAcked(client().admin().indices().prepareAliases().removeAlias(PRIMARY_INDEX_NAME, INDEX_NAME).get());
+        assertAcked(client().admin().indices().prepareDelete(PRIMARY_INDEX_NAME));
+
+        // ...so that we can check that the they will still be auto-created again,
+        // but this time with updated settings
         TestSystemIndexDescriptor.useNewMappings.set(true);
 
-        // Cause a cluster state update, so that the SystemIndexManager will update the mappings in our index
-        triggerClusterStateUpdates();
-
-        assertBusy(() -> assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings()));
-    }
-
-    /**
-     * Check that if the the SystemIndexManager finds a managed index with mappings that claim to be newer than
-     * what it expects, then those mappings are left alone.
-     */
-    public void testSystemIndexManagerLeavesNewerMappingsAlone() throws Exception {
-        TestSystemIndexDescriptor.useNewMappings.set(true);
-
-        internalCluster().startNodes(1);
-        // Trigger the creation of the system index
-        assertAcked(prepareCreate(INDEX_NAME));
+        runnable.run();
         ensureGreen(INDEX_NAME);
 
         assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings());
-
-        // Poke the test descriptor so that the mappings are now out-dated.
-        TestSystemIndexDescriptor.useNewMappings.set(false);
-
-        // Cause a cluster state update, so that the SystemIndexManager's listener will execute
-        triggerClusterStateUpdates();
-
-        // Mappings should be unchanged.
-        assertBusy(() -> assertMappingsAndSettings(TestSystemIndexDescriptor.getNewMappings()));
-    }
-
-    /**
-     * Performs a cluster state update in order to trigger any cluster state listeners - specifically, SystemIndexManager.
-     */
-    private void triggerClusterStateUpdates() {
-        final String name = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
-        client().admin().indices().putTemplate(new PutIndexTemplateRequest(name).patterns(List.of(name))).actionGet();
     }
 
     /**

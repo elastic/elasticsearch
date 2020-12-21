@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -16,23 +16,22 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.lucene.util.PriorityQueue;
+package org.elasticsearch.indices;
 
-import java.util.Comparator;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 
-public class BucketPriorityQueue<B> extends PriorityQueue<B> {
+import java.util.Collection;
+import java.util.List;
 
-    private final Comparator<? super B> comparator;
-
-    public BucketPriorityQueue(int size, Comparator<? super B> comparator) {
-        super(size);
-        this.comparator = comparator;
-    }
-
+/**
+ * Just a test plugin to allow the test descriptor to be installed in the cluster.
+ */
+public class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
     @Override
-    protected boolean lessThan(B a, B b) {
-        return comparator.compare(a, b) > 0; // reverse, since we reverse again when adding to a list
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return List.of(new TestSystemIndexDescriptor());
     }
 }

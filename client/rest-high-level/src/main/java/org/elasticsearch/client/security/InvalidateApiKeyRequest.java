@@ -41,13 +41,6 @@ public final class InvalidateApiKeyRequest implements Validatable, ToXContentObj
     private final String name;
     private final boolean ownedByAuthenticatedUser;
 
-    // pkg scope for testing
-    @Deprecated
-    InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String apiKeyId,
-                            @Nullable String apiKeyName, boolean ownedByAuthenticatedUser) {
-        this(realmName, userName, apiKeyName, ownedByAuthenticatedUser, apiKeyIdToIds(apiKeyId));
-    }
-
     InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName,
                             @Nullable String apiKeyName, boolean ownedByAuthenticatedUser, @Nullable List<String> apiKeyIds) {
         validateApiKeyIds(apiKeyIds);

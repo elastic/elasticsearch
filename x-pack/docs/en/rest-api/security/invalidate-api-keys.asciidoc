@@ -41,15 +41,15 @@ when any of `id`, `name`, `realm_name`, `username` are used
 
 `name`::
 (Optional, string) An API key name. This parameter cannot be used with any of
-`id`, `realm_name` or `username` are used.
+`id`, `ids`, `realm_name` or `username` are used.
 
 `realm_name`::
 (Optional, string) The name of an authentication realm. This parameter cannot be
-used with either `id` or `name` or when `owner` flag is set to `true`.
+used with either `id`, `ids` or `name` or when `owner` flag is set to `true`.
 
 `username`::
 (Optional, string) The username of a user. This parameter cannot be used with
-either `id` or `name` or when `owner` flag is set to `true`.
+either `id`, `ids` or `name` or when `owner` flag is set to `true`.
 
 `owner`::
 (Optional, Boolean) A boolean flag that can be used to query API keys owned

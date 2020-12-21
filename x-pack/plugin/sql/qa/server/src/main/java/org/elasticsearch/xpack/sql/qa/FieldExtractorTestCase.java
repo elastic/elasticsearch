@@ -383,6 +383,124 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     }
 
     /*
+     *    "geo_point_field": {
+     *       "type": "geo_point",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    public void testGeoPointField() throws IOException {
+        String query = "SELECT geo_point_field FROM test";
+        String geoPointField = "41.12,-71.34";
+        String geoPointFromDocValues = "POINT (-71.34000004269183 41.1199999647215)";
+        String actualValue = geoPointField;
+        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        boolean enableSource = randomBoolean();          // enable _source at index level
+        boolean ignoreMalformed = randomBoolean();
+
+        Map<String, Object> indexProps = new HashMap<>(1);
+        indexProps.put("_source", enableSource);
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        if (ignoreMalformed) {
+            fieldProps = new HashMap<>(1);
+            Map<String, Object> fieldProp = new HashMap<>(1);
+            // on purpose use a non-geo-point and check for null when querying the field's value
+            fieldProp.put("ignore_malformed", true);
+            fieldProps.put("geo_point_field", fieldProp);
+            actualValue = "foo";
+        }
+        createIndexWithFieldTypeAndProperties("geo_point", fieldProps, explicitSourceSetting ? indexProps : null);
+        index("{\"geo_point_field\":\"" + actualValue + "\"}");
+
+        // the values come from docvalues (vs from _source) so disabling the source doesn't have any impact on the values returned
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("columns", Arrays.asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+        expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : geoPointFromDocValues)));
+        assertResponse(expected, runSql(query));
+    }
+
+    /*
+     *    "geo_shape_field": {
+     *       "type": "point",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    public void testGeoShapeField() throws IOException {
+        String query = "SELECT geo_shape_field FROM test";
+        String actualValue = "[-77.03653, 38.897676]";
+        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        boolean enableSource = randomBoolean();          // enable _source at index level
+        boolean ignoreMalformed = randomBoolean();
+
+        Map<String, Object> indexProps = new HashMap<>(1);
+        indexProps.put("_source", enableSource);
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        if (ignoreMalformed) {
+            fieldProps = new HashMap<>(1);
+            Map<String, Object> fieldProp = new HashMap<>(1);
+            // on purpose use a non-geo-shape and check for null when querying the field's value
+            fieldProp.put("ignore_malformed", true);
+            fieldProps.put("geo_shape_field", fieldProp);
+            actualValue = "\"foo\"";
+        }
+        createIndexWithFieldTypeAndProperties("geo_shape", fieldProps, explicitSourceSetting ? indexProps : null);
+        index("{\"geo_shape_field\":{\"type\":\"point\",\"coordinates\":" + actualValue + "}}");
+
+        if (explicitSourceSetting == false || enableSource) {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put(
+                "columns",
+                Arrays.asList(columnInfo("plain", "geo_shape_field", "geo_shape", JDBCType.VARCHAR, Integer.MAX_VALUE))
+            );
+            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-77.03653 38.897676)")));
+            assertResponse(expected, runSql(query));
+        } else {
+            expectSourceDisabledError(query);
+        }
+    }
+
+    /*
+     *    "shape_field": {
+     *       "type": "shape",
+     *       "ignore_malformed": true/false
+     *    }
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66678")
+    public void testShapeField() throws IOException {
+        String query = "SELECT shape_field FROM test";
+        String shapeField = "POINT (-377.03653 389.897676)";
+        String actualValue = shapeField;
+        boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
+        boolean enableSource = randomBoolean();          // enable _source at index level
+        boolean ignoreMalformed = randomBoolean();
+
+        Map<String, Object> indexProps = new HashMap<>(1);
+        indexProps.put("_source", enableSource);
+
+        Map<String, Map<String, Object>> fieldProps = null;
+        if (ignoreMalformed) {
+            fieldProps = new HashMap<>(1);
+            Map<String, Object> fieldProp = new HashMap<>(1);
+            // on purpose use a non-geo-point and check for null when querying the field's value
+            fieldProp.put("ignore_malformed", true);
+            fieldProps.put("shape_field", fieldProp);
+            actualValue = "foo";
+        }
+        createIndexWithFieldTypeAndProperties("shape", fieldProps, explicitSourceSetting ? indexProps : null);
+        index("{\"shape_field\":\"" + actualValue + "\"}");
+
+        if (explicitSourceSetting == false || enableSource) {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("columns", Arrays.asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-377.03653 389.897676)")));
+            assertResponse(expected, runSql(query));
+        } else {
+            expectSourceDisabledError(query);
+        }
+    }
+
+    /*
      *    "keyword_field": {
      *       "type": "keyword"
      *    },
@@ -1096,6 +1214,8 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
                 return JDBCType.FLOAT;
             case "scaled_float":
                 return JDBCType.DOUBLE;
+            case "ip":
+                return JDBCType.VARCHAR;
             default:
                 throw new AssertionError("Illegal value [" + esType + "] for data type");
         }

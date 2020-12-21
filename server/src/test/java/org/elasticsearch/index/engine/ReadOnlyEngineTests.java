@@ -303,31 +303,31 @@ public class ReadOnlyEngineTests extends EngineTestCase {
         try (Store store = createStore()) {
             final EngineConfig config =
                 config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
-            String lastCommitId;
+            String lastSearcherId;
             try (InternalEngine engine = createEngine(config)) {
-                lastCommitId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
-                assertNotNull(lastCommitId);
+                lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
+                assertNotNull(lastSearcherId);
                 int iterations = randomIntBetween(0, 10);
                 for (int i = 0; i < iterations; i++) {
-                    assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(lastCommitId));
+                    assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(lastSearcherId));
                     final List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100),
                         engine.getProcessedLocalCheckpoint() + 1L, false, randomBoolean(), randomBoolean());
                     applyOperations(engine, operations);
                     engine.flush(randomBoolean(), true);
                     final String newCommitId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
-                    assertThat(newCommitId, not(equalTo(lastCommitId)));
+                    assertThat(newCommitId, not(equalTo(lastSearcherId)));
                     if (randomBoolean()) {
                         engine.flush(true, true);
                         assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(newCommitId));
                     }
-                    lastCommitId = newCommitId;
+                    lastSearcherId = newCommitId;
                 }
                 globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
             }
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
                 try (Engine.SearcherSupplier searcher =
                          readOnlyEngine.acquireSearcherSupplier(Function.identity(), randomFrom(Engine.SearcherScope.values()))) {
-                    assertThat(searcher.getSearcherId(), equalTo(lastCommitId));
+                    assertThat(searcher.getSearcherId(), equalTo(lastSearcherId));
                 }
             }
         }

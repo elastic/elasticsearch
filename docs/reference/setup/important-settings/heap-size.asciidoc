@@ -10,6 +10,6 @@ production environments. If needed, you can override default sizing by manually
 NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
 a custom JRE location, a Java 14 or later JRE.
 
-NOTE: When running in a container, such as <<docker>>, total memory is defined as
-the amount of memory visible to the container, not the total system memory on
-the host.
+NOTE: When running in a container, such as <<docker,Docker>>, total memory is
+defined as the amount of memory visible to the container, not the total system
+memory on the host.

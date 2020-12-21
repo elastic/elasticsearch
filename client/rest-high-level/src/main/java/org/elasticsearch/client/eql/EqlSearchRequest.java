@@ -39,7 +39,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
-    private String resultPosition = "head";
+    private String resultPosition = "tail";
 
     private int size = 10;
     private int fetchSize = 1000;

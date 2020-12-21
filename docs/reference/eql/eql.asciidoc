@@ -59,7 +59,7 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-By default, basic EQL queries return the top 10 matching events in the
+By default, basic EQL queries return the 10 most recent matching events in the
 `hits.events` property. These hits are sorted by timestamp, converted to
 milliseconds since the {wikipedia}/Unix_time[Unix epoch], in ascending order.
 
@@ -155,7 +155,8 @@ GET /my-index-000001/_eql/search
 ----
 // TEST[setup:sec_logs]
 
-Matching sequences are returned in the `hits.sequences` property.
+The response's `hits.sequences` property contains the 10 most recent matching
+sequences.
 
 [source,console-result]
 ----

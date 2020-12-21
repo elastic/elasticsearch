@@ -181,7 +181,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             MappingLookup lookup = MappingLookupUtils.fromTypes(fieldType);
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
-            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+            QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null, emptyMap());
 
@@ -217,7 +217,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
             indexSettings);
 
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+        QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
             null, mock(MapperService.class), MappingLookup.EMPTY, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
             System::currentTimeMillis, null, null, () -> true, null, emptyMap());
         if (randomBoolean()) {

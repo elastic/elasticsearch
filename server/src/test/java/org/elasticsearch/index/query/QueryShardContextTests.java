@@ -200,6 +200,7 @@ public class QueryShardContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         QueryShardContext context = new QueryShardContext(
             0,
+            0,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
@@ -378,6 +379,7 @@ public class QueryShardContextTests extends ESTestCase {
         MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldTypes.stream());
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
+            0,
             0,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,

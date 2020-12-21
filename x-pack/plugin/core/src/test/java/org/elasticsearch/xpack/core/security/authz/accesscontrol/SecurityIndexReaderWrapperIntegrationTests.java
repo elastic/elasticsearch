@@ -81,7 +81,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
@@ -210,7 +210,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);

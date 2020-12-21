@@ -561,7 +561,7 @@ sub-request proportionally.
 portion of the documents. All documents will be addressed, but some slices may
 be larger than others. Expect larger slices to have a more even distribution.
 * Parameters like `requests_per_second` and `max_docs` on a request with
-slices` are distributed proportionally to each sub-request. Combine that with
+`slices` are distributed proportionally to each sub-request. Combine that with
 the point above about distribution being uneven and you should conclude that
 using `max_docs` with `slices` might not result in exactly `max_docs` documents
 being deleted.

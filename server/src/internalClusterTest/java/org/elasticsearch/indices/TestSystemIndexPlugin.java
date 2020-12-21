@@ -17,28 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.util.ports;
+package org.elasticsearch.indices;
 
-public interface PortAllocator {
-    /**
-     * Assign and reserve a port
-     *
-     * @return the port assigned
-     */
-    int assignPort();
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 
-    /**
-     * Release a previously assigned port
-     *
-     * @param port the port to deallocate
-     */
-    void releasePort(int port);
+import java.util.Collection;
+import java.util.List;
 
-    /**
-     * Assign a range of ports
-     *
-     * @return a new range of Ports
-     * */
-    ReservedPortRange reservePortRange();
-
+/**
+ * Just a test plugin to allow the test descriptor to be installed in the cluster.
+ */
+public class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return List.of(new TestSystemIndexDescriptor());
+    }
 }

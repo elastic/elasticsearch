@@ -43,7 +43,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
                 new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
         MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldNamesFieldType, fieldType);
 
-        QueryShardContext queryShardContext = new QueryShardContext(0,
+        QueryShardContext queryShardContext = new QueryShardContext(0, 0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, mappingLookup,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
                 Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);

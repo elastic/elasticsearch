@@ -739,6 +739,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         return new QueryShardContext(
             0,
+            0,
             indexSettings,
             null,
             null,

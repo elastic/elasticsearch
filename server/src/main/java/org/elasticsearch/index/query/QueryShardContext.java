@@ -97,6 +97,7 @@ public class QueryShardContext extends QueryRewriteContext {
     private final BitsetFilterCache bitsetFilterCache;
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
     private final int shardId;
+    private final int shardRequestIndex;
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
@@ -117,6 +118,7 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public QueryShardContext(
         int shardId,
+        int shardRequestIndex,
         IndexSettings indexSettings,
         BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
@@ -138,6 +140,7 @@ public class QueryShardContext extends QueryRewriteContext {
     ) {
         this(
             shardId,
+            shardRequestIndex,
             indexSettings,
             bigArrays,
             bitsetFilterCache,
@@ -163,13 +166,31 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public QueryShardContext(QueryShardContext source) {
-        this(source.shardId, source.indexSettings, source.bigArrays, source.bitsetFilterCache, source.indexFieldDataService,
-            source.mapperService, source.mappingLookup, source.similarityService, source.scriptService, source.getXContentRegistry(),
-            source.getWriteableRegistry(), source.client, source.searcher, source.nowInMillis, source.indexNameMatcher,
-            source.fullyQualifiedIndex, source.allowExpensiveQueries, source.valuesSourceRegistry, source.runtimeMappings);
+        this(
+            source.shardId,
+            source.shardRequestIndex,
+            source.indexSettings,
+            source.bigArrays,
+            source.bitsetFilterCache,
+            source.indexFieldDataService,
+            source.mapperService,
+            source.mappingLookup,
+            source.similarityService,
+            source.scriptService,
+            source.getXContentRegistry(),
+            source.getWriteableRegistry(),
+            source.client, source.searcher,
+            source.nowInMillis,
+            source.indexNameMatcher,
+            source.fullyQualifiedIndex,
+            source.allowExpensiveQueries,
+            source.valuesSourceRegistry,
+            source.runtimeMappings
+        );
     }
 
     private QueryShardContext(int shardId,
+                              int shardRequestIndex,
                               IndexSettings indexSettings,
                               BigArrays bigArrays,
                               BitsetFilterCache bitsetFilterCache,
@@ -190,6 +211,7 @@ public class QueryShardContext extends QueryRewriteContext {
                               Map<String, MappedFieldType> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
+        this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
@@ -528,6 +550,14 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public int getShardId() {
         return shardId;
+    }
+
+    /**
+     * Returns the shard request ordinal that is used by the main search request
+     * to reference this shard.
+     */
+    public int getShardRequestIndex() {
+        return shardRequestIndex;
     }
 
     @Override

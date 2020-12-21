@@ -260,6 +260,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         });
         QueryShardContext queryShardContext = new QueryShardContext(
             0,
+            -1,
             indexSettings,
             bigArrays,
             bitsetFilterCache,

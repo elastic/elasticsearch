@@ -34,6 +34,7 @@ import java.util.Map;
 
 public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier;
     private final double compression;
 
     MedianAbsoluteDeviationAggregatorFactory(String name,
@@ -42,9 +43,11 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
                                              AggregatorFactory parent,
                                              AggregatorFactories.Builder subFactoriesBuilder,
                                              Map<String, Object> metadata,
-                                             double compression) throws IOException {
+                                             double compression,
+                                             MedianAbsoluteDeviationAggregatorSupplier aggregatorSupplier) throws IOException {
 
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.compression = compression;
     }
 
@@ -75,8 +78,7 @@ public class MedianAbsoluteDeviationAggregatorFactory extends ValuesSourceAggreg
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(MedianAbsoluteDeviationAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(name, config.getValuesSource(), config.format(), context, parent, metadata, compression);
     }
 }

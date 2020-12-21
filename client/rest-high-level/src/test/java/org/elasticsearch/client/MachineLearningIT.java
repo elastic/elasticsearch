@@ -232,6 +232,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+
     @After
     public void cleanUp() throws IOException {
         new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
@@ -435,7 +439,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
-        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        machineLearningClient.postData(postDataRequest, POST_DATA_OPTIONS);
         machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
 
         ForecastJobRequest request = new ForecastJobRequest(jobId);
@@ -461,7 +466,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
 
-        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
+        // Post data is deprecated, so expect a deprecation warning
+        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync,
+            POST_DATA_OPTIONS);
         assertEquals(10, response.getDataCounts().getInputRecordCount());
         assertEquals(0, response.getDataCounts().getOutOfOrderTimeStampCount());
     }
@@ -1038,7 +1045,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
-        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        machineLearningClient.postData(postDataRequest, POST_DATA_OPTIONS);
         machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
         ForecastJobResponse forecastJobResponse1 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
         ForecastJobResponse forecastJobResponse2 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
@@ -2730,10 +2738,6 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
     }
 
     public void createModelSnapshot(String jobId, String snapshotId) throws IOException {
-        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
-    }
-
-    public void createModelSnapshot(String jobId, String snapshotId, Version minVersion) throws IOException {
         String documentId = jobId + "_model_snapshot_" + snapshotId;
         Job job = MachineLearningIT.buildJob(jobId);
         highLevelClient().machineLearning().putJob(new PutJobRequest(job), RequestOptions.DEFAULT);
@@ -2747,7 +2751,7 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             "\"total_by_field_count\":3, \"total_over_field_count\":0, \"total_partition_field_count\":2," +
             "\"bucket_allocation_failures_count\":0, \"memory_status\":\"ok\", \"log_time\":1541587919000, " +
             "\"timestamp\":1519930800000}, \"latest_record_time_stamp\":1519931700000," +
-            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, \"min_version\":\"" + minVersion.toString() + "\"}",
+            "\"latest_result_time_stamp\":1519930800000, \"retain\":false, \"min_version\":\"" + Version.CURRENT.toString() + "\"}",
             XContentType.JSON);
 
         highLevelClient().index(indexRequest, RequestOptions.DEFAULT);
@@ -2828,12 +2832,11 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             getModelSnapshotsResponse2.snapshots().get(0).getDescription());
     }
 
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/65699")
     public void testUpgradeJobSnapshot() throws Exception {
         String jobId = "test-upgrade-model-snapshot";
         String snapshotId = "1541587919";
 
-        createModelSnapshot(jobId, snapshotId, Version.CURRENT);
+        createModelSnapshot(jobId, snapshotId);
         MachineLearningClient machineLearningClient = highLevelClient().machineLearning();
         UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,

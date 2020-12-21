@@ -51,11 +51,11 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
@@ -235,7 +235,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals(Double.NaN, avg.getValue(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(avg));
-        }, (MappedFieldType) null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -246,7 +246,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         }, avg -> {
             assertEquals(0.0, avg.getValue(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(avg));
-        }, (MappedFieldType) null);
+        });
     }
 
     private void verifyAvgOfDoubles(double[] values, double expected, double delta) throws IOException {
@@ -570,8 +570,9 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalAvg> verify,
-        MappedFieldType fieldType)  throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     /**
@@ -599,7 +600,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         AvgAggregationBuilder aggregationBuilder = new AvgAggregationBuilder("avg")
             .field("value");
 
-        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
+        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -611,7 +612,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
         // Test that an aggregation not using a script does get cached
-        assertTrue(context.getQueryShardContext().isCacheable());
+        assertTrue(context.isCacheable());
 
         multiReader.close();
         directory.close();
@@ -645,7 +646,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, VALUE_SCRIPT, Collections.emptyMap()));
 
-        SearchContext context = createSearchContext(indexSearcher, null, fieldType);
+        AggregationContext context = createAggregationContext(indexSearcher, null, fieldType);
         AvgAggregator aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -657,13 +658,13 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
         // Test that an aggregation using a deterministic script gets cached
-        assertTrue(context.getQueryShardContext().isCacheable());
+        assertTrue(context.isCacheable());
 
         aggregationBuilder = new AvgAggregationBuilder("avg")
             .field("value")
             .script(new Script(ScriptType.INLINE, MockScriptEngine.NAME, RANDOM_SCRIPT, Collections.emptyMap()));
 
-        context = createSearchContext(indexSearcher, null, fieldType);
+        context = createAggregationContext(indexSearcher, null, fieldType);
         aggregator = createAggregator(aggregationBuilder, context);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
@@ -676,7 +677,7 @@ public class AvgAggregatorTests extends AggregatorTestCase {
         assertTrue(AggregationInspectionHelper.hasValue(avg));
 
         // Test that an aggregation using a nondeterministic script does not get cached
-        assertFalse(context.getQueryShardContext().isCacheable());
+        assertFalse(context.isCacheable());
 
         multiReader.close();
         directory.close();

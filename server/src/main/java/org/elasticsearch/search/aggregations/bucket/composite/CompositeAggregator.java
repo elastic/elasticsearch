@@ -430,7 +430,7 @@ final class CompositeAggregator extends BucketsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 try {
-                    long docCount = docCountProvider.getDocCount(doc);
+                    int docCount = docCountProvider.getDocCount(doc);
                     if (queue.addIfCompetitive(indexSortPrefix, docCount)) {
                         if (builder != null && lastDoc != doc) {
                             builder.add(doc);

@@ -146,6 +146,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         };
     }
 
+    private final SignificantTermsAggregatorSupplier aggregatorSupplier;
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private final QueryBuilder backgroundFilter;
@@ -162,7 +163,8 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       AggregationContext context,
                                       AggregatorFactory parent,
                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                      Map<String, Object> metadata) throws IOException {
+                                      Map<String, Object> metadata,
+                                      SignificantTermsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         if (config.hasValues()) {
@@ -172,6 +174,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
         }
 
+        this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.backgroundFilter = backgroundFilter;
@@ -197,9 +200,6 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        SignificantTermsAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry()
-            .getAggregator(SignificantTermsAggregationBuilder.REGISTRY_KEY, config);
-
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection .

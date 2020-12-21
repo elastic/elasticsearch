@@ -81,6 +81,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * special field name to sort by index order
      */
     public static final String DOC_FIELD_NAME = "_doc";
+
+    /**
+     * special field name to sort by index order
+     */
+    public static final String SHARD_DOC_FIELD_NAME = ShardDocSortField.NAME;
+
     private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(
             new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
     private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(
@@ -321,8 +327,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+        final boolean reverse = order == SortOrder.DESC;
+
         if (DOC_FIELD_NAME.equals(fieldName)) {
-            return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
+            return reverse ? SORT_DOC_REVERSE : SORT_DOC;
+        } else if (SHARD_DOC_FIELD_NAME.equals(fieldName)) {
+            return new SortFieldAndFormat(new ShardDocSortField(context.getShardRequestIndex(), reverse), DocValueFormat.RAW);
         }
 
         MappedFieldType fieldType = context.getFieldType(fieldName);
@@ -331,7 +341,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             fieldType = resolveUnmappedType(context);
         }
 
-        boolean reverse = order == SortOrder.DESC;
         IndexFieldData<?> fieldData = context.getForField(fieldType);
         if (fieldData instanceof IndexNumericFieldData == false
                 && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {

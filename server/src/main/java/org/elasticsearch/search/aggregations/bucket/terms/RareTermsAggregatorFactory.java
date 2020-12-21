@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 
 public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
+
+    private final RareTermsAggregatorSupplier aggregatorSupplier;
     private final IncludeExclude includeExclude;
     private final int maxDocCount;
     private final double precision;
@@ -152,8 +154,11 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
                                       IncludeExclude includeExclude,
                                       AggregationContext context,
                                       AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                      Map<String, Object> metadata, int maxDocCount, double precision) throws IOException {
+                                      Map<String, Object> metadata, int maxDocCount, double precision,
+                                      RareTermsAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
         this.maxDocCount = maxDocCount;
         this.precision = precision;
@@ -176,8 +181,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(RareTermsAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,

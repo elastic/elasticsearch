@@ -375,6 +375,10 @@
       "results_retention_days" : {
         "type" : "long"
       },
+      "runtime_mappings" : {
+        "type" : "object",
+        "enabled" : false
+      },
       "script_fields" : {
         "type" : "object",
         "enabled" : false

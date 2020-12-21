@@ -8,6 +8,7 @@ setup:
             number_of_shards: 1
             number_of_replicas: 0
           mappings:
+            dynamic: false
             runtime:
               host.ip:
                 type: ip
@@ -20,9 +21,6 @@ setup:
                 type: double
               node:
                 type: keyword
-              host:
-                type: object
-                enabled: false
 
   - do:
       bulk:

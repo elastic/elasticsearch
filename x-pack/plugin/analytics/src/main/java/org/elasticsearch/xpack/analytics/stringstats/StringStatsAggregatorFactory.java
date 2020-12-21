@@ -21,14 +21,19 @@ import java.util.Map;
 
 class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final StringStatsAggregatorSupplier aggregatorSupplier;
     private final boolean showDistribution;
 
     StringStatsAggregatorFactory(String name, ValuesSourceConfig config,
                                  Boolean showDistribution,
                                  AggregationContext context,
-                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata)
+                                 AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
+                                 Map<String, Object> metadata,
+                                 StringStatsAggregatorSupplier aggregatorSupplier)
                                     throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.showDistribution = showDistribution;
     }
 
@@ -44,10 +49,10 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
-        throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(StringStatsAggregationBuilder.REGISTRY_KEY, config)
+    protected Aggregator doCreateInternal(Aggregator parent,
+                                          CardinalityUpperBound cardinality,
+                                          Map<String, Object> metadata) throws IOException {
+        return aggregatorSupplier
             .build(name, config.getValuesSource(), showDistribution, config.format(), context, parent, metadata);
     }
 

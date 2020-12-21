@@ -32,7 +32,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -82,10 +81,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     }
 
     protected SearchContext createSearchContext(IndexService indexService, String... groupStats) {
-        BigArrays bigArrays = indexService.getBigArrays();
         final ShardSearchRequest request =
             new ShardSearchRequest(new ShardId(indexService.index(), 0), 0L, null);
-        return new TestSearchContext(bigArrays, indexService) {
+        return new TestSearchContext(indexService) {
             @Override
             public List<String> groupStats() {
                 return Arrays.asList(groupStats);

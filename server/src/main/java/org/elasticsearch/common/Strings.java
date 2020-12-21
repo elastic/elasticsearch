@@ -874,6 +874,21 @@ public class Strings {
         return s.substring(0, length);
     }
 
+    /**
+     * Checks that the supplied string is neither null nor empty, per {@link #isNullOrEmpty(String)}.
+     * If this check fails, then an {@link IllegalArgumentException} is thrown with the supplied message.
+     *
+     * @param str the <code>String</code> to check
+     * @param message the exception message to use if {@code str} is null or empty
+     * @return the supplied {@code str}
+     */
+    public static String requireNonEmpty(String str, String message) {
+        if (isNullOrEmpty(str)) {
+            throw new IllegalArgumentException(message);
+        }
+        return str;
+    }
+
     public static boolean isNullOrEmpty(@Nullable String s) {
         return s == null || s.isEmpty();
     }

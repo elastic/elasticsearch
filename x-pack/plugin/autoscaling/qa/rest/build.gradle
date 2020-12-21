@@ -15,11 +15,8 @@ restResources {
 
 testClusters.all {
   testDistribution = 'DEFAULT'
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-  }
-  setting 'xpack.autoscaling.enabled', 'true'
   setting 'xpack.security.enabled', 'true'
+  setting 'xpack.license.self_generated.type', 'trial'
   extraConfigFile 'roles.yml', file('autoscaling-roles.yml')
   user username: 'autoscaling-admin', password: 'autoscaling-admin-password', role: 'superuser'
   user username: 'autoscaling-user', password: 'autoscaling-user-password', role: 'autoscaling'

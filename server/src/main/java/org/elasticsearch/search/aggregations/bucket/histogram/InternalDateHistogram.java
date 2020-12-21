@@ -367,7 +367,7 @@ public final class InternalDateHistogram extends InternalMultiBucketAggregation<
         LongBounds bounds = emptyBucketInfo.bounds;
         ListIterator<Bucket> iter = list.listIterator();
 
-        // first adding all the empty buckets *before* the actual data (based on th extended_bounds.min the user requested)
+        // first adding all the empty buckets *before* the actual data (based on the extended_bounds.min the user requested)
         InternalAggregations reducedEmptySubAggs = InternalAggregations.reduce(Collections.singletonList(emptyBucketInfo.subAggregations),
                 reduceContext);
         if (bounds != null) {

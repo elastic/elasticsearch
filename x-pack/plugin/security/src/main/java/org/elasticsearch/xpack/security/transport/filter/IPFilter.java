@@ -49,10 +49,10 @@ public class IPFilter {
             Setting.boolSetting(setting("filter.always_allow_bound_address"), true, Property.NodeScope);
 
     public static final Setting<Boolean> IP_FILTER_ENABLED_HTTP_SETTING = Setting.boolSetting(setting("http.filter.enabled"),
-            true, Property.Dynamic, Property.NodeScope);
+            true, Property.DynamicOperator, Property.NodeScope);
 
     public static final Setting<Boolean> IP_FILTER_ENABLED_SETTING = Setting.boolSetting(setting("transport.filter.enabled"),
-            true, Property.Dynamic, Property.NodeScope);
+            true, Property.DynamicOperator, Property.NodeScope);
 
     public static final Setting<List<String>> TRANSPORT_FILTER_ALLOW_SETTING = Setting.listSetting(setting("transport.filter.allow"),
             Collections.emptyList(), Function.identity(), Property.Dynamic, Property.NodeScope);

@@ -481,7 +481,8 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         final OperatorPrivilegesService operatorPrivilegesService;
         if (OPERATOR_PRIVILEGES_ENABLED.get(settings)) {
             operatorPrivilegesService = new OperatorPrivileges.DefaultOperatorPrivilegesService(getLicenseState(),
-                new FileOperatorUsersStore(environment, resourceWatcherService), new OperatorOnlyRegistry());
+                new FileOperatorUsersStore(environment, resourceWatcherService),
+                new OperatorOnlyRegistry(clusterService.getClusterSettings()));
         } else {
             operatorPrivilegesService = OperatorPrivileges.NOOP_OPERATOR_PRIVILEGES_SERVICE;
         }

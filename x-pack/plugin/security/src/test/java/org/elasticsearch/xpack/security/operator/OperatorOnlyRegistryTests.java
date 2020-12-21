@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.security.operator;
 
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -17,7 +19,9 @@ public class OperatorOnlyRegistryTests extends ESTestCase {
 
     @Before
     public void init() {
-        operatorOnlyRegistry = new OperatorOnlyRegistry();
+        operatorOnlyRegistry = new OperatorOnlyRegistry(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
     }
 
     public void testSimpleOperatorOnlyApi() {

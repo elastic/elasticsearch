@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -32,7 +33,7 @@ import java.util.stream.Stream;
 /**
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
-public final class FieldTypeLookup {
+final class FieldTypeLookup {
     private final Map<String, MappedFieldType> fullNameToFieldType = new HashMap<>();
 
     /**
@@ -93,7 +94,7 @@ public final class FieldTypeLookup {
     /**
      * Returns the mapped field type for the given field name.
      */
-    public MappedFieldType get(String field) {
+    MappedFieldType get(String field) {
         if (field.equals(TypeFieldType.NAME)) {
             return new TypeFieldType(type);
         }
@@ -112,6 +113,10 @@ public final class FieldTypeLookup {
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     Set<String> simpleMatchToFullName(String pattern) {
+        if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcards
+            return Collections.singleton(pattern);
+        }
         Set<String> fields = new HashSet<>();
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
@@ -133,8 +138,8 @@ public final class FieldTypeLookup {
      *              should be a concrete field and *not* an alias.
      * @return A set of paths in the _source that contain the field's values.
      */
-    public Set<String> sourcePaths(String field) {
-        if (isEmpty()) {
+    Set<String> sourcePaths(String field) {
+        if (fullNameToFieldType.isEmpty()) {
             return Set.of();
         }
         String resolvedField = field;
@@ -160,9 +165,5 @@ public final class FieldTypeLookup {
     Iterable<MappedFieldType> filter(Predicate<MappedFieldType> predicate) {
         return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes())
             .distinct().filter(predicate).iterator();
-    }
-
-    public boolean isEmpty() {
-        return fullNameToFieldType.isEmpty();
     }
 }

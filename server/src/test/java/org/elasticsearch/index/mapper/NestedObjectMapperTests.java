@@ -617,7 +617,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        assertFalse(mapperService.lookup().hasNonNestedParent("comments.messages"));
+        assertFalse(mapperService.mappingLookup().hasNonNestedParent("comments.messages"));
 
         mapperService = createMapperService(mapping(b -> {
             b.startObject("comments");
@@ -631,7 +631,7 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        assertTrue(mapperService.lookup().hasNonNestedParent("comments.messages"));
+        assertTrue(mapperService.mappingLookup().hasNonNestedParent("comments.messages"));
     }
 
     public void testLimitNestedDocsDefaultSettings() throws Exception {

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
@@ -33,11 +32,15 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
+/**
+ * A (mostly) immutable snapshot current mapping of an index with access
+ * to everything we need for the search phase.
+ */
 public class MappingLookup {
     /**
      * Key for the lookup to be used in caches.
      */
-    public class CacheKey {
+    public static class CacheKey {
         private CacheKey() {}
     }
 
@@ -169,7 +172,7 @@ public class MappingLookup {
         return fieldMappers.get(field);
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
 
@@ -276,19 +279,38 @@ public class MappingLookup {
     }
 
     public Set<String> simpleMatchToFullName(String pattern) {
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
         return fieldTypes().simpleMatchToFullName(pattern);
+    }
+
+    /**
+     * Returns the mapped field type for the given field name.
+     */
+    public MappedFieldType getFieldType(String field) {
+        return fieldTypes().get(field);
+    }
+
+    /**
+     * Given a concrete field name, return its paths in the _source.
+     *
+     * For most fields, the source path is the same as the field itself. However
+     * there are cases where a field's values are found elsewhere in the _source:
+     *   - For a multi-field, the source path is the parent field.
+     *   - One field's content could have been copied to another through copy_to.
+     *
+     * @param field The field for which to look up the _source path. Note that the field
+     *              should be a concrete field and *not* an alias.
+     * @return A set of paths in the _source that contain the field's values.
+     */
+    public Set<String> sourcePaths(String field) {
+        return fieldTypes().sourcePaths(field);
     }
 
     public ParsedDocument parseDocument(SourceToParse source) {
         return documentParser.apply(source);
     }
 
-    public boolean isEmpty() {
-        return objectMappers.isEmpty() && fieldTypeLookup.isEmpty();
+    public boolean hasMappings() {
+        return this != EMPTY;
     }
 
     public boolean isSourceEnabled() {
@@ -296,9 +318,9 @@ public class MappingLookup {
     }
 
     /**
-     * Returns all nested object mappers which contain further nested object mappers
+     * Returns all nested object mappers which contain further nested object mappers.
      *
-     * Used by BitSetProducerWarmer
+     * Used by {@link BitSetProducerWarmer}.
      */
     public List<ObjectMapper> getNestedParentMappers() {
         List<ObjectMapper> parents = new ArrayList<>();

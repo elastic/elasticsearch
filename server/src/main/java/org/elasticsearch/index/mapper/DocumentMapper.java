@@ -103,7 +103,7 @@ public class DocumentMapper implements ToXContentFragment {
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
-    protected DocumentMapper(IndexSettings indexSettings,
+    private DocumentMapper(IndexSettings indexSettings,
                            IndexAnalyzers indexAnalyzers,
                            DocumentParser documentParser,
                            Mapping mapping) {
@@ -119,7 +119,6 @@ public class DocumentMapper implements ToXContentFragment {
         } catch (Exception e) {
             throw new ElasticsearchGenerationException("failed to serialize source for type [" + type + "]", e);
         }
-        // TODO this::parse performs a volatile read on mapping from MapperService. Yikes!
         this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
 
         final Collection<String> deleteTombstoneMetadataFields = Arrays.asList(VersionFieldMapper.NAME, IdFieldMapper.NAME,

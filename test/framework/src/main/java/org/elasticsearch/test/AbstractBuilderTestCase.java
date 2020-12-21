@@ -419,7 +419,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 bitsetFilterCache,
                 indexFieldDataService::getForField,
                 mapperService,
-                mapperService.lookup(),
+                mapperService.mappingLookup(),
                 similarityService,
                 scriptService,
                 xContentRegistry,

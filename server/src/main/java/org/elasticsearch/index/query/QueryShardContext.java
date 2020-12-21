@@ -294,7 +294,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public boolean hasMappings() {
-        return false == mappingLookup.isEmpty();
+        return mappingLookup.hasMappings();
     }
 
     /**
@@ -340,7 +340,7 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private MappedFieldType fieldType(String name) {
         MappedFieldType fieldType = runtimeMappings.get(name);
-        return fieldType == null ? mappingLookup.fieldTypes().get(name) : fieldType;
+        return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
 
     public ObjectMapper getObjectMapper(String name) {
@@ -352,7 +352,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public Set<String> sourcePath(String fullName) {
-        return mappingLookup.fieldTypes().sourcePaths(fullName);
+        return mappingLookup.sourcePaths(fullName);
     }
 
     public boolean isSourceEnabled() {

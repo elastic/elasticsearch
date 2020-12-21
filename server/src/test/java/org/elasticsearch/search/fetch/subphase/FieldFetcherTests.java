@@ -745,7 +745,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             mapperService,
-            mapperService.lookup(),
+            mapperService.mappingLookup(),
             null,
             null,
             null,

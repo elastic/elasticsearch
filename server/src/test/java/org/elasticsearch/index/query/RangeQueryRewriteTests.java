@@ -49,7 +49,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             null,
             indexService.mapperService(),
-            indexService.mapperService().lookup(),
+            indexService.mapperService().mappingLookup(),
             null,
             null,
             xContentRegistry(),
@@ -79,7 +79,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         QueryRewriteContext context = new QueryShardContext(0, 0, indexService.getIndexSettings(), null, null, null,
-            indexService.mapperService(), indexService.mapperService().lookup(), null, null, xContentRegistry(), writableRegistry(),
+            indexService.mapperService(), indexService.mapperService().mappingLookup(), null, null, xContentRegistry(), writableRegistry(),
                 null, null, null, null, null, () -> true, null, emptyMap());
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
         // can't make assumptions on a missing reader, so it must return INTERSECT
@@ -106,7 +106,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             null,
             null,
             indexService.mapperService(),
-            indexService.mapperService().lookup(),
+            indexService.mapperService().mappingLookup(),
             null,
             null,
             xContentRegistry(),

@@ -131,7 +131,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return lookup().hasNested();
+        return mappingLookup().hasNested();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -398,7 +398,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        return lookup().fieldTypes().get(fullName);
+        return mappingLookup().fieldTypes().get(fullName);
     }
 
     /**
@@ -406,13 +406,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToFullName(String pattern) {
-        return lookup().simpleMatchToFullName(pattern);
+        return mappingLookup().simpleMatchToFullName(pattern);
     }
 
     /**
      * {@code volatile} read a (mostly) immutable snapshot current mapping.
      */
-    public MappingLookup lookup() {
+    public MappingLookup mappingLookup() {
         DocumentMapper mapper = this.mapper;
         return mapper == null ? MappingLookup.EMPTY : mapper.mappers();
     }
@@ -436,7 +436,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *                                  directly associated index-time analyzer
      */
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-        return lookup().indexAnalyzer(field, unindexedFieldAnalyzer);
+        return mappingLookup().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     @Override

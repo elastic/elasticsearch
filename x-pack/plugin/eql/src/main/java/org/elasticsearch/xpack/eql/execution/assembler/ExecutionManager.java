@@ -78,8 +78,7 @@ public class ExecutionManager {
                     // no nested fields
                     if (hitExtractor.hitName() == null) {
                         keyFields.add(hitExtractor.fieldName());
-                    }
-                    else {
+                    } else {
                         keyFields = emptyList();
                         break;
                     }

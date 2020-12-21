@@ -13,6 +13,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
+import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -99,21 +100,19 @@ public class BoxedQueryRequest implements QueryRequest {
     public BoxedQueryRequest keys(List<List<Object>> values) {
         List<QueryBuilder> newFilters;
 
-        if (values == null || values.isEmpty()) {
+        if (CollectionUtils.isEmpty(values)) {
             // no keys have been specified and none have been set
-            if (keyFilters == null || keyFilters.isEmpty()) {
+            if (CollectionUtils.isEmpty(keyFilters)) {
                 return this;
             }
             newFilters = emptyList();
-        }
-        else {
+        } else {
             // iterate on all possible values for a given key
             newFilters = new ArrayList<>(values.size());
             for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
-                String key = keys.get(keyIndex);
 
                 boolean hasNullValue = false;
-                Set<Object> keyValues = new HashSet<>(MAX_TERMS);
+                Set<Object> keyValues = new HashSet<>(BoxedQueryRequest.MAX_TERMS);
                 // check the given keys but make sure to double check for
                 // null as it translates to a different query (missing/not exists)
                 for (List<Object> value : values) {
@@ -126,12 +125,14 @@ public class BoxedQueryRequest implements QueryRequest {
                 }
 
                 // too many unique terms, don't filter on the keys
-                if (keyValues.size() > MAX_TERMS) {
+                if (keyValues.size() > BoxedQueryRequest.MAX_TERMS) {
                     newFilters = emptyList();
                     break;
                 }
 
                 QueryBuilder query = null;
+
+                String key = keys.get(keyIndex);
 
                 if (keyValues.size() == 1) {
                     query = termQuery(key, keyValues.iterator().next());

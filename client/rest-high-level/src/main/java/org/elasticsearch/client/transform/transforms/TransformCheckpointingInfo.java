@@ -43,43 +43,56 @@ public class TransformCheckpointingInfo {
     private final Instant changesLastDetectedAt;
     private final Instant changesLastSearchedAt;
 
-    private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER =
-            new ConstructingObjectParser<>(
-                "transform_checkpointing_info",
-                true,
-                a -> {
-                        long behind = a[2] == null ? 0L : (Long) a[2];
-                        Instant changesLastDetectedAt = (Instant)a[3];
-                        Instant changesLastSearchedAt = (Instant)a[4];
-                        return new TransformCheckpointingInfo(
-                            a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
-                            a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
-                            behind,
-                            changesLastDetectedAt,
-                            changesLastSearchedAt);
-                    });
+    private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
+        "transform_checkpointing_info",
+        true,
+        a -> {
+            long behind = a[2] == null ? 0L : (Long) a[2];
+            Instant changesLastDetectedAt = (Instant) a[3];
+            Instant changesLastSearchedAt = (Instant) a[4];
+            return new TransformCheckpointingInfo(
+                a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
+                a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
+                behind,
+                changesLastDetectedAt,
+                changesLastSearchedAt
+            );
+        }
+    );
 
     static {
-        LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TransformCheckpointStats.fromXContent(p), LAST_CHECKPOINT);
-        LENIENT_PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> TransformCheckpointStats.fromXContent(p), NEXT_CHECKPOINT);
+        LENIENT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TransformCheckpointStats.fromXContent(p),
+            LAST_CHECKPOINT
+        );
+        LENIENT_PARSER.declareObject(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> TransformCheckpointStats.fromXContent(p),
+            NEXT_CHECKPOINT
+        );
         LENIENT_PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), OPERATIONS_BEHIND);
-        LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+        LENIENT_PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, CHANGES_LAST_DETECTED_AT.getPreferredName()),
             CHANGES_LAST_DETECTED_AT,
-            ObjectParser.ValueType.VALUE);
-        LENIENT_PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
+            ObjectParser.ValueType.VALUE
+        );
+        LENIENT_PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
             p -> TimeUtil.parseTimeFieldToInstant(p, CHANGES_LAST_SEARCHED_AT.getPreferredName()),
             CHANGES_LAST_SEARCHED_AT,
-            ObjectParser.ValueType.VALUE);
+            ObjectParser.ValueType.VALUE
+        );
     }
 
-    public TransformCheckpointingInfo(TransformCheckpointStats last,
-                                      TransformCheckpointStats next,
-                                      long operationsBehind,
-                                      Instant changesLastDetectedAt,
-                                      Instant changesLastSearchedAt) {
+    public TransformCheckpointingInfo(
+        TransformCheckpointStats last,
+        TransformCheckpointStats next,
+        long operationsBehind,
+        Instant changesLastDetectedAt,
+        Instant changesLastSearchedAt
+    ) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
@@ -130,11 +143,11 @@ public class TransformCheckpointingInfo {
 
         TransformCheckpointingInfo that = (TransformCheckpointingInfo) other;
 
-        return Objects.equals(this.last, that.last) &&
-            Objects.equals(this.next, that.next) &&
-            this.operationsBehind == that.operationsBehind &&
-            Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt) &&
-            Objects.equals(this.changesLastSearchedAt, that.changesLastSearchedAt);
+        return Objects.equals(this.last, that.last)
+            && Objects.equals(this.next, that.next)
+            && this.operationsBehind == that.operationsBehind
+            && Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt)
+            && Objects.equals(this.changesLastSearchedAt, that.changesLastSearchedAt);
     }
 
 }

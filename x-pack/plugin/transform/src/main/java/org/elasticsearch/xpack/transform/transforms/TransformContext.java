@@ -107,15 +107,15 @@ class TransformContext {
     Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
     }
-    
+
     void setChangesLastSearchedAt(Instant time) {
         changesLastSearchedAt = time;
-    }   
+    }
 
     Instant getChangesLastSearchedAt() {
         return changesLastSearchedAt;
     }
-    
+
     public boolean shouldStopAtCheckpoint() {
         return shouldStopAtCheckpoint;
     }
@@ -129,18 +129,16 @@ class TransformContext {
     }
 
     void markAsFailed(String failureMessage) {
-        taskListener
-            .fail(
-                failureMessage,
-                ActionListener
-                    .wrap(
-                        r -> {
-                            // Successfully marked as failed, reset counter so that task can be restarted
-                            failureCount.set(0);
-                        },
-                        e -> {}
-                    )
-            );
+        taskListener.fail(
+            failureMessage,
+            ActionListener.wrap(
+                r -> {
+                    // Successfully marked as failed, reset counter so that task can be restarted
+                    failureCount.set(0);
+                },
+                e -> {}
+            )
+        );
     }
 
 }

@@ -128,7 +128,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             this.changesLastSearchedAt = changesLastSearchedAt;
             return this;
         }
-        
+
         public TransformCheckpointingInfoBuilder setOperationsBehind(long operationsBehind) {
             this.operationsBehind = operationsBehind;
             return this;
@@ -254,7 +254,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
     public Instant getChangesLastDetectedAt() {
         return changesLastDetectedAt;
     }
-    
+
     public Instant getChangesLastSearchedAt() {
         return changesLastSearchedAt;
     }

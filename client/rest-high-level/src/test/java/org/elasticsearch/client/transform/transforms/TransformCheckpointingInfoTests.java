@@ -30,12 +30,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TransformCheckpointingInfoTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             TransformCheckpointingInfoTests::randomTransformCheckpointingInfo,
             TransformCheckpointingInfoTests::toXContent,
-            TransformCheckpointingInfo::fromXContent)
-                .supportsUnknownFields(false)
-                .test();
+            TransformCheckpointingInfo::fromXContent
+        ).supportsUnknownFields(false).test();
     }
 
     public static TransformCheckpointingInfo randomTransformCheckpointingInfo() {
@@ -44,7 +44,8 @@ public class TransformCheckpointingInfoTests extends ESTestCase {
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomLongBetween(0, 10000),
             randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()),
-            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong())
+        );
     }
 
     public static void toXContent(TransformCheckpointingInfo info, XContentBuilder builder) throws IOException {

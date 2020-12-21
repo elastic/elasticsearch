@@ -880,15 +880,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {
-            BoolQueryBuilder filteredQuery =
-                new BoolQueryBuilder()
-                    .filter(queryBuilder)
-                    .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
+                .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
             if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
-                QueryBuilder filter =
-                    changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+                QueryBuilder filter = changeCollector.buildFilterQuery(
+                    lastCheckpoint.getTimeUpperBound(),
+                    nextCheckpoint.getTimeUpperBound()
+                );
                 if (filter != null) {
                     filteredQuery.filter(filter);
                 }

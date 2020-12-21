@@ -21,7 +21,6 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 
 import java.util.ArrayList;
 import java.util.Collection;

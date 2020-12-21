@@ -92,6 +92,7 @@ Alternatively, set `memlock` to `unlimited` in `/etc/security/limits.conf`:
 +
 [source,sh]
 ----
+# allow user 'elasticsearch' mlockall
 elasticsearch soft memlock unlimited
 elasticsearch hard memlock unlimited
 ----

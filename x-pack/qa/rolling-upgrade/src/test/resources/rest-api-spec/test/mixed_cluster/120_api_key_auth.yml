@@ -2,7 +2,7 @@
 "Test API key authentication will work in a mixed cluster":
 
   - skip:
-      features: headers
+      features: [ "headers", "node_selector" ]
 
   - do:
       security.create_api_key:
@@ -24,10 +24,12 @@
   - match: { _nodes.failed: 0 }
 
   - do:
+      node_selector:
+        version: " 7.12.0 - "
       security.invalidate_api_key:
         body:  >
           {
-            "id": "${api_key_id}"
+            "ids": [ "${api_key_id}" ]
           }
   - length: { "invalidated_api_keys" : 1 }
   - match: { "invalidated_api_keys.0" : "${api_key_id}" }

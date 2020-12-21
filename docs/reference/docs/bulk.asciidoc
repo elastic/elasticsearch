@@ -229,7 +229,9 @@ Period each action waits for the following operations:
 * <<dynamic-mapping,Dynamic mapping>> updates
 * <<index-wait-for-active-shards,Waiting for active shards>>
 
-The timeout applies to each operation separately. Defaults to `1m` (one minute).
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
 --
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]

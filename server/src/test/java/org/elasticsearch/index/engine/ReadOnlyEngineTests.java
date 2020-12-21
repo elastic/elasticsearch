@@ -327,7 +327,7 @@ public class ReadOnlyEngineTests extends EngineTestCase {
             try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
                 try (Engine.SearcherSupplier searcher =
                          readOnlyEngine.acquireSearcherSupplier(Function.identity(), randomFrom(Engine.SearcherScope.values()))) {
-                    assertThat(searcher.getCommitId(), equalTo(lastCommitId));
+                    assertThat(searcher.getSearcherId(), equalTo(lastCommitId));
                 }
             }
         }

@@ -574,7 +574,7 @@ public class ReadOnlyEngine extends Engine {
             }
 
             @Override
-            public String getCommitId() {
+            public String getSearcherId() {
                 return commitId;
             }
         };

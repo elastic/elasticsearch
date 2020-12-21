@@ -500,11 +500,11 @@ public class CloseIndexIT extends ESIntegTestCase {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard shard : indexService) {
                 try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
-                    assertNotNull(searcher.getCommitId());
+                    assertNotNull(searcher.getSearcherId());
                     if (searcherIds[shard.shardId().id()] != null) {
-                        assertThat(searcher.getCommitId(), equalTo(searcherIds[shard.shardId().id()]));
+                        assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
                     } else {
-                        searcherIds[shard.shardId().id()] = searcher.getCommitId();
+                        searcherIds[shard.shardId().id()] = searcher.getSearcherId();
                     }
                 }
             }
@@ -520,8 +520,8 @@ public class CloseIndexIT extends ESIntegTestCase {
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard shard : indexService) {
                 try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
-                    assertNotNull(searcher.getCommitId());
-                    assertThat(searcher.getCommitId(), equalTo(searcherIds[shard.shardId().id()]));
+                    assertNotNull(searcher.getSearcherId());
+                    assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
                 }
             }
         }

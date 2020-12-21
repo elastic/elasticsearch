@@ -62,11 +62,11 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard indexShard : indexService) {
                 try (Engine.SearcherSupplier searcher = indexShard.acquireSearcherSupplier()) {
-                    assertNotNull(searcher.getCommitId());
+                    assertNotNull(searcher.getSearcherId());
                     if (searcherIds[indexShard.shardId().id()] != null) {
-                        assertThat(searcher.getCommitId(), equalTo(searcherIds[indexShard.shardId().id()]));
+                        assertThat(searcher.getSearcherId(), equalTo(searcherIds[indexShard.shardId().id()]));
                     } else {
-                        searcherIds[indexShard.shardId().id()] = searcher.getCommitId();
+                        searcherIds[indexShard.shardId().id()] = searcher.getSearcherId();
                     }
                 }
             }
@@ -83,8 +83,8 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
             IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
             for (IndexShard indexShard : indexService) {
                 try (Engine.SearcherSupplier searcher = indexShard.acquireSearcherSupplier()) {
-                    assertNotNull(searcher.getCommitId());
-                    assertThat(searcher.getCommitId(), equalTo(searcherIds[indexShard.shardId().id()]));
+                    assertNotNull(searcher.getSearcherId());
+                    assertThat(searcher.getSearcherId(), equalTo(searcherIds[indexShard.shardId().id()]));
                 }
             }
         }

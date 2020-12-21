@@ -1486,7 +1486,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
             Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
-        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, false, null));
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
         updatePolicy(index, policy);
 
         assertBusy(() -> assertTrue(indexExists(rollupIndex)));
@@ -1503,7 +1503,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
             Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
-        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, true, null));
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
         updatePolicy(index, policy);
 
         assertBusy(() -> assertTrue(indexExists(rollupIndex)));
@@ -1520,7 +1520,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
             new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
             Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
-        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, false, policy));
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
         updatePolicy(index, policy);
 
         assertBusy(() -> assertTrue(indexExists(rollupIndex)));

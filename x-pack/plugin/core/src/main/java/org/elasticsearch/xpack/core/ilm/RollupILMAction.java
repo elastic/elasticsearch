@@ -31,21 +31,18 @@ public class RollupILMAction implements LifecycleAction {
     public static final String NAME = "rollup";
 
     private static final ParseField CONFIG_FIELD = new ParseField("config");
-    private static final ParseField DELETE_FIELD = new ParseField("delete_original");
     private static final ParseField POLICY_FIELD = new ParseField("rollup_policy");
 
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<RollupILMAction, Void> PARSER = new ConstructingObjectParser<>(NAME,
-        a -> new RollupILMAction((RollupActionConfig) a[0], (boolean) a[1], (String) a[2]));
+        a -> new RollupILMAction((RollupActionConfig) a[0], (String) a[1]));
 
     private final RollupActionConfig config;
-    private final boolean deleteOriginalIndex;
     private final String rollupPolicy;
 
     static {
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             (p, c) -> RollupActionConfig.fromXContent(p), CONFIG_FIELD, ObjectParser.ValueType.OBJECT);
-        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), DELETE_FIELD);
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), POLICY_FIELD);
     }
 
@@ -53,14 +50,13 @@ public class RollupILMAction implements LifecycleAction {
         return PARSER.apply(parser, null);
     }
 
-    public RollupILMAction(RollupActionConfig config, boolean deleteOriginalIndex, @Nullable String rollupPolicy) {
+    public RollupILMAction(RollupActionConfig config, @Nullable String rollupPolicy) {
         this.config = config;
-        this.deleteOriginalIndex = deleteOriginalIndex;
         this.rollupPolicy = rollupPolicy;
     }
 
     public RollupILMAction(StreamInput in) throws IOException {
-        this(new RollupActionConfig(in), in.readBoolean(), in.readOptionalString());
+        this(new RollupActionConfig(in), in.readOptionalString());
     }
 
     @Override
@@ -72,10 +68,6 @@ public class RollupILMAction implements LifecycleAction {
         return config;
     }
 
-    boolean shouldDeleteOriginalIndex() {
-        return deleteOriginalIndex;
-    }
-
     String rollupPolicy() {
         return rollupPolicy;
     }
@@ -84,7 +76,6 @@ public class RollupILMAction implements LifecycleAction {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(CONFIG_FIELD.getPreferredName(), config);
-        builder.field(DELETE_FIELD.getPreferredName(), deleteOriginalIndex);
         if (rollupPolicy != null) {
             builder.field(POLICY_FIELD.getPreferredName(), rollupPolicy);
         }
@@ -95,7 +86,6 @@ public class RollupILMAction implements LifecycleAction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         config.writeTo(out);
-        out.writeBoolean(deleteOriginalIndex);
         out.writeOptionalString(rollupPolicy);
     }
 
@@ -109,24 +99,13 @@ public class RollupILMAction implements LifecycleAction {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
-        StepKey waitForNoFollowerStepKey = new StepKey(phase, NAME, WaitForNoFollowersStep.NAME);
-        StepKey deleteStepKey = new StepKey(phase, NAME, DeleteStep.NAME);
-
         Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
-
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, rollupKey, client, readOnlySettings);
-        WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, deleteStepKey, client);
 
-        if (deleteOriginalIndex) {
-            RollupStep rollupStep = new RollupStep(rollupKey, waitForNoFollowerStepKey, client, config, rollupPolicy);
-            DeleteStep deleteStep = new DeleteStep(deleteStepKey, nextStepKey, client);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep, waitForNoFollowersStep, deleteStep);
-        } else {
-            RollupStep rollupStep = new RollupStep(rollupKey, nextStepKey, client, config, rollupPolicy);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
-        }
+        RollupStep rollupStep = new RollupStep(rollupKey, nextStepKey, client, config, rollupPolicy);
+        return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
     }
 
     @Override
@@ -137,13 +116,12 @@ public class RollupILMAction implements LifecycleAction {
         RollupILMAction that = (RollupILMAction) o;
 
         return Objects.equals(this.config, that.config)
-            && Objects.equals(this.deleteOriginalIndex, that.deleteOriginalIndex)
             && Objects.equals(this.rollupPolicy, that.rollupPolicy);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(config, deleteOriginalIndex, rollupPolicy);
+        return Objects.hash(config, rollupPolicy);
     }
 
     @Override

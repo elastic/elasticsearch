@@ -62,7 +62,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
     private static final RollupILMAction TEST_ROLLUP_ACTION =new RollupILMAction(new RollupActionConfig(
         new GroupConfig(new DateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
-        Collections.emptyList(), null), false, null);
+        Collections.emptyList(), null), null);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();
@@ -201,9 +201,9 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     }
 
     public void testActionsThatCannotFollowSearchableSnapshot() {
-        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(4));
+        assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT.size(), is(5));
         assertThat(ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT, containsInAnyOrder(ShrinkAction.NAME, FreezeAction.NAME,
-            ForceMergeAction.NAME, SearchableSnapshotAction.NAME));
+            ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME));
     }
 
     public void testValidateActionsFollowingSearchableSnapshot() {
@@ -213,7 +213,8 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> TimeseriesLifecycleType.validateActionsFollowingSearchableSnapshot(List.of(hotPhase, warmPhase, coldPhase)));
-        assertThat(e.getMessage(), is("phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink] actions" +
+        assertThat(e.getMessage(), is(
+            "phases [warm,cold] define one or more of [searchable_snapshot, forcemerge, freeze, shrink, rollup] actions" +
             " which are not allowed after a managed index is mounted as a searchable snapshot"));
     }
 

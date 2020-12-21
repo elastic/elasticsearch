@@ -237,16 +237,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             souceToParse -> null,
             true
-        ) {
-            @Override
-            public boolean hasNested() { // NOCOMMIT still needed?
-                /*
-                 * Disable fetching nested documents. Luckily if confusingly, this does
-                 * not disable nested aggregations which we need to test.
-                 */
-                return false;
-            }
-        };
+        );
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
             fieldType,

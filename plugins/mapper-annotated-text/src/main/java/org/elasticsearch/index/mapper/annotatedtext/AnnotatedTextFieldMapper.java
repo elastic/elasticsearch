@@ -281,7 +281,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         private AnnotatedText[] annotations;
         // If the field has arrays of values this counter is used to keep track of
         // which array element is currently being highlighted.
-        AtomicInteger readerNum;
+        int readerNum;
 
         public AnnotatedHighlighterAnalyzer(Analyzer delegate){
             super(delegate.getReuseStrategy());
@@ -296,7 +296,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         // Called with each new doc being highlighted
         public void setAnnotations(AnnotatedText[] annotations) {
             this.annotations = annotations;            
-            this.readerNum = new AtomicInteger(0);
+            this.readerNum = 0;
         }
 
         @Override
@@ -304,7 +304,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
             AnnotationsInjector injector = new AnnotationsInjector(components.getTokenStream());
             return new TokenStreamComponents(r -> {
                 String plainText = readToString(r);
-                AnnotatedText at = annotations[readerNum.getAndIncrement()];
+                AnnotatedText at = annotations[readerNum++];
                 assert at.textMinusMarkup.equals(plainText);
                 injector.setAnnotations(at);
                 components.getSource().accept(new StringReader(at.textMinusMarkup));

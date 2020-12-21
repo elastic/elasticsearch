@@ -22,7 +22,7 @@ import org.apache.lucene.util.PriorityQueue;
 
 import java.util.Comparator;
 
-public class BucketPriorityQueue<B extends Terms.Bucket> extends PriorityQueue<B> {
+public class BucketPriorityQueue<B> extends PriorityQueue<B> {
 
     private final Comparator<? super B> comparator;
 

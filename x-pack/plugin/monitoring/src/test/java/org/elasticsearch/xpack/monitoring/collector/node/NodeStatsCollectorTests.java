@@ -15,7 +15,6 @@ import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
@@ -37,33 +36,15 @@ import static org.mockito.Mockito.when;
 
 public class NodeStatsCollectorTests extends BaseCollectorTestCase {
 
-    public void testShouldCollectReturnsFalseIfMonitoringNotAllowed() {
-        // this controls the blockage
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(false);
-        final boolean isElectedMaster = randomBoolean();
-        whenLocalNodeElectedMaster(isElectedMaster);
-
-        final NodeStatsCollector collector = new NodeStatsCollector(clusterService, licenseState, client);
-
-        assertThat(collector.shouldCollect(isElectedMaster), is(false));
-        if (isElectedMaster) {
-            verify(licenseState).checkFeature(Feature.MONITORING);
-        }
-    }
-
     public void testShouldCollectReturnsTrue() {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
         final boolean isElectedMaster = true;
 
         final NodeStatsCollector collector = new NodeStatsCollector(clusterService, licenseState, client);
 
         assertThat(collector.shouldCollect(isElectedMaster), is(true));
-        verify(licenseState).checkFeature(Feature.MONITORING);
     }
 
     public void testDoCollectWithFailures() throws Exception {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
-
         final TimeValue timeout = TimeValue.parseTimeValue(randomPositiveTimeValue(), NodeStatsCollectorTests.class.getName());
         withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
 
@@ -85,8 +66,6 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     }
 
     public void testDoCollect() throws Exception {
-        when(licenseState.checkFeature(Feature.MONITORING)).thenReturn(true);
-
         final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
         withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
 

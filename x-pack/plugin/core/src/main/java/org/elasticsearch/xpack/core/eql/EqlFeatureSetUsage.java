@@ -25,8 +25,8 @@ public class EqlFeatureSetUsage extends XPackFeatureSet.Usage {
         stats = in.readMap();
     }
 
-    public EqlFeatureSetUsage(boolean available, boolean enabled, Map<String, Object> stats) {
-        super(XPackField.EQL, available, enabled);
+    public EqlFeatureSetUsage(Map<String, Object> stats) {
+        super(XPackField.EQL, true, true);
         this.stats = stats;
     }
 

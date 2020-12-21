@@ -39,7 +39,7 @@ public class FieldTypeLookupTests extends ESTestCase {
         assertNull(lookup.get("foo"));
         Collection<String> names = lookup.simpleMatchToFullName("foo");
         assertNotNull(names);
-        assertTrue(names.isEmpty());
+        assertThat(names, equalTo(Set.of("foo")));
         assertEquals(0, size(lookup.filter(ft -> true)));
     }
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import spock.lang.IgnoreRest
 
 class ElasticsearchJavaPluginFuncTest extends AbstractGradleFuncTest {
 
@@ -44,7 +43,6 @@ class ElasticsearchJavaPluginFuncTest extends AbstractGradleFuncTest {
         gradleRunner("help").build()
     }
 
-    @IgnoreRest
     def "compile option --release is configured from targetCompatibility"() {
         when:
         buildFile.text = """

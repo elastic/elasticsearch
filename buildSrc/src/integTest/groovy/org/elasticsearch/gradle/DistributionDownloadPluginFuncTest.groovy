@@ -61,7 +61,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', testProjectDir.newFolder('guh').getAbsolutePath())
+        def runner = gradleRunner('clean', 'setupDistro')
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
             def firstRun = build()

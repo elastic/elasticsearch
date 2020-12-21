@@ -68,7 +68,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static Integer _defaultParallel = null;
 
     private final SharedJavaInstallationRegistry javaInstallationRegistry;
-    private JvmMetadataDetector metadataDetector;
+    private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
 
     @Inject

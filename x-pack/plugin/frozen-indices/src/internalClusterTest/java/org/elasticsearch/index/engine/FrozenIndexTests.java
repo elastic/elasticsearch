@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -53,9 +54,9 @@ import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeResponse;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.hamcrest.Matchers;
-import org.joda.time.Instant;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
@@ -502,8 +503,8 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
-        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").getMillis()));
-        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").getMillis()));
+        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").toEpochMilli()));
+        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.567Z").toEpochMilli()));
 
         for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
             assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",
@@ -534,8 +535,11 @@ public class FrozenIndexTests extends ESSingleNodeTestCase {
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         assertThat(timestampFieldRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
         assertTrue(timestampFieldRange.isComplete());
-        assertThat(timestampFieldRange.getMin(), equalTo(Instant.parse("2010-01-05T01:02:03.456Z").getMillis()));
-        assertThat(timestampFieldRange.getMax(), equalTo(Instant.parse("2010-01-06T02:03:04.568Z").getMillis()));
+        final DateFieldMapper.Resolution resolution = DateFieldMapper.Resolution.NANOSECONDS;
+        assertThat(timestampFieldRange.getMin(),
+            equalTo(resolution.convert(Instant.parse("2010-01-05T01:02:03.456789012Z"))));
+        assertThat(timestampFieldRange.getMax(),
+            equalTo(resolution.convert(Instant.parse("2010-01-06T02:03:04.567890123Z"))));
 
         for (ShardStats shardStats : client().admin().indices().prepareStats("index").clear().setRefresh(true).get().getShards()) {
             assertThat("shard " + shardStats.getShardRouting() + " refreshed to get the timestamp range",

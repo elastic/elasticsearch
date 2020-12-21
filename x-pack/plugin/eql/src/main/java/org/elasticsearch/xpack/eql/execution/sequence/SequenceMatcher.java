@@ -239,6 +239,10 @@ public class SequenceMatcher {
         return false;
     }
 
+    Set<SequenceKey> keysFor(int stage) {
+        return stageToKeys.keys(stage);
+    }
+
     List<Sequence> completed() {
         List<Sequence> asList = new ArrayList<>(completed);
         return limit != null ? limit.view(asList) : asList;
@@ -253,19 +257,15 @@ public class SequenceMatcher {
      * This allows the matcher to keep only the last match per stage
      * and adjust insertion positions.
      */
-    void trim(boolean everything) {
+    void trim(Ordinal ordinal) {
         // for descending sequences, remove all in-flight sequences
         // since the windows moves head and thus there is no chance
         // of new results coming in
-
-        // however this needs to be indicated from outside since
-        // the same window can be only ASC trimmed during a loop
-        // and fully once the DESC query moves
-        if (everything) {
+        if (ordinal == null) {
             keyToSequences.clear();
         } else {
             // keep only the tail
-            keyToSequences.trimToTail();
+            keyToSequences.trimToTail(ordinal);
         }
     }
 

@@ -15,6 +15,9 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.transport.TransportService;
@@ -24,7 +27,10 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 // TODO: test CRUD operations
 public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
@@ -39,6 +45,23 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         indexService = new AsyncTaskIndexService<>(index, clusterService,
             transportService.getThreadPool().getThreadContext(),
             client(), "test_origin", AsyncSearchResponse::new, writableRegistry());
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> getPlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
+        plugins.add(TestPlugin.class);
+        return plugins;
+    }
+
+    /**
+     * This class exists because AsyncResultsIndexPlugin exists in a different x-pack module.
+     */
+    public static class TestPlugin extends Plugin implements SystemIndexPlugin {
+        @Override
+        public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+            return List.of(AsyncTaskIndexService.getSystemIndexDescriptor());
+        }
     }
 
     public void testEnsuredAuthenticatedUserIsSame() throws IOException {
@@ -99,15 +122,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     }
 
     public void testAutoCreateIndex() throws Exception {
-        {
-            PlainActionFuture<Void> future = PlainActionFuture.newFuture();
-            indexService.createIndexIfNecessary(future);
-            future.get();
-            assertSettings();
-        }
-        AcknowledgedResponse ack = client().admin().indices().prepareDelete(index).get();
-        assertTrue(ack.isAcknowledged());
-
+        // To begin with, the results index should be auto-created.
         AsyncExecutionId id = new AsyncExecutionId("0", new TaskId("N/A", 0));
         AsyncSearchResponse resp = new AsyncSearchResponse(id.getEncoded(), true, true, 0L, 0L);
         {
@@ -116,37 +131,48 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             future.get();
             assertSettings();
         }
-        ack = client().admin().indices().prepareDelete(index).get();
+
+        // Delete the index, so we can test subsequent auto-create behaviour
+        AcknowledgedResponse ack = client().admin().indices().prepareDelete(index).get();
         assertTrue(ack.isAcknowledged());
+
+        // Subsequent response deletes throw a (wrapped) index not found exception
         {
             PlainActionFuture<DeleteResponse> future = PlainActionFuture.newFuture();
             indexService.deleteResponse(id, future);
-            future.get();
-            assertSettings();
+            expectThrows(Exception.class, future::get);
         }
-        ack = client().admin().indices().prepareDelete(index).get();
-        assertTrue(ack.isAcknowledged());
+
+        // So do updates
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
             indexService.updateResponse(id.getDocId(), Collections.emptyMap(), resp, future);
-            expectThrows(Exception.class, () -> future.get());
+            expectThrows(Exception.class, future::get);
             assertSettings();
         }
-        ack = client().admin().indices().prepareDelete(index).get();
-        assertTrue(ack.isAcknowledged());
+
+        // And so does updating the expiration time
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
             indexService.updateExpirationTime("0", 10L, future);
-            expectThrows(Exception.class, () -> future.get());
+            expectThrows(Exception.class, future::get);
+            assertSettings();
+        }
+
+        // But the index is still auto-created
+        {
+            PlainActionFuture<IndexResponse> future = PlainActionFuture.newFuture();
+            indexService.createResponse(id.getDocId(), Collections.emptyMap(), resp, future);
+            future.get();
             assertSettings();
         }
     }
 
-    private void assertSettings() throws IOException {
+    private void assertSettings() {
         GetIndexResponse getIndexResponse = client().admin().indices().getIndex(
             new GetIndexRequest().indices(index)).actionGet();
         Settings settings = getIndexResponse.getSettings().get(index);
         Settings expected = AsyncTaskIndexService.settings();
-        assertEquals(expected, settings.filter(key -> expected.hasValue(key)));
+        assertEquals(expected, settings.filter(expected::hasValue));
     }
 }

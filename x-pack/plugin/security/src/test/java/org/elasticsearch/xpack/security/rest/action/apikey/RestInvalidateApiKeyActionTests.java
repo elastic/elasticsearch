@@ -67,11 +67,9 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
         final String json1 = "{ \"realm_name\" : \"realm-1\", \"username\": \"user-x\" }";
         final String json2 = "{ \"realm_name\" : \"realm-1\" }";
         final String json3 = "{ \"username\": \"user-x\" }";
-        final String json4 = "{ \"id\" : \"api-key-id-1\" }";
         final String json5 = "{ \"name\" : \"api-key-name-1\" }";
         final String json6 = "{ \"ids\" : [\"api-key-id-1\"] }";
-        final String json = randomFrom(json1, json2, json3, json4, json5, json6);
-        final boolean assertDeprecationWarning = json == json4;  // we want object identity comparison here
+        final String json = randomFrom(json1, json2, json3, json5, json6);
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
                 .withContent(new BytesArray(json), XContentType.JSON).build();
 
@@ -119,9 +117,6 @@ public class RestInvalidateApiKeyActionTests extends ESTestCase {
             assertThat(actual.getPreviouslyInvalidatedApiKeys(),
                     equalTo(invalidateApiKeyResponseExpected.getPreviouslyInvalidatedApiKeys()));
             assertThat(actual.getErrors(), equalTo(invalidateApiKeyResponseExpected.getErrors()));
-            if (assertDeprecationWarning) {
-                assertWarnings("Deprecated field [id] used, replaced by [ids]");
-            }
         }
 
     }

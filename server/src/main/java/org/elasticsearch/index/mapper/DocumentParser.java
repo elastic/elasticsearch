@@ -81,7 +81,7 @@ final class DocumentParser {
 
         context.postParse();
 
-        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper,
+        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper.mappers(),
             context.getDynamicMappers(), context.getDynamicRuntimeFields()));
     }
 
@@ -205,7 +205,7 @@ final class DocumentParser {
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
     static Mapping createDynamicUpdate(Mapping mapping,
-                                       DocumentMapper docMapper,
+                                       MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
                                        List<RuntimeFieldType> dynamicRuntimeFields) {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
@@ -213,7 +213,7 @@ final class DocumentParser {
         }
         RootObjectMapper root;
         if (dynamicMappers.isEmpty() == false) {
-            root = createDynamicUpdate(mapping.root, docMapper, dynamicMappers);
+            root = createDynamicUpdate(mapping.root, mappingLookup, dynamicMappers);
         } else {
             root = mapping.root.copyAndReset();
         }
@@ -222,7 +222,7 @@ final class DocumentParser {
     }
 
     private static RootObjectMapper createDynamicUpdate(RootObjectMapper root,
-                                                        DocumentMapper docMapper,
+                                                        MappingLookup mappingLookup,
                                                         List<Mapper> dynamicMappers) {
 
         // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
@@ -264,7 +264,7 @@ final class DocumentParser {
             // mappings, and build an update with only the new mapper and its parents. This then becomes our
             // "new mapper", and can be added to the stack.
             if (i < nameParts.length - 1) {
-                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, docMapper, newMapper);
+                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, mappingLookup, newMapper);
             }
 
             if (newMapper instanceof ObjectMapper) {
@@ -334,14 +334,14 @@ final class DocumentParser {
 
     /** Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper. */
     private static ObjectMapper createExistingMapperUpdate(List<ObjectMapper> parentMappers, String[] nameParts, int i,
-                                                           DocumentMapper docMapper, Mapper newMapper) {
+                                                           MappingLookup mappingLookup, Mapper newMapper) {
         String updateParentName = nameParts[i];
         final ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);
         if (parentMappers.size() > 1) {
             // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
             updateParentName = lastParent.name() + '.' + nameParts[i];
         }
-        ObjectMapper updateParent = docMapper.mappers().objectMappers().get(updateParentName);
+        ObjectMapper updateParent = mappingLookup.objectMappers().get(updateParentName);
         assert updateParent != null : updateParentName + " doesn't exist";
         return createUpdate(updateParent, nameParts, i + 1, newMapper);
     }

@@ -29,7 +29,9 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.searchHits;
 
@@ -74,6 +76,8 @@ public class TumblingWindow implements Executable {
     private final int maxStages;
     private final int windowSize;
 
+    private final boolean hasKeys;
+
     // flag used for DESC sequences to indicate whether
     // the window needs to restart (since the DESC query still has results)
     private boolean restartWindowFromTailQuery;
@@ -105,6 +109,7 @@ public class TumblingWindow implements Executable {
 
         Criterion<BoxedQueryRequest> baseRequest = criteria.get(0);
         this.windowSize = baseRequest.queryRequest().searchSource().size();
+        this.hasKeys = baseRequest.keySize() > 0;
         this.restartWindowFromTailQuery = baseRequest.descending();
     }
 
@@ -167,6 +172,11 @@ public class TumblingWindow implements Executable {
         // remove any potential upper limit (if a criteria has been promoted)
         base.queryRequest().to(null);
 
+        // add key constraints
+        if (hasKeys) {
+            addKeyConstraints(stage - 1, base.queryRequest());
+        }
+
         log.trace("{}", matcher);
         log.trace("Querying base stage [{}] {}", stage, base.queryRequest());
 
@@ -183,7 +193,7 @@ public class TumblingWindow implements Executable {
         log.trace("Found [{}] hits", hits.size());
 
         Ordinal begin = null, end = null;
-        final WindowInfo info;
+        WindowInfo info;
 
         // if there is at least one result, process it
         if (hits.isEmpty() == false) {
@@ -318,7 +328,7 @@ public class TumblingWindow implements Executable {
     }
 
     private void untilCriterion(WindowInfo window, ActionListener<Payload> listener, Runnable next) {
-        final BoxedQueryRequest request = until.queryRequest();
+        BoxedQueryRequest request = until.queryRequest();
         boxQuery(window, until);
 
         // in case the base query returns less results than the fetch window
@@ -358,10 +368,8 @@ public class TumblingWindow implements Executable {
     }
 
     private void secondaryCriterion(WindowInfo window, int currentStage, ActionListener<Payload> listener) {
-        final Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
-        final BoxedQueryRequest request = criterion.queryRequest();
-
-        //boxQuery(window, criterion);
+        Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
+        BoxedQueryRequest request = criterion.queryRequest();
 
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
@@ -453,7 +461,7 @@ public class TumblingWindow implements Executable {
      * Box the query for the given (ASC) criterion based on the window information.
      */
     private void boxQuery(WindowInfo window, Criterion<BoxedQueryRequest> criterion) {
-        final BoxedQueryRequest request = criterion.queryRequest();
+        BoxedQueryRequest request = criterion.queryRequest();
         // for HEAD, it's the window upper limit that keeps changing
         // so check TO.
         if (window.end.equals(request.to()) == false) {
@@ -466,6 +474,11 @@ public class TumblingWindow implements Executable {
         if (request.from() == null) {
             request.from(window.begin);
             request.nextAfter(window.begin);
+        }
+
+        if (hasKeys) {
+            int stage = criterion == until ? 0 : window.baseStage;
+            addKeyConstraints(stage, request);
         }
     }
 
@@ -497,6 +510,23 @@ public class TumblingWindow implements Executable {
                 BoxedQueryRequest subRequest = criteria.get(i).queryRequest();
                 subRequest.from(null);
             }
+        }
+    }
+
+    private void addKeyConstraints(int keyStage, BoxedQueryRequest request) {
+        // add constraints if possible
+        if (keyStage >= 0) {
+            Set<SequenceKey> keys = matcher.keysFor(keyStage);
+            int size = keys.size();
+            if (size > 0) {
+                request.keys(keys.stream().map(SequenceKey::asList).collect(toList()));
+            } else {
+                request.keys(null);
+            }
+        }
+        // otherwise make sure to reset any previous filters
+        else {
+            request.keys(null);
         }
     }
 
@@ -560,9 +590,9 @@ public class TumblingWindow implements Executable {
 
     Iterable<List<HitReference>> hits(List<Sequence> sequences) {
         return () -> {
-            final Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending() ?
-                    new ReversedIterator<>(sequences) :
-                    sequences.iterator();
+            Iterator<Sequence> delegate = criteria.get(0).descending() != criteria.get(1).descending() ?
+                new ReversedIterator<>(sequences) :
+                sequences.iterator();
 
             return new Iterator<>() {
 
@@ -581,7 +611,7 @@ public class TumblingWindow implements Executable {
 
     Iterable<Tuple<KeyAndOrdinal, HitReference>> wrapValues(Criterion<?> criterion, List<SearchHit> hits) {
         return () -> {
-            final Iterator<SearchHit> delegate = criterion.descending() ? new ReversedIterator<>(hits) : hits.iterator();
+            Iterator<SearchHit> delegate = criterion.descending() ? new ReversedIterator<>(hits) : hits.iterator();
 
             return new Iterator<>() {
 
@@ -603,7 +633,7 @@ public class TumblingWindow implements Executable {
 
     <E> Iterable<KeyAndOrdinal> wrapUntilValues(Iterable<Tuple<KeyAndOrdinal, E>> iterable) {
         return () -> {
-            final Iterator<Tuple<KeyAndOrdinal, E>> delegate = iterable.iterator();
+            Iterator<Tuple<KeyAndOrdinal, E>> delegate = iterable.iterator();
 
             return new Iterator<>() {
 

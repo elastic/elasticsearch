@@ -129,7 +129,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     // see: https://github.com/elastic/elasticsearch/issues/51202
     versions = ['2', '1']
   }
-  for (String version : versions) {
+  versions.each { version ->
     // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
     TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {
       Configuration oldEsDependency = configurations['es' + version]

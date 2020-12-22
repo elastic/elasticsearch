@@ -91,9 +91,7 @@ public class OperatorPrivileges {
             if (request instanceof RestoreSnapshotRequest) {
                 final boolean isOperatorInContext = AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
                     threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
-                if (false == isOperatorInContext) {
-                    ((RestoreSnapshotRequest) request).filterOperatorSettings(true);
-                }
+                ((RestoreSnapshotRequest) request).filterOperatorSettings(false == isOperatorInContext);
             }
         }
 

@@ -87,7 +87,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingLookupUtils;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
@@ -227,7 +227,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         MappingLookup mappingLookup = new MappingLookup(
             "_doc",
-            Arrays.stream(fieldTypes).map(MappingLookupUtils::mockFieldMapper).collect(toList()),
+            Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
             objectMappers(),
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
@@ -287,6 +287,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             () -> 0L,
             () -> false
         );
+    }
+
+    /**
+     * Build a {@link FieldMapper} to create the {@link MappingLookup} used for the aggs.
+     * {@code protected} so subclasses can have it. 
+     */
+    protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
+        return new MockFieldMapper(ft);
     }
 
     /**

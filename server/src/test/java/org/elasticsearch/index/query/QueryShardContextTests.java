@@ -78,7 +78,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -305,7 +304,7 @@ public class QueryShardContextTests extends ESTestCase {
 
     public void testFielddataLookupOneFieldManyReferences() throws IOException {
         int numFields = randomIntBetween(5, 20);
-        List<MappedFieldType> fields = new ArrayList<>(numFields + 1);
+        List<RuntimeFieldType> fields = new ArrayList<>(numFields + 1);
         fields.add(runtimeField("root", leafLookup -> {
             StringBuilder value = new StringBuilder();
             for (int i = 0; i < numFields; i++) {
@@ -321,7 +320,7 @@ public class QueryShardContextTests extends ESTestCase {
         }
         assertEquals(
             List.of(expected.toString(), expected.toString()),
-            collect("root", createQueryShardContext("uuid", null, fields, Map.of(), List.of()))
+            collect("root", createQueryShardContext("uuid", null, MappingLookupUtils.fromTypes(List.of(), fields), Map.of(), List.of()))
         );
     }
 
@@ -338,7 +337,7 @@ public class QueryShardContextTests extends ESTestCase {
         QueryShardContext qsc = createQueryShardContext(
             "uuid",
             null,
-            List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+            MappingLookupUtils.fromTypes(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
             runtimeMappings,
             Collections.singletonList(new TestRuntimeField.Plugin()));
         assertTrue(qsc.isFieldMapped("cat"));
@@ -354,17 +353,23 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
-        return createQueryShardContext(indexUuid, clusterAlias, List.of(), Map.of(), List.of());
+        return createQueryShardContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of(), List.of());
     }
 
-    private static QueryShardContext createQueryShardContext(MappedFieldType... fieldTypeLookup) {
-        return createQueryShardContext("uuid", null, Arrays.asList(fieldTypeLookup), Collections.emptyMap(), Collections.emptyList());
+    private static QueryShardContext createQueryShardContext(RuntimeFieldType... fieldTypes) {
+        return createQueryShardContext(
+            "uuid",
+            null,
+            MappingLookupUtils.fromTypes(List.of(), List.of(fieldTypes)),
+            Collections.emptyMap(),
+            Collections.emptyList()
+        );
     }
 
     private static QueryShardContext createQueryShardContext(
         String indexUuid,
         String clusterAlias,
-        List<MappedFieldType> fieldTypes,
+        MappingLookup mappingLookup,
         Map<String, Object> runtimeMappings,
         List<MapperPlugin> mapperPlugins
     ) {
@@ -377,7 +382,6 @@ public class QueryShardContextTests extends ESTestCase {
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mapperPlugins);
-        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldTypes);
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
             0,

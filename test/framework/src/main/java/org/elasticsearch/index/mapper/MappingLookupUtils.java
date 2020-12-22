@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldMapper.CopyTo;
 
 import java.util.Arrays;
 import java.util.List;
@@ -28,8 +27,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MappingLookupUtils {
     public static MappingLookup fromTypes(MappedFieldType... types) {
@@ -52,16 +49,10 @@ public class MappingLookupUtils {
     }
 
     public static FieldMapper mockFieldMapper(MappedFieldType type) {
-        FieldMapper mapper = mock(FieldMapper.class);
-        when(mapper.fieldType()).thenReturn(type);
-        String name = type.name();
-        when(mapper.name()).thenReturn(name);
-        when(mapper.copyTo()).thenReturn(CopyTo.empty());
         Map<String, NamedAnalyzer> indexAnalyzers = Map.of();
         if (type.getTextSearchInfo() != TextSearchInfo.NONE) {
-            indexAnalyzers = Map.of(mapper.name(), type.getTextSearchInfo().getSearchAnalyzer());
+            indexAnalyzers = Map.of(type.name(), type.getTextSearchInfo().getSearchAnalyzer());
         }
-        when(mapper.indexAnalyzers()).thenReturn(indexAnalyzers);
-        return mapper;
+        return new MockFieldMapper(type, indexAnalyzers);
     }
 }

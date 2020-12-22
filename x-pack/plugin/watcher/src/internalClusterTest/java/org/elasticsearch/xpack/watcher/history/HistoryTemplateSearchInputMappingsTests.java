@@ -60,7 +60,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         // the action should fail as no email server is available
         assertWatchWithMinimumActionsCount("_id", ExecutionState.EXECUTED, 1);
 
-        SearchResponse response = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*").setSource(searchSource()
+        SearchResponse response = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*").setSource(searchSource()
                 .aggregation(terms("input_search_type").field("result.input.search.request.search_type"))
                 .aggregation(terms("input_indices").field("result.input.search.request.indices"))
                 .aggregation(terms("input_body").field("result.input.search.request.body")))

@@ -5,6 +5,10 @@
       "description":"Returns information about installed plugins across nodes node."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "text/plain", "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -35,6 +39,11 @@
       "help":{
         "type":"boolean",
         "description":"Return help information",
+        "default":false
+      },
+      "include_bootstrap":{
+        "type":"boolean",
+        "description":"Include bootstrap plugins in the response",
         "default":false
       },
       "s":{

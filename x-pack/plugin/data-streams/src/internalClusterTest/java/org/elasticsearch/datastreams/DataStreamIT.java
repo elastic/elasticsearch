@@ -554,9 +554,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(dataStreamName, client().admin().indices().prepareStats(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareForceMerge(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareValidateQuery(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgrade(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareRecoveries(dataStreamName), false);
-        verifyResolvability(dataStreamName, client().admin().indices().prepareUpgradeStatus(dataStreamName), false);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetAliases("dummy").addIndices(dataStreamName), true);
         verifyResolvability(dataStreamName, client().admin().indices().prepareGetFieldMappings(dataStreamName), false);
         verifyResolvability(
@@ -609,9 +607,7 @@ public class DataStreamIT extends ESIntegTestCase {
         verifyResolvability(wildcardExpression, client().admin().indices().prepareStats(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareForceMerge(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareValidateQuery(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgrade(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareRecoveries(wildcardExpression), false);
-        verifyResolvability(wildcardExpression, client().admin().indices().prepareUpgradeStatus(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetAliases(wildcardExpression), false);
         verifyResolvability(wildcardExpression, client().admin().indices().prepareGetFieldMappings(wildcardExpression), false);
         verifyResolvability(
@@ -1094,9 +1090,9 @@ public class DataStreamIT extends ESIntegTestCase {
         );
         assertThat(
             e.getMessage(),
-            equalTo(
-                "data stream [logs-foobar] could create backing indices that conflict with 1 "
-                    + "existing index(s) or alias(s) including '.ds-logs-foobar-000002'"
+            startsWith(
+                "data stream [logs-foobar] could create backing indices that conflict with 1"
+                    + " existing index(s) or alias(s) including '.ds-logs-foobar"
             )
         );
     }
@@ -1145,7 +1141,7 @@ public class DataStreamIT extends ESIntegTestCase {
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         // when querying a backing index then the data stream should be included as well.
-        ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-000001");
+        ClusterStateRequest request = new ClusterStateRequest().indices(".ds-metrics-foo-*000001");
         ClusterState state = client().admin().cluster().state(request).get().getState();
         assertThat(state.metadata().dataStreams().size(), equalTo(1));
         assertThat(state.metadata().dataStreams().get("metrics-foo").getName(), equalTo("metrics-foo"));

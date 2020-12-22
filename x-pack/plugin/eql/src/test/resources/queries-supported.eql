@@ -37,13 +37,14 @@ process where command_line : "*.exe *admin*" or command_line : "* a b*";
 
 process where command_line : "*.eXe *aDMin*" or command_line : "* a b*";
 
-process where pid in (1,2,3,4,5,6,7,8) and abc : 100 and def : 200 and ghi : 300 and jkl : x;
+process where pid in (1,2,3,4,5,6,7,8) and abc : 100 and def : 200 and ghi : 300;
+//and jkl : x;
 
 process where ppid != pid;
 
 image_load where not x != y;
 
-image_load where not x : y;
+//image_load where not x : y;
 
 image_load where not not not not x < y;
 
@@ -65,13 +66,13 @@ file where 1 * (-2);
 
 file where 3 * -length(file_path);
 
-network where a * b + c * d + e / f : g + h + i;
+network where a * b + c * d + e / f == g + h + i;
 
-network where a * (b + c * d) + e / f : g + h + i;
+network where a * (b + c * d) + e / f == g + h + i;
 
 process where pid : 4 or pid : 5 or pid : 6 or pid : 7 or pid : 8;
 
-network where pid : 0 or pid : 4 or (ppid : 0 or ppid : 4) or (abc : defgh) and process_name : "*" ;
+network where pid : 0 or pid : 4 or (ppid : 0 or ppid : 4) or (abc == defgh) and process_name : "*" ;
 
 network where pid : 4;
 
@@ -128,7 +129,7 @@ process where 0 > exit_code;
 
 process where (serial_event_id<=8 and serial_event_id > 7) and (opcode:3 and opcode>2);
 
-process where (serial_event_id<9 and serial_event_id >= 7) or (opcode : pid);
+process where (serial_event_id<9 and serial_event_id >= 7) or (opcode == pid);
 
 
 
@@ -229,21 +230,21 @@ file where serial_event_id:88 and substring(file_name, -4) : ".exe"
 file where serial_event_id:88 and substring(file_name, -4, -1) : ".ex"
 ;
 
-process where add(serial_event_id, 0) : 1 and add(0, 1) : serial_event_id;
+process where add(serial_event_id, 0) : 1 and add(0, 1) == serial_event_id;
 
 process where subtract(serial_event_id, -5) : 6;
 
 process where multiply(6, serial_event_id) : 30 and divide(30, 4.0) : 7.5;
 
-process where modulo(11, add(serial_event_id, 1)) : serial_event_id;
+process where modulo(11, add(serial_event_id, 1)) == serial_event_id;
 
-process where serial_event_id : number("5");
+process where serial_event_id == number("5");
 
-process where serial_event_id : number("0x32", 16);
+process where serial_event_id == number("0x32", 16);
 
-process where serial_event_id : number("32", 16);
+process where serial_event_id == number("32", 16);
 
-process where number(serial_event_id) : number(5);
+process where number(serial_event_id) == number(5);
 
 process where concat(serial_event_id, ":", process_name, opcode) : "5:winINIT.exe3"
 ;
@@ -253,7 +254,7 @@ process where concat(serial_event_id, ":", process_name, opcode) : "5:winINIT.ex
 // network where safe(divide(process_name, process_name))
 //;
 
-file where serial_event_id : 82 and (true : (process_name in ("svchost.EXE", "bad.exe", "bad2.exe")))
+file where serial_event_id : 82 and (true == (process_name in ("svchost.EXE", "bad.exe", "bad2.exe")))
 ;
 
 

@@ -44,9 +44,9 @@ import org.elasticsearch.search.aggregations.bucket.range.RangeAggregationBuilde
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregatorSupplier;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -89,7 +89,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -143,14 +143,11 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        if (hardBounds != null || extendedBounds != null) {
-            return null;
-        }
         long[] fixedRoundingPoints = preparedRounding.fixedRoundingPoints();
         if (fixedRoundingPoints == null) {
             return null;
@@ -164,17 +161,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         if (max < -RangeAggregator.MAX_ACCURATE_BOUND || max > RangeAggregator.MAX_ACCURATE_BOUND) {
             return null;
         }
-        RangeAggregatorSupplier rangeSupplier = context.getQueryShardContext()
-            .getValuesSourceRegistry()
+        RangeAggregatorSupplier rangeSupplier = context.getValuesSourceRegistry()
             .getAggregator(RangeAggregationBuilder.REGISTRY_KEY, valuesSourceConfig);
         if (rangeSupplier == null) {
             return null;
         }
-        RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
-        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
-            ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
-        }
-        ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+        RangeAggregator.Range[] ranges = ranges(hardBounds, fixedRoundingPoints);
         return new DateHistogramAggregator.FromDateRange(
             parent,
             factories,
@@ -199,6 +191,27 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             keyed,
             fixedRoundingPoints
         );
+    }
+
+    private static RangeAggregator.Range[] ranges(LongBounds hardBounds, long[] fixedRoundingPoints) {
+        if (hardBounds == null) {
+            RangeAggregator.Range[] ranges = new RangeAggregator.Range[fixedRoundingPoints.length];
+            for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+                ranges[i] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]);
+            }
+            ranges[ranges.length - 1] = new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null);
+            return ranges;
+        }
+        List<RangeAggregator.Range> ranges = new ArrayList<>(fixedRoundingPoints.length);
+        for (int i = 0; i < fixedRoundingPoints.length - 1; i++) {
+            if (hardBounds.contain(fixedRoundingPoints[i])) {
+                ranges.add(new RangeAggregator.Range(null, (double) fixedRoundingPoints[i], (double) fixedRoundingPoints[i + 1]));
+            }
+        }
+        if (hardBounds.contain(fixedRoundingPoints[fixedRoundingPoints.length - 1])) {
+            ranges.add(new RangeAggregator.Range(null, (double) fixedRoundingPoints[fixedRoundingPoints.length - 1], null));
+        }
+        return ranges.toArray(RangeAggregator.Range[]::new);
     }
 
     private final ValuesSource.Numeric valuesSource;
@@ -228,13 +241,12 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
-        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
         this.preparedRounding = preparedRounding;
         this.order = order;
@@ -314,7 +326,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public InternalAggregation buildEmptyAggregation() {
         InternalDateHistogram.EmptyBucketInfo emptyBucketInfo = minDocCount == 0
-                ? new InternalDateHistogram.EmptyBucketInfo(rounding, buildEmptySubAggregations(), extendedBounds)
+                ? new InternalDateHistogram.EmptyBucketInfo(rounding.withoutOffset(), buildEmptySubAggregations(), extendedBounds)
                 : null;
         return new InternalDateHistogram(name, Collections.emptyList(), order, minDocCount, rounding.offset(), emptyBucketInfo, formatter,
                 keyed, metadata());
@@ -339,6 +351,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     public double bucketSize(long bucket, Rounding.DateTimeUnit unitSize) {
         if (unitSize != null) {
             return preparedRounding.roundingSize(bucketOrds.get(bucket), unitSize);
+        } else {
+            return 1.0;
+        }
+    }
+
+    @Override
+    public double bucketSize(Rounding.DateTimeUnit unitSize) {
+        if (unitSize != null) {
+            return preparedRounding.roundingSize(unitSize);
         } else {
             return 1.0;
         }
@@ -427,6 +448,15 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
             if (unitSize != null) {
                 long startPoint = bucket < fixedRoundingPoints.length ? fixedRoundingPoints[(int) bucket] : Long.MIN_VALUE;
                 return preparedRounding.roundingSize(startPoint, unitSize);
+            } else {
+                return 1.0;
+            }
+        }
+
+        @Override
+        public double bucketSize(DateTimeUnit unitSize) {
+            if (unitSize != null) {
+                return preparedRounding.roundingSize(unitSize);
             } else {
                 return 1.0;
             }

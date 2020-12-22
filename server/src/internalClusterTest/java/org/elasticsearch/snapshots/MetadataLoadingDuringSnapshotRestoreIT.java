@@ -19,7 +19,6 @@
 
 package org.elasticsearch.snapshots;
 
-import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
@@ -77,12 +76,9 @@ public class MetadataLoadingDuringSnapshotRestoreIT extends AbstractSnapshotInte
         createRepository("repository", CountingMockRepositoryPlugin.TYPE);
 
         // Creating a snapshot does not load any metadata
-        CreateSnapshotResponse createSnapshotResponse = client().admin().cluster().prepareCreateSnapshot("repository", "snap")
-                                                                                    .setIncludeGlobalState(true)
-                                                                                    .setWaitForCompletion(true)
-                                                                                    .get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().failedShards(), equalTo(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().status(), equalTo(RestStatus.OK));
+        SnapshotInfo snapshotInfo = createFullSnapshot("repository", "snap");
+        assertThat(snapshotInfo.failedShards(), equalTo(0));
+        assertThat(snapshotInfo.status(), equalTo(RestStatus.OK));
         assertGlobalMetadataLoads("snap", 0);
         assertIndexMetadataLoads("snap", "docs", 0);
         assertIndexMetadataLoads("snap", "others", 0);

@@ -17,6 +17,7 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
 import java.io.IOException;
@@ -469,7 +470,7 @@ public class JobUpdate implements Writeable, ToXContentObject {
             builder.setCustomSettings(customSettings);
         }
         if (modelSnapshotId != null) {
-            builder.setModelSnapshotId(modelSnapshotId);
+            builder.setModelSnapshotId(ModelSnapshot.isTheEmptySnapshot(modelSnapshotId) ? null : modelSnapshotId);
         }
         if (modelSnapshotMinVersion != null) {
             builder.setModelSnapshotMinVersion(modelSnapshotMinVersion);

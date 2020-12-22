@@ -1614,6 +1614,13 @@ File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 // end::oidc-op-jwkset-path-tag[]
 
+`authorization_realms`::
+(<<static-cluster-setting,Static>>)
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the OpenID Connect realm does not perform role
+mapping and instead loads the user from the listed realms.
+See <<authorization_realms>>.
+
 // tag::rp-client-id-tag[]
 `rp.client_id` {ess-icon}::
 (<<static-cluster-setting,Static>>)

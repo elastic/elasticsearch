@@ -31,6 +31,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 
+import static java.util.Collections.emptyMap;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -49,9 +50,9 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         when(mapperService.fieldType("field_name")).thenReturn(fieldType);
         when(mapperService.simpleMatchToFullName("field_name")).thenReturn(Collections.singleton("field_name"));
 
-        QueryShardContext queryShardContext = new QueryShardContext(0,
+        QueryShardContext queryShardContext = new QueryShardContext(0, 0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, mapperService,
-                null, null, null, null, null, null, () -> 0L, null, null, () -> true, null);
+                null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
                 Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");

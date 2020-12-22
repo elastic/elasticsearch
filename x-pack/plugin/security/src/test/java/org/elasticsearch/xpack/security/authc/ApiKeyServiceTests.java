@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.license.XPackLicenseState.Feature;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -138,7 +137,6 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void setupMocks() {
         this.licenseState = mock(XPackLicenseState.class);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
 
         this.client = mock(Client.class);
         this.securityIndex = SecurityMocks.mockSecurityIndexManager();
@@ -246,11 +244,6 @@ public class ApiKeyServiceTests extends ESTestCase {
             user = new User(randomAlphaOfLength(6), new String[] { randomAlphaOfLength(12) });
         }
         mockKeyDocument(service, id, key, user);
-
-        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(false);
-        final AuthenticationResult auth = tryAuthenticate(service, id, key);
-        assertThat(auth.getStatus(), is(AuthenticationResult.Status.CONTINUE));
-        assertThat(auth.getUser(), nullValue());
     }
 
     public void testAuthenticationFailureWithInvalidatedApiKey() throws Exception {

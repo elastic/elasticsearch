@@ -179,6 +179,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix( bugUrl = "https://github.com/elastic/elasticsearch/issues/65064")
     public void testActionCondition() throws Exception {
         final String id = "testActionCondition";
         final List<ExecutableCondition> actionConditions = new ArrayList<>();
@@ -242,7 +243,7 @@ public class HistoryActionConditionTests extends AbstractWatcherIntegrationTestC
      * @param input The input to use for the Watch
      * @param actionConditions The conditions to add to the Watch
      */
-    private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) {
+    private void putAndTriggerWatch(final String id, final Input input, final Condition... actionConditions) throws Exception {
         WatchSourceBuilder source = watchBuilder()
                 .trigger(schedule(interval("5s")))
                 .input(input)

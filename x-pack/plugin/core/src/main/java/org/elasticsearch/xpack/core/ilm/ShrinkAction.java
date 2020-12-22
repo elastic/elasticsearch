@@ -29,13 +29,13 @@ import java.util.Objects;
  * A {@link LifecycleAction} which shrinks the index.
  */
 public class ShrinkAction implements LifecycleAction {
+    private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
+
     public static final String NAME = "shrink";
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
-
-    private static final Logger logger = LogManager.getLogger(ShrinkAction.class);
 
     private static final ConstructingObjectParser<ShrinkAction, Void> PARSER =
         new ConstructingObjectParser<>(NAME, a -> new ShrinkAction((Integer) a[0]));
@@ -108,7 +108,19 @@ public class ShrinkAction implements LifecycleAction {
         StepKey deleteIndexKey = new StepKey(phase, NAME, DeleteStep.NAME);
 
         BranchingStep conditionalSkipShrinkStep = new BranchingStep(preShrinkBranchingKey, checkNotWriteIndex, nextStepKey,
-            (index, clusterState) -> clusterState.getMetadata().index(index).getNumberOfShards() == numberOfShards);
+            (index, clusterState) -> {
+                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                if (indexMetadata.getNumberOfShards() == numberOfShards) {
+                    return true;
+                }
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
+                            "Skipping this action", ShrinkAction.NAME, indexMetadata.getIndex().getName(),
+                        LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                    return true;
+                }
+                return false;
+            });
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             waitForNoFollowerStepKey);
         WaitForNoFollowersStep waitForNoFollowersStep = new WaitForNoFollowersStep(waitForNoFollowerStepKey, readOnlyKey, client);

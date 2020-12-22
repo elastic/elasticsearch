@@ -24,7 +24,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         StepKey nextStepKey = new StepKey(phase, randomAlphaOfLengthBetween(1, 5), randomAlphaOfLengthBetween(1, 5));
 
         List<Step> steps = action.toSteps(null, phase, nextStepKey);
-        assertThat(steps.size(), is(action.isForceMergeIndex() ? 15 : 13));
+        assertThat(steps.size(), is(action.isForceMergeIndex() ? 16 : 14));
 
         List<StepKey> expectedSteps = action.isForceMergeIndex() ? expectedStepKeysWithForceMerge(phase) :
             expectedStepKeysNoForceMerge(phase);
@@ -44,17 +44,18 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         assertThat(steps.get(12).getKey(), is(expectedSteps.get(12)));
 
         if (action.isForceMergeIndex()) {
-            assertThat(steps.get(13).getKey(), is(expectedSteps.get(13)));
-            AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(6);
-            assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(5)));
+            assertThat(steps.get(14).getKey(), is(expectedSteps.get(14)));
+            AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(7);
+            assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(6)));
         } else {
-            AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(4);
-            assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(3)));
+            AsyncActionBranchingStep branchStep = (AsyncActionBranchingStep) steps.get(5);
+            assertThat(branchStep.getNextKeyOnIncompleteResponse(), is(expectedSteps.get(4)));
         }
     }
 
     private List<StepKey> expectedStepKeysWithForceMerge(String phase) {
         return List.of(
+            new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),
             new StepKey(phase, NAME, ForceMergeStep.NAME),
@@ -74,6 +75,7 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
     private List<StepKey> expectedStepKeysNoForceMerge(String phase) {
         return List.of(
+            new StepKey(phase, NAME, SearchableSnapshotAction.CONDITIONAL_SKIP_ACTION_STEP),
             new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME),
             new StepKey(phase, NAME, WaitForNoFollowersStep.NAME),
             new StepKey(phase, NAME, GenerateSnapshotNameStep.NAME),

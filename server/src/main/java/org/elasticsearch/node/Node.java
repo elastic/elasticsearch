@@ -110,6 +110,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.BreakerSettings;
@@ -144,11 +145,13 @@ import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RepositoryPlugin;
+import org.elasticsearch.plugins.RestCompatibilityPlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptEngine;
@@ -488,6 +491,20 @@ public class Node implements Closeable {
                     .flatMap(m -> m.entrySet().stream())
                     .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
+            final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners =
+                pluginsService.filterPlugins(IndexStorePlugin.class)
+                    .stream()
+                    .map(IndexStorePlugin::getIndexFoldersDeletionListeners)
+                    .flatMap(List::stream)
+                    .collect(Collectors.toList());
+
+            final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers =
+                    pluginsService.filterPlugins(IndexStorePlugin.class)
+                            .stream()
+                            .map(IndexStorePlugin::getSnapshotCommitSuppliers)
+                            .flatMap(m -> m.entrySet().stream())
+                            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             final Map<String, Collection<SystemIndexDescriptor>> systemIndexDescriptorMap = pluginsService
                 .filterPlugins(SystemIndexPlugin.class)
                 .stream()
@@ -495,6 +512,9 @@ public class Node implements Closeable {
                     plugin -> plugin.getClass().getSimpleName(),
                     plugin -> plugin.getSystemIndexDescriptors(settings)));
             final SystemIndices systemIndices = new SystemIndices(systemIndexDescriptorMap);
+
+            final SystemIndexManager systemIndexManager = new SystemIndexManager(systemIndices, client);
+            clusterService.addListener(systemIndexManager);
 
             final RerouteService rerouteService
                 = new BatchedRerouteService(clusterService, clusterModule.getAllocationService()::reroute);
@@ -506,7 +526,8 @@ public class Node implements Closeable {
                     clusterModule.getIndexNameExpressionResolver(), indicesModule.getMapperRegistry(), namedWriteableRegistry,
                     threadPool, settingsModule.getIndexScopedSettings(), circuitBreakerService, bigArrays, scriptService,
                     clusterService, client, metaStateService, engineFactoryProviders, indexStoreFactories,
-                    searchModule.getValuesSourceRegistry(), recoveryStateFactories);
+                    searchModule.getValuesSourceRegistry(), recoveryStateFactories, indexFoldersDeletionListeners,
+                    snapshotCommitSuppliers);
 
             final AliasValidator aliasValidator = new AliasValidator();
 
@@ -541,7 +562,8 @@ public class Node implements Closeable {
 
             ActionModule actionModule = new ActionModule(settings, clusterModule.getIndexNameExpressionResolver(),
                 settingsModule.getIndexScopedSettings(), settingsModule.getClusterSettings(), settingsModule.getSettingsFilter(),
-                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, systemIndices);
+                threadPool, pluginsService.filterPlugins(ActionPlugin.class), client, circuitBreakerService, usageService, systemIndices,
+                getRestCompatibleFunction());
             modules.add(actionModule);
 
             final RestController restController = actionModule.getRestController();
@@ -695,11 +717,12 @@ public class Node implements Closeable {
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
-            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}), transportService.getTaskManager(),
-                    () -> clusterService.localNode().getId(), transportService.getRemoteClusterService(),
-                namedWriteableRegistry
-
-                );
+            client.initialize(injector.getInstance(new Key<Map<ActionType, TransportAction>>() {}),
+                transportService.getTaskManager(),
+                () -> clusterService.localNode().getId(),
+                transportService.getLocalNodeConnection(),
+                transportService.getRemoteClusterService(),
+                namedWriteableRegistry);
             this.namedWriteableRegistry = namedWriteableRegistry;
 
             logger.debug("initializing HTTP handlers ...");
@@ -714,6 +737,23 @@ public class Node implements Closeable {
                 IOUtils.closeWhileHandlingException(resourcesToClose);
             }
         }
+    }
+
+    /**
+     * @return A function that can be used to determine the requested REST compatible version
+     * package scope for testing
+     */
+    CompatibleVersion getRestCompatibleFunction() {
+        List<RestCompatibilityPlugin> restCompatibilityPlugins = pluginsService.filterPlugins(RestCompatibilityPlugin.class);
+        final CompatibleVersion compatibleVersion;
+        if (restCompatibilityPlugins.size() > 1) {
+            throw new IllegalStateException("Only one RestCompatibilityPlugin is allowed");
+        } else if (restCompatibilityPlugins.size() == 1) {
+            compatibleVersion = restCompatibilityPlugins.get(0)::getCompatibleVersion;
+        } else {
+            compatibleVersion = CompatibleVersion.CURRENT_VERSION;
+        }
+        return compatibleVersion;
     }
 
     protected TransportService newTransportService(Settings settings, Transport transport, ThreadPool threadPool,

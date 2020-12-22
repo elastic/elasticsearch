@@ -43,6 +43,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
@@ -179,6 +180,20 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     public void testErroneousSnapshotShardSizes() throws Exception {
+        final int maxShardsToCreate = scaledRandomIntBetween(10, 500);
+
+        final PlainActionFuture<Void> waitForAllReroutesProcessed = new PlainActionFuture<>();
+        final CountDown reroutes = new CountDown(maxShardsToCreate);
+        final RerouteService rerouteService = (reason, priority, listener) -> {
+            try {
+                listener.onResponse(clusterService.state());
+            } finally {
+                if (reroutes.countDown()) {
+                    waitForAllReroutesProcessed.onResponse(null);
+                }
+            }
+        };
+
         final InternalSnapshotsInfoService snapshotsInfoService =
             new InternalSnapshotsInfoService(Settings.builder()
                 .put(INTERNAL_SNAPSHOT_INFO_MAX_CONCURRENT_FETCHES_SETTING.getKey(), randomIntBetween(1, 10))
@@ -202,7 +217,6 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         };
         when(repositoriesService.repository("_repo")).thenReturn(mockRepository);
 
-        final int maxShardsToCreate = scaledRandomIntBetween(10, 500);
         final Thread addSnapshotRestoreIndicesThread = new Thread(() -> {
             int remainingShards = maxShardsToCreate;
             while (remainingShards > 0) {
@@ -244,6 +258,10 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
             assertThat(snapshotShardSizeInfo.getShardSize(shardRouting, defaultValue),
                 success ? equalTo(results.get(snapshotShard.getKey())) : equalTo(defaultValue));
         }
+
+        waitForAllReroutesProcessed.get(60L, TimeUnit.SECONDS);
+        assertThat("Expecting all snapshot shard size fetches to provide a size", results.size(), equalTo(maxShardsToCreate));
+        assertTrue("Expecting all snapshot shard size fetches to execute a Reroute", reroutes.isCountedDown());
     }
 
     public void testNoLongerMaster() throws Exception {

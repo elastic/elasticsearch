@@ -167,7 +167,92 @@ no dedicated array type, and any field could contain multiple values. The
 a specific order. See the mapping documentation on <<array, arrays>> for more
 background.
 
+[discrete]
+[[retrieve-unmapped-fields]]
+==== Retrieving unmapped fields
 
+By default, the `fields` parameter returns only values of mapped fields. However,
+Elasticsearch allows storing fields in `_source` that are unmapped, for example by
+setting <<dynamic-field-mapping,Dynamic field mapping>> to `false` or by using an
+object field with `enabled: false`, thereby disabling parsing and indexing of its content.
+
+Fields in such an object can be retrieved from `_source` using the `include_unmapped` option
+in the `fields` section:
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "enabled": false <1>
+  }
+}
+
+PUT my-index-000001/_doc/1?refresh=true
+{
+  "user_id": "kimchy",
+  "session_data": {
+     "object": {
+       "some_field": "some_value"
+     }
+   }
+}
+
+POST my-index-000001/_search
+{
+  "fields": [
+    "user_id",
+    {
+      "field": "session_data.object.*",
+      "include_unmapped" : true <2>
+    }
+  ],
+  "_source": false
+}
+----
+
+<1> Disable all mappings.
+<2> Include unmapped fields matching this field pattern.
+
+The response will contain fields results under the  `session_data.object.*` path even if the
+fields are unmapped, but will not contain `user_id` since it is unmapped but the `include_unmapped`
+flag hasn't been set to `true` for that field pattern.
+
+[source,console-result]
+----
+{
+  "took" : 2,
+  "timed_out" : false,
+  "_shards" : {
+    "total" : 1,
+    "successful" : 1,
+    "skipped" : 0,
+    "failed" : 0
+  },
+  "hits" : {
+    "total" : {
+      "value" : 1,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "my-index-000001",
+        "_id" : "1",
+        "_score" : 1.0,
+        "fields" : {
+          "session_data.object.some_field": [
+            "some_value"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took" : 2/"took": $body.took/]
+// TESTRESPONSE[s/"max_score" : 1.0/"max_score" : $body.hits.max_score/]
+// TESTRESPONSE[s/"_score" : 1.0/"_score" : $body.hits.hits.0._score/]
 
 [discrete]
 [[docvalue-fields]]

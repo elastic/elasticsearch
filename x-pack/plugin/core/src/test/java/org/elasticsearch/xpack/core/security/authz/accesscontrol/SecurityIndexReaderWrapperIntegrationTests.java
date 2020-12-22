@@ -54,6 +54,7 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -89,9 +90,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null);
+                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
@@ -221,9 +222,9 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
                 null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
-                client, null, () -> nowInMillis, null, null, () -> true, null);
+                client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
         DocumentSubsetBitsetCache bitsetCache = new DocumentSubsetBitsetCache(Settings.EMPTY, Executors.newSingleThreadExecutor());
 

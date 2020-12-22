@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -99,52 +100,17 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
     public static LifecyclePolicy randomTimeseriesLifecyclePolicyWithAllPhases(@Nullable String lifecycleName) {
         List<String> phaseNames = TimeseriesLifecycleType.VALID_PHASES;
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
-        Function<String, Set<String>> validActions = (phase) -> {
-            switch (phase) {
-                case "hot":
-                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-                case "warm":
-                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
-                case "cold":
-                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
-                case "delete":
-                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }};
-        Function<String, LifecycleAction> randomAction = (action) -> {
-            switch (action) {
-                case AllocateAction.NAME:
-                    return AllocateActionTests.randomInstance();
-                case DeleteAction.NAME:
-                    return new DeleteAction();
-                case WaitForSnapshotAction.NAME:
-                    return WaitForSnapshotActionTests.randomInstance();
-                case ForceMergeAction.NAME:
-                    return ForceMergeActionTests.randomInstance();
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return RolloverActionTests.randomInstance();
-                case ShrinkAction.NAME:
-                    return ShrinkActionTests.randomInstance();
-                case FreezeAction.NAME:
-                    return new FreezeAction();
-                case SetPriorityAction.NAME:
-                    return SetPriorityActionTests.randomInstance();
-                case UnfollowAction.NAME:
-                    return new UnfollowAction();
-                case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
-                case MigrateAction.NAME:
-                    return new MigrateAction(false);
-                default:
-                    throw new IllegalArgumentException("invalid action [" + action + "]");
-            }};
+        Function<String, Set<String>> validActions = getPhaseToValidActions();
+        Function<String, LifecycleAction> randomAction = getNameToActionFunction();
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             Set<String> actionNames = validActions.apply(phase);
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE) == false) {
+                // let's make sure the other phases don't configure actions that conflict with the `searchable_snapshot` action
+                // configured in the hot phase
+                actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+            }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }
@@ -157,57 +123,35 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
         List<String> phaseNames = randomSubsetOf(
             between(0, TimeseriesLifecycleType.VALID_PHASES.size() - 1), TimeseriesLifecycleType.VALID_PHASES);
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
-        Function<String, Set<String>> validActions = (phase) -> {
-            switch (phase) {
-                case "hot":
-                    return TimeseriesLifecycleType.VALID_HOT_ACTIONS;
-                case "warm":
-                    return TimeseriesLifecycleType.VALID_WARM_ACTIONS;
-                case "cold":
-                    return TimeseriesLifecycleType.VALID_COLD_ACTIONS;
-                case "delete":
-                    return TimeseriesLifecycleType.VALID_DELETE_ACTIONS;
-                default:
-                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
-            }};
-        Function<String, LifecycleAction> randomAction = (action) -> {
-            switch (action) {
-                case AllocateAction.NAME:
-                    return AllocateActionTests.randomInstance();
-                case WaitForSnapshotAction.NAME:
-                    return WaitForSnapshotActionTests.randomInstance();
-                case DeleteAction.NAME:
-                    return new DeleteAction();
-                case ForceMergeAction.NAME:
-                    return ForceMergeActionTests.randomInstance();
-                case ReadOnlyAction.NAME:
-                    return new ReadOnlyAction();
-                case RolloverAction.NAME:
-                    return RolloverActionTests.randomInstance();
-                case ShrinkAction.NAME:
-                    return ShrinkActionTests.randomInstance();
-                case FreezeAction.NAME:
-                    return new FreezeAction();
-                case SetPriorityAction.NAME:
-                    return SetPriorityActionTests.randomInstance();
-                case UnfollowAction.NAME:
-                    return new UnfollowAction();
-                case SearchableSnapshotAction.NAME:
-                    return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
-                case MigrateAction.NAME:
-                    return new MigrateAction(false);
-                default:
-                    throw new IllegalArgumentException("invalid action [" + action + "]");
-            }};
+        Function<String, Set<String>> validActions = getPhaseToValidActions();
+        Function<String, LifecycleAction> randomAction = getNameToActionFunction();
+        // as what actions end up in the hot phase influence what actions are allowed in the subsequent phases we'll move the hot phase
+        // at the front of the phases to process (if it exists)
+        if (phaseNames.contains(TimeseriesLifecycleType.HOT_PHASE)) {
+            phaseNames.remove(TimeseriesLifecycleType.HOT_PHASE);
+            phaseNames.add(0, TimeseriesLifecycleType.HOT_PHASE);
+        }
+        boolean hotPhaseContainsSearchableSnap = false;
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
             List<String> actionNames = randomSubsetOf(validActions.apply(phase));
 
-            // If the hot phase has any actions that require a rollover, then ensure there is one so that the policy will validate
-            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)
-                && actionNames.stream().anyMatch(TimeseriesLifecycleType.HOT_ACTIONS_THAT_REQUIRE_ROLLOVER::contains)) {
-                actionNames.add(RolloverAction.NAME);
+            if (phase.equals(TimeseriesLifecycleType.HOT_PHASE)) {
+                // If the hot phase has any actions that require a rollover, then ensure there is one so that the policy will validate
+                if (actionNames.stream().anyMatch(TimeseriesLifecycleType.HOT_ACTIONS_THAT_REQUIRE_ROLLOVER::contains)) {
+                    actionNames.add(RolloverAction.NAME);
+                }
+
+                if (actionNames.contains(SearchableSnapshotAction.NAME)) {
+                    hotPhaseContainsSearchableSnap = true;
+                }
+            } else {
+                if (hotPhaseContainsSearchableSnap) {
+                    // let's make sure the other phases don't configure actions that conflict with a possible `searchable_snapshot` action
+                    // configured in the hot phase
+                    actionNames.removeAll(TimeseriesLifecycleType.ACTIONS_CANNOT_FOLLOW_SEARCHABLE_SNAPSHOT);
+                }
             }
 
             for (String action : actionNames) {
@@ -216,6 +160,54 @@ public class LifecyclePolicyTests extends AbstractSerializingTestCase<LifecycleP
             phases.put(phase, new Phase(phase, after, actions));
         }
         return new LifecyclePolicy(TimeseriesLifecycleType.INSTANCE, lifecycleName, phases);
+    }
+
+    private static Function<String, Set<String>> getPhaseToValidActions() {
+        return (phase) -> {
+            switch (phase) {
+                case "hot":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_HOT_ACTIONS);
+                case "warm":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_WARM_ACTIONS);
+                case "cold":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_COLD_ACTIONS);
+                case "delete":
+                    return new HashSet<>(TimeseriesLifecycleType.VALID_DELETE_ACTIONS);
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+    }
+
+    private static Function<String, LifecycleAction> getNameToActionFunction() {
+        return (action) -> {
+                switch (action) {
+                    case AllocateAction.NAME:
+                        return AllocateActionTests.randomInstance();
+                    case WaitForSnapshotAction.NAME:
+                        return WaitForSnapshotActionTests.randomInstance();
+                    case DeleteAction.NAME:
+                        return new DeleteAction();
+                    case ForceMergeAction.NAME:
+                        return ForceMergeActionTests.randomInstance();
+                    case ReadOnlyAction.NAME:
+                        return new ReadOnlyAction();
+                    case RolloverAction.NAME:
+                        return RolloverActionTests.randomInstance();
+                    case ShrinkAction.NAME:
+                        return ShrinkActionTests.randomInstance();
+                    case FreezeAction.NAME:
+                        return new FreezeAction();
+                    case SetPriorityAction.NAME:
+                        return SetPriorityActionTests.randomInstance();
+                    case UnfollowAction.NAME:
+                        return new UnfollowAction();
+                    case SearchableSnapshotAction.NAME:
+                        return new SearchableSnapshotAction(randomAlphaOfLengthBetween(1, 10));
+                    case MigrateAction.NAME:
+                        return new MigrateAction(false);
+                    default:
+                        throw new IllegalArgumentException("invalid action [" + action + "]");
+                }};
     }
 
     public static LifecyclePolicy randomTestLifecyclePolicy(@Nullable String lifecycleName) {

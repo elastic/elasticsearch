@@ -4,8 +4,6 @@
 <titleabbrev>Simulate template</titleabbrev>
 ++++
 
-experimental[]
-
 Returns the index configuration that would be applied by a particular 
 <<indices-templates, index template>>.
 

@@ -90,7 +90,7 @@ public class HandshakingTransportAddressConnector implements TransportAddressCon
 
                         // use NotifyOnceListener to make sure the following line does not result in onFailure being called when
                         // the connection is closed in the onResponse handler
-                        transportService.handshake(connection, probeHandshakeTimeout.millis(), new NotifyOnceListener<>() {
+                        transportService.handshake(connection, probeHandshakeTimeout, new NotifyOnceListener<>() {
 
                             @Override
                             protected void innerOnResponse(DiscoveryNode remoteNode) {

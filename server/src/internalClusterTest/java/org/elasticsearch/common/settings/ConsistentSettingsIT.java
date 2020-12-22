@@ -21,6 +21,7 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting.AffixSetting;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -167,9 +168,7 @@ public class ConsistentSettingsIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        Collection<Class<? extends Plugin>> classes = new ArrayList<>(super.nodePlugins());
-        classes.add(DummyPlugin.class);
-        return classes;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), DummyPlugin.class);
     }
 
     public static final class DummyPlugin extends Plugin {

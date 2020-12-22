@@ -6,34 +6,42 @@
 
 package org.elasticsearch.xpack.autoscaling.capacity;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.hamcrest.Matchers;
 
 public class FixedAutoscalingDeciderServiceTests extends AutoscalingTestCase {
     public void testScale() {
-        FixedAutoscalingDeciderConfiguration configuration = new FixedAutoscalingDeciderConfiguration(
-            null,
-            null,
-            randomFrom(randomIntBetween(1, 1000), null)
-        );
-        verify(configuration, null);
+
+        Settings.Builder configurationBuilder = Settings.builder();
+        int nodes = randomIntBetween(1, 1000);
+        if (randomBoolean()) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.NODES.getKey(), nodes);
+        }
+        verify(configurationBuilder.build(), null);
+
+        configurationBuilder = Settings.builder();
 
         ByteSizeValue storage = randomNullableByteSizeValue();
         ByteSizeValue memory = storage != null ? randomNullableByteSizeValue() : randomByteSizeValue();
-        verify(
-            new FixedAutoscalingDeciderConfiguration(storage, memory, null),
-            AutoscalingCapacity.builder().node(storage, memory).total(storage, memory).build()
-        );
+        if (storage != null) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.STORAGE.getKey(), storage);
+        }
+        if (memory != null) {
+            configurationBuilder.put(FixedAutoscalingDeciderService.MEMORY.getKey(), memory);
+        }
+        verify(configurationBuilder.build(), AutoscalingCapacity.builder().node(storage, memory).total(storage, memory).build());
 
-        int nodes = randomIntBetween(1, 1000);
+        configurationBuilder.put(FixedAutoscalingDeciderService.NODES.getKey(), nodes);
         verify(
-            new FixedAutoscalingDeciderConfiguration(storage, memory, nodes),
+            configurationBuilder.build(),
             AutoscalingCapacity.builder().node(storage, memory).total(multiply(storage, nodes), multiply(memory, nodes)).build()
         );
+
     }
 
-    private void verify(FixedAutoscalingDeciderConfiguration configuration, AutoscalingCapacity expected) {
+    private void verify(Settings configuration, AutoscalingCapacity expected) {
         FixedAutoscalingDeciderService service = new FixedAutoscalingDeciderService();
         AutoscalingDeciderResult result = service.scale(configuration, null);
         assertThat(result.requiredCapacity(), Matchers.equalTo(expected));

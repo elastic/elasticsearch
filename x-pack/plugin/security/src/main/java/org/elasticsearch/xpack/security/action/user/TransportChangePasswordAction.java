@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -15,14 +16,13 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordRequest;
-import org.elasticsearch.xpack.core.security.action.user.ChangePasswordResponse;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
-public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ChangePasswordResponse> {
+public class TransportChangePasswordAction extends HandledTransportAction<ChangePasswordRequest, ActionResponse.Empty> {
 
     private final Settings settings;
     private final NativeUsersStore nativeUsersStore;
@@ -36,7 +36,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
     }
 
     @Override
-    protected void doExecute(Task task, ChangePasswordRequest request, ActionListener<ChangePasswordResponse> listener) {
+    protected void doExecute(Task task, ChangePasswordRequest request, ActionListener<ActionResponse.Empty> listener) {
         final String username = request.username();
         if (AnonymousUser.isAnonymousUsername(username, settings)) {
             listener.onFailure(new IllegalArgumentException("user [" + username + "] is anonymous and cannot be modified via the API"));
@@ -55,7 +55,7 @@ public class TransportChangePasswordAction extends HandledTransportAction<Change
         nativeUsersStore.changePassword(request, new ActionListener<Void>() {
             @Override
             public void onResponse(Void v) {
-                listener.onResponse(new ChangePasswordResponse());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
 
             @Override

@@ -63,7 +63,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.search.sort.FieldSortBuilder.validateMaxChildrenExistOnlyInTopLevelNestedSort;
@@ -80,7 +79,10 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     public static final GeoValidationMethod DEFAULT_VALIDATION = GeoValidationMethod.DEFAULT;
 
     private static final ParseField UNIT_FIELD = new ParseField("unit");
-    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    @Deprecated
+    private static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type")
+        .withAllDeprecated("no replacement: `distance_type` is handled internally and no longer supported. "
+            + "It will be removed in a future version.");
     private static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
     private static final ParseField SORTMODE_FIELD = new ParseField("mode", "sort_mode");
     private static final ParseField IGNORE_UNMAPPED = new ParseField("ignore_unmapped");
@@ -233,6 +235,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     /**
      * The geo distance type used to compute the distance.
      */
+    @Deprecated
     public GeoDistanceSortBuilder geoDistance(GeoDistance geoDistance) {
         this.geoDistance = geoDistance;
         return this;
@@ -241,6 +244,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     /**
      * Returns the geo distance type used to compute the distance.
      */
+    @Deprecated
     public GeoDistance geoDistance() {
         return this.geoDistance;
     }
@@ -335,7 +339,6 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         builder.endArray();
 
         builder.field(UNIT_FIELD.getPreferredName(), unit);
-        builder.field(DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
         builder.field(ORDER_FIELD.getPreferredName(), order);
 
         if (sortMode != null) {

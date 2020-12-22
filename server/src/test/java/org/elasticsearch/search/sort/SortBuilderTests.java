@@ -108,7 +108,7 @@ public class SortBuilderTests extends ESTestCase {
         sortBuilder = result.get(0);
         assertEquals(new ScoreSortBuilder(), sortBuilder);
 
-        // test two spellings for _geo_disctance
+        // test two spellings for _geo_distance
         json = "{ \"sort\" : ["
                 + "{\"_geoDistance\" : {"
                 +       "\"pin.location\" : \"40,-70\" } }"

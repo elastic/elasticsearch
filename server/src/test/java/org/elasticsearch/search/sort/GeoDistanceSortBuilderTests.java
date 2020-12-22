@@ -29,8 +29,12 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
+import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -56,6 +60,25 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanceSortBuilder> {
+
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
+
+    @Override
+    public void testFromXContent() throws IOException {
+        for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
+            GeoDistanceSortBuilder testItem = randomGeoDistanceSortBuilder();
+            XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            testItem.toXContent(builder, ToXContent.EMPTY_PARAMS);
+            XContentBuilder shuffled = shuffleXContent(builder);
+            try (XContentParser parser = createParser(shuffled)) {
+                parser.nextToken();
+                NestedSortBuilder parsedItem = NestedSortBuilder.fromXContent(parser);
+                assertNotSame(testItem, parsedItem);
+                assertEquals(testItem, parsedItem);
+                assertEquals(testItem.hashCode(), parsedItem.hashCode());
+            }
+        }
+    }
 
     @Override
     protected GeoDistanceSortBuilder createTestItem() {
@@ -87,9 +110,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
             default:
                 throw new IllegalStateException("one of three geo initialisation strategies must be used");
 
-        }
-        if (randomBoolean()) {
-            result.geoDistance(geoDistance(result.geoDistance()));
         }
         if (randomBoolean()) {
             result.unit(randomValueOtherThan(result.unit(), () -> randomFrom(DistanceUnit.values())));
@@ -207,7 +227,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"lon\" : -51.94128329747579\n" +
                 "  } ],\n" +
                 "  \"unit\" : \"m\",\n" +
-                "  \"distance_type\" : \"arc\",\n" +
                 "  \"mode\" : \"SUM\"\n" +
                 "}";
         try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
@@ -224,7 +243,6 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 "    \"VDcvDuFjE\" : [ \"7umzzv8eychg\", \"dmdgmt5z13uw\", " +
                 "    \"ezu09wxw6v4c\", \"kc7s3515p6k6\", \"jgeuvjwrmfzn\", \"kcpcfj7ruyf8\" ],\n" +
                 "    \"unit\" : \"m\",\n" +
-                "    \"distance_type\" : \"arc\",\n" +
                 "    \"mode\" : \"MAX\",\n" +
                 "    \"nested\" : {\n" +
                 "      \"filter\" : {\n" +
@@ -246,6 +264,24 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
                 + "-37.20467280596495, 38.71751043945551, "
                 + "-69.44606635719538, 84.25200328230858, "
                 + "-39.03717711567879, 44.74099852144718]", Arrays.toString(result.points()));
+        }
+    }
+
+    public void testDistanceTypeIsDeprecated() throws IOException {
+        String json = "{\n" +
+            "  \"testname\" : [ {\n" +
+            "    \"lat\" : -6.046997540714173,\n" +
+            "    \"lon\" : -51.94128329747579\n" +
+            "  } ],\n" +
+            "  \"unit\" : \"m\",\n" +
+            "  \"distance_type\" : \"arc\",\n" +
+            "  \"mode\" : \"MAX\"\n" +
+            "}";
+        try (XContentParser itemParser = createParser(JsonXContent.jsonXContent, json)) {
+            itemParser.nextToken();
+            GeoDistanceSortBuilder.fromXContent(itemParser, json);
+            assertWarnings("Deprecated field [distance_type] used, replaced by [no replacement: " +
+                "`distance_type` is handled internally and no longer supported. It will be removed in a future version.]");
         }
     }
 

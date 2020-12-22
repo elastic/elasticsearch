@@ -408,7 +408,6 @@ GET /_search
           "order" : "asc",
           "unit" : "km",
           "mode" : "min",
-          "distance_type" : "arc",
           "ignore_unmapped": true
       }
     }
@@ -423,7 +422,7 @@ GET /_search
 
 `distance_type`::
 
-    How to compute the distance. Can either be `arc` (default), or `plane` (faster, but inaccurate on long distances and close to the poles).
+    Deprecated, how to compute the distance, this is handled internally.
 
 `mode`::
 

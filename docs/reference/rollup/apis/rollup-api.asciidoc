@@ -146,7 +146,7 @@ Array of <<keyword,keyword family>> and <<number,numeric>> fields to store. If
 you specify a `terms` object, this property is required.
 +
 TIP: Avoid storing high-cardinality fields. High-cardinality fields can greatly
-increase the size of resulting rollup index.
+increase the size of the resulting rollup index.
 ======
 =====
 

@@ -547,6 +547,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
             assertNotEquals(key, "Some other random object");
         }
         for (IndicesRequestCache.Key key1 : keys) {
+            assertNotEquals(key1, null);
             for (IndicesRequestCache.Key key2 : keys) {
                 if (key1 == key2) {
                     assertEquals(key1, key2);

@@ -130,7 +130,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                 }
             }
             /*
-             * note that we don't use a closed listener for the mapping. Instead
+             * Note that we don't use a closed listener for the mapping. Instead
              * we let cache entries for out of date mappings age out. We do this
              * because we don't reference count the MappingLookup so we can't tell
              * when one is no longer used. Mapping updates should be a lot less

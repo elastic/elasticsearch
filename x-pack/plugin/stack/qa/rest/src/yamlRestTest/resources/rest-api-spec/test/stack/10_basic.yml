@@ -83,6 +83,7 @@ setup:
         body:
           "@timestamp": "2020-01-01"
           message: "test-log-message"
+          source.ip: "10.1.2.3"
 
   - do:
       indices.get_data_stream:
@@ -101,9 +102,47 @@ setup:
   - is_true: \.ds-metrics-foo-bar-000001.settings
   - is_true: \.ds-metrics-foo-bar-000001.mappings
   - match: { \.ds-metrics-foo-bar-000001.settings.index.lifecycle.name: "metrics" }
+  - match: { \.ds-metrics-foo-bar-000001.mappings.properties.message.type: "text" }
+  - match: { \.ds-metrics-foo-bar-000001.mappings.properties.source.properties.ip.type: "ip" }
   - is_true: \.ds-metrics-foo-bar-000001.mappings.properties.message
   - match: { \.ds-metrics-foo-bar-000001.data_stream: "metrics-foo-bar" }
 
   - do:
       indices.delete_data_stream:
         name: metrics-foo-bar
+
+---
+"Test synthetics index auto creation":
+  - do:
+      index:
+        index: synthetics-foo-bar
+        body:
+          "@timestamp": "2020-01-01"
+          message: "test-log-message"
+          source.ip: "10.1.2.3"
+
+  - do:
+      indices.get_data_stream:
+        name: synthetics-foo-bar
+
+  - match: { data_streams.0.name: synthetics-foo-bar }
+  - match: { data_streams.0.timestamp_field.name: '@timestamp' }
+  - match: { data_streams.0.generation: 1 }
+  - length: { data_streams.0.indices: 1 }
+  - match: { data_streams.0.indices.0.index_name: '.ds-synthetics-foo-bar-000001' }
+
+  - do:
+      indices.get:
+        index: .ds-synthetics-foo-bar-000001
+
+  - is_true: \.ds-synthetics-foo-bar-000001.settings
+  - is_true: \.ds-synthetics-foo-bar-000001.mappings
+  - match: { \.ds-synthetics-foo-bar-000001.settings.index.lifecycle.name: "synthetics" }
+  - match: { \.ds-synthetics-foo-bar-000001.mappings.properties.message.type: "text" }
+  - match: { \.ds-synthetics-foo-bar-000001.mappings.properties.source.properties.ip.type: "ip" }
+  - is_true: \.ds-synthetics-foo-bar-000001.mappings.properties.message
+  - match: { \.ds-synthetics-foo-bar-000001.data_stream: "synthetics-foo-bar" }
+
+  - do:
+      indices.delete_data_stream:
+        name: synthetics-foo-bar

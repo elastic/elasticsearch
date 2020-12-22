@@ -1372,6 +1372,68 @@ public class Setting<T> implements ToXContentObject {
         return value;
     }
 
+    public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue.toString(), e -> parseEnum(clazz, key, e, isFiltered(properties)), properties);
+    }
+
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        String key,
+        Setting<T> fallbackSetting,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, e -> parseEnum(clazz, key, e, isFiltered(properties)), properties);
+    }
+
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        String key,
+        T defaultValue,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue.toString(), e -> parseEnum(clazz, key, e, isFiltered(properties)), validator, properties);
+    }
+
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        String key,
+        Setting<T> fallbackSetting,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(
+            new SimpleKey(key),
+            fallbackSetting,
+            fallbackSetting::getRaw,
+            e -> parseEnum(clazz, key, e, isFiltered(properties)),
+            validator,
+            properties
+        );
+    }
+
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        String key,
+        Function<Settings, String> defaultValueFn,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, e -> parseEnum(clazz, key, e, isFiltered(properties)), properties);
+    }
+
+    static <T extends Enum<T>> T parseEnum(Class<T> clazz, String key, String value, boolean isFiltered) {
+        try {
+            return Enum.valueOf(clazz, value.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException iae) {
+            if (isFiltered) {
+                String msg = String.format("failed to parse value [%s] for setting [%s] as a %s", value, key, clazz.getName());
+                throw new IllegalArgumentException(msg);
+            } else {
+                throw iae;
+            }
+        }
+    }
+
     /**
      * Creates a setting which specifies a memory size. This can either be
      * specified as an absolute bytes value or as a percentage of the heap

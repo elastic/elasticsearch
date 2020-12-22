@@ -195,7 +195,7 @@ public final class FrozenEngine extends ReadOnlyEngine {
             }
 
             @Override
-            public String getCommitId() {
+            public String getSearcherId() {
                 return commitId;
             }
         };

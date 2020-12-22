@@ -477,7 +477,7 @@ public class TumblingWindow implements Executable {
         }
 
         if (hasKeys) {
-            int stage = criterion == until ? 0 : window.baseStage;
+            int stage = criterion == until ? Integer.MIN_VALUE : window.baseStage;
             addKeyConstraints(stage, request);
         }
     }
@@ -515,8 +515,9 @@ public class TumblingWindow implements Executable {
 
     private void addKeyConstraints(int keyStage, BoxedQueryRequest request) {
         // add constraints if possible
-        if (keyStage >= 0) {
-            Set<SequenceKey> keys = matcher.keysFor(keyStage);
+        if (keyStage >= 0 || keyStage == Integer.MIN_VALUE) {
+            // negative means all keys and is used by until
+            Set<SequenceKey> keys = keyStage == Integer.MIN_VALUE ? matcher.keys() : matcher.keys(keyStage);
             int size = keys.size();
             if (size > 0) {
                 request.keys(keys.stream().map(SequenceKey::asList).collect(toList()));

@@ -52,12 +52,10 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
     public static final String FIXED_INTERVAL = "fixed_interval";
     public static final String CALENDAR_INTERVAL = "calendar_interval";
     public static final String TIME_ZONE = "time_zone";
-    public static final String DELAY = "delay";
 
     private static final String DEFAULT_TIMEZONE = "UTC";
     public static final ZoneId DEFAULT_ZONEID_TIMEZONE = ZoneOffset.UTC;
     private static final String FIELD = "field";
-    private static final String TYPE_NAME = "interval";
 
     private static final ConstructingObjectParser<RollupActionDateHistogramGroupConfig, Void> PARSER;
     static {

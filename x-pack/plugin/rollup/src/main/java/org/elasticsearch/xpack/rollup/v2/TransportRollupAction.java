@@ -28,7 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.RollupTask;
+import org.elasticsearch.xpack.core.rollup.action.RollupTask;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -485,7 +485,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 reloadedAnalyzers.add(analyzerName);
             }
         }
-        // TODO this should make a new MappingLookup to bust the cache
+        // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
         return reloadedAnalyzers;
     }
 }

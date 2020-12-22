@@ -235,7 +235,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 .collect(toList()),
             List.of(),
             0,
-            souceToParse -> null,
+            sourceToParse -> null,
             true
         );
 

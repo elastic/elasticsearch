@@ -139,15 +139,15 @@ setup:
 
   - do:
       indices.get:
-        index: .ds-synthetics-foo-bar-000001
+        index: $idx0name
 
-  - is_true: \.ds-synthetics-foo-bar-000001.settings
-  - is_true: \.ds-synthetics-foo-bar-000001.mappings
-  - match: { \.ds-synthetics-foo-bar-000001.settings.index.lifecycle.name: "synthetics" }
-  - match: { \.ds-synthetics-foo-bar-000001.mappings.properties.message.type: "text" }
-  - match: { \.ds-synthetics-foo-bar-000001.mappings.properties.source.properties.ip.type: "ip" }
-  - is_true: \.ds-synthetics-foo-bar-000001.mappings.properties.message
-  - match: { \.ds-synthetics-foo-bar-000001.data_stream: "synthetics-foo-bar" }
+  - is_true: $idx0name.settings
+  - is_true: $idx0name.mappings
+  - match: { $idx0name.settings.index.lifecycle.name: "synthetics" }
+  - match: { $idx0name.mappings.properties.message.type: "text" }
+  - match: { $idx0name.mappings.properties.source.properties.ip.type: "ip" }
+  - is_true: $idx0name.mappings.properties.message
+  - match: { $idx0name.data_stream: "synthetics-foo-bar" }
 
   - do:
       indices.delete_data_stream:

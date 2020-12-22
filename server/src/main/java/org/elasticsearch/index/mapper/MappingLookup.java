@@ -54,7 +54,7 @@ public class MappingLookup {
         List.of(),
         List.of(),
         0,
-        souceToParse -> null,
+        soucreToParse -> null,
         false
     );
 

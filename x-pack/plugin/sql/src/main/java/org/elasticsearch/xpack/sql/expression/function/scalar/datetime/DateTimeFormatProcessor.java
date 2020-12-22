@@ -84,9 +84,33 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
             if (this == FORMAT) {
                 pattern = replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS);
             } else if (this == DATE_FORMAT) {
-                pattern = replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS_FOR_MYSQL);
+                pattern = replacePatternForMySql(pattern);
             }
             return pattern;
+        }
+
+        private String replacePatternForMySql(String pattern) {
+            // escape any chars that are not starts with '%' to avoid chars being interpreted by DateTimeFormatter
+            pattern = pattern.replaceAll(
+                "(%\\w)",
+                "{$0}");
+            pattern = pattern.replaceAll(
+                "([^(\\{%\\w\\})])?(\\w+)([^(\\{%\\w\\})])?",
+                "$1'$2'$3"
+            );
+            pattern = pattern.replaceAll(
+                "\\{%'(\\w)'\\}",
+                "%$1"
+            );
+            
+            // replace %x with x, for any "x" not used in mysql date format specifiers
+            pattern = pattern.replaceAll(
+                "%([^abcDdefHhIijklMmprSsTUuVvWwXxYy])",
+                "'$1'"
+            );
+            pattern = pattern.replace("''", "");
+
+            return replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS_FOR_MYSQL);
         }
 
         private String replacePattern(String pattern, String[][] javaTimeFormatReplacements) {

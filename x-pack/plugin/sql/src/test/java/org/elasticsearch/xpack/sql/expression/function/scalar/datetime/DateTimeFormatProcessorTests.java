@@ -590,5 +590,9 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             "Year 2020",
             new DateFormat(Source.EMPTY, dateTime, l("Year %Y"), zoneId).makePipe().asProcessor().process(null)
         );
+        assertEquals(
+            "Satend of year2020ey qA year",
+            new DateFormat(Source.EMPTY, dateTime, l("%aend of year%Yey %q%A year"), zoneId).makePipe().asProcessor().process(null)
+        );
     }
 }

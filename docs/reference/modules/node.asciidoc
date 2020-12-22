@@ -13,20 +13,13 @@ clients.
 // tag::modules-node-description-tag[]
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
-
-By default, a node is all of the following types: master-eligible, data, ingest,
-and (if available) machine learning. All data nodes are also transform nodes.
 // end::modules-node-description-tag[]
-
-TIP: As the cluster grows and in particular if you have large {ml} jobs or
-{ctransforms}, consider separating dedicated master-eligible nodes from
-dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 [[node-roles]]
 ==== Node roles
 
 You can define the roles of a node by setting `node.roles`. If you don't
-configure this setting, then the node has the following roles by default:
+configure this setting, the node has the following roles by default:
 
 * `master`
 * `data`
@@ -37,8 +30,13 @@ configure this setting, then the node has the following roles by default:
 * `ingest`
 * `ml`
 * `remote_cluster_client`
+* `transform`
 
 NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
+
+As the cluster grows and in particular if you have large {ml} jobs or
+{ctransforms}, consider separating dedicated master-eligible nodes from
+dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 <<master-node,Master-eligible node>>::
 
@@ -335,10 +333,12 @@ To create a dedicated {ml} node in the {default-dist}, set:
 
 [source,yaml]
 ----
-node.roles: [ ml ]
-xpack.ml.enabled: true <1>
+node.roles: [ ml, remote_cluster_client] <1>
+xpack.ml.enabled: true <2>
 ----
-<1> The `xpack.ml.enabled` setting is enabled by default.
+<1> The `remote_cluster_client` role is optional but strongly recommended.
+Otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
+<2> The `xpack.ml.enabled` setting is enabled by default.
 
 [[transform-node]]
 ==== [xpack]#{transform-cap} node#
@@ -351,8 +351,10 @@ To create a dedicated {transform} node in the {default-dist}, set:
 
 [source,yaml]
 ----
-node.roles: [ transform ]
+node.roles: [ transform, remote_cluster_client ] <1>
 ----
+<1> The `remote_cluster_client` role is optional but strongly recommended.
+Otherwise, {ccs} fails when used in {transforms}. See <<remote-node>>.
 
 [[change-node-role]]
 ==== Changing the role of a node

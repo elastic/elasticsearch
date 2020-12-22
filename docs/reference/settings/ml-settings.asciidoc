@@ -22,15 +22,19 @@ hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
 
 `node.roles: [ ml ]`::
 (<<static-cluster-setting,Static>>) Set `node.roles` to contain `ml` to identify
-the node as a _{ml} node_ that is capable of running jobs. Every node is a {ml}
-node by default.
+the node as a _{ml} node_. If you want to run {ml} jobs, there must be at least
+one {ml} node in your cluster. 
 +
-If you use the `node.roles` setting, then all required roles must be explicitly
-set. Consult <<modules-node>> to learn more.
+By default, every node is a {ml} node. If you set `node.roles`, however,
+you must explicitly specify all the required roles for the node. To learn more, 
+refer to <<modules-node>>.
 +
-IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
+[IMPORTANT]
+====
+* On dedicated coordinating nodes or dedicated master nodes, do not set
 the `ml` role.
-
+* It is strongly recommended that dedicated {ml} nodes also have the `remote_cluster_client` role; otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
+====
 
 `xpack.ml.enabled`::
 (<<static-cluster-setting,Static>>) Set to `true` (default) to enable {ml} APIs

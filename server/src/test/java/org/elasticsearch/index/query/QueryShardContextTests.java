@@ -376,7 +376,7 @@ public class QueryShardContextTests extends ESTestCase {
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mapperPlugins);
-        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldTypes.stream());
+        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldTypes);
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
             0,

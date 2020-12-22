@@ -21,31 +21,27 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Stream;
-
-import static java.util.stream.Collectors.toList;
 
 public class MappingLookupUtils {
     public static MappingLookup fromTypes(MappedFieldType... types) {
-        return fromTypes(Arrays.stream(types));
+        return fromTypes(Arrays.asList(types));
     }
-    
-    public static MappingLookup fromTypes(Stream<MappedFieldType> types) {
-        List<FieldMapper> mappers = types.map(MappingLookupUtils::mockFieldMapper).collect(toList());
-        //  Alias <name>-alias to <name> so we can test aliases
-        return new MappingLookup(
-            "_doc",
-            mappers,
-            List.of(),
-            List.of(),
-            List.of(),
-            0,
-            souceToParse -> null,
-            true
-        );
+
+    public static MappingLookup fromTypes(List<MappedFieldType> fields) {
+        List<FieldMapper> mappers = new ArrayList<>();
+        List<RuntimeFieldType> runtimeFields = new ArrayList<>();
+        for (MappedFieldType type : fields) {
+            if (type instanceof RuntimeFieldType) {
+                runtimeFields.add((RuntimeFieldType) type);
+            } else {
+                mappers.add(mockFieldMapper(type));
+            }
+        }
+        return new MappingLookup("_doc", mappers, List.of(), List.of(), runtimeFields, 0, souceToParse -> null, true);
     }
 
     public static FieldMapper mockFieldMapper(MappedFieldType type) {

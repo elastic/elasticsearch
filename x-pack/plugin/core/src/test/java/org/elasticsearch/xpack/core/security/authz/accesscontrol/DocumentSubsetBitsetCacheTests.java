@@ -593,7 +593,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             // This field never has a value
             types.add(new KeywordFieldMapper.KeywordFieldType("dne-" + i));
         }
-        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(types.stream());
+        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(types);
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

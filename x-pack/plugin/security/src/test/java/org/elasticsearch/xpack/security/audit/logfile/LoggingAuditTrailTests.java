@@ -594,25 +594,14 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final Authentication authentication = createAuthentication();
 
-        final InvalidateApiKeyRequest invalidateApiKeyRequest;
-        if (randomBoolean()) {
-            invalidateApiKeyRequest = new InvalidateApiKeyRequest(
-                randomFrom(randomAlphaOfLength(8), null),
-                randomFrom(randomAlphaOfLength(8), null),
-                null,
-                randomFrom(randomAlphaOfLength(8), null),
-                randomBoolean(),
-                randomFrom(randomArray(1,3, String[]::new, () -> randomAlphaOfLength(8)), null)
-            );
-        } else {
-            invalidateApiKeyRequest = new InvalidateApiKeyRequest(
-                randomFrom(randomAlphaOfLength(8), null),
-                randomFrom(randomAlphaOfLength(8), null),
-                randomAlphaOfLength(8),
-                randomFrom(randomAlphaOfLength(8), null),
-                randomBoolean()
-            );
-        }
+        final InvalidateApiKeyRequest invalidateApiKeyRequest = new InvalidateApiKeyRequest(
+            randomFrom(randomAlphaOfLength(8), null),
+            randomFrom(randomAlphaOfLength(8), null),
+            randomFrom(randomAlphaOfLength(8), null),
+            randomBoolean(),
+            randomFrom(randomArray(1,3, String[]::new, () -> randomAlphaOfLength(8)), null)
+        );
+
         auditTrail.accessGranted(requestId, authentication, InvalidateApiKeyAction.NAME, invalidateApiKeyRequest, authorizationInfo);
         List<String> output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));

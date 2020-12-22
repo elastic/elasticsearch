@@ -100,7 +100,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
 }
 
 // Disable integration test if Fips mode
-tasks.named("integTest", RestIntegTestTask).configure {
+tasks.named("integTest").configure {
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
   def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("hdfsFixture")
   systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
@@ -108,7 +108,7 @@ tasks.named("integTest", RestIntegTestTask).configure {
   onlyIf { BuildParams.inFipsJvm == false }
 }
 
-tasks.register("integTestSecure", RestIntegTestTask).configure {
+tasks.register("integTestSecure", RestIntegTestTask) {
   description = "Runs rest tests against an elasticsearch cluster with Secured HDFS."
   def hdfsPort = project.getExtensions().getByType(ReservedPortRange).getOrAllocate("secureHdfsFixture")
   nonInputProperties.systemProperty 'test.hdfs.uri', "hdfs://localhost:$hdfsPort"
@@ -163,11 +163,11 @@ if (legalPath == false) {
 }
 
 if (fixtureSupported) {
-  integTest.dependsOn hdfsFixture
-  integTestSecure.dependsOn secureHdfsFixture
+  tasks.named("integTest").configure {dependsOn "hdfsFixture" }
+  tasks.named("integTestSecure").configure {dependsOn "secureHdfsFixture" }
 } else {
-  integTest.enabled = false
-  integTestSecure.enabled = false
+  tasks.named("integTest").configure {enabled = false }
+  tasks.named("integTestSecure").configure { enabled = false }
   if (legalPath) {
     logger.warn("hdfsFixture unsupported, please set HADOOP_HOME and put HADOOP_HOME\\bin in PATH")
   } else {

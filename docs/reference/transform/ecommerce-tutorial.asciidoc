@@ -23,11 +23,13 @@ already familiar with the `kibana_sample_data_ecommerce` index, use the
 might want to derive from this eCommerce data.
 --
 
-. Play with various options for grouping and aggregating the data. 
+. Choose the `pivot` type of {transform} and play with various options for
+grouping and aggregating the data. 
 +
 --
-_Pivoting_ your data involves using at least one field to group it and applying
-at least one aggregation. You can preview what the transformed data will look
+There are two types of {transforms}, but first we'll try out _pivoting_ your
+data, which involves using at least one field to group it and applying at least
+one aggregation. You can preview what the transformed data will look
 like, so go ahead and play with it! You can also enable histogram charts to get
 a better understanding of the distribution of values in your data.
 
@@ -45,15 +47,12 @@ the wizard to create a {transform}:
 [role="screenshot"]
 image::images/ecommerce-pivot1.png["Creating a simple {transform} in {kib}"]
 
-In this case, we grouped the data by customer ID and calculated the sum of
-products each customer purchased.
-
-Let's add some more aggregations to learn more about our customers' orders. For
-example, let's calculate the total sum of their purchases, the maximum number of
-products that they purchased in a single order, and their total number of orders.
-We'll accomplish this by using the
+Group the data by customer ID and add one or more aggregations to learn more
+about each customer's orders. For example, let's calculate the sum of products
+they purchased, the total price of their purchases, the maximum number of
+products that they purchased in a single order, and their total number of orders. We'll accomplish this by using the
 <<search-aggregations-metrics-sum-aggregation,`sum` aggregation>> on the
-`taxless_total_price` field, the
+`total_quantity` and `taxless_total_price` fields, the
 <<search-aggregations-metrics-max-aggregation,`max` aggregation>> on the
 `total_quantity` field, and the
 <<search-aggregations-metrics-cardinality-aggregation,`cardinality` aggregation>>
@@ -254,12 +253,44 @@ image::images/ecommerce-results.png["Exploring the new index in {kib}"]
 
 --
 
-TIP: If you do not want to keep the {transform}, you can delete it in
-{kib} or use the
-<<delete-transform,delete {transform} API>>. When
-you delete a {transform}, its destination index and {kib} index
-patterns remain.
+. Optional: Create another {transform}, this time using the `latest` method.
++
+--
+This method populates the destination index with the latest documents for each
+unique key value. For example, you might want to find the latest orders (sorted
+by the `order_date` field) for each customer or for each country and region.
 
-Now that you've created a simple {transform} for {kib} sample data, consider
+.API example
+[%collapsible]
+====
+[source,console]
+--------------------------------------------------
+POST _transform/_preview
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce",
+    "query": {
+      "bool": {
+        "filter": {
+          "term": {"currency": "EUR"}
+        }
+      }
+    }
+  },
+  "latest": {
+    "unique_key": ["geoip.country_iso_code", "geoip.region_name"],
+    "sort": "order_date"
+  }
+}
+--------------------------------------------------
+// TEST[skip:set up sample data]
+====
+--
+
+. If you do not want to keep a {transform}, you can delete it in
+{kib} or use the <<delete-transform,delete {transform} API>>. By default, when 
+you delete a  {transform}, its destination index and {kib} index patterns remain.
+
+Now that you've created simple {transforms} for {kib} sample data, consider
 possible use cases for your own data. For more ideas, see
 <<transform-usage>> and <<transform-examples>>.

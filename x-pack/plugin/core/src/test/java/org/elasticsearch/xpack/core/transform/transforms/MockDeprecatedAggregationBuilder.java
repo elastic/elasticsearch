@@ -39,7 +39,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

@@ -33,8 +33,8 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 /**
- * A (mostly) immutable snapshot current mapping of an index with access
- * to everything we need for the search phase.
+ * A (mostly) immutable snapshot of the current mapping of an index with
+ * access to everything we need for the search phase.
  */
 public class MappingLookup {
     /**

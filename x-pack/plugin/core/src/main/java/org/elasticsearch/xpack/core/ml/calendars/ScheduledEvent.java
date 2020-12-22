@@ -33,6 +33,7 @@ import java.util.Objects;
 public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public static final ParseField DESCRIPTION = new ParseField("description");
+    public static final ParseField RULES = new ParseField("rules");
     public static final ParseField START_TIME = new ParseField("start_time");
     public static final ParseField END_TIME = new ParseField("end_time");
     public static final ParseField TYPE = new ParseField("type");
@@ -135,6 +136,14 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         DetectionRule.Builder builder = new DetectionRule.Builder(conditions);
         builder.setActions(RuleAction.SKIP_RESULT, RuleAction.SKIP_MODEL_UPDATE);
         return builder.build();
+    }
+
+    public XContentBuilder writeJson(TimeValue bucketSpan, XContentBuilder builder) throws IOException {
+        builder.startObject();
+        builder.field(DESCRIPTION.getPreferredName(), description);
+        builder.array(RULES.getPreferredName(), toDetectionRule(bucketSpan));
+        builder.endObject();
+        return builder;
     }
 
     @Override

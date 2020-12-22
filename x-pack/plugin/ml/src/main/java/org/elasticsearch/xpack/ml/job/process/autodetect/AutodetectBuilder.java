@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventsWriter;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -69,6 +70,8 @@ public class AutodetectBuilder {
     private static final String JSON_EXTENSION = ".json";
     static final String JOB_ID_ARG = "--jobid=";
     private static final String CONFIG_ARG = "--config=";
+    private static final String EVENTS_CONFIG_ARG = "--eventsconfig=";
+    private static final String FILTERS_CONFIG_ARG = "--filtersconfig=";
     private static final String LIMIT_CONFIG_ARG = "--limitconfig=";
     private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
@@ -177,6 +180,9 @@ public class AutodetectBuilder {
     public void build() throws IOException, InterruptedException {
 
         List<String> command = buildAutodetectCommand();
+
+        buildFiltersConfig(command);
+        buildScheduledEventsConfig(command);
 
         // While it may appear that the JSON formatted job config file contains data that
         // is duplicated in the existing limits, modelPlot and field config files, over time
@@ -365,6 +371,21 @@ public class AutodetectBuilder {
         }
     }
 
+    private void buildScheduledEventsConfig(List<String> command) throws IOException {
+        if (scheduledEvents.isEmpty()) {
+            return;
+        }
+        Path eventsConfigFile = Files.createTempFile(env.tmpFile(), "eventsConfig", JSON_EXTENSION);
+        filesToDelete.add(eventsConfigFile);
+
+        StringBuilder eventsAsJson = new StringBuilder();
+        new ScheduledEventsWriter(scheduledEvents, job.getAnalysisConfig().getBucketSpan(), eventsAsJson).writeJson();
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile),StandardCharsets.UTF_8)) {
+            osw.write(eventsAsJson.toString());
+        }
+        command.add(EVENTS_CONFIG_ARG + eventsConfigFile.toString());
+    }
+
     private void buildJobConfig(List<String> command) throws IOException {
         Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
         filesToDelete.add(configFile);
@@ -376,5 +397,19 @@ public class AutodetectBuilder {
         }
 
         command.add(CONFIG_ARG + configFile.toString());
+    }
+
+    private void buildFiltersConfig(List<String> command) throws IOException {
+        if (referencedFilters.isEmpty()) {
+            return;
+        }
+        Path filtersConfigFile = Files.createTempFile(env.tmpFile(), "filtersConfig", JSON_EXTENSION);
+        filesToDelete.add(filtersConfigFile);
+
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(filtersConfigFile),StandardCharsets.UTF_8);
+             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            osw.write(Strings.toString(jsonBuilder.value(referencedFilters)));
+        }
+        command.add(FILTERS_CONFIG_ARG + filtersConfigFile.toString());
     }
 }

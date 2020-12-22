@@ -58,4 +58,21 @@ public class ScheduledEventsWriter {
             ++eventIndex;
         }
     }
+
+    public void writeJson() throws IOException {
+        buffer.append('[');
+        boolean first = true;
+        for (ScheduledEvent event : scheduledEvents) {
+            if (first) {
+                first = false;
+            } else {
+                buffer.append(',');
+            }
+
+            try (XContentBuilder contentBuilder = XContentFactory.jsonBuilder()) {
+                buffer.append(Strings.toString(event.writeJson(bucketSpan, contentBuilder)));
+            }
+        }
+        buffer.append(']');
+    }
 }

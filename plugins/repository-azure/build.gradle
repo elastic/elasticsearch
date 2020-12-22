@@ -335,13 +335,12 @@ tasks.named("processYamlRestTestResources").configure {
   MavenFilteringHack.filter(it, expansions)
 }
 
-internalClusterTest {
+tasks.named("internalClusterTest").configure {
   // this is tested explicitly in a separate test task
   exclude '**/AzureStorageCleanupThirdPartyTests.class'
 }
 
-testClusters {
-  yamlRestTest {
+testClusters.matching { it.name == "yamlRestTest" }.configureEach {
     keystore 'azure.client.integration_test.account', azureAccount
     if (azureKey != null && azureKey.isEmpty() == false) {
       keystore 'azure.client.integration_test.key', azureKey
@@ -354,15 +353,14 @@ testClusters {
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
       setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), System.getProperty('ignore.tests.seed') == null ? DEFAULT : IGNORE_VALUE
     }
-  }
 }
 
-task azureThirdPartyTest(type: Test) {
+tasks.register("azureThirdPartyTest", Test) {
   SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
   SourceSet internalTestSourceSet = sourceSets.getByName(InternalClusterTestPlugin.SOURCE_SET_NAME)
   setTestClassesDirs(internalTestSourceSet.getOutput().getClassesDirs())
   setClasspath(internalTestSourceSet.getRuntimeClasspath())
-  dependsOn tasks.internalClusterTest
+  dependsOn "internalClusterTest"
   include '**/AzureStorageCleanupThirdPartyTests.class'
   systemProperty 'test.azure.account', azureAccount ? azureAccount : ""
   systemProperty 'test.azure.key', azureKey ? azureKey : ""

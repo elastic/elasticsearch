@@ -8,7 +8,6 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
@@ -25,12 +24,10 @@ import java.util.function.LongUnaryOperator;
  */
 public class OrdinalSequence {
     interface ReaderProvider extends Accountable, Closeable {
-        Reader get() throws IOException;
+        LongUnaryOperator get() throws IOException;
 
         long diskBytesUsed() throws IOException;
     }
-
-    interface Reader extends LongUnaryOperator, Closeable {}
 
     interface IO {
         IndexOutput createOutput() throws IOException;
@@ -77,13 +74,9 @@ public class OrdinalSequence {
     }
 
     private interface DelegateReaderProvider extends Accountable, Closeable {
-        DelegateReader get() throws IOException;
+        LongUnaryOperator get() throws IOException;
 
         long diskBytesUsed() throws IOException;
-    }
-
-    private interface DelegateReader extends Closeable {
-        long get(long index);
     }
 
     private interface DelegateWriter extends Closeable {
@@ -94,6 +87,8 @@ public class OrdinalSequence {
         void add(long v) throws IOException;
 
         DelegateReaderProvider readerProvider() throws IOException;
+
+        void delete() throws IOException;
     }
 
     static class Writer implements Closeable {
@@ -106,6 +101,7 @@ public class OrdinalSequence {
         private long next;
         private long firstNonZeroEncoded = -1;
         private long lastEncoded;
+        private ReaderProvider readerProvider;
 
         private Writer(LongBinaryOperator encode, LongBinaryOperator decode, DelegateWriter.Builder createWriter, long valueCount) {
             this.encode = encode;
@@ -115,6 +111,9 @@ public class OrdinalSequence {
         }
 
         long add(long index, long value) throws IOException {
+            if (readerProvider != null) {
+                throw new UnsupportedOperationException("Can't add after calling readerProvider");
+            }
             if (index < next) {
                 throw new IllegalArgumentException("Already wrote [" + index + "]");
             }
@@ -142,7 +141,14 @@ public class OrdinalSequence {
             return lastEncoded;
         }
 
-        OrdinalSequence.ReaderProvider readerProvider() throws IOException {
+        ReaderProvider readerProvider() throws IOException {
+            if (readerProvider == null) {
+                readerProvider = buildReaderProvider();
+            }
+            return readerProvider;
+        }
+        
+        private ReaderProvider buildReaderProvider() throws IOException {
             // NOCOMMIT make sure 0 byte files are not created.
             if (writer == null) {
                 return Identity.readerProvider(decode);
@@ -163,8 +169,14 @@ public class OrdinalSequence {
 
         @Override
         public void close() throws IOException {
-            // NOCOMMIT closing before success should delete file
-            IOUtils.close(writer);
+            if (readerProvider == null) {
+                try {
+                    writer.close();
+                } finally {
+                    writer.delete();
+                }
+            }
+            // If readerProvider is not null then closing *that* will delete the file
         }
     }
 
@@ -191,29 +203,20 @@ public class OrdinalSequence {
             writer.finish();
             close();
             String name = out.getName();
+            IndexInput in = io.openInput(name);
             int bitsPerValue = this.bitsPerValue;
             return new DelegateReaderProvider() {
                 @Override
-                public DelegateReader get() throws IOException {
-                    IndexInput in = io.openInput(name);
-                    LongValues reader = DirectReader.getInstance(in.randomAccessSlice(0, in.length()), bitsPerValue);
-                    return new DelegateReader() {
-                        @Override
-                        public long get(long index) {
-                            return reader.get(index);
-                        }
-
-                        @Override
-                        public void close() throws IOException {
-                            in.close();
-                        }
-                    };
+                @SuppressWarnings("resource") // The clone doesn't clone the file ref, just positioning info.
+                public LongUnaryOperator get() throws IOException {
+                    return DirectReader.getInstance(in.clone().randomAccessSlice(0, in.length()), bitsPerValue)::get;
                 }
 
                 @Override
                 public long ramBytesUsed() {
                     long size = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
                     size += RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.sizeOf(name);
+                    size += RamUsageEstimator.NUM_BYTES_OBJECT_REF /* sizeof(in) */;
                     size += Integer.BYTES;
                     return RamUsageEstimator.alignObjectSize(size);
                 }
@@ -225,7 +228,11 @@ public class OrdinalSequence {
 
                 @Override
                 public void close() throws IOException {
-                    io.delete(name);
+                    try {
+                        in.close();
+                    } finally {
+                        io.delete(name);
+                    }
                 }
             };
         }
@@ -233,6 +240,11 @@ public class OrdinalSequence {
         @Override
         public void close() throws IOException {
             out.close();
+        }
+
+        @Override
+        public void delete() throws IOException {
+            io.delete(out.getName());
         }
     }
 
@@ -263,28 +275,24 @@ public class OrdinalSequence {
         public DelegateReaderProvider readerProvider() throws IOException {
             writer.finish();
             close();
+            /*
+             * If the monotonic diff encoding doesn't need *any* bytes per ord
+             * then we can end up with 0 byte files. These look funny but are
+             * likely ok. They do take up file pointer which is unfortunate. We
+             * use a whole lot of those....  
+             */
             DirectMonotonicReader.Meta meta;
             try (IndexInput metaIn = new ByteBuffersIndexInput(new ByteBuffersDataInput(this.meta.toBufferList()), "temp")) {
                 meta = DirectMonotonicReader.loadMeta(metaIn, valueCount, BLOCK_SHIFT);
             }
             // OrdinalMap can detect if the delta encoding is larger than just using the direct encoding. We skip that for now.
             String dataName = dataOut.getName();
+            IndexInput in = io.openInput(dataName);
             return new DelegateReaderProvider() {
                 @Override
-                public DelegateReader get() throws IOException {
-                    IndexInput in = io.openInput(dataName);
-                    DirectMonotonicReader reader = DirectMonotonicReader.getInstance(meta, in.randomAccessSlice(0, in.length()));
-                    return new DelegateReader() {
-                        @Override
-                        public long get(long index) {
-                            return reader.get(index);
-                        }
-
-                        @Override
-                        public void close() throws IOException {
-                            in.close();
-                        }
-                    };
+                @SuppressWarnings("resource") // The clone doesn't clone the file ref, just positioning info.
+                public LongUnaryOperator get() throws IOException {
+                    return DirectMonotonicReader.getInstance(meta, in.clone().randomAccessSlice(0, in.length()))::get;
                 }
 
                 @Override
@@ -292,6 +300,7 @@ public class OrdinalSequence {
                     long size = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
                     size += RamUsageEstimator.NUM_BYTES_OBJECT_REF + meta.ramBytesUsed();
                     size += RamUsageEstimator.NUM_BYTES_OBJECT_REF + RamUsageEstimator.sizeOf(dataName);
+                    size += RamUsageEstimator.NUM_BYTES_OBJECT_REF /* + sizeof(in) */;
                     return RamUsageEstimator.alignObjectSize(size);
                 }
 
@@ -302,7 +311,11 @@ public class OrdinalSequence {
 
                 @Override
                 public void close() throws IOException {
-                    io.delete(dataName);
+                    try {
+                        in.close();
+                    } finally {
+                        io.delete(dataName);
+                    }
                 }
             };
         }
@@ -311,12 +324,17 @@ public class OrdinalSequence {
         public void close() throws IOException {
             IOUtils.close(metaOut, dataOut);
         }
+
+        @Override
+        public void delete() throws IOException {
+            io.delete(dataOut.getName());
+        }
     }
 
     /**
      * A sequence that where {@code f(i) == i}.
      */
-    private static class Identity implements OrdinalSequence.Reader {
+    private static class Identity implements LongUnaryOperator {
         static final ReaderProvider readerProvider(LongBinaryOperator decode) {
             Identity identity = new Identity(decode);
             return new ReaderProvider() {
@@ -352,12 +370,9 @@ public class OrdinalSequence {
         public long applyAsLong(long globalOrd) {
             return decode.applyAsLong(globalOrd, 0);
         }
-
-        @Override
-        public void close() throws IOException {}
     }
 
-    private static class ReadFromDisk implements OrdinalSequence.Reader {
+    private static class ReadFromDisk implements LongUnaryOperator {
         static OrdinalSequence.ReaderProvider provider(
             LongBinaryOperator decode,
             DelegateReaderProvider delegateReaderProvider,
@@ -391,10 +406,10 @@ public class OrdinalSequence {
         }
 
         private final LongBinaryOperator decode;
-        private final DelegateReader reader;
+        private final LongUnaryOperator reader;
         private final long firstNonZeroEncoded;
 
-        ReadFromDisk(LongBinaryOperator decode, DelegateReader reader, long firstNonZeroEncoded) throws IOException {
+        ReadFromDisk(LongBinaryOperator decode, LongUnaryOperator reader, long firstNonZeroEncoded) throws IOException {
             this.decode = decode;
             this.reader = reader;
             this.firstNonZeroEncoded = firstNonZeroEncoded;
@@ -405,12 +420,7 @@ public class OrdinalSequence {
             if (index < firstNonZeroEncoded) {
                 return decode.applyAsLong(index, 0);
             }
-            return decode.applyAsLong(index, reader.get(index - firstNonZeroEncoded));
-        }
-
-        @Override
-        public void close() throws IOException {
-            reader.close();
+            return decode.applyAsLong(index, reader.applyAsLong(index - firstNonZeroEncoded));
         }
     }
 

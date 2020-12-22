@@ -74,7 +74,6 @@ public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetO
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        // NOCOMMIT how do we close this when the reader is modified?
         return new OnDiskOrdinalMap(indexReader.directory(), this, indexReader, breakerService);
     }
 

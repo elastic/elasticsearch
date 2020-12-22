@@ -21,6 +21,8 @@ import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -66,6 +68,11 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
         this.directory = directory;
         this.indexed = indexed;
 
+        long start = 0;
+        if (logger.isDebugEnabled()) {
+            start = System.nanoTime();
+        }
+
         segmentFieldData = new LeafOrdinalsFieldData[reader.leaves().size()];
         SortedSetDocValues[] values = new SortedSetDocValues[segmentFieldData.length];
         for (int segmentOrd = 0; segmentOrd < segmentFieldData.length; segmentOrd++) {
@@ -84,11 +91,12 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(ramBytesUsed());
             if (logger.isDebugEnabled()) {
                 logger.debug(
-                    "loaded global ords for [{}] with [{}] values using [{}] heap bytes and [{}] disk bytes",
+                    "loaded global ords for [{}] with [{}] values using [{}] on heap and [{}] on disk in [{}]",
                     indexed.getFieldName(),
                     maxGlobalOrd + 1,
-                    ramBytesUsed(),
-                    diskBytesUsed()
+                    ByteSizeValue.ofBytes(ramBytesUsed()),
+                    ByteSizeValue.ofBytes(diskBytesUsed()),
+                    TimeValue.timeValueNanos(System.nanoTime() - start).toHumanReadableString(3)
                 );
             }
             success = true;
@@ -104,6 +112,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
         return new OrdinalSequence.IO() {
             @Override
             public IndexOutput createOutput() throws IOException {
+                // NOCOMMIt these temp files aren't deleted properly on restart
                 return directory.createTempOutput(FILE_PREFIX, suffix, IOContext.DEFAULT);
             }
 
@@ -141,8 +150,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
         private final long maxMinContainingSegmentEncodedSegmentOrd;
 
         @SuppressWarnings("resource")
-        SegmentOrdsToGlobalOrds(OrdinalSequence.IO io, SortedSegments sortedSegments, SortedSetDocValues[] values)
-            throws IOException {
+        SegmentOrdsToGlobalOrds(OrdinalSequence.IO io, SortedSegments sortedSegments, SortedSetDocValues[] values) throws IOException {
             SegmentState[] states = new SegmentState[values.length];
             PriorityQueue<SegmentState> queue = new PriorityQueue<SegmentState>(values.length) {
                 @Override
@@ -232,16 +240,16 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
     ) throws IOException {
         class SegmentState {
             private final int sortedSegmentOrd;
-            private final OrdinalSequence.Reader reader;
+            private final LongUnaryOperator segmentOrdToGlobalOrd;
             private final long maxSegmentTermOrd;
             private long currentSegmentTermOrd;
             private long currentGlobalOrd;
 
-            SegmentState(int sortedSegmentOrd, OrdinalSequence.Reader reader, long maxSegmentTermOrd) {
+            SegmentState(int sortedSegmentOrd, LongUnaryOperator segmentOrdToGlobalOrd, long maxSegmentTermOrd) {
                 this.sortedSegmentOrd = sortedSegmentOrd;
-                this.reader = reader;
+                this.segmentOrdToGlobalOrd = segmentOrdToGlobalOrd;
                 this.maxSegmentTermOrd = maxSegmentTermOrd;
-                currentGlobalOrd = reader.applyAsLong(0);
+                currentGlobalOrd = segmentOrdToGlobalOrd.applyAsLong(0);
             }
         }
 
@@ -282,12 +290,12 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
                     }
                     top.currentSegmentTermOrd++;
                     if (top.currentSegmentTermOrd > top.maxSegmentTermOrd) {
-                        queue.pop().reader.close();
+                        queue.pop();
                         if (queue.size() == 0) {
                             break;
                         }
                     } else {
-                        top.currentGlobalOrd = top.reader.applyAsLong(top.currentSegmentTermOrd);
+                        top.currentGlobalOrd = top.segmentOrdToGlobalOrd.applyAsLong(top.currentSegmentTermOrd);
                         queue.updateTop();
                     }
                 } while (queue.top().currentGlobalOrd == globalOrd);
@@ -315,7 +323,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
     }
 
     public IndexOrdinalsFieldData fork() {
-        return new IndexOrdinalsFieldData() {  // NOCOMMIT this has to be closeable. Or should it just close when the reader does?
+        return new IndexOrdinalsFieldData() {
             private final TermsEnum[] lookups = new TermsEnum[segmentOrdsToGlobalOrds.length];
             private GlobalOrdToSegmentAndSegmentOrd.Reader globalOrdToContainingSegment;
 
@@ -367,7 +375,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
             @Override
             public LeafOrdinalsFieldData load(LeafReaderContext context) {
-                OrdinalSequence.Reader segmentToGlobal;
+                LongUnaryOperator segmentToGlobal;
                 try {
                     segmentToGlobal = segmentOrdsToGlobalOrds[context.ord].get();
                 } catch (IOException e) {
@@ -377,11 +385,6 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
                 return new LeafOrdinalsFieldData() {
                     @Override
                     public void close() {
-                        try {
-                            segmentToGlobal.close();
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
                         // NOCOMMIT more stuff?
                     }
 
@@ -473,7 +476,6 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             @Override
             public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
                 try {
-                    // NOCOMMIT what about closing it?
                     return segmentOrdsToGlobalOrds[context.ord].get();
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -558,7 +560,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
     public long diskBytesUsed() throws IOException {
         long size = 0;
-        for (OrdinalSequence.ReaderProvider seg : segmentOrdsToGlobalOrds)  {
+        for (OrdinalSequence.ReaderProvider seg : segmentOrdsToGlobalOrds) {
             size += seg.diskBytesUsed();
         }
         size += globalOrdsToSegments.diskBytesUsed();
@@ -567,6 +569,15 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
     @Override
     public void close() throws IOException {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "closing global ords for [{}] with [{}] values releasing [{}] on heap and [{}] on disk",
+                indexed.getFieldName(),
+                maxGlobalOrd + 1,
+                ByteSizeValue.ofBytes(ramBytesUsed()),
+                ByteSizeValue.ofBytes(diskBytesUsed())
+            );
+        }
         List<Closeable> all = new ArrayList<>();
         Collections.addAll(all, segmentFieldData);
         Collections.addAll(all, segmentOrdsToGlobalOrds);

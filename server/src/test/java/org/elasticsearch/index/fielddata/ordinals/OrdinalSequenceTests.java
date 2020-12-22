@@ -6,35 +6,44 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.IO;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.ReaderProvider;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.Writer;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.LongUnaryOperator;
 
+import static org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.directWriter;
+import static org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.negativeDeltaWriter;
+import static org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.positiveDeltaWriter;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
+
 public class OrdinalSequenceTests extends ESTestCase {
     public void testEmptyDirect() throws IOException {
-        try (OrdinalSequence.Writer writer = directWriterThatNeverWrites()) {
+        try (Writer writer = directWriterThatNeverWrites()) {
             assertAllZeros(writer.readerProvider());
         }
     }
 
     public void testEmptyPositiveDeltas() throws IOException {
-        try (OrdinalSequence.Writer writer = positiveDeltaWriterThatNeverWrites()) {
+        try (Writer writer = positiveDeltaWriterThatNeverWrites()) {
             assertDeltaIdentity(writer.readerProvider());
         }
     }
 
     public void testEmptyNegativeDeltas() throws IOException {
-        try (OrdinalSequence.Writer writer = negativeDeltaWriterThatNeverWrites()) {
+        try (Writer writer = negativeDeltaWriterThatNeverWrites()) {
             assertDeltaIdentity(writer.readerProvider());
         }
     }
 
     public void testAllZeroDirect() throws IOException {
-        try (OrdinalSequence.Writer writer = directWriterThatNeverWrites()) {
+        try (Writer writer = directWriterThatNeverWrites()) {
             int count = randomInt(10000);
             for (int i = 0; i < count; i++) {
                 writer.add(i, 0);
@@ -44,38 +53,44 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     public void testIdentityPositiveDeltas() throws IOException {
-        try (OrdinalSequence.Writer writer = positiveDeltaWriterThatNeverWrites()) {
+        try (Writer writer = positiveDeltaWriterThatNeverWrites()) {
             writeIdentity(writer);
             assertDeltaIdentity(writer.readerProvider());
         }
     }
 
     public void testIdentityNegativeDeltas() throws IOException {
-        try (OrdinalSequence.Writer writer = positiveDeltaWriterThatNeverWrites()) {
+        try (Writer writer = positiveDeltaWriterThatNeverWrites()) {
             writeIdentity(writer);
             assertDeltaIdentity(writer.readerProvider());
         }
     }
 
-    private void assertAllZeros(OrdinalSequence.ReaderProvider provider) throws IOException {
-        assertThat(provider.ramBytesUsed(), lessThan(100L));
-        assertThat(provider.diskBytesUsed(), equalTo(0L));
-        try (OrdinalSequence.Reader reader = provider.get()) {
+    private void assertAllZeros(ReaderProvider provider) throws IOException {
+        try {
+            assertThat(provider.ramBytesUsed(), lessThan(100L));
+            assertThat(provider.diskBytesUsed(), equalTo(0L));
+            LongUnaryOperator reader = provider.get();
             long l = randomLong();
             assertThat(reader.applyAsLong(l), equalTo(0L));
+        } finally {
+            provider.close();
         }
     }
 
-    private void assertDeltaIdentity(OrdinalSequence.ReaderProvider provider) throws IOException {
-        assertThat(provider.ramBytesUsed(), lessThan(100L));
-        assertThat(provider.diskBytesUsed(), equalTo(0L));
-        try (OrdinalSequence.Reader reader = provider.get()) {
+    private void assertDeltaIdentity(ReaderProvider provider) throws IOException {
+        try {
+            assertThat(provider.ramBytesUsed(), lessThan(100L));
+            assertThat(provider.diskBytesUsed(), equalTo(0L));
+            LongUnaryOperator reader = provider.get();
             long l = randomLong();
             assertThat(reader.applyAsLong(l), equalTo(l));
+        } finally {
+            provider.close();
         }
     }
 
-    private void writeIdentity(OrdinalSequence.Writer writer) throws IOException {
+    private void writeIdentity(Writer writer) throws IOException {
         int count = randomInt(10000);
         for (int i = 0; i < count; i++) {
             writer.add(i, i);
@@ -87,10 +102,7 @@ public class OrdinalSequenceTests extends ESTestCase {
         long max = PackedInts.maxValue(between(1, 63));
         int bitsPerValue = DirectWriter.bitsRequired(max);
         long[] expected = new long[count];
-        try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.directWriter(directoryIO(directory), count, bitsPerValue)
-        ) {
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = directWriter(io, count, bitsPerValue)) {
             for (int i = 0; i < count; i++) {
                 long v = randomLongBetween(0, max);
                 expected[i] = v;
@@ -103,10 +115,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     public void testRandomDirectNegativeOk() throws IOException {
         int count = between(1, 10000);
         long[] expected = new long[count];
-        try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.directWriter(directoryIO(directory), count, 64)
-        ) {
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = directWriter(io, count, 64)) {
             for (int i = 0; i < count; i++) {
                 long v = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
                 expected[i] = v;
@@ -119,10 +128,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     public void testRandomPositiveDeltas() throws IOException {
         int count = between(1, 10000);
         long[] expected = new long[count];
-        try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.positiveDeltaWriter(directoryIO(directory), count)
-        ) {
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = positiveDeltaWriter(io, count)) {
             long v = 0;
             for (int i = 0; i < count; i++) {
                 v += between(1, 100);
@@ -136,10 +142,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     public void testRandomNegativeDeltas() throws IOException {
         int count = between(1, 10000);
         long[] expected = new long[count];
-        try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.negativeDeltaWriter(directoryIO(directory), count, count)
-        ) {
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = negativeDeltaWriter(io, count, count)) {
             for (int i = 0; i < count; i++) {
                 int v = between(0, i);
                 expected[i] = v;
@@ -153,10 +156,7 @@ public class OrdinalSequenceTests extends ESTestCase {
         int count = between(1, 10000);
         int maxDelta = (int) PackedInts.maxValue(between(1, 5));
         long[] expected = new long[count];
-        try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.negativeDeltaWriter(directoryIO(directory), count, maxDelta)
-        ) {
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = negativeDeltaWriter(io, count, maxDelta)) {
             for (int i = 0; i < count; i++) {
                 int v = between(Math.max(0, i - maxDelta), i);
                 expected[i] = v;
@@ -171,8 +171,8 @@ public class OrdinalSequenceTests extends ESTestCase {
         int conut = between(1, 10000);
         long[] expected = new long[leadingIdentity + conut];
         try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.positiveDeltaWriter(directoryIO(directory), leadingIdentity + conut)
+            DirectoryIO io = new DirectoryIO();
+            Writer writer = positiveDeltaWriter(io, leadingIdentity + conut)
         ) {
             long v = 0;
             for (int i = 0; i < leadingIdentity; i++) {
@@ -189,15 +189,57 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
+    public void testDirectFailure() throws IOException {
+        int count = between(1, 10000);
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = directWriter(io, count, 64)) {
+            for (int i = 0; i < count; i++) {
+                writer.add(i, randomLong());
+            }
+            /*
+             * Closing the writer without calling readerProvider should delete
+             * all the files we've made. If it doesn't, then closing io will
+             * fail.
+             */
+        }
+    }
+
+    public void testPositiveDeltaFailure() throws IOException {
+        int count = between(1, 10000);
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = positiveDeltaWriter(io, count)) {
+            long v = 0;
+            for (int i = 0; i < count; i++) {
+                v += between(1, 100);
+                writer.add(i, v);
+            }            
+            /*
+             * Closing the writer without calling readerProvider should delete
+             * all the files we've made. If it doesn't, then closing io will
+             * fail.
+             */
+        }
+    }
+
+    public void testNegativeDeltaFailure() throws IOException {
+        int count = between(1, 10000);
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = negativeDeltaWriter(io, count, count)) {
+            for (int i = 0; i < count; i++) {
+                int v = between(0, i);
+                writer.add(i, v);
+            }            
+            /*
+             * Closing the writer without calling readerProvider should delete
+             * all the files we've made. If it doesn't, then closing io will
+             * fail.
+             */
+        }
+    }
+
     // NOCOMMIT gaps in direct and negative deltas?
 
     public void testGapsInPositiveDeltas() throws IOException {
         int count = between(1, 10000);
         long[] expected = new long[count];
-        try (
-            Directory directory = newDirectory();
-            OrdinalSequence.Writer writer = OrdinalSequence.positiveDeltaWriter(directoryIO(directory), count)
-        ) {
+        try (DirectoryIO io = new DirectoryIO(); Writer writer = positiveDeltaWriter(io, count)) {
             long v = 0;
             for (int i = 0; i < count; i++) {
                 v += between(1, 100);
@@ -213,10 +255,11 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
-    private void assertExpected(long[] expected, OrdinalSequence.ReaderProvider provider) throws IOException {
-        assertThat(provider.ramBytesUsed(), greaterThan(100L));
-        assertThat(provider.diskBytesUsed(), greaterThan(0L));
-        try (OrdinalSequence.Reader reader = provider.get()) {
+    private void assertExpected(long[] expected, ReaderProvider provider) throws IOException {
+        try {
+            assertThat(provider.ramBytesUsed(), greaterThan(100L));
+            assertThat(provider.diskBytesUsed(), greaterThan(0L));
+            LongUnaryOperator reader = provider.get();
             for (int i = 0; i < expected.length; i++) {
                 if (expected[i] != -1) {
                     // -1 encodes a gap in the test data
@@ -231,23 +274,25 @@ public class OrdinalSequenceTests extends ESTestCase {
                     assertThat(reader.applyAsLong(i), equalTo(expected[i]));
                 }
             }
+        } finally {
+            provider.close();
         }
     }
 
-    private OrdinalSequence.Writer directWriterThatNeverWrites() {
-        return OrdinalSequence.directWriter(ioThatNeverWrites(), 0, 0);
+    private Writer directWriterThatNeverWrites() {
+        return directWriter(ioThatNeverWrites(), 0, 0);
     }
 
-    private OrdinalSequence.Writer positiveDeltaWriterThatNeverWrites() {
-        return OrdinalSequence.positiveDeltaWriter(ioThatNeverWrites(), 0);
+    private Writer positiveDeltaWriterThatNeverWrites() {
+        return positiveDeltaWriter(ioThatNeverWrites(), 0);
     }
 
-    private OrdinalSequence.Writer negativeDeltaWriterThatNeverWrites() {
-        return OrdinalSequence.negativeDeltaWriter(ioThatNeverWrites(), 0, 0);
+    private Writer negativeDeltaWriterThatNeverWrites() {
+        return negativeDeltaWriter(ioThatNeverWrites(), 0, 0);
     }
 
-    static OrdinalSequence.IO ioThatNeverWrites() {
-        return new OrdinalSequence.IO() {
+    static IO ioThatNeverWrites() {
+        return new IO() {
             @Override
             public IndexOutput createOutput() throws IOException {
                 throw new AssertionError();
@@ -270,27 +315,36 @@ public class OrdinalSequenceTests extends ESTestCase {
         };
     }
 
-    static OrdinalSequence.IO directoryIO(Directory directory) {
-        return new OrdinalSequence.IO() {
-            @Override
-            public IndexOutput createOutput() throws IOException {
-                return directory.createTempOutput("test", "test", IOContext.DEFAULT);
-            }
+    static class DirectoryIO implements IO, Closeable {
+        private final Directory directory = newDirectory();
 
-            @Override
-            public IndexInput openInput(String name) throws IOException {
-                return directory.openInput(name, IOContext.READONCE);
-            }
+        @Override
+        public IndexOutput createOutput() throws IOException {
+            return directory.createTempOutput("test", "test", IOContext.DEFAULT);
+        }
 
-            @Override
-            public long diskBytesUsed(String name) throws IOException {
-                return directory.fileLength(name);
-            }
+        @Override
+        public IndexInput openInput(String name) throws IOException {
+            return directory.openInput(name, IOContext.READONCE);
+        }
 
-            @Override
-            public void delete(String name) throws IOException {
-                directory.deleteFile(name);
+        @Override
+        public long diskBytesUsed(String name) throws IOException {
+            return directory.fileLength(name);
+        }
+
+        @Override
+        public void delete(String name) throws IOException {
+            directory.deleteFile(name);
+        }
+
+        @Override
+        public void close() throws IOException {
+            try {
+                assertThat("all files deleted", directory.listAll(), equalTo(new String[] {}));
+            } finally {
+                directory.close();
             }
-        };
+        }
     }
 }

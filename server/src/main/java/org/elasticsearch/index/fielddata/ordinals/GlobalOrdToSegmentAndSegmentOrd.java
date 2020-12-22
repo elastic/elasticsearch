@@ -7,6 +7,7 @@ import org.apache.lucene.util.packed.DirectWriter;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.function.LongUnaryOperator;
 
 public class GlobalOrdToSegmentAndSegmentOrd {
     static class Writer implements Closeable {
@@ -25,7 +26,19 @@ public class GlobalOrdToSegmentAndSegmentOrd {
         }
 
         ReaderProvider readerProvider() throws IOException {
-            return new ReaderProvider(globalOrdToContainingSegment.readerProvider(), globalOrdToContainingSegmentOrd.readerProvider());
+            OrdinalSequence.ReaderProvider globalOrdToContainingSegment = null;
+            OrdinalSequence.ReaderProvider globalOrdToContainingSegmentOrd = null;
+            boolean success = false;
+            try {
+                globalOrdToContainingSegment = this.globalOrdToContainingSegment.readerProvider();
+                globalOrdToContainingSegmentOrd = this.globalOrdToContainingSegmentOrd.readerProvider();
+                success = true;
+            } finally {
+                if (false == success) {
+                    IOUtils.close(globalOrdToContainingSegment);
+                }
+            }
+            return new ReaderProvider(globalOrdToContainingSegment, globalOrdToContainingSegmentOrd);
         }
 
         @Override
@@ -44,7 +57,6 @@ public class GlobalOrdToSegmentAndSegmentOrd {
             OrdinalSequence.ReaderProvider globalOrdToContainingSegment,
             OrdinalSequence.ReaderProvider globalOrdToContainingSegmentOrd
         ) {
-            super();
             this.globalOrdToContainingSegment = globalOrdToContainingSegment;
             this.globalOrdToContainingSegmentOrd = globalOrdToContainingSegmentOrd;
         }
@@ -70,11 +82,11 @@ public class GlobalOrdToSegmentAndSegmentOrd {
         }
     }
 
-    static class Reader implements Closeable {
-        private final OrdinalSequence.Reader globalOrdToContainingSegment;
-        private final OrdinalSequence.Reader globalOrdToContainingSegmentOrd;
+    static class Reader {
+        private final LongUnaryOperator globalOrdToContainingSegment;
+        private final LongUnaryOperator globalOrdToContainingSegmentOrd;
 
-        Reader(OrdinalSequence.Reader globalOrdToContainingSegment, OrdinalSequence.Reader globalOrdToContainingSegmentOrd) {
+        Reader(LongUnaryOperator globalOrdToContainingSegment, LongUnaryOperator globalOrdToContainingSegmentOrd) {
             this.globalOrdToContainingSegment = globalOrdToContainingSegment;
             this.globalOrdToContainingSegmentOrd = globalOrdToContainingSegmentOrd;
         }
@@ -85,11 +97,6 @@ public class GlobalOrdToSegmentAndSegmentOrd {
 
         public long containingSegmentOrd(long globalOrd) {
             return globalOrdToContainingSegmentOrd.applyAsLong(globalOrd);
-        }
-
-        @Override
-        public void close() throws IOException {
-            IOUtils.close(globalOrdToContainingSegment, globalOrdToContainingSegmentOrd);
         }
     }
 

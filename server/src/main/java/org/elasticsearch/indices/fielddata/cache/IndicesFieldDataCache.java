@@ -90,10 +90,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         assert key != null && key.listeners != null;
         IndexFieldCache indexCache = key.indexCache;
         final Accountable value = notification.getValue();
-        if (value instanceof Closeable) {
-            // NOCOMMIT is this ok?
-            IOUtils.closeWhileHandlingException((Closeable) value);
-        }
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
                 listener.onRemoval(
@@ -103,6 +99,14 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             } catch (Exception e) {
                 // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
+            }
+        }
+        if (value instanceof Closeable) {
+            // NOCOMMIT is this ok?
+            try {
+                IOUtils.closeWhileHandlingException((Closeable) value);
+            } catch (Exception e) {
+                logger.error("Failed to close value", e);
             }
         }
     }

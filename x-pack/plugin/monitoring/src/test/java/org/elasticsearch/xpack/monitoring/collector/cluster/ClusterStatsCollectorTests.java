@@ -207,7 +207,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             .thenReturn(indices);
 
         final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-            singletonList(new MonitoringFeatureSetUsage(true, false, null)));
+            singletonList(new MonitoringFeatureSetUsage(false, null)));
 
         @SuppressWarnings("unchecked")
         final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
@@ -306,7 +306,7 @@ public class ClusterStatsCollectorTests extends BaseCollectorTestCase {
             when(client.admin()).thenReturn(adminClient);
 
             final XPackUsageResponse xPackUsageResponse = new XPackUsageResponse(
-                singletonList(new MonitoringFeatureSetUsage(true, false, null)));
+                singletonList(new MonitoringFeatureSetUsage(false, null)));
             @SuppressWarnings("unchecked")
             final ActionFuture<XPackUsageResponse> xPackUsageFuture = (ActionFuture<XPackUsageResponse>) mock(ActionFuture.class);
             when(client.execute(same(XPackUsageAction.INSTANCE), any(XPackUsageRequest.class))).thenReturn(xPackUsageFuture);

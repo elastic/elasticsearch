@@ -123,7 +123,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        queryShardContext = new QueryShardContext(0,
+        queryShardContext = new QueryShardContext(0, 0,
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
             BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap());

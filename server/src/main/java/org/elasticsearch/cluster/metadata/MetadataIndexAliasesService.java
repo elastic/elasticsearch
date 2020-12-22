@@ -149,8 +149,8 @@ public class MetadataIndexAliasesService {
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id,
                         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
-                            () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, 0,
+                                null, () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {

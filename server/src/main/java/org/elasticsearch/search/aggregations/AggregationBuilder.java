@@ -72,8 +72,7 @@ public abstract class AggregationBuilder
      *
      * This method is a optional helper for clients that need to know the output field names.
      *
-     * @return The set of output field names this aggregation produces without sub-aggregation and
-     * convenience outputs ("..._as_string") or Optional.empty() if unknown or not implemented.
+     * @return The set of output field names this aggregation produces or Optional.empty() if unknown or not implemented.
      */
     public Optional<Set<String>> getOutputFieldNames() {
         return Optional.empty();

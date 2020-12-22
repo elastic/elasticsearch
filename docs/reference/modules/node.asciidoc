@@ -13,20 +13,13 @@ clients.
 // tag::modules-node-description-tag[]
 All nodes know about all the other nodes in the cluster and can forward client
 requests to the appropriate node.
-
-By default, a node is all of the following types: master-eligible, data, ingest,
-{transform}, remote_cluster_client and (if available) {ml}.
 // end::modules-node-description-tag[]
-
-TIP: As the cluster grows and in particular if you have large {ml} jobs or
-{ctransforms}, consider separating dedicated master-eligible nodes from
-dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 [[node-roles]]
 ==== Node roles
 
 You can define the roles of a node by setting `node.roles`. If you don't
-configure this setting, then the node has the following roles by default:
+configure this setting, the node has the following roles by default:
 
 * `master`
 * `data`
@@ -37,8 +30,13 @@ configure this setting, then the node has the following roles by default:
 * `ingest`
 * `ml`
 * `remote_cluster_client`
+* `transform`
 
 NOTE: If you set `node.roles`, the node is assigned only the roles you specify.
+
+As the cluster grows and in particular if you have large {ml} jobs or
+{ctransforms}, consider separating dedicated master-eligible nodes from
+dedicated data nodes, {ml} nodes, and {transform} nodes.
 
 <<master-node,Master-eligible node>>::
 

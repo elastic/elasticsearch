@@ -258,6 +258,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public int hashCode() {
             int result = entity.getCacheIdentity().hashCode();
+            result = 31 * result + mappingCacheKey.hashCode();
             result = 31 * result + readerCacheKey.hashCode();
             result = 31 * result + value.hashCode();
             return result;

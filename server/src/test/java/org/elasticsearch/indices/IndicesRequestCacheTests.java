@@ -518,7 +518,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
         assertEquals(0, cache.numRegisteredCloseListeners());
     }
 
-    public void testEqualsKey() throws IOException {
+    public void testKeyEqualsAndHashCode() throws IOException {
         AtomicBoolean trueBoolean = new AtomicBoolean(true);
         AtomicBoolean falseBoolean = new AtomicBoolean(false);
         MappingLookup.CacheKey mKey1 = MappingLookupUtils.fromTypes().cacheKey();
@@ -550,15 +550,32 @@ public class IndicesRequestCacheTests extends ESTestCase {
             for (IndicesRequestCache.Key key2 : keys) {
                 if (key1 == key2) {
                     assertEquals(key1, key2);
+                    assertEquals(key1.hashCode(), key2.hashCode());
                 } else {
                     assertNotEquals(key1, key2);
+                    assertNotEquals(key1.hashCode(), key2.hashCode());
+                    /*
+                     * If we made random keys it'd be possible for us to have
+                     * hash collisions and for the assertion above to fail.
+                     * But we don't use random keys for this test.
+                     */
                 }
             }
         }
-        assertEquals(
-            new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), mKey1, rKey1, new TestBytesReference(1)),
-            new IndicesRequestCache.Key(new TestEntity(null, trueBoolean), mKey1, rKey1, new TestBytesReference(1))
+        IndicesRequestCache.Key key1 = new IndicesRequestCache.Key(
+            new TestEntity(null, trueBoolean),
+            mKey1,
+            rKey1,
+            new TestBytesReference(1)
         );
+        IndicesRequestCache.Key key2 = new IndicesRequestCache.Key(
+            new TestEntity(null, trueBoolean),
+            mKey1,
+            rKey1,
+            new TestBytesReference(1)
+        );
+        assertEquals(key1, key2);
+        assertEquals(key1.hashCode(), key2.hashCode());
     }
 
     private class TestBytesReference extends AbstractBytesReference {

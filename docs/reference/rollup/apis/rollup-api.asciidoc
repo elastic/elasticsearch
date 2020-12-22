@@ -80,7 +80,7 @@ Aggregates and stores fields in the rollup.
 +
 .Properties of `groups`
 [%collapsible%open]
-====
+=====
 `date_histogram`::
 (Required,
 <<search-aggregations-bucket-datehistogram-aggregation,`date_histogram`
@@ -89,7 +89,7 @@ Groups documents based on a provided time interval.
 +
 .Properties of `date_histogram`
 [%collapsible%open]
-=====
+======
 `field`::
 (Required, string)
 <<date,`date`>> or <<date_nanos,`date_nanos`>> field containing a timestamp. If
@@ -111,7 +111,7 @@ resulting rollup index.
 Time zone for the `field`. Valid values are ISO 8601 UTC offsets, such as
 `+01:00` or `-08:00`, and IANA time zone IDs, such as `America/Los_Angeles`.
 Defaults to `+00:00` (UTC).
-=====
+======
 
 `histogram`::
 (Optional, <<search-aggregations-bucket-histogram-aggregation,`histogram`
@@ -120,7 +120,7 @@ Groups and stores <<number,numeric>> field values based on a provided interval.
 +
 .Properties of `histogram`
 [%collapsible%open]
-=====
+======
 `fields`::
 (Required*, array of strings)
 Array of <<number,numeric>> fields to group. If you specify a `histogram`
@@ -130,7 +130,7 @@ object, this property is required.
 (Required*, integer)
 Numeric interval used to group the `fields`. If you specify a `histogram`
 object, this property is required.
-=====
+======
 
 `terms`::
 (Optional, <<search-aggregations-bucket-terms-aggregation,`terms`
@@ -139,16 +139,16 @@ Stores values for <<keyword,keyword family>> and <<number,numeric>> fields.
 +
 .Properties of `terms`
 [%collapsible%open]
-=====
+======
 `fields`::
 (Required*, array of strings)
 Array of <<keyword,keyword family>> and <<number,numeric>> fields to store. If
 you specify a `terms` object, this property is required.
 +
 TIP: Avoid storing high-cardinality fields. High-cardinality fields can greatly
-increase the size of the resulting rollup index.
+increase the size of resulting rollup index.
+======
 =====
-====
 
 `metrics`::
 (Optional, array of objects)
@@ -156,7 +156,7 @@ Collects and stores metrics for <<number,numeric>> fields.
 +
 .Properties of `metrics` objects
 [%collapsible%open]
-====
+=====
 `field`::
 (Required*, string)
 <<number,Numeric>> field to collect metrics for. If you specify a `metrics`
@@ -177,7 +177,7 @@ required.
 NOTE: The `avg` metric stores both the `sum` and `value_count` values. This lets
 you accurately average rollups over larger time intervals. For example, you can
 accurately roll up hourly averages into daily averages.
-====
+=====
 
 `page_size`::
 (Optional, integer)

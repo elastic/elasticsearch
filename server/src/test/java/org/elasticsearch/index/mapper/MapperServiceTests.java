@@ -47,7 +47,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
     }
 
-    public void testLookup() throws IOException {
+    public void testMappingLookup() throws IOException {
         MapperService service = createMapperService(mapping(b -> {}));
         MappingLookup oldLookup = service.mappingLookup();
         assertThat(oldLookup.fieldTypes().get("cat"), nullValue());

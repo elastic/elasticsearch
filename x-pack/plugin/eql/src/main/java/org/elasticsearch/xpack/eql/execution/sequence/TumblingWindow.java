@@ -371,6 +371,8 @@ public class TumblingWindow implements Executable {
         Criterion<BoxedQueryRequest> criterion = criteria.get(currentStage);
         BoxedQueryRequest request = criterion.queryRequest();
 
+        boxQuery(window, criterion);
+
         log.trace("Querying (secondary) stage [{}] {}", criterion.stage(), request);
 
         client.query(request, wrap(r -> {

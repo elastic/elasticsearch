@@ -196,6 +196,7 @@ public class QueryShardContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         QueryShardContext context = new QueryShardContext(
             0,
+            0,
             indexSettings,
             BigArrays.NON_RECYCLING_INSTANCE,
             null,
@@ -374,7 +375,7 @@ public class QueryShardContextTests extends ESTestCase {
         MapperService mapperService = createMapperService(indexUuid, fieldTypeLookup, mapperPlugins);
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
+            0, 0, mapperService.getIndexSettings(), BigArrays.NON_RECYCLING_INSTANCE, null,
                 (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
                 mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
             null, null, () -> nowInMillis, clusterAlias, null, () -> true, null, runtimeMappings);

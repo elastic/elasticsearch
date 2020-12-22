@@ -23,6 +23,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.PointValues;
+import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SoftDeletesDirectoryReaderWrapper;
 import org.apache.lucene.search.ReferenceManager;
@@ -30,6 +31,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
@@ -50,6 +52,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.security.MessageDigest;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
@@ -112,7 +115,7 @@ public class ReadOnlyEngine extends Engine {
                 // yet this makes sure nobody else does. including some testing tools that try to be messy
                 indexWriterLock = obtainLock ? directory.obtainLock(IndexWriter.WRITE_LOCK_NAME) : null;
                 this.lastCommittedSegmentInfos = Lucene.readSegmentInfos(directory);
-                this.commitId = Lucene.getCommitId(lastCommittedSegmentInfos);
+                this.commitId = generateSearcherId(lastCommittedSegmentInfos);
                 if (seqNoStats == null) {
                     seqNoStats = buildSeqNoStats(config, lastCommittedSegmentInfos);
                     ensureMaxSeqNoEqualsToGlobalCheckpoint(seqNoStats);
@@ -138,6 +141,25 @@ public class ReadOnlyEngine extends Engine {
         } catch (IOException e) {
             throw new UncheckedIOException(e); // this is stupid
         }
+    }
+
+    /**
+     * Generate a searcher id using the ids of the underlying segments of an index commit. Here we can't use the commit id directly
+     * as the search id because the commit id changes whenever IndexWriter#commit is called although the segment files stay unchanged.
+     * Any recovery except the local recovery performs IndexWriter#commit to generate a new translog uuid or history_uuid.
+     */
+    static String generateSearcherId(SegmentInfos sis) {
+        final MessageDigest md = MessageDigests.sha256();
+        for (SegmentCommitInfo si : sis) {
+            final byte[] segmentId = si.getId();
+            if (segmentId != null) {
+                md.update(segmentId);
+            } else {
+                // old segments do not have segment ids
+                return null;
+            }
+        }
+        return MessageDigests.toHexString(md.digest());
     }
 
     protected void ensureMaxSeqNoEqualsToGlobalCheckpoint(final SeqNoStats seqNoStats) {
@@ -552,7 +574,7 @@ public class ReadOnlyEngine extends Engine {
             }
 
             @Override
-            public String getCommitId() {
+            public String getSearcherId() {
                 return commitId;
             }
         };

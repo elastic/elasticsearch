@@ -2205,6 +2205,24 @@ public class SecurityDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         {
+            // tag::invalidate-api-key-ids-request
+            InvalidateApiKeyRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingApiKeyIds(
+                Arrays.asList("kI3QZHYBnpSXoDRq1XzR", "ko3SZHYBnpSXoDRqk3zm"), false);
+            // end::invalidate-api-key-ids-request
+
+            InvalidateApiKeyResponse invalidateApiKeyResponse = client.security().invalidateApiKey(invalidateApiKeyRequest,
+                RequestOptions.DEFAULT);
+
+            final List<ElasticsearchException> errors = invalidateApiKeyResponse.getErrors();
+            final List<String> invalidatedApiKeyIds = invalidateApiKeyResponse.getInvalidatedApiKeys();
+            final List<String> previouslyInvalidatedApiKeyIds = invalidateApiKeyResponse.getPreviouslyInvalidatedApiKeys();
+
+            assertTrue(errors.isEmpty());
+            assertThat(invalidatedApiKeyIds.size(), equalTo(0));
+            assertThat(previouslyInvalidatedApiKeyIds.size(), equalTo(0));
+        }
+
+        {
             createApiKeyRequest = new CreateApiKeyRequest("k2", roles, expiration, refreshPolicy);
             CreateApiKeyResponse createApiKeyResponse2 = client.security().createApiKey(createApiKeyRequest, RequestOptions.DEFAULT);
             assertThat(createApiKeyResponse2.getName(), equalTo("k2"));

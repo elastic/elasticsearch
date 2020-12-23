@@ -33,6 +33,7 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -44,6 +45,17 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat("field was not created by preflight check", mapperService.fieldType("field0"), nullValue());
         merge(mapperService, MergeReason.MAPPING_UPDATE, mapping(b -> createMappingSpecifyingNumberOfFields(b, 1)));
         assertThat("field was not created by mapping update", mapperService.fieldType("field0"), notNullValue());
+    }
+
+    public void testMappingLookup() throws IOException {
+        MapperService service = createMapperService(mapping(b -> {}));
+        MappingLookup oldLookup = service.mappingLookup();
+        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
+
+        merge(service, mapping(b -> b.startObject("cat").field("type", "keyword").endObject()));
+        MappingLookup newLookup = service.mappingLookup();
+        assertThat(newLookup.fieldTypes().get("cat"), not(nullValue()));
+        assertThat(oldLookup.fieldTypes().get("cat"), nullValue());
     }
 
     /**

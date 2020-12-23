@@ -111,7 +111,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
     private OrdinalSequence.IO createIO(String suffix) throws IOException {
         return new OrdinalSequence.IO() {
             @Override
-            public IndexOutput createOutput() throws IOException {
+            public IndexOutput output() throws IOException {
                 // NOCOMMIt these temp files aren't deleted properly on restart
                 return directory.createTempOutput(FILE_PREFIX, suffix, IOContext.DEFAULT);
             }

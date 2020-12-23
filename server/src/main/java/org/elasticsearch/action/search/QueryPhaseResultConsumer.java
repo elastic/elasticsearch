@@ -25,6 +25,7 @@ import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.action.search.SearchPhaseController.TopDocsStats;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -140,9 +141,12 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         }
         SearchPhaseController.ReducedQueryPhase reducePhase = controller.reducedQueryPhase(results.asList(), aggsList,
             topDocsList, topDocsStats, pendingMerges.numReducePhases, false, aggReduceContextBuilder, performFinalReduce);
-        if (hasAggs) {
+        if (hasAggs
+                // reduced aggregations can be null if all shards failed
+                && reducePhase.aggregations != null) {
+
             // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = reducePhase.aggregations.getSerializedSize() - breakerSize;
+            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations) - breakerSize;
             pendingMerges.addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]",
                 pendingMerges.aggsCurrentBufferSize, pendingMerges.maxAggsCurrentBufferSize);
@@ -206,7 +210,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         // we leave the results un-serialized because serializing is slow but we compute the serialized
         // size as an estimate of the memory used by the newly reduced aggregations.
-        long serializedSize = hasAggs ? newAggs.getSerializedSize() : 0;
+        long serializedSize = hasAggs ? DelayableWriteable.getSerializedSize(newAggs) : 0;
         return new MergeResult(processedShards, newTopDocs, newAggs, hasAggs ? serializedSize : 0);
     }
 
@@ -287,12 +291,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
          * provided {@link QuerySearchResult}.
          */
         long ramBytesUsedQueryResult(QuerySearchResult result) {
-            if (hasAggs == false) {
-                return 0;
-            }
-            return result.aggregations()
-                .asSerialized(InternalAggregations::readFrom, namedWriteableRegistry)
-                .ramBytesUsed();
+            return hasAggs ? result.aggregations().getSerializedSize() : 0;
         }
 
         /**

@@ -43,12 +43,11 @@ class ClientTransformIndexerBuilder {
         this.initialStats = new TransformIndexerStats();
     }
 
-    ClientTransformIndexer build(ThreadPool threadPool, String executorName, TransformContext context) {
+    ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
         CheckpointProvider checkpointProvider = transformsCheckpointService.getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(
             threadPool,
-            executorName,
             transformsConfigManager,
             checkpointProvider,
             new AtomicReference<>(this.indexerState),

@@ -80,7 +80,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
         when(shardSearchRequest.types()).thenReturn(new String[]{});
-        when(shardSearchRequest.shardIndex()).thenReturn(shardId.id());
+        when(shardSearchRequest.shardRequestIndex()).thenReturn(shardId.id());
         when(shardSearchRequest.numberOfShards()).thenReturn(2);
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
@@ -107,9 +107,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject())).thenReturn(
-            queryShardContext
-        );
+        when(indexService.newQueryShardContext(eq(shardId.id()), eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject()))
+            .thenReturn(queryShardContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
         when(indexService.mapperService()).thenReturn(mapperService);
@@ -240,8 +239,11 @@ public class DefaultSearchContextTests extends ESTestCase {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
         ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
+        when(shardSearchRequest.types()).thenReturn(new String[]{});
         ShardId shardId = new ShardId("index", UUID.randomUUID().toString(), 1);
         when(shardSearchRequest.shardId()).thenReturn(shardId);
+        when(shardSearchRequest.shardRequestIndex()).thenReturn(shardId.id());
+        when(shardSearchRequest.numberOfShards()).thenReturn(2);
 
         ThreadPool threadPool = new TestThreadPool(this.getClass().getName());
         IndexShard indexShard = mock(IndexShard.class);
@@ -251,9 +253,14 @@ public class DefaultSearchContextTests extends ESTestCase {
 
         IndexService indexService = mock(IndexService.class);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(indexService.newQueryShardContext(eq(shardId.id()), anyObject(), anyObject(), anyString(), anyObject())).thenReturn(
-            queryShardContext
-        );
+        when(indexService.newQueryShardContext(
+            eq(shardId.id()),
+            eq(shardId.id()),
+            anyObject(),
+            anyObject(),
+            anyString(),
+            anyObject())
+        ).thenReturn(queryShardContext);
 
         try (Directory dir = newDirectory();
              RandomIndexWriter w = new RandomIndexWriter(random(), dir);

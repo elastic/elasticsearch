@@ -99,7 +99,7 @@ public class SequenceSpecTests extends ESTestCase {
                       .size(10)
                       .query(matchAllQuery())
                       // pass the ordinal through terminate after
-                      .terminateAfter(ordinal), "timestamp"),
+                      .terminateAfter(ordinal), "timestamp", emptyList()),
                   keyExtractors,
                   tsExtractor, tbExtractor, false);
             this.ordinal = ordinal;

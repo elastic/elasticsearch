@@ -11,9 +11,8 @@ You can choose either of the following methods to transform your data:
 IMPORTANT: All {transforms} leave your source index intact. They create a new 
 index that is dedicated to the transformed data.
 
-[discrete]
 [[pivot-transform-overview]]
-=== Pivot {transforms}
+== Pivot {transforms}
 
 You can use {transforms} to _pivot_ your data into a new entity-centric index. 
 By transforming and summarizing your data, it becomes possible to visualize and 
@@ -67,9 +66,8 @@ items in every product category in the last year.
 [role="screenshot"]
 image::images/pivot-preview.png["Example of a {transform} pivot in {kib}"]
 
-[discrete]
 [[latest-transform-overview]]
-=== Latest {transforms}
+== Latest {transforms}
 
 You can use the `latest` type of {transform} to copy the most recent documents
 into a new index. You must identify one or more fields as the unique key for 
@@ -83,7 +81,6 @@ output in the destination index. If the {transform} runs continuously, new uniqu
 key values are automatically added to the destination index and the most recent
 documents for existing key values are automatically updated at each checkpoint.
 
-[discrete]
 [[transform-performance]]
 == Performance considerations
 

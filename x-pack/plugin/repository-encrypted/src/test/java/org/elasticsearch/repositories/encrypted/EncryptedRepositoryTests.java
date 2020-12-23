@@ -108,7 +108,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     public void testStoreDEKSuccess() throws Exception {
-        String DEKId = randomAlphaOfLengthBetween(2, 20);
+        String DEKId = randomAlphaOfLengthBetween(16, 32); // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
 
         encryptedBlobStore.storeDEK(DEKId, DEK);
@@ -121,7 +121,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     public void testGetDEKSuccess() throws Exception {
-        String DEKId = randomAlphaOfLengthBetween(2, 20);
+        String DEKId = randomAlphaOfLengthBetween(16, 32); // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec(randomByteArrayOfLength(32), "AES");
         Tuple<String, SecretKey> KEK = encryptedRepository.generateKEK(DEKId);
 
@@ -133,7 +133,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
     }
 
     public void testGetTamperedDEKFails() throws Exception {
-        String DEKId = randomAlphaOfLengthBetween(2, 20);
+        String DEKId = randomAlphaOfLengthBetween(16, 32);  // at least 128 bits because of FIPS
         SecretKey DEK = new SecretKeySpec("01234567890123456789012345678901".getBytes(StandardCharsets.UTF_8), "AES");
         Tuple<String, SecretKey> KEK = encryptedRepository.generateKEK(DEKId);
 
@@ -156,7 +156,7 @@ public class EncryptedRepositoryTests extends ESTestCase {
                 .readBlob(any(String.class));
             return blobContainer;
         }).when(this.delegatedBlobStore).blobContainer(any(BlobPath.class));
-        IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDEKById("id"));
+        IOException e = expectThrows(IOException.class, () -> encryptedBlobStore.getDEKById("this must be at least 16"));
         assertThat(e.getMessage(), containsString("Tested IOException"));
     }
 

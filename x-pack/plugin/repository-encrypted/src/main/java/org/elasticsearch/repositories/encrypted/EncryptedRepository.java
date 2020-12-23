@@ -83,9 +83,6 @@ public class EncryptedRepository extends BlobStoreRepository {
     static final String DEK_ROOT_CONTAINER = ".encryption-metadata"; // package private for tests
     static final int DEK_ID_LENGTH = 22; // {@code org.elasticsearch.common.UUIDS} length
 
-    // the following constants can be changed freely
-    private static final String RAND_ALGO = "SHA1PRNG";
-
     // the snapshot metadata (residing in the cluster state for the lifetime of the snapshot)
     // contains the salted hash of the repository password as present on the master node (which starts the snapshot operation).
     // The hash is verified on each data node, before initiating the actual shard files snapshot, as well
@@ -317,8 +314,10 @@ public class EncryptedRepository extends BlobStoreRepository {
 
     private Supplier<Tuple<BytesReference, SecretKey>> createDEKGenerator() throws GeneralSecurityException {
         // DEK and DEK Ids MUST be generated randomly (with independent random instances)
-        final SecureRandom dekSecureRandom = SecureRandom.getInstance(RAND_ALGO);
-        final SecureRandom dekIdSecureRandom = SecureRandom.getInstance(RAND_ALGO);
+        // the rand algo is not pinned so that it goes well with various providers (eg FIPS)
+        // TODO maybe we can make this a setting for rigurous users
+        final SecureRandom dekSecureRandom = new SecureRandom();
+        final SecureRandom dekIdSecureRandom = new SecureRandom();
         final KeyGenerator dekGenerator = KeyGenerator.getInstance(DATA_ENCRYPTION_SCHEME.split("/")[0]);
         dekGenerator.init(AESKeyUtils.KEY_LENGTH_IN_BYTES * Byte.SIZE, dekSecureRandom);
         return () -> {

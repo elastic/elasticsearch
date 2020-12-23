@@ -53,7 +53,7 @@ public final class EncryptedS3BlobStoreRepositoryIntegTests extends S3BlobStoreR
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(
                 EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
-                repositoryName
+                repositoryName + " ".repeat(14 - repositoryName.length()) // pad to the minimum pass length of 112 bits (14)
             );
         }
         return secureSettings;

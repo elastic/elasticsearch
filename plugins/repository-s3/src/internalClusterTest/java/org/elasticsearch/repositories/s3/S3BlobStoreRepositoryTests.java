@@ -94,14 +94,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    protected Settings repositorySettings() {
-        return Settings.builder()
-            .put(super.repositorySettings())
+    protected Settings repositorySettings(String repoName) {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(super.repositorySettings(repoName))
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             .put(S3Repository.CLIENT_NAME.getKey(), "test")
             // Don't cache repository data because some tests manually modify the repository data
-            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
-            .build();
+            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false);
+        if (randomBoolean()) {
+            settingsBuilder.put(S3Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
+        }
+        return settingsBuilder.build();
     }
 
     @Override
@@ -145,8 +148,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {
-        final String repoName = createRepository(randomName(), Settings.builder().put(repositorySettings())
-            .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build());
+        final String repoName = randomRepositoryName();
+        createRepository(repoName, Settings.builder().put(repositorySettings(repoName))
+                .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build(), true);
 
         final SnapshotId fakeOldSnapshot = client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-old")
             .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();

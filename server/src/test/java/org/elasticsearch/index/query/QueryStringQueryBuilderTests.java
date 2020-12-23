@@ -1100,7 +1100,6 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testDisabledFieldNamesField() throws Exception {
-        QueryShardContext context = createShardContext();
         getMapperService().merge("_doc",
             new CompressedXContent(Strings
                 .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
@@ -1109,6 +1108,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
                     "_field_names",
                     "enabled=false"))),
             MapperService.MergeReason.MAPPING_UPDATE);
+        QueryShardContext context = createShardContext();
 
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");

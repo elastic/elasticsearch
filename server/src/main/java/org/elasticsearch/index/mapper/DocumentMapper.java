@@ -115,7 +115,7 @@ public class DocumentMapper implements ToXContentFragment {
         this.documentParser = documentParser;
         this.indexSettings = indexSettings;
         this.indexAnalyzers = indexAnalyzers;
-        this.fieldMappers = MappingLookup.fromMapping(this.mapping);
+        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);

@@ -16,27 +16,21 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+package org.elasticsearch.index.mapper;
 
-esplugin {
-  description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'
-  classname 'org.elasticsearch.geo.GeoPlugin'
-}
+import java.util.Arrays;
+import java.util.List;
 
-restResources {
-  restApi {
-    includeCore '_common', 'indices', 'index', 'search'
-  }
-}
-artifacts {
-  restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
-}
-tasks.named("test").configure { enabled = false }
+import static java.util.stream.Collectors.toList;
 
-if (BuildParams.inFipsJvm){
-  // The geo module is replaced by spatial in the default distribution and in FIPS 140 mode, we set the testclusters to
-  // use the default distribution, so there is no need to run these tests
-  tasks.named("yamlRestTest").configure{enabled = false }
+public class MappingLookupUtils {
+    public static MappingLookup fromTypes(MappedFieldType... types) {
+        return fromTypes(Arrays.asList(types), List.of());
+    }
+
+    public static MappingLookup fromTypes(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
+        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(toList());
+        return new MappingLookup("_doc", mappers, List.of(), List.of(), runtimeFields, 0, souceToParse -> null, true);
+    }
 }

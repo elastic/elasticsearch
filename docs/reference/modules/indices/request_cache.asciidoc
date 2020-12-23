@@ -38,7 +38,7 @@ words you will always get the same results from the cache as you would for an
 uncached search request.
 
 The longer the refresh interval, the longer that cached entries will remain
-valid even if ther eare changes to the documents. If the cache is full, the
+valid even if there are changes to the documents. If the cache is full, the
 least recently used cache keys will be evicted.
 
 The cache can be expired manually with the <<indices-clearcache,`clear-cache` API>>:

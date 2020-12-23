@@ -48,7 +48,6 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
 
     private static final String USER = "x_pack_rest_user";
     private static final String PASS = "x-pack-test-password";
-    private static final String KEYSTORE_PASS = "testnode";
 
     @Override
     protected boolean preserveClusterUponCompletion() {
@@ -123,23 +122,23 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         return getDistribution().equals("oss");
     }
 
-    static Path keyStore;
+    static Path trustedCertFile;
 
     @BeforeClass
-    public static void getKeyStore() {
+    public static void getTrustedCert() {
         try {
-            keyStore = PathUtils.get(AbstractMultiClusterRemoteTestCase.class.getResource("/testnode.jks").toURI());
+            trustedCertFile = PathUtils.get(AbstractMultiClusterRemoteTestCase.class.getResource("/testnode.crt").toURI());
         } catch (URISyntaxException e) {
-            throw new ElasticsearchException("exception while reading the store", e);
+            throw new ElasticsearchException("exception while reading the certificate file", e);
         }
-        if (Files.exists(keyStore) == false) {
-            throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
+        if (Files.exists(trustedCertFile) == false) {
+            throw new IllegalStateException("Certificate file [" + trustedCertFile + "] does not exist.");
         }
     }
 
     @AfterClass
-    public static void clearKeyStore() {
-        keyStore = null;
+    public static void clearTrustedCert() {
+        trustedCertFile = null;
     }
 
     @Override
@@ -150,8 +149,7 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
-            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+            .put(ESRestTestCase.CERTIFICATE_AUTHORITIES, trustedCertFile)
             .build();
     }
 

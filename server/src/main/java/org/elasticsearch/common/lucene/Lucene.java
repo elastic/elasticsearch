@@ -100,7 +100,6 @@ import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -814,13 +813,6 @@ public class Lucene {
         public void delete() {
             throw new UnsupportedOperationException("This IndexCommit does not support deletions");
         }
-    }
-
-    /**
-     * Returns a base64 encoded string of the commit id of the given {@link SegmentInfos}
-     */
-    public static String getCommitId(SegmentInfos segmentInfos) {
-        return Base64.getEncoder().encodeToString(segmentInfos.getId());
     }
 
     /**

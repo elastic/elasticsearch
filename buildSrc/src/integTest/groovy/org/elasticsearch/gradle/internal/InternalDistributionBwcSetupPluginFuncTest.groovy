@@ -110,7 +110,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             inputs.files(configurations.expandedDist)
             doLast {
                 configurations.expandedDist.files.each {
-                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
+                    println "expandedRootPath " + (it.absolutePath - project.rootDir.absolutePath)
+                    it.eachFile { nested ->
+                        println "nested folder " + (nested.absolutePath - project.rootDir.absolutePath)
+                    }
                 }
             }
         }
@@ -123,11 +126,13 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         then:
         result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-
         and: "assemble task triggered"
         result.output.contains("[7.11.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
         normalized(result.output)
-                .contains("distfile /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+                .contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install")
+        normalized(result.output)
+                .contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+                        "distribution/archives/darwin-tar/build/install/elasticsearch-7.11.0-SNAPSHOT")
     }
 }

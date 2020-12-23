@@ -15,9 +15,7 @@ summaries.
 [[legacy-rollup-apis]]
 === Legacy rollup APIs
 
-Before {es} 7.x, you could only create rollups using periodic cron jobs. Special
-APIs were required to manage these jobs and search the resulting rollup indices.
-These rollup APIs are now deprecated and will be removed in a future release.
+include::{es-repo-dir}/rollup/index.asciidoc[tag=legacy-rollups]
 
 [discrete]
 [[rollup-jobs-endpoint]]

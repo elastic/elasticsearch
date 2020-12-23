@@ -19,15 +19,27 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStatsTests;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.monitor.fs.FsInfo;
+import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.os.OsInfo;
+import org.elasticsearch.monitor.process.ProcessInfo;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.transport.TransportInfo;
 
+import java.net.InetSocketAddress;
+import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
@@ -115,6 +127,39 @@ public class ClusterStatsNodesTests extends ESTestCase {
                 + "}}"));
     }
 
+    public void testClusterFsTotal() throws Exception {
+        List<ClusterStatsNodeResponse> statsNodeResponses = Arrays.asList(
+            createNodeStatResponse("node_0", "192.168.0.10", 9300,
+                new FsInfo.Path[]{
+                    createFsInfoPath("/data00/dnode0/nodes/0", "/data00 (/dev/sdb)", 10737418240l, 50000l, 50000l)
+                }),
+            createNodeStatResponse("node_1", "192.168.0.10", 9310,
+                new FsInfo.Path[]{
+                    createFsInfoPath("/data01/dnode0/nodes/0", "/data01 (/dev/sdc)", 10737418240l, 50000l, 50000l)
+                }),
+            createNodeStatResponse("node_2", "192.168.0.11", 9300,
+                new FsInfo.Path[]{
+                    createFsInfoPath("/data01/dnode0/nodes/0", "/data00 (/dev/sdb)", 10737418240l, 50000l, 50000l)
+                }),
+            createNodeStatResponse("node_3", "192.168.0.11", 9310,
+                new FsInfo.Path[]{
+                    createFsInfoPath("/data01/dnode0/nodes/0", "/data01 (/dev/sdc)", 10737418240l, 50000l, 50000l)
+                }),
+            createNodeStatResponse("node_4", "192.168.0.11", 9320,
+                new FsInfo.Path[]{
+                    createFsInfoPath("/data01/dnode1/nodes/0", "/data01 (/dev/sdc)", 10737418240l, 50000l, 50000l)
+                }),
+            createNodeStatResponse("node_5", "192.168.0.12", 9300,
+                new FsInfo.Path[]{
+                    createFsInfoPath("/data00/dnode0/nodes/0", "/data00 (/dev/sdb)", 6442450944l, 50000l, 50000l),
+                    createFsInfoPath("/data01/dnode0/nodes/0", "/data01 (/dev/sdc)", 6442450944l, 50000l, 50000l),
+                    createFsInfoPath("/data01/dnode1/nodes/0", "/data01 (/dev/sdc)", 6442450944l, 50000l, 50000l)
+                }));
+        ClusterStatsNodes stats = new ClusterStatsNodes(statsNodeResponses);
+        assertEquals(new ByteSizeValue(4*10737418240l + 2*6442450944l), stats.getFs().getTotal());
+
+    }
+
     private static NodeInfo createNodeInfo(String nodeId, String transportType, String httpType) {
         Settings.Builder settings = Settings.builder();
         if (transportType != null) {
@@ -128,5 +173,38 @@ public class ClusterStatsNodesTests extends ESTestCase {
         return new NodeInfo(null, null,
                 new DiscoveryNode(nodeId, buildNewFakeTransportAddress(), null),
                 settings.build(), null, null, null, null, null, null, null, null, null, null);
+    }
+
+    private static ClusterStatsNodeResponse createNodeStatResponse(String nodeId, String hostname, Integer port, FsInfo.Path[] fsInfoPaths) throws Exception {
+
+        DiscoveryNode discoveryNode = new DiscoveryNode(nodeId, new TransportAddress(new InetSocketAddress(hostname, port)), null);
+        return new ClusterStatsNodeResponse(new DiscoveryNode(nodeId, new TransportAddress(new InetSocketAddress(hostname, port)), null), null,
+            createNodeInfo2(nodeId, hostname, port),
+            createNodeStats(discoveryNode, fsInfoPaths),
+            null);
+    }
+
+    private static NodeInfo createNodeInfo2(String nodeId, String hostname, Integer port){
+        return new NodeInfo(null, new Build(Build.Flavor.DEFAULT, Build.Type.TAR, "", "", false, ""),
+            new DiscoveryNode(nodeId, new TransportAddress(new InetSocketAddress(hostname, port)), null),
+            Settings.builder().build(), new OsInfo(1l, 1, 1, "", "", "", ""),
+            new ProcessInfo(1l, true, 1l),
+            JvmInfo.jvmInfo(), null,
+            new TransportInfo(new BoundTransportAddress(new TransportAddress[]{
+                new TransportAddress(new InetSocketAddress(hostname, port))
+            }, new TransportAddress(new InetSocketAddress(hostname, port))), null), null,
+            new PluginsAndModules(Collections.emptyList(), Collections.emptyList()),null, null, null);
+    }
+
+    private static NodeStats createNodeStats(DiscoveryNode discoveryNode, FsInfo.Path[] fsInfoPaths) throws UnknownHostException {
+
+        long timestamp = 1608809284528l;
+        return new NodeStats(discoveryNode, timestamp, null, null ,null, null,
+            null, new FsInfo(timestamp, null, fsInfoPaths),
+            null, null, null, null,null, null, null, null);
+    }
+
+    private static FsInfo.Path createFsInfoPath(String path, String mount, long total, long free, long available){
+        return new FsInfo.Path(path, mount, total, free, available);
     }
 }

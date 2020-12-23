@@ -52,6 +52,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.TimeUnit;
@@ -76,24 +77,38 @@ public class ClusterStatsNodes implements ToXContentFragment {
         this.fs = new FsInfo.Path();
         this.plugins = new HashSet<>();
 
-        Set<InetAddress> seenAddresses = new HashSet<>(nodeResponses.size());
         List<NodeInfo> nodeInfos = new ArrayList<>(nodeResponses.size());
         List<NodeStats> nodeStats = new ArrayList<>(nodeResponses.size());
+
+        Map<InetAddress, Set<String>> inetAddressFsPaths = new HashMap<>();
         for (ClusterStatsNodeResponse nodeResponse : nodeResponses) {
             nodeInfos.add(nodeResponse.nodeInfo());
             nodeStats.add(nodeResponse.nodeStats());
             this.versions.add(nodeResponse.nodeInfo().getVersion());
             this.plugins.addAll(nodeResponse.nodeInfo().getInfo(PluginsAndModules.class).getPluginInfos());
 
-            // now do the stats that should be deduped by hardware (implemented by ip deduping)
-            TransportAddress publishAddress =
+            if (nodeResponse.nodeStats().getFs() != null){
+                // now do the stats that should be deduped by hardware (implemented by ip deduping)
+                TransportAddress publishAddress =
                     nodeResponse.nodeInfo().getInfo(TransportInfo.class).address().publishAddress();
-            final InetAddress inetAddress = publishAddress.address().getAddress();
-            if (!seenAddresses.add(inetAddress)) {
-                continue;
-            }
-            if (nodeResponse.nodeStats().getFs() != null) {
-                this.fs.add(nodeResponse.nodeStats().getFs().getTotal());
+                final InetAddress inetAddress = publishAddress.address().getAddress();
+                Iterator<FsInfo.Path> pathIterator = nodeResponse.nodeStats().getFs().iterator();
+                Set<String> fsInfoPaths;
+                if (!inetAddressFsPaths.containsKey(inetAddress)){
+                    fsInfoPaths = new HashSet<>();
+                    inetAddressFsPaths.put(inetAddress, fsInfoPaths);
+                } else {
+                    fsInfoPaths = inetAddressFsPaths.get(inetAddress);
+                }
+
+                // single machine with multiple instances, accumulating different mount data directories
+                while (pathIterator.hasNext()) {
+                    FsInfo.Path path = pathIterator.next();
+                    if (!fsInfoPaths.contains(path.getMount())){
+                        fsInfoPaths.add(path.getMount());
+                        this.fs.add(path);
+                    }
+                }
             }
         }
         this.counts = new Counts(nodeInfos);

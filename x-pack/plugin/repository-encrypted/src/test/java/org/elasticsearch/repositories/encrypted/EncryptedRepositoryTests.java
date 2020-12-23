@@ -94,10 +94,8 @@ public class EncryptedRepositoryTests extends ESTestCase {
             // write atomic
             doAnswer(invocationOnMockBlobContainer -> {
                 String DEKId = ((String) invocationOnMockBlobContainer.getArguments()[0]);
-                this.blobsMap.put(
-                    blobPath.add(DEKId),
-                    BytesReference.toBytes((BytesReference) invocationOnMockBlobContainer.getArguments()[1])
-                );
+                BytesReference DEKBytesReference = ((BytesReference) invocationOnMockBlobContainer.getArguments()[1]);
+                this.blobsMap.put(blobPath.add(DEKId), BytesReference.toBytes(DEKBytesReference));
                 return null;
             }).when(blobContainer).writeBlobAtomic(any(String.class), any(BytesReference.class), anyBoolean());
             // read

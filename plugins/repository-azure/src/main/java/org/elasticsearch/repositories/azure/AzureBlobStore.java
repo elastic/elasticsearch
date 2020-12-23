@@ -411,7 +411,18 @@ public class AzureBlobStore implements BlobStore {
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
 
             final Flux<ByteBuffer> byteBufferFlux =
-                convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
+                convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE).doOnComplete(() -> {
+                    try {
+                        if (inputStream.available() > 0) {
+                            long totalLength = blobSize + inputStream.available();
+                            throw new IllegalStateException(
+                                    "InputStream provided " + totalLength + " bytes, more than the expected " + totalLength + " bytes"
+                            );
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+            });
             final BlockBlobSimpleUploadOptions options = new BlockBlobSimpleUploadOptions(byteBufferFlux, blobSize);
             BlobRequestConditions requestConditions = new BlobRequestConditions();
             if (failIfAlreadyExists) {
@@ -438,8 +449,21 @@ public class AzureBlobStore implements BlobStore {
             final List<String> blockIds = new ArrayList<>(nbParts);
             for (int i = 0; i < nbParts; i++) {
                 final long length = i < nbParts - 1 ? partSize : lastPartSize;
-                final Flux<ByteBuffer> byteBufferFlux =
-                    convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
+                Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
+                if (i == nbParts - 1) {
+                    byteBufferFlux.doOnComplete(() -> {
+                        try {
+                            if (inputStream.available() > 0) {
+                                long totalLength = blobSize + inputStream.available();
+                                throw new IllegalStateException(
+                                        "InputStream provided " + totalLength + " bytes, more than the expected " + totalLength + " bytes"
+                                );
+                            }
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+                }
 
                 final String blockId = UUIDs.base64UUID();
                 blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();
@@ -499,20 +523,11 @@ public class AzureBlobStore implements BlobStore {
                     return ByteBuffer.wrap(buffer);
                 }))
                 .doOnComplete(() -> {
-                    try {
-                        if (inputStream.available() > 0) {
-                            long totalLength = currentTotalLength.get() + inputStream.available();
-                            throw new IllegalStateException(
-                                "InputStream provided " + totalLength + " bytes, more than the expected " + length + " bytes"
-                            );
-                        } else if (currentTotalLength.get() > length) {
-                            throw new IllegalStateException(
-                                "Read more data than was requested. Size of data read: " + currentTotalLength.get() + "." +
-                                    " Size of data requested: " + length
-                            );
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
+                    if (currentTotalLength.get() > length) {
+                        throw new IllegalStateException(
+                            "Read more data than was requested. Size of data read: " + currentTotalLength.get() + "." +
+                                " Size of data requested: " + length
+                        );
                     }
                 });
         }).subscribeOn(Schedulers.elastic()); // We need to subscribe on a different scheduler to avoid blocking the io threads when

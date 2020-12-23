@@ -32,14 +32,61 @@ public class OrdinalSequence {
         LongUnaryOperator get(RandomAccessInput input) throws IOException;
     }
 
-    static abstract class OutHelper implements Closeable {
-        private final List<Writer> all = new ArrayList<>();
+    /**
+     * Manages groups of sequences.
+     */
+    static abstract class GroupWriter implements Closeable {
+        private final List<Writer> unfinished = new ArrayList<>();
         private IndexOutput output;
         private InHelper input;
 
         protected abstract IndexOutput buildOutput() throws IOException;
 
         protected abstract InHelper buildInput(String name) throws IOException;
+
+        Writer directWriter(long valueCount, int bitsPerValue) {
+            // NOCOMMIT should bitsPerValue be maxValue?
+            return track(new Writer(
+                (index, value) -> value,
+                (index, enc) -> enc,
+                vc -> new DirectDelegateWriter(output(), vc, bitsPerValue),
+                valueCount
+            ));
+        }
+
+        /**
+         * Writer for sequences that have values larger than or equal to their
+         * index, meaning that {@code f(i) >= i}. Values are packed more efficiently
+         * {@code f(i) - i} is near {@code 0}. That difference, <strong>must</strong>
+         * grow, so {@code f(i) - i >= f(i - 1) - i}.
+         */
+        Writer positiveDeltaWriter(long valueCount) {
+            return track(new Writer(
+                (index, value) -> value - index,
+                (index, enc) -> enc + index,
+                vc -> new MonotonicDelegateWriter(output(), vc),
+                valueCount
+            ));
+        }
+
+        /**
+         * Writer for sequences that have values smaller than or equal to their
+         * index, meaning that {@code f(i) <= i}. Values are packed more efficiently
+         * {@code i - f(i)} is near {@code 0}.
+         */
+        Writer negativeDeltaWriter(long valueCount, long maxDelta) {
+            return track(new Writer(
+                (index, value) -> index - value,
+                (index, enc) -> index - enc,
+                vc -> new DirectDelegateWriter(output(), vc, DirectWriter.bitsRequired(maxDelta)),
+                valueCount
+            ));
+        }
+
+        private Writer track(Writer writer) {
+            unfinished.add(writer);
+            return writer;
+        }
 
         private IndexOutput output() throws IOException {
             if (output == null) {
@@ -50,7 +97,7 @@ public class OrdinalSequence {
 
         InHelper finish() throws IOException {
             if (input == null) {
-                for (Writer w : all) {
+                for (Writer w : unfinished) {
                     w.finish();
                 }
                 if (output == null) {
@@ -59,6 +106,8 @@ public class OrdinalSequence {
                     output.close();
                     input = buildInput(output.getName());
                 }
+            } else {
+                throw new IllegalStateException("can only finish one time");
             }
             return input;
         }
@@ -85,8 +134,8 @@ public class OrdinalSequence {
             }
         }
 
-        static OutHelper tmpFile(String prefix, String suffix, Directory directory) {
-            return new OutHelper() {
+        static GroupWriter tmpFile(String prefix, String suffix, Directory directory) {
+            return new GroupWriter() {
                 @Override
                 protected IndexOutput buildOutput() throws IOException {
                     return directory.createTempOutput(prefix, suffix, IOContext.DEFAULT);
@@ -150,45 +199,6 @@ public class OrdinalSequence {
         }
     }
 
-    static Writer directWriter(OutHelper out, long valueCount, int bitsPerValue) {
-        // NOCOMMIT should bitsPerValue be maxValue?
-        return new Writer(
-            (index, value) -> value,
-            (index, enc) -> enc,
-            vc -> new DirectDelegateWriter(out.output(), vc, bitsPerValue),
-            valueCount
-        );
-    }
-
-    /**
-     * Writer for sequences that have values larger than or equal to their
-     * index, meaning that {@code f(i) >= i}. Values are packed more efficiently
-     * {@code f(i) - i} is near {@code 0}. That difference, <strong>must</strong>
-     * grow, so {@code f(i) - i >= f(i - 1) - i}.
-     */
-    static Writer positiveDeltaWriter(OutHelper out, long valueCount) {
-        return new Writer(
-            (index, value) -> value - index,
-            (index, enc) -> enc + index,
-            vc -> new MonotonicDelegateWriter(out.output(), vc),
-            valueCount
-        );
-    }
-
-    /**
-     * Writer for sequences that have values smaller than or equal to their
-     * index, meaning that {@code f(i) <= i}. Values are packed more efficiently
-     * {@code i - f(i)} is near {@code 0}.
-     */
-    static Writer negativeDeltaWriter(OutHelper out, long valueCount, long maxDelta) {
-        return new Writer(
-            (index, value) -> index - value,
-            (index, enc) -> index - enc,
-            vc -> new DirectDelegateWriter(out.output(), vc, DirectWriter.bitsRequired(maxDelta)),
-            valueCount
-        );
-    }
-
     static class Writer {
         private final LongBinaryOperator encode;
         private final LongBinaryOperator decode;
@@ -199,7 +209,6 @@ public class OrdinalSequence {
         private long next;
         private long firstNonZeroEncoded = -1;
         private long lastEncoded;
-        private ReaderProvider readerProvider;
 
         private Writer(LongBinaryOperator encode, LongBinaryOperator decode, DelegateWriter.Builder createWriter, long valueCount) {
             this.encode = encode;
@@ -209,9 +218,6 @@ public class OrdinalSequence {
         }
 
         long add(long index, long value) throws IOException {
-            if (readerProvider != null) {
-                throw new UnsupportedOperationException("Can't add after calling readerProvider");
-            }
             if (index < next) {
                 throw new IllegalArgumentException("Already wrote [" + index + "]");
             }
@@ -257,13 +263,6 @@ public class OrdinalSequence {
         }
 
         ReaderProvider readerProvider() throws IOException {
-            if (readerProvider == null) {
-                readerProvider = buildReaderProvider();
-            }
-            return readerProvider;
-        }
-
-        private ReaderProvider buildReaderProvider() throws IOException {
             if (writer == null) {
                 return Identity.readerProvider(decode);
             }

@@ -323,4 +323,8 @@ public class MappingLookup {
     public CacheKey cacheKey() {
         return cacheKey;
     }
+
+    public String getType() {
+        return fieldTypes().getType();
+    }
 }

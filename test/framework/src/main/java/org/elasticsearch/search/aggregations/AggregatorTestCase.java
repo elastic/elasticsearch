@@ -350,6 +350,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         when(ctx.indexShard()).thenReturn(indexShard);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(false);
+        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         NestedDocuments nested = new NestedDocuments(mapperService, bitsetFilterCache::getBitSetProducer);
         when(ctx.getNestedDocuments()).thenReturn(nested);
         return new SubSearchContext(ctx);

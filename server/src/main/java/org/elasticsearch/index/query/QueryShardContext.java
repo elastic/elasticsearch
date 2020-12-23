@@ -629,11 +629,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     public String getType() {
-        return mapperService.documentMapper() == null ? null : mapperService.documentMapper().type();
-    }
-
-    public boolean typeExists(String type) {
-        return mapperService.documentMapper(type) != null;
+        return mappingLookup.getType();
     }
 
     /**

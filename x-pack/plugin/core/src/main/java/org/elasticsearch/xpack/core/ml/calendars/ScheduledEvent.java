@@ -138,14 +138,6 @@ public class ScheduledEvent implements ToXContentObject, Writeable {
         return builder.build();
     }
 
-    public XContentBuilder writeJson(TimeValue bucketSpan, XContentBuilder builder) throws IOException {
-        builder.startObject();
-        builder.field(DESCRIPTION.getPreferredName(), description);
-        builder.array(RULES.getPreferredName(), toDetectionRule(bucketSpan));
-        builder.endObject();
-        return builder;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(description);

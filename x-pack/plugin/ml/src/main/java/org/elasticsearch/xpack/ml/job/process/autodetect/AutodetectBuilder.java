@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventsWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DetectionRuleWriter;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils.addIfNotNull;
 
@@ -378,11 +379,18 @@ public class AutodetectBuilder {
         Path eventsConfigFile = Files.createTempFile(env.tmpFile(), "eventsConfig", JSON_EXTENSION);
         filesToDelete.add(eventsConfigFile);
 
-        StringBuilder eventsAsJson = new StringBuilder();
-        new ScheduledEventsWriter(scheduledEvents, job.getAnalysisConfig().getBucketSpan(), eventsAsJson).writeJson();
-        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile),StandardCharsets.UTF_8)) {
-            osw.write(eventsAsJson.toString());
+        List<DetectionRuleWriter> detectionRuleWriters = scheduledEvents.stream()
+            .map(x -> new DetectionRuleWriter(x.getDescription(), x.toDetectionRule(job.getAnalysisConfig().getBucketSpan())))
+            .collect(Collectors.toList());
+
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile),StandardCharsets.UTF_8);
+             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            osw.write(Strings.toString(
+                jsonBuilder.startObject()
+                    .field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), detectionRuleWriters)
+                    .endObject()));
         }
+
         command.add(EVENTS_CONFIG_ARG + eventsConfigFile.toString());
     }
 
@@ -408,7 +416,10 @@ public class AutodetectBuilder {
 
         try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(filtersConfigFile),StandardCharsets.UTF_8);
              XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-            osw.write(Strings.toString(jsonBuilder.value(referencedFilters)));
+            osw.write(Strings.toString(
+                jsonBuilder.startObject()
+                    .field(MlFilter.RESULTS_FIELD.getPreferredName(), referencedFilters)
+                    .endObject()));
         }
         command.add(FILTERS_CONFIG_ARG + filtersConfigFile.toString());
     }

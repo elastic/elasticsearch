@@ -19,7 +19,13 @@
 
 package org.elasticsearch.index.mapper;
 
-import static java.util.Collections.unmodifiableMap;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.ToXContentFragment;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,13 +34,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.index.mapper.MapperService.MergeReason;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Wrapper around everything that defines a mapping, without references to
@@ -98,10 +98,10 @@ public final class Mapping implements ToXContentFragment {
      * Merges a new mapping into the existing one.
      *
      * @param mergeWith the new mapping to merge into this one.
-     * @param reason the reason this merge was initiated.
+     * @param reason    the reason this merge was initiated.
      * @return the resulting merged mapping.
      */
-    Mapping merge(Mapping mergeWith, MergeReason reason) {
+    public Mapping merge(Mapping mergeWith, MergeReason reason) {
         RootObjectMapper mergedRoot = root.merge(mergeWith.root, reason);
 
         // When merging metadata fields as part of applying an index template, new field definitions

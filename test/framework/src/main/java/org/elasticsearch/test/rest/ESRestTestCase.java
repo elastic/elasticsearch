@@ -1066,7 +1066,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             try {
                 KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
                 keyStore.load(null, null);
-                Certificate cert = PemUtils.readCertificates(List.of(path)).get(0);
+                Certificate cert = PemUtils.readCertificates(Collections.singletonList(path)).get(0);
                 keyStore.setCertificateEntry(cert.toString(), cert);
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);

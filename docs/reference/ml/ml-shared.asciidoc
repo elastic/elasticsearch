@@ -108,6 +108,23 @@ tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
 
+tag::assignment-memory-basis[]
+Where should the memory requirement used for deciding which node the job
+will run on come from? The possible values are:
++
+--
+* `model_memory_limit`: The job's memory requirement will be calculated on
+the basis that its model memory will grow to the `model_memory_limit`
+specified in the `analysis_limits` of its config.
+* `current_model_bytes`: The job's memory requirement will be calculated on
+the basis that its current model memory size is a good reflection of what
+it will be in the future.
+* `peak_model_bytes`: The job's memory requirement will be calculated on
+the basis that its peak model memory size is a good reflection of what
+the model size will be in the future.
+--
+end::assignment-memory-basis[]
+
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the
 model. The default value is a randomized value between 3 to 4 hours, which
@@ -753,6 +770,25 @@ For more information about these options, see <<multi-index>>.
 --
 end::indices-options[]
 
+tag::runtime-mappings[]
+Specifies runtime fields for the datafeed search.
++
+--
+For example:
+```
+{
+  "day_of_week": {
+    "type": "keyword",
+    "script": {
+      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+    }
+  }
+}
+```
+
+--
+end::runtime-mappings[]
+
 tag::inference-config-classification-num-top-classes[]
 Specifies the number of top class predictions to return. Defaults to 0.
 end::inference-config-classification-num-top-classes[]
@@ -975,7 +1011,7 @@ There are three available modes:
 --
 * `auto`: The chunk size is dynamically calculated. This is the default and
 recommended value when the {dfeed} does not use aggregations.
-* `manual`: Chunking is applied according to the specified `time_span`. Use this 
+* `manual`: Chunking is applied according to the specified `time_span`. Use this
 mode when the {dfeed} uses aggregations.
 * `off`: No chunking is applied.
 --
@@ -1285,8 +1321,8 @@ and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
-The `size` parameter that is used in {es} searches when the {dfeed} does not use 
-aggregations. The default value is `1000`. The maximum value is the value of 
+The `size` parameter that is used in {es} searches when the {dfeed} does not use
+aggregations. The default value is `1000`. The maximum value is the value of
 `index.max_result_window` which is 10,000 by default.
 end::scroll-size[]
 

@@ -39,6 +39,7 @@ import java.util.Map;
  */
 class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final PercentilesAggregatorSupplier aggregatorSupplier;
     private final double[] percents;
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
@@ -55,8 +56,10 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     PercentilesAggregatorFactory(String name, ValuesSourceConfig config, double[] percents,
                                  PercentilesConfig percentilesConfig, boolean keyed, AggregationContext context,
                                  AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
-                                 Map<String, Object> metadata) throws IOException {
+                                 Map<String, Object> metadata,
+                                 PercentilesAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
@@ -71,10 +74,13 @@ class PercentilesAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound bucketCardinality, Map<String, Object> metadata)
-        throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(PercentilesAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config.getValuesSource(), context, parent, percents, percentilesConfig, keyed, config.format(), metadata);
+    protected Aggregator doCreateInternal(
+        Aggregator parent,
+        CardinalityUpperBound bucketCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return aggregatorSupplier
+            .build(name, config.getValuesSource(), context, parent,
+                   percents, percentilesConfig, keyed, config.format(), metadata);
     }
 }

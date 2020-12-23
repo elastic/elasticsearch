@@ -58,15 +58,16 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         try (Directory directory = newDirectory(build)) {
             assertTrue(FsDirectoryFactory.isHybridFs(directory));
             FsDirectoryFactory.HybridDirectory hybridDirectory = (FsDirectoryFactory.HybridDirectory) directory;
-            assertTrue(hybridDirectory.useDelegate("foo.dvd"));
-            assertTrue(hybridDirectory.useDelegate("foo.nvd"));
-            assertTrue(hybridDirectory.useDelegate("foo.tim"));
-            assertTrue(hybridDirectory.useDelegate("foo.tip"));
-            assertTrue(hybridDirectory.useDelegate("foo.cfs"));
-            assertTrue(hybridDirectory.useDelegate("foo.dim"));
-            assertTrue(hybridDirectory.useDelegate("foo.kdd"));
-            assertTrue(hybridDirectory.useDelegate("foo.kdi"));
-            assertFalse(hybridDirectory.useDelegate("foo.bar"));
+            assertTrue(hybridDirectory.useDelegate("foo.dvd", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.nvd", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.tim", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.tip", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.cfs", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.dim", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.kdd", newIOContext(random())));
+            assertTrue(hybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
+            assertFalse(hybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
+            assertFalse(hybridDirectory.useDelegate("foo.bar", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(FsDirectoryFactory.PreLoadMMapDirectory.class));
             FsDirectoryFactory.PreLoadMMapDirectory preLoadMMapDirectory = (FsDirectoryFactory.PreLoadMMapDirectory) delegate;

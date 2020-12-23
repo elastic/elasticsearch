@@ -11,6 +11,7 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodeHotThreads;
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.CheckedRunnable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
@@ -24,17 +25,23 @@ import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedUpdate;
+import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.hamcrest.Matcher;
 import org.junit.After;
+import org.junit.Before;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -143,6 +150,67 @@ public class DatafeedJobsIT extends MlNativeAutodetectIntegTestCase {
         }, 60, TimeUnit.SECONDS);
 
         waitUntilJobIsClosed(job.getId());
+    }
+
+    public void testLookbackOnlyRuntimeMapping() throws Exception {
+        client().admin().indices().prepareCreate("data-1")
+            .setMapping("time", "type=date")
+            .get();
+        long numDocs = randomIntBetween(32, 2048);
+        long now = System.currentTimeMillis();
+        long oneWeekAgo = now - 604800000;
+        long twoWeeksAgo = oneWeekAgo - 604800000;
+        indexDocs(logger, "data-1", numDocs, twoWeeksAgo, oneWeekAgo);
+
+        DataDescription.Builder dataDescription = new DataDescription.Builder();
+
+        Detector.Builder d = new Detector.Builder("count", null);
+        // day_of_week is a runtime field.
+        // count by day of week does not make much sense but is good enough for this test
+        d.setByFieldName("day_of_week");
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Collections.singletonList(d.build()));
+        analysisConfig.setBucketSpan(TimeValue.timeValueHours(1));
+
+        Job.Builder jobBuilder = new Job.Builder();
+        jobBuilder.setId("lookback-job-with-rt-fields");
+        jobBuilder.setAnalysisConfig(analysisConfig);
+        jobBuilder.setDataDescription(dataDescription);
+
+        registerJob(jobBuilder);
+        putJob(jobBuilder);
+        openJob(jobBuilder.getId());
+        assertBusy(() -> assertEquals(getJobStats(jobBuilder.getId()).get(0).getState(), JobState.OPENED));
+
+        DatafeedConfig.Builder dfBuilder = new DatafeedConfig.Builder(jobBuilder.getId() + "-datafeed", jobBuilder.getId());
+        dfBuilder.setQueryDelay(TimeValue.timeValueSeconds(1));
+        dfBuilder.setFrequency(TimeValue.timeValueSeconds(1));
+        dfBuilder.setIndices(Collections.singletonList("data-1"));
+
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("type", "long");
+        properties.put("script", "emit(doc['time'].value.getDayOfWeekEnum().value)");
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("day_of_week", properties);
+        dfBuilder.setRuntimeMappings(fields);
+
+        DatafeedConfig datafeedConfig = dfBuilder.build();
+
+        registerDatafeed(datafeedConfig);
+        putDatafeed(datafeedConfig);
+
+        startDatafeed(datafeedConfig.getId(), 0L, now);
+        assertBusy(() -> {
+            DataCounts dataCounts = getDataCounts(jobBuilder.getId());
+            assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
+            assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
+            assertThat(dataCounts.getMissingFieldCount(), equalTo(0L));
+
+            GetDatafeedsStatsAction.Request request = new GetDatafeedsStatsAction.Request(datafeedConfig.getId());
+            GetDatafeedsStatsAction.Response response = client().execute(GetDatafeedsStatsAction.INSTANCE, request).actionGet();
+            assertThat(response.getResponse().results().get(0).getDatafeedState(), equalTo(DatafeedState.STOPPED));
+        }, 60, TimeUnit.SECONDS);
+
+        waitUntilJobIsClosed(jobBuilder.getId());
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63973")

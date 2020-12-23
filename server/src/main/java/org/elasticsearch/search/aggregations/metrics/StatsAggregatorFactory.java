@@ -35,13 +35,18 @@ import java.util.Map;
 
 class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final MetricAggregatorSupplier aggregatorSupplier;
+
     StatsAggregatorFactory(String name,
                             ValuesSourceConfig config,
                             AggregationContext context,
                             AggregatorFactory parent,
                             AggregatorFactories.Builder subFactoriesBuilder,
-                            Map<String, Object> metadata) throws IOException {
+                            Map<String, Object> metadata,
+                            MetricAggregatorSupplier aggregatorSupplier) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
@@ -63,8 +68,6 @@ class StatsAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(StatsAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config, context, parent, metadata);
+        return aggregatorSupplier.build(name, config, context, parent, metadata);
     }
 }

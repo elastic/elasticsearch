@@ -15,8 +15,8 @@ the Elastic {transform} feature:
 
 {kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
 destination indices and other saved objects in {kib} and to see only the objects 
-that belong to that space. However, this limited scope does not apply to 
-{transforms}; they are visible in all of your spaces.
+that belong to your space. However, this limited scope does not apply to 
+{transforms}; they are visible in all spaces.
 
 [discrete]
 [[transform-ui-limitation]]

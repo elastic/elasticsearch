@@ -38,12 +38,11 @@ public class TypeQueryBuilderTests extends AbstractQueryTestCase<TypeQueryBuilde
 
     @Override
     protected void doAssertLuceneQuery(TypeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        throw new UnsupportedOperationException();
-//        if (createShardContext().getType().equals(queryBuilder.type())) {
-//            assertThat(query, equalTo(Queries.newNonNestedFilter(context.indexVersionCreated())));
-//        } else {
-//            assertEquals(new MatchNoDocsQuery(), query);
-//        }
+        if (createShardContext().getType().equals(queryBuilder.type())) {
+            assertThat(query, equalTo(Queries.newNonNestedFilter(context.indexVersionCreated())));
+        } else {
+            assertEquals(new MatchNoDocsQuery(), query);
+        }
     }
 
     public void testIllegalArgument() {

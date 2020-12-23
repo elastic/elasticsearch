@@ -31,7 +31,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.MapperService;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -130,7 +129,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         deprecationLogger.deprecate("type_query", TYPES_DEPRECATION_MESSAGE);
-        if (context.getType().equals(type) || MapperService.DEFAULT_MAPPING.equals(type)) {
+        if (context.getType().equals(type)) {
             return Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             // no type means no documents

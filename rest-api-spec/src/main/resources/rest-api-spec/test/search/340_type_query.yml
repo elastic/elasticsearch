@@ -23,7 +23,7 @@ type query:
         index: test1
         body:
           query:
-            type: 
+            type:
               value: cat
   - match: { hits.total: 1 }
 
@@ -34,8 +34,18 @@ type query:
         body:
           query:
             type:
+              value: dog
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body:
+          query:
+            type:
               value: _doc
-  - match: { hits.total: 1 }
+  - match: { hits.total: 0 }
 
   - do:
       search:
@@ -45,7 +55,7 @@ type query:
           query:
             type:
               value: _default_
-  - match: { hits.total: 1 }
+  - match: { hits.total: 0 }
 
   - do:
       search:
@@ -64,5 +74,15 @@ type query:
         body:
           query:
             type:
+              value: dog
+  - match: { hits.total: 0 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test2
+        body:
+          query:
+            type:
               value: _default_
-  - match: { hits.total: 1 }
+  - match: { hits.total: 0 }

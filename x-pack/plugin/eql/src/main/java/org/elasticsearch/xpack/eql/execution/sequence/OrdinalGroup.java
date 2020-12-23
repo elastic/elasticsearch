@@ -47,7 +47,7 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     }
 
     /**
-     * Returns the latest element from the group that has its timestamp
+     * Returns the latest element from the group that has its ordinal
      * less than the given argument alongside its position in the list.
      * The element and everything before it is removed.
      */
@@ -56,9 +56,9 @@ abstract class OrdinalGroup<E> implements Iterable<Ordinal> {
     }
 
     /**
-     * Returns the latest element from the group that has its timestamp
+     * Returns the latest element from the group that has its ordinal
      * less than the given argument alongside its position in the list.
-     * Everything before the element it is removed. The element is kept.
+     * Everything before the found element is removed. The element is kept.
      */
     E trimBeforeLast(Ordinal ordinal) {
         return trimBefore(ordinal, false);

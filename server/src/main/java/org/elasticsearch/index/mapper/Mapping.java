@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 import java.io.IOException;
@@ -136,23 +135,20 @@ public final class Mapping implements ToXContentFragment {
         return new Mapping(mergedRoot, mergedMetadataMappers.values().toArray(new MetadataFieldMapper[0]), mergedMeta);
     }
 
-    public MetadataFieldMapper getMetadataMapper(String mapperName) {
+    MetadataFieldMapper getMetadataMapper(String mapperName) {
         return metadataMappersByName.get(mapperName);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        root.toXContent(builder, params, new ToXContent() {
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (meta != null) {
-                    builder.field("_meta", meta);
-                }
-                for (Mapper mapper : metadataMappers) {
-                    mapper.toXContent(builder, params);
-                }
-                return builder;
+        root.toXContent(builder, params, (b, params1) -> {
+            if (meta != null) {
+                b.field("_meta", meta);
             }
+            for (Mapper mapper : metadataMappers) {
+                mapper.toXContent(b, params1);
+            }
+            return b;
         });
         return builder;
     }
@@ -161,7 +157,7 @@ public final class Mapping implements ToXContentFragment {
     public String toString() {
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-            toXContent(builder, new ToXContent.MapParams(emptyMap()));
+            toXContent(builder, ToXContent.EMPTY_PARAMS);
             return Strings.toString(builder.endObject());
         } catch (IOException bogus) {
             throw new UncheckedIOException(bogus);

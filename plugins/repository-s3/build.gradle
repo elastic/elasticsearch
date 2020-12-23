@@ -112,8 +112,8 @@ boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParam
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 'access_key'
-  s3PermanentSecretKey = 'secret_key'
+  s3PermanentAccessKey = 's3_test_access_key'
+  s3PermanentSecretKey = 's3_test_secret_key'
   s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'base_path'
 

@@ -22,6 +22,7 @@ import java.util.Map;
 public class ProfileConfigurationsTests extends ESTestCase {
 
     public void testGetSecureTransportProfileConfigurations() {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         final Settings settings = getBaseSettings()
             .put("path.home", createTempDir())
             .put("xpack.security.transport.ssl.verification_mode", VerificationMode.CERTIFICATE.name())

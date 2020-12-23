@@ -24,9 +24,9 @@
         kadmind_port = 749
         max_life = 12h 0m 0s
         max_renewable_life = 7d 0h 0m 0s
-        master_key_type = aes256-cts
-        # remove aes256-cts:normal since unlimited strength policy needs installed for java to use it.
-        supported_enctypes = aes128-cts:normal des3-hmac-sha1:normal arcfour-hmac:normal des-hmac-sha1:normal des-cbc-md5:normal des-cbc-crc:normal
+        master_key_type = des3-cbc-sha1-kd
+        # This is the only supported enctype for fips 140-2
+        supported_enctypes = des3-cbc-sha1-kd:normal
     }
 
 [logging]

@@ -53,6 +53,7 @@ import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.Repository;
 
 import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -465,7 +466,11 @@ final class StoreRecovery {
         final ActionListener<Void> restoreListener = ActionListener.wrap(
             v -> {
                 final Store store = indexShard.store();
-                bootstrap(indexShard, store);
+                if (restoreSource.shouldBootstrapNewHistoryUUID()) {
+                    bootstrap(indexShard, store);
+                } else {
+                    associateNewEmptyTranslogWithIndex(indexShard, store);
+                }
                 assert indexShard.shardRouting.primary() : "only primary shards can recover from store";
                 writeEmptyRetentionLeasesFile(indexShard);
                 indexShard.openEngineAndRecoverFromTranslog();
@@ -510,4 +515,15 @@ final class StoreRecovery {
             indexShard.shardPath().resolveTranslog(), localCheckpoint, shardId, indexShard.getPendingPrimaryTerm());
         store.associateIndexWithNewTranslog(translogUUID);
     }
+
+    private void associateNewEmptyTranslogWithIndex(final IndexShard indexShard, final Store store) throws IOException {
+        final ShardId shardId = indexShard.shardId();
+        final SegmentInfos segmentInfos = store.readLastCommittedSegmentsInfo();
+        final long localCheckpoint = Long.parseLong(segmentInfos.userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+        final long primaryTerm = indexShard.getPendingPrimaryTerm();
+        final String translogUUID = segmentInfos.userData.get(Translog.TRANSLOG_UUID_KEY);
+        final Path translogLocation = indexShard.shardPath().resolveTranslog();
+        Translog.createEmptyTranslog(translogLocation, shardId, localCheckpoint, primaryTerm, translogUUID, null);
+    }
+
 }

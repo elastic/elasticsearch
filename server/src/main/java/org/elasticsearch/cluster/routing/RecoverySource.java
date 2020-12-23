@@ -20,6 +20,7 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -220,12 +221,19 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         private final Snapshot snapshot;
         private final IndexId index;
         private final Version version;
+        private final boolean bootstrapNewHistoryUUID;
 
         public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId) {
+            this(restoreUUID, snapshot, version, indexId, true);
+        }
+
+        public SnapshotRecoverySource(String restoreUUID, Snapshot snapshot, Version version, IndexId indexId,
+                                      boolean bootstrapNewHistoryUUID) {
             this.restoreUUID = restoreUUID;
             this.snapshot = Objects.requireNonNull(snapshot);
             this.version = Objects.requireNonNull(version);
             this.index = Objects.requireNonNull(indexId);
+            this.bootstrapNewHistoryUUID = bootstrapNewHistoryUUID;
         }
 
         SnapshotRecoverySource(StreamInput in) throws IOException {
@@ -233,6 +241,7 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
             snapshot = new Snapshot(in);
             version = Version.readVersion(in);
             index = new IndexId(in);
+            bootstrapNewHistoryUUID = in.readBoolean();
         }
 
         public String restoreUUID() {
@@ -258,11 +267,17 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
         }
 
         @Override
+        public boolean shouldBootstrapNewHistoryUUID() {
+            return bootstrapNewHistoryUUID;
+        }
+
+        @Override
         protected void writeAdditionalFields(StreamOutput out) throws IOException {
             out.writeString(restoreUUID);
             snapshot.writeTo(out);
             Version.writeVersion(version, out);
             index.writeTo(out);
+            out.writeBoolean(bootstrapNewHistoryUUID);
         }
 
         @Override
@@ -276,12 +291,13 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
                 .field("snapshot", snapshot.getSnapshotId().getName())
                 .field("version", version.toString())
                 .field("index", index.getName())
-                .field("restoreUUID", restoreUUID);
+                .field("restoreUUID", restoreUUID)
+                .field("bootstrap_new_history_uuid", bootstrapNewHistoryUUID);
         }
 
         @Override
         public String toString() {
-            return "snapshot recovery [" + restoreUUID + "] from " + snapshot;
+            return "snapshot recovery [" + restoreUUID + "] from " + snapshot + "; bootstrap_history_uuid=" + bootstrapNewHistoryUUID;
         }
 
         @Override
@@ -295,12 +311,12 @@ public abstract class RecoverySource implements Writeable, ToXContentObject {
 
             SnapshotRecoverySource that = (SnapshotRecoverySource) o;
             return restoreUUID.equals(that.restoreUUID) && snapshot.equals(that.snapshot)
-                && index.equals(that.index) && version.equals(that.version);
+                    && index.equals(that.index) && version.equals(that.version) && bootstrapNewHistoryUUID == that.bootstrapNewHistoryUUID;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(restoreUUID, snapshot, index, version);
+            return Objects.hash(restoreUUID, snapshot, index, version, bootstrapNewHistoryUUID);
         }
 
     }

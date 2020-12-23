@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.encrypted;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Build;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -37,6 +38,26 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugin {
+
+    private static final Boolean ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED;
+    static {
+        final String property = System.getProperty("es.encrypted_repository_feature_flag_registered");
+        if (Build.CURRENT.isSnapshot() && property != null) {
+            throw new IllegalArgumentException("es.encrypted_repository_feature_flag_registered is only supported in non-snapshot builds");
+        }
+        if ("true".equals(property)) {
+            ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED = true;
+        } else if ("false".equals(property)) {
+            ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED = false;
+        } else if (property == null) {
+            ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED = null;
+        } else {
+            throw new IllegalArgumentException(
+                "expected es.encrypted_repository_feature_flag_registered to be unset or [true|false] but was [" + property + "]"
+            );
+        }
+    }
+
     static final Logger logger = LogManager.getLogger(EncryptedRepositoryPlugin.class);
     static final String REPOSITORY_TYPE_NAME = "encrypted";
     // TODO add at least hdfs, and investigate supporting all `BlobStoreRepository` implementations
@@ -75,6 +96,11 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             logger.debug("Loaded repository password [{}] from the node keystore", passwordName);
         }
         final Map<String, SecureString> repositoryPasswordsMap = Map.copyOf(repositoryPasswordsMapBuilder);
+
+        if (false == Build.CURRENT.isSnapshot()
+            && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false)) {
+            return Map.of();
+        }
 
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {
 

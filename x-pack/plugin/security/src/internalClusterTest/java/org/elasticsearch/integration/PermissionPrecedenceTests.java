@@ -81,7 +81,7 @@ public class PermissionPrecedenceTests extends SecurityIntegTestCase {
 
     @Override
     protected SecureString transportClientPassword() {
-        return new SecureString("test123".toCharArray());
+        return SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
     }
 
     public void testDifferentCombinationsOfIndices() throws Exception {

@@ -18,35 +18,88 @@
  */
 package org.elasticsearch.search.lookup;
 
-import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.index.fieldvisitor.SingleFieldsVisitor;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.fieldvisitor.StoredFieldsLoader;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Uid;
 
 import java.io.IOException;
-import java.util.ArrayList;
+import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
-
-import static java.util.Collections.singletonMap;
 
 @SuppressWarnings({"unchecked", "rawtypes"})
 public class LeafStoredFieldsLookup implements Map<Object, Object> {
 
     private final Function<String, MappedFieldType> fieldTypeLookup;
-    private final LeafReader reader;
+    private final StoredFieldsLoader fieldsLoader;
 
     private int docId = -1;
+    private boolean loaded = false;
 
     private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
+    private final Map<String, MappedFieldType> fieldsToLoad = new HashMap<>();
 
-    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, LeafReader reader) {
+    private final StoredFieldVisitor fieldsVisitor = new StoredFieldVisitor() {
+
+        private void addValue(String field, Object value) {
+            FieldLookup fieldLookup = cachedFieldData.computeIfAbsent(field, f -> new FieldLookup(fieldTypeLookup.apply(f)));
+            fieldLookup.addValue(value);
+        }
+
+        @Override
+        public Status needsField(FieldInfo fieldInfo) {
+            return fieldsToLoad.containsKey(fieldInfo.name) ? Status.YES : Status.NO;
+        }
+
+        @Override
+        public void binaryField(FieldInfo fieldInfo, byte[] value) {
+            // TODO can we turn this round so that MappedFieldTypes register what
+            // type they are and also handle converting values?
+            if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+                addValue(fieldInfo.name, Uid.decodeId(value));
+            } else {
+                addValue(fieldInfo.name, new BytesRef(value));
+            }
+        }
+
+        @Override
+        public void stringField(FieldInfo fieldInfo, byte[] value) {
+            addValue(fieldInfo.name, new String(value, StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void intField(FieldInfo fieldInfo, int value) {
+            addValue(fieldInfo.name, value);
+        }
+
+        @Override
+        public void longField(FieldInfo fieldInfo, long value) {
+            addValue(fieldInfo.name, value);
+        }
+
+        @Override
+        public void floatField(FieldInfo fieldInfo, float value) {
+            addValue(fieldInfo.name, value);
+        }
+
+        @Override
+        public void doubleField(FieldInfo fieldInfo, double value) {
+            addValue(fieldInfo.name, value);
+        }
+    };
+
+    LeafStoredFieldsLookup(Function<String, MappedFieldType> fieldTypeLookup, StoredFieldsLoader fieldsLoader) {
         this.fieldTypeLookup = fieldTypeLookup;
-        this.reader = reader;
+        this.fieldsLoader = fieldsLoader;
     }
 
     public void setDocument(int docId) {
@@ -57,19 +110,40 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
         clearCache();
     }
 
+    public void registerFieldToLoad(MappedFieldType field) {
+        if (field.isStored() == false) {
+            return;
+        }
+        fieldsToLoad.put(field.name(), field);
+        cachedFieldData.put(field.name(), new FieldLookup(field));
+    }
+
     @Override
     public Object get(Object key) {
-        return loadFieldData(key.toString());
+        MappedFieldType field = fieldTypeLookup.apply(Objects.toString(key));
+        if (field == null || field.isStored() == false) {
+            return null;
+        }
+        if (fieldsToLoad.containsKey(field.name()) == false) {
+            registerFieldToLoad(field);
+            loaded = false;
+        }
+        loadFieldData();
+        return cachedFieldData.get(field.name());
     }
 
     @Override
     public boolean containsKey(Object key) {
-        try {
-            loadFieldData(key.toString());
-            return true;
-        } catch (Exception e) {
+        MappedFieldType field = fieldTypeLookup.apply(Objects.toString(key));
+        if (field == null || field.isStored() == false) {
             return false;
         }
+        if (fieldsToLoad.containsKey(field.name()) == false) {
+            registerFieldToLoad(field);
+            loaded = false;
+        }
+        loadFieldData();
+        return cachedFieldData.get(field.name()).isEmpty() == false;
     }
 
     @Override
@@ -122,32 +196,23 @@ public class LeafStoredFieldsLookup implements Map<Object, Object> {
         throw new UnsupportedOperationException();
     }
 
-    private FieldLookup loadFieldData(String name) {
-        FieldLookup data = cachedFieldData.get(name);
-        if (data == null) {
-            MappedFieldType fieldType = fieldTypeLookup.apply(name);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("No field found for [" + name + "] in mapping");
-            }
-            data = new FieldLookup(fieldType);
-            cachedFieldData.put(name, data);
+    private void loadFieldData() {
+        if (loaded) {
+            return;
         }
-        if (data.fields() == null) {
-            List<Object> values = new ArrayList<>(2);
-            SingleFieldsVisitor visitor = new SingleFieldsVisitor(data.fieldType(), values);
-            try {
-                reader.document(docId, visitor);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to load field [{}]", e, name);
-            }
-            data.fields(singletonMap(data.fieldType().name(), values));
+        try {
+            fieldsLoader.loadStoredFields(docId, fieldsVisitor);
+            loaded = true;
         }
-        return data;
+        catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private void clearCache() {
         for (Entry<String, FieldLookup> entry : cachedFieldData.entrySet()) {
             entry.getValue().clear();
         }
+        loaded = false;
     }
 }

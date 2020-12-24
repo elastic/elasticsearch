@@ -19,6 +19,7 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fieldvisitor.StoredFieldsLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.function.Function;
@@ -32,6 +33,6 @@ public class StoredFieldsLookup {
     }
 
     LeafStoredFieldsLookup getLeafFieldsLookup(LeafReaderContext context) {
-        return new LeafStoredFieldsLookup(fieldTypeLookup, context.reader());
+        return new LeafStoredFieldsLookup(fieldTypeLookup, StoredFieldsLoader.getFieldsVisitor(context.reader(), true));
     }
 }

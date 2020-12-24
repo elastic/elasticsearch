@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 public class FieldLookup {
 
@@ -30,15 +29,7 @@ public class FieldLookup {
     // of a search request)
     private final MappedFieldType fieldType;
 
-    private Map<String, List<Object>> fields;
-
-    private Object value;
-
-    private boolean valueLoaded = false;
-
-    private List<Object> values = new ArrayList<>();
-
-    private boolean valuesLoaded = false;
+    private final List<Object> values = new ArrayList<>();
 
     FieldLookup(MappedFieldType fieldType) {
         this.fieldType = fieldType;
@@ -48,51 +39,23 @@ public class FieldLookup {
         return fieldType;
     }
 
-    public Map<String, List<Object>> fields() {
-        return fields;
-    }
-
-    /**
-     * Sets the post processed values.
-     */
-    public void fields(Map<String, List<Object>> fields) {
-        this.fields = fields;
+    public void addValue(Object value) {
+        this.values.add(fieldType.valueForDisplay(value));
     }
 
     public void clear() {
-        value = null;
-        valueLoaded = false;
         values.clear();
-        valuesLoaded = false;
-        fields = null;
     }
 
     public boolean isEmpty() {
-        if (valueLoaded) {
-            return value == null;
-        }
-        if (valuesLoaded) {
-            return values.isEmpty();
-        }
-        return getValue() == null;
+        return values.isEmpty();
     }
 
     public Object getValue() {
-        if (valueLoaded) {
-            return value;
-        }
-        valueLoaded = true;
-        value = null;
-        List<Object> values = fields.get(fieldType.name());
-        return values != null ? value = values.get(0) : null;
+        return values.isEmpty() ? null : values.get(0);
     }
 
     public List<Object> getValues() {
-        if (valuesLoaded) {
-            return values;
-        }
-        valuesLoaded = true;
-        values.clear();
-        return values = fields().get(fieldType.name());
+        return values;
     }
 }

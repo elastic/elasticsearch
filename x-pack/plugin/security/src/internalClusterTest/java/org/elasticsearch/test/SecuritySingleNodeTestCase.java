@@ -24,6 +24,7 @@ import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.security.LocalStateSecurity;
 import org.junit.AfterClass;
@@ -308,6 +309,11 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
 
     protected RestClient createRestClient(RestClientBuilder.HttpClientConfigCallback httpClientConfigCallback, String protocol) {
         return createRestClient(client(), httpClientConfigCallback, protocol);
+    }
+
+    protected static Hasher getFastStoredHashAlgoForTests() {
+        return inFipsJvm() ? Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch"))
+            : Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "pbkdf2_stretch_1000", "pbkdf2_stretch", "bcrypt", "bcrypt9"));
     }
 
     private static synchronized RestClient getRestClient(Client client) {

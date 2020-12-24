@@ -27,8 +27,8 @@ String s3Bucket = System.getenv("amazon_s3_bucket")
 String s3BasePath = System.getenv("amazon_s3_base_path")
 
 if (!s3AccessKey && !s3SecretKey && !s3Bucket && !s3BasePath) {
-  s3AccessKey = 'access_key'
-  s3SecretKey = 'secret_key'
+  s3AccessKey = 's3_test_access_key'
+  s3SecretKey = 's3_test_secret_key'
   s3Bucket = 'bucket'
   s3BasePath = null
   useFixture = true

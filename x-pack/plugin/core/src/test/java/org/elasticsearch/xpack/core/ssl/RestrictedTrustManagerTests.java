@@ -35,7 +35,6 @@ import java.util.Objects;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESIntegTestCase.inFipsJvm;
 
 public class RestrictedTrustManagerTests extends ESTestCase {
 

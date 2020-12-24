@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.java-rest-test'
 
@@ -29,4 +30,9 @@ testClusters.all {
   setting 'indices.lifecycle.poll_interval', '1000ms'
   setting 'logger.org.elasticsearch.xpack.core.ilm', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.ilm', 'TRACE'
+}
+
+if (BuildParams.inFipsJvm){
+  // Test clusters run with security disabled
+  tasks.named("javaRestTest").configure{enabled = false }
 }

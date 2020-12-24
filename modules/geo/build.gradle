@@ -18,6 +18,8 @@
  */
 apply plugin: 'elasticsearch.yaml-rest-test'
 
+import org.elasticsearch.gradle.info.BuildParams
+
 esplugin {
   description 'Placeholder plugin for geospatial features in ES. only registers geo_shape field mapper for now'
   classname 'org.elasticsearch.geo.GeoPlugin'
@@ -32,3 +34,9 @@ artifacts {
   restTests(project.file('src/yamlRestTest/resources/rest-api-spec/test'))
 }
 tasks.named("test").configure { enabled = false }
+
+if (BuildParams.inFipsJvm){
+  // The geo module is replaced by spatial in the default distribution and in FIPS 140 mode, we set the testclusters to
+  // use the default distribution, so there is no need to run these tests
+  tasks.named("yamlRestTest").configure{enabled = false }
+}

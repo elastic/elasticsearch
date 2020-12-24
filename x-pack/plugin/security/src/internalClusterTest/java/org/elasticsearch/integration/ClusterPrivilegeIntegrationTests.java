@@ -10,8 +10,8 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -79,8 +79,8 @@ public class ClusterPrivilegeIntegrationTests extends AbstractPrivilegeTestCase 
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(
-            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        final Hasher passwdHasher = getFastStoredHashAlgoForTests();
+        final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         return super.configUsers() +
             "user_a:" + usersPasswdHashed + "\n" +
             "user_b:" + usersPasswdHashed + "\n" +

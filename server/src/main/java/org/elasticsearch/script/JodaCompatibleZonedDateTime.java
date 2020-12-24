@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.SuppressLoggerChecks;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -62,8 +61,7 @@ public class JodaCompatibleZonedDateTime
         implements Comparable<ChronoZonedDateTime<?>>, ChronoZonedDateTime<LocalDate>, Temporal, TemporalAccessor {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("strict_date_time");
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(JodaCompatibleZonedDateTime.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(JodaCompatibleZonedDateTime.class);
 
     private static void logDeprecated(String key, String message, Object... params) {
         AccessController.doPrivileged(new PrivilegedAction<Void>() {
@@ -479,13 +477,13 @@ public class JodaCompatibleZonedDateTime
     @Deprecated
     public int getWeekOfWeekyear() {
         logDeprecatedMethod("getWeekOfWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS.weekOfWeekBasedYear());
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekOfWeekBasedYear());
     }
 
     @Deprecated
     public int getWeekyear() {
         logDeprecatedMethod("getWeekyear()", "get(DateFormatters.WEEK_FIELDS.weekBasedYear())");
-        return dt.get(DateFormatters.WEEK_FIELDS.weekBasedYear());
+        return dt.get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear());
     }
 
     @Deprecated

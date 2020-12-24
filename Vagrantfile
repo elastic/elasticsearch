@@ -186,7 +186,7 @@ def deb_common(config, name, extra: '')
     name,
     update_command: 'apt-get update',
     update_tracking_file: '/var/cache/apt/archives/last_update',
-    install_command: 'apt-get install -y',
+    install_command: 'apt-get install -y --force-yes',
     extra: extra_with_lintian
   )
 end
@@ -194,7 +194,7 @@ end
 def ubuntu_docker(config)
   config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
     # Install packages to allow apt to use a repository over HTTPS
-    apt-get install -y \
+    apt-get install -y --force-yes \
       apt-transport-https \
       ca-certificates \
       curl \
@@ -212,7 +212,7 @@ def ubuntu_docker(config)
 
     # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y --force-yes docker-ce docker-ce-cli containerd.io
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant
@@ -227,7 +227,7 @@ end
 def deb_docker(config)
   config.vm.provision 'install Docker using apt', type: 'shell', inline: <<-SHELL
     # Install packages to allow apt to use a repository over HTTPS
-    apt-get install -y \
+    apt-get install -y --force-yes \
       apt-transport-https \
       ca-certificates \
       curl \
@@ -245,7 +245,7 @@ def deb_docker(config)
 
     # Install Docker. Unlike Fedora and CentOS, this also start the daemon.
     apt-get update
-    apt-get install -y docker-ce docker-ce-cli containerd.io
+    apt-get install -y --force-yes docker-ce docker-ce-cli containerd.io
 
     # Add vagrant to the Docker group, so that it can run commands
     usermod -aG docker vagrant
@@ -333,7 +333,7 @@ def sles_common(config, name)
     zypper ar http://download.opensuse.org/distribution/12.3/repo/oss/ oss
     zypper --non-interactive  --gpg-auto-import-keys refresh
     zypper --non-interactive install git-core
-    # choose to "ignore some dependencies" of expect, which has a problem with tcl... 
+    # choose to "ignore some dependencies" of expect, which has a problem with tcl...
     zypper --non-interactive install --force-resolution expect
   SHELL
   suse_common config, name, extra: extra
@@ -465,38 +465,13 @@ def sh_install_deps(config,
 
     #{extra}
 
-    installed java || {
-      echo "==> Java is not installed"
-      return 1
-    }
-    cat \<\<JAVA > /etc/profile.d/java_home.sh
-if [ ! -z "\\\$JAVA_HOME" ]; then
-  export SYSTEM_JAVA_HOME=\\\$JAVA_HOME
-  unset JAVA_HOME
-fi
-JAVA
     ensure tar
     ensure curl
     ensure unzip
     ensure rsync
     ensure expect
 
-    installed bats || {
-      # Bats lives in a git repository....
-      ensure git
-      echo "==> Installing bats"
-      git clone https://github.com/sstephenson/bats /tmp/bats
-      # Centos doesn't add /usr/local/bin to the path....
-      /tmp/bats/install.sh /usr
-      rm -rf /tmp/bats
-    }
-
     cat \<\<SUDOERS_VARS > /etc/sudoers.d/elasticsearch_vars
-Defaults   env_keep += "BATS_UTILS"
-Defaults   env_keep += "BATS_TESTS"
-Defaults   env_keep += "BATS_PLUGINS"
-Defaults   env_keep += "BATS_UPGRADE"
-Defaults   env_keep += "PACKAGE_NAME"
 Defaults   env_keep += "JAVA_HOME"
 Defaults   env_keep += "SYSTEM_JAVA_HOME"
 SUDOERS_VARS
@@ -505,21 +480,9 @@ SUDOERS_VARS
 end
 
 def windows_common(config, name)
-  config.vm.provision 'markerfile', type: 'shell', inline: <<-SHELL
-    $ErrorActionPreference = "Stop"
-    New-Item C:/is_vagrant_vm -ItemType file -Force | Out-Null
-  SHELL
-
   config.vm.provision 'set prompt', type: 'shell', inline: <<-SHELL
     $ErrorActionPreference = "Stop"
     $ps_prompt = 'function Prompt { "#{name}:$($ExecutionContext.SessionState.Path.CurrentLocation)>" }'
     $ps_prompt | Out-File $PsHome/Microsoft.PowerShell_profile.ps1
-  SHELL
-
-  config.vm.provision 'set env variables', type: 'shell', inline: <<-SHELL
-    $ErrorActionPreference = "Stop"
-    [Environment]::SetEnvironmentVariable("PACKAGING_ARCHIVES", "C:/project/build/packaging/archives", "Machine")
-    [Environment]::SetEnvironmentVariable("PACKAGING_TESTS", "C:/project/build/packaging/tests", "Machine")
-    [Environment]::SetEnvironmentVariable("JAVA_HOME", $null, "Machine")
   SHELL
 end

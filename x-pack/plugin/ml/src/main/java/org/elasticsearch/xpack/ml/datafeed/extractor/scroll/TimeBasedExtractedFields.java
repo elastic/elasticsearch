@@ -28,7 +28,9 @@ public class TimeBasedExtractedFields extends ExtractedFields {
     private final ExtractedField timeField;
 
     public TimeBasedExtractedFields(ExtractedField timeField, List<ExtractedField> allFields) {
-        super(allFields, Collections.emptyMap());
+        super(allFields,
+            Collections.emptyList(),
+            Collections.emptyMap());
         if (!allFields.contains(timeField)) {
             throw new IllegalArgumentException("timeField should also be contained in allFields");
         }
@@ -53,7 +55,10 @@ public class TimeBasedExtractedFields extends ExtractedFields {
 
     public static TimeBasedExtractedFields build(Job job, DatafeedConfig datafeed, FieldCapabilitiesResponse fieldsCapabilities) {
         Set<String> scriptFields = datafeed.getScriptFields().stream().map(sf -> sf.fieldName()).collect(Collectors.toSet());
-        ExtractionMethodDetector extractionMethodDetector = new ExtractionMethodDetector(scriptFields, fieldsCapabilities);
+        Set<String> searchRuntimeFields = datafeed.getRuntimeMappings().keySet();
+
+        ExtractionMethodDetector extractionMethodDetector =
+            new ExtractionMethodDetector(scriptFields, fieldsCapabilities, searchRuntimeFields);
         String timeField = job.getDataDescription().getTimeField();
         if (scriptFields.contains(timeField) == false && extractionMethodDetector.isAggregatable(timeField) == false) {
             throw new IllegalArgumentException("cannot retrieve time field [" + timeField + "] because it is not aggregatable");

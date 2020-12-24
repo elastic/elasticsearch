@@ -31,8 +31,8 @@ import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.index.IndexAction;
@@ -181,19 +181,19 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTransportBroadcastByNodeTasks() {
-        registerTaskManagerListeners(UpgradeAction.NAME);  // main task
-        registerTaskManagerListeners(UpgradeAction.NAME + "[n]"); // node level tasks
+        registerTaskManagerListeners(ForceMergeAction.NAME);  // main task
+        registerTaskManagerListeners(ForceMergeAction.NAME + "[n]"); // node level tasks
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated
-        client().admin().indices().prepareUpgrade("test").get();
+        client().admin().indices().prepareForceMerge("test").get();
 
         // the percolate operation should produce one main task
-        assertEquals(1, numberOfEvents(UpgradeAction.NAME, Tuple::v1));
+        assertEquals(1, numberOfEvents(ForceMergeAction.NAME, Tuple::v1));
         // and then one operation per each node where shards are located
-        assertEquals(internalCluster().nodesInclude("test").size(), numberOfEvents(UpgradeAction.NAME + "[n]", Tuple::v1));
+        assertEquals(internalCluster().nodesInclude("test").size(), numberOfEvents(ForceMergeAction.NAME + "[n]", Tuple::v1));
 
         // all node level tasks should have the main task as a parent
-        assertParentTask(findEvents(UpgradeAction.NAME + "[n]", Tuple::v1), findEvents(UpgradeAction.NAME, Tuple::v1).get(0));
+        assertParentTask(findEvents(ForceMergeAction.NAME + "[n]", Tuple::v1), findEvents(ForceMergeAction.NAME, Tuple::v1).get(0));
     }
 
     public void testTransportReplicationSingleShardTasks() {

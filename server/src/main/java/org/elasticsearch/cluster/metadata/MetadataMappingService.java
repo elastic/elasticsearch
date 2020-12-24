@@ -24,11 +24,11 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
-import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
@@ -198,7 +198,7 @@ public class MetadataMappingService {
      */
     public void refreshMapping(final String index, final String indexUUID) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
-        clusterService.submitStateUpdateTask("refresh-mapping",
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
@@ -256,7 +256,7 @@ public class MetadataMappingService {
                 DocumentMapper newMapper = mapperService.parse(MapperService.SINGLE_MAPPING_NAME, mappingUpdateSource);
                 if (existingMapper != null) {
                     // first, simulate: just call merge and ignore the result
-                    existingMapper.merge(newMapper.mapping());
+                    existingMapper.merge(newMapper.mapping(), MergeReason.MAPPING_UPDATE);
                 }
             }
             Metadata.Builder builder = Metadata.builder(metadata);
@@ -326,7 +326,7 @@ public class MetadataMappingService {
 
     }
 
-    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
+    public void putMapping(final PutMappingClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("put-mapping " + Strings.arrayToCommaDelimitedString(request.indices()),
                 request,
                 ClusterStateTaskConfig.build(Priority.HIGH, request.masterNodeTimeout()),
@@ -345,12 +345,12 @@ public class MetadataMappingService {
 
                     @Override
                     public void onAllNodesAcked(@Nullable Exception e) {
-                        listener.onResponse(new ClusterStateUpdateResponse(e == null));
+                        listener.onResponse(AcknowledgedResponse.of(e == null));
                     }
 
                     @Override
                     public void onAckTimeout() {
-                        listener.onResponse(new ClusterStateUpdateResponse(false));
+                        listener.onResponse(AcknowledgedResponse.FALSE);
                     }
 
                     @Override

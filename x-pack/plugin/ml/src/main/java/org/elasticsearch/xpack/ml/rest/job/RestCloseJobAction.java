@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.rest.job;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -25,15 +26,8 @@ public class RestCloseJobAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.emptyList();
-    }
-
-    @Override
-    public List<ReplacedRoute> replacedRoutes() {
-        // TODO: remove deprecated endpoint in 8.0.0
         return Collections.singletonList(
-            new ReplacedRoute(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close",
-                POST, MachineLearning.PRE_V7_BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close")
+            new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/{" + Job.ID.getPreferredName() + "}/_close")
         );
     }
 
@@ -56,9 +50,14 @@ public class RestCloseJobAction extends BaseRestHandler {
             if (restRequest.hasParam(Request.FORCE.getPreferredName())) {
                 request.setForce(restRequest.paramAsBoolean(Request.FORCE.getPreferredName(), request.isForce()));
             }
-            if (restRequest.hasParam(Request.ALLOW_NO_JOBS.getPreferredName())) {
-                request.setAllowNoJobs(restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS.getPreferredName(), request.allowNoJobs()));
+            if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
+                LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(
+                    null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH.getPreferredName());
             }
+            request.setAllowNoMatch(
+                restRequest.paramAsBoolean(
+                    Request.ALLOW_NO_MATCH.getPreferredName(),
+                    restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         }
         return channel -> client.execute(CloseJobAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -22,6 +22,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
     public void testDefaultConstructor() {
         ModelSizeStats stats = new ModelSizeStats.Builder("foo").build();
         assertEquals(0, stats.getModelBytes());
+        assertNull(stats.getPeakModelBytes());
         assertNull(stats.getModelBytesExceeded());
         assertNull(stats.getModelBytesMemoryLimit());
         assertEquals(0, stats.getTotalByFieldCount());
@@ -29,6 +30,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         assertEquals(0, stats.getTotalPartitionFieldCount());
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
+        assertNull(stats.getAssignmentMemoryBasis());
         assertEquals(0, stats.getCategorizedDocCount());
         assertEquals(0, stats.getTotalCategoryCount());
         assertEquals(0, stats.getFrequentCategoryCount());
@@ -68,6 +70,9 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
             stats.setModelBytes(randomNonNegativeLong());
         }
         if (randomBoolean()) {
+            stats.setPeakModelBytes(randomNonNegativeLong());
+        }
+        if (randomBoolean()) {
             stats.setModelBytesExceeded(randomNonNegativeLong());
         }
         if (randomBoolean()) {
@@ -90,6 +95,9 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
+        }
+        if (randomBoolean()) {
+            stats.setAssignmentMemoryBasis(randomFrom(ModelSizeStats.AssignmentMemoryBasis.values()));
         }
         if (randomBoolean()) {
             stats.setCategorizedDocCount(randomNonNegativeLong());

@@ -20,11 +20,14 @@ package org.elasticsearch.env;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.NoShardAvailableActionException;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.hamcrest.Matcher;
+
+import java.util.Set;
 
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -56,10 +59,7 @@ public class NodeRepurposeCommandIT extends ESIntegTestCase {
         final Settings masterNodeDataPathSettings = internalCluster().dataPathSettings(masterNode);
         final Settings dataNodeDataPathSettings = internalCluster().dataPathSettings(dataNode);
 
-        final Settings noMasterNoDataSettings = Settings.builder()
-            .put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .build();
+        final Settings noMasterNoDataSettings = NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
 
         final Settings noMasterNoDataSettingsForMasterNode = Settings.builder()
             .put(noMasterNoDataSettings)

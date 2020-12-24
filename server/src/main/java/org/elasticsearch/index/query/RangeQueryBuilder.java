@@ -32,6 +32,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -428,9 +429,25 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
 
     // Overridable for testing only
     protected MappedFieldType.Relation getRelation(QueryRewriteContext queryRewriteContext) throws IOException {
+        CoordinatorRewriteContext coordinatorRewriteContext = queryRewriteContext.convertToCoordinatorRewriteContext();
+        if (coordinatorRewriteContext != null) {
+            final MappedFieldType fieldType = coordinatorRewriteContext.getFieldType(fieldName);
+            if (fieldType instanceof DateFieldMapper.DateFieldType) {
+                final DateFieldMapper.DateFieldType dateFieldType = (DateFieldMapper.DateFieldType) fieldType;
+                if (coordinatorRewriteContext.hasTimestampData() == false) {
+                    return MappedFieldType.Relation.DISJOINT;
+                }
+                long minTimestamp = coordinatorRewriteContext.getMinTimestamp();
+                long maxTimestamp = coordinatorRewriteContext.getMaxTimestamp();
+                DateMathParser dateMathParser = getForceDateParser();
+                return dateFieldType.isFieldWithinQuery(minTimestamp, maxTimestamp, from, to, includeLower,
+                    includeUpper, timeZone, dateMathParser, queryRewriteContext);
+            }
+        }
+
         QueryShardContext shardContext = queryRewriteContext.convertToShardContext();
         if (shardContext != null) {
-            final MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+            final MappedFieldType fieldType = shardContext.getFieldType(fieldName);
             if (fieldType == null) {
                 return MappedFieldType.Relation.DISJOINT;
             }
@@ -475,21 +492,21 @@ public class RangeQueryBuilder extends AbstractQueryBuilder<RangeQueryBuilder> i
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         if (from == null && to == null) {
-            /**
+            /*
              * Open bounds on both side, we can rewrite to an exists query
              * if the {@link FieldNamesFieldMapper} is enabled.
              */
-            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
-                (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fieldType(FieldNamesFieldMapper.NAME);
-            if (fieldNamesFieldType == null) {
+            if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
                 return new MatchNoDocsQuery("No mappings yet");
             }
+            final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType =
+                (FieldNamesFieldMapper.FieldNamesFieldType) context.getFieldType(FieldNamesFieldMapper.NAME);
             // Exists query would fail if the fieldNames field is disabled.
             if (fieldNamesFieldType.isEnabled()) {
-                return ExistsQueryBuilder.newFilter(context, fieldName);
+                return ExistsQueryBuilder.newFilter(context, fieldName, false);
             }
         }
-        MappedFieldType mapper = context.fieldMapper(this.fieldName);
+        MappedFieldType mapper = context.getFieldType(this.fieldName);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");
         }

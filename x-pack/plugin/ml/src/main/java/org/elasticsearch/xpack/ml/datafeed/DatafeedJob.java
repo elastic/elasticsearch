@@ -7,7 +7,10 @@ package org.elasticsearch.xpack.ml.datafeed;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
@@ -35,6 +38,7 @@ import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -172,8 +176,8 @@ class DatafeedJob {
             FlushJobAction.Request request = new FlushJobAction.Request(jobId);
             request.setSkipTime(String.valueOf(startTime));
             FlushJobAction.Response flushResponse = flushJob(request);
-            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().getTime());
-            return flushResponse.getLastFinalizedBucketEnd().getTime();
+            LOGGER.info("[{}] Skipped to time [{}]", jobId, flushResponse.getLastFinalizedBucketEnd().toEpochMilli());
+            return flushResponse.getLastFinalizedBucketEnd().toEpochMilli();
         }
         return startTime;
     }
@@ -183,6 +187,7 @@ class DatafeedJob {
         long nowMinusQueryDelay = currentTimeSupplier.get() - queryDelayMs;
         long end = toIntervalStartEpochMs(nowMinusQueryDelay);
         FlushJobAction.Request request = new FlushJobAction.Request(jobId);
+        request.setWaitForNormalization(false);
         request.setCalcInterim(true);
         request.setAdvanceTime(String.valueOf(end));
         run(start, end, request);
@@ -316,7 +321,7 @@ class DatafeedJob {
             try {
                 extractedData = dataExtractor.next();
             } catch (Exception e) {
-                LOGGER.debug("[" + jobId + "] error while extracting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
                 // When extraction problems are encountered, we do not want to advance time.
                 // Instead, it is preferable to retry the given interval next time an extraction
                 // is triggered.
@@ -348,7 +353,7 @@ class DatafeedJob {
                     if (isIsolated) {
                         return;
                     }
-                    LOGGER.debug("[" + jobId + "] error while posting data", e);
+                LOGGER.error(new ParameterizedMessage("[{}] error while posting data", jobId), e);
 
                     // a conflict exception means the job state is not open any more.
                     // we should therefore stop the datafeed.
@@ -382,9 +387,9 @@ class DatafeedJob {
         // we call flush the job is closed. Thus, we don't flush unless the
         // datafeed is still running.
         if (isRunning() && !isIsolated) {
-            Date lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
+            Instant lastFinalizedBucketEnd = flushJob(flushRequest).getLastFinalizedBucketEnd();
             if (lastFinalizedBucketEnd != null) {
-                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.getTime();
+                this.latestFinalBucketEndTimeMs = lastFinalizedBucketEnd.toEpochMilli();
             }
         }
 
@@ -467,7 +472,7 @@ class DatafeedJob {
         return lastEndTimeMs;
     }
 
-    static class AnalysisProblemException extends RuntimeException {
+    static class AnalysisProblemException extends ElasticsearchException implements ElasticsearchWrapperException {
 
         final boolean shouldStop;
         final long nextDelayInMsSinceEpoch;
@@ -479,7 +484,7 @@ class DatafeedJob {
         }
     }
 
-    static class ExtractionProblemException extends RuntimeException {
+    static class ExtractionProblemException extends ElasticsearchException implements ElasticsearchWrapperException {
 
         final long nextDelayInMsSinceEpoch;
 

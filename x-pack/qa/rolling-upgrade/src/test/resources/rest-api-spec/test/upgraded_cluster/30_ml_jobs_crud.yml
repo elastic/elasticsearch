@@ -149,3 +149,14 @@ setup:
         job_id: old-cluster-function-shortcut-expansion
   - match: { count: 1 }
   - match: { jobs.0.analysis_config.detectors.0.function: "non_zero_count" }
+
+---
+"Test annotation index mappings":
+
+  - do:
+      indices.get_mapping:
+        index: .ml-annotations-write
+
+  - match: { \.ml-annotations-6.mappings.properties.type.type: "keyword" }
+  - match: { \.ml-annotations-6.mappings.properties.event.type: "keyword" }
+  - match: { \.ml-annotations-6.mappings.properties.detector_index.type: "integer" }

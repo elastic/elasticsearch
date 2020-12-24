@@ -172,7 +172,7 @@ setup:
 ---
 "Get snapshot info with metadata":
   - skip:
-      version: " - 7.9.99"
+      version: " - 7.99.99"
       reason: "8.0 changes get snapshots response format"
 
   - do:

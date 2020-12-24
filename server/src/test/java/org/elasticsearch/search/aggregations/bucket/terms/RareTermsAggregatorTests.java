@@ -46,6 +46,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedPathFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -64,6 +65,7 @@ import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
@@ -99,11 +101,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testMatchNoDocs() throws IOException {
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size())
         );
-        testBothCases(new MatchNoDocsQuery(), dataset,
+        testSearchCase(new MatchNoDocsQuery(), dataset,
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size())
         );
@@ -112,7 +114,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     public void testMatchAllDocs() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
@@ -121,7 +123,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }
         );
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
@@ -144,7 +146,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         // The one rare term
         d.add(0L);
 
-        testSearchAndReduceCase(query, d,
+        testSearchCase(query, d,
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
@@ -153,7 +155,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(1L));
             }
         );
-        testSearchAndReduceCase(query, d,
+        testSearchCase(query, d,
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> {
                 assertEquals(1, agg.getBuckets().size());
@@ -167,7 +169,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     public void testIncludeExclude() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(LONG_FIELD)
                 .maxDocCount(2) // bump to 2 since we're only including "2"
                 .includeExclude(new IncludeExclude(new long[]{2}, new long[]{})),
@@ -178,7 +180,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(bucket.getDocCount(), equalTo(2L));
             }
         );
-        testBothCases(query, dataset,
+        testSearchCase(query, dataset,
             aggregation -> aggregation.field(KEYWORD_FIELD)
                 .maxDocCount(2) // bump to 2 since we're only including "2"
                 .includeExclude(new IncludeExclude(new String[]{"2"}, new String[]{})),
@@ -190,11 +192,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             }
         );
     }
-
+    
     public void testEmbeddedMaxAgg() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset, aggregation -> {
+        testSearchCase(query, dataset, aggregation -> {
                 MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
                 aggregation.field(LONG_FIELD).maxDocCount(1).subAggregation(max);
             },
@@ -210,7 +212,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                 assertThat(((Max)(children.asList().get(0))).getValue(), equalTo(1.0));
             }
         );
-        testBothCases(query, dataset, aggregation -> {
+        testSearchCase(query, dataset, aggregation -> {
                 MaxAggregationBuilder max = new MaxAggregationBuilder("the_max").field(LONG_FIELD);
                 aggregation.field(KEYWORD_FIELD).maxDocCount(1).subAggregation(max);
             },
@@ -240,11 +242,11 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             agg -> assertEquals(0, agg.getBuckets().size())
         );
 
-        testSearchAndReduceCase(query, Collections.emptyList(),
+        testSearchCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(LONG_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size())
         );
-        testSearchAndReduceCase(query, Collections.emptyList(),
+        testSearchCase(query, Collections.emptyList(),
             aggregation -> aggregation.field(KEYWORD_FIELD).maxDocCount(1),
             agg -> assertEquals(0, agg.getBuckets().size())
         );
@@ -270,7 +272,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                         Aggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, fieldType1, fieldType2);
                         aggregator.preCollection();
                         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-                        aggregator.postCollection();
                         RareTerms result = (RareTerms) aggregator.buildTopLevel();
                         assertEquals("_name", result.getName());
                         assertEquals(0, result.getBuckets().size());
@@ -312,7 +313,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     public void testNestedTerms() throws IOException {
         Query query = new MatchAllDocsQuery();
 
-        testBothCases(query, dataset, aggregation -> {
+        testSearchCase(query, dataset, aggregation -> {
                 TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms")
                     .field(KEYWORD_FIELD);
                 aggregation.field(LONG_FIELD).maxDocCount(1).subAggregation(terms);
@@ -331,7 +332,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
             }
         );
 
-        testBothCases(query, dataset, aggregation -> {
+        testSearchCase(query, dataset, aggregation -> {
                 TermsAggregationBuilder terms = new TermsAggregationBuilder("the_terms")
                     .field(KEYWORD_FIELD);
                 aggregation.field(KEYWORD_FIELD).maxDocCount(1).subAggregation(terms);
@@ -352,22 +353,20 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
     }
 
     public void testInsideTerms() throws IOException {
-        for (boolean reduce : new boolean[] {false, true}) {
-            for (String field : new String[] {KEYWORD_FIELD, LONG_FIELD}) {
-                AggregationBuilder builder = new TermsAggregationBuilder("terms").field("even_odd").subAggregation(
-                        new RareTermsAggregationBuilder("rare").field(field).maxDocCount(2));
-                StringTerms terms = (StringTerms) executeTestCase(reduce, new MatchAllDocsQuery(), dataset, builder);
+        for (String field : new String[] {KEYWORD_FIELD, LONG_FIELD}) {
+            AggregationBuilder builder = new TermsAggregationBuilder("terms").field("even_odd").subAggregation(
+                new RareTermsAggregationBuilder("rare").field(field).maxDocCount(2));
+            StringTerms terms = executeTestCase(new MatchAllDocsQuery(), dataset, builder);
 
-                StringTerms.Bucket even = terms.getBucketByKey("even");
-                InternalRareTerms<?, ?> evenRare = even.getAggregations().get("rare");
-                assertEquals(evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()), List.of("2"));
-                assertEquals(evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()), List.of(2L));
+            StringTerms.Bucket even = terms.getBucketByKey("even");
+            InternalRareTerms<?, ?> evenRare = even.getAggregations().get("rare");
+            assertEquals(evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()), List.of("2"));
+            assertEquals(evenRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()), List.of(2L));
 
-                StringTerms.Bucket odd = terms.getBucketByKey("odd");
-                InternalRareTerms<?, ?> oddRare = odd.getAggregations().get("rare");
-                assertEquals(oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()), List.of("1"));
-                assertEquals(oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()), List.of(1L));
-            }
+            StringTerms.Bucket odd = terms.getBucketByKey("odd");
+            InternalRareTerms<?, ?> oddRare = odd.getAggregations().get("rare");
+            assertEquals(oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getKeyAsString).collect(toList()), List.of("1"));
+            assertEquals(oddRare.getBuckets().stream().map(InternalRareTerms.Bucket::getDocCount).collect(toList()), List.of(1L));
         }
     }
 
@@ -530,34 +529,6 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         return documents;
     }
 
-    private void testSearchCase(
-        Query query,
-        List<Long> dataset,
-        Consumer<RareTermsAggregationBuilder> configure,
-        Consumer<InternalMappedRareTerms<?, ?>> verify
-    ) throws IOException {
-        executeTestCase(false, query, dataset, configure, verify);
-    }
-
-    private void testSearchAndReduceCase(
-        Query query,
-        List<Long> dataset,
-        Consumer<RareTermsAggregationBuilder> configure,
-        Consumer<InternalMappedRareTerms<?, ?>> verify
-    ) throws IOException {
-        executeTestCase(true, query, dataset, configure, verify);
-    }
-
-    private void testBothCases(
-        Query query,
-        List<Long> dataset,
-        Consumer<RareTermsAggregationBuilder> configure,
-        Consumer<InternalMappedRareTerms<?, ?>> verify
-    ) throws IOException {
-        testSearchCase(query, dataset, configure, verify);
-        testSearchAndReduceCase(query, dataset, configure, verify);
-    }
-
     @Override
     protected IndexSettings createIndexSettings() {
         Settings nodeSettings = Settings.builder()
@@ -572,38 +543,27 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
         );
     }
 
-    private void executeTestCase(boolean reduced, Query query, List<Long> dataset,
-                                 Consumer<RareTermsAggregationBuilder> configure,
-                                 Consumer<InternalMappedRareTerms<?, ?>> verify) throws IOException {
+    private void testSearchCase(Query query,
+                                List<Long> dataset,
+                                Consumer<RareTermsAggregationBuilder> configure,
+                                Consumer<InternalMappedRareTerms<?, ?>> verify) throws IOException {
         RareTermsAggregationBuilder aggregationBuilder = new RareTermsAggregationBuilder("_name");
         if (configure != null) {
             configure.accept(aggregationBuilder);
         }
-        InternalMappedRareTerms<?, ?> result = (InternalMappedRareTerms<?, ?>) executeTestCase(
-            reduced,
-            query,
-            dataset,
-            aggregationBuilder
-        );
-        verify.accept(result);
+        verify.accept(executeTestCase(query, dataset, aggregationBuilder));
+
     }
 
-    private InternalAggregation executeTestCase(
-        boolean reduced,
-        Query query,
-        List<Long> dataset,
-        AggregationBuilder aggregationBuilder
-    ) throws IOException {
+    private  <A extends InternalAggregation> A executeTestCase(Query query,
+                                                               List<Long> dataset,
+                                                               AggregationBuilder aggregationBuilder) throws IOException {
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 Document document = new Document();
                 List<Long> shuffledDataset = new ArrayList<>(dataset);
                 Collections.shuffle(shuffledDataset, random());
                 for (Long value : shuffledDataset) {
-                    if (frequently()) {
-                        indexWriter.commit();
-                    }
-
                     document.add(new SortedNumericDocValuesField(LONG_FIELD, value));
                     document.add(new LongPoint(LONG_FIELD, value));
                     document.add(new SortedSetDocValuesField(KEYWORD_FIELD, new BytesRef(Long.toString(value))));
@@ -620,10 +580,7 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
                     keywordField(KEYWORD_FIELD),
                     longField(LONG_FIELD),
                     keywordField("even_odd")};
-                if (reduced) {
-                    return searchAndReduce(indexSearcher, query, aggregationBuilder, types);
-                }
-                return search(indexSearcher, query, aggregationBuilder, types);
+                return searchAndReduce(indexSearcher, query, aggregationBuilder, types);
             }
         }
     }
@@ -646,4 +603,10 @@ public class RareTermsAggregatorTests extends AggregatorTestCase {
          * buckets we should have left after each reduction.
          */
     }
+
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return List.of(NestedAggregatorTests.nestedObject("nested_object"));
+    }
+
 }

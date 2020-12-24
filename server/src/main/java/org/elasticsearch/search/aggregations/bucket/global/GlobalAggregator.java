@@ -20,21 +20,22 @@ package org.elasticsearch.search.aggregations.bucket.global;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class GlobalAggregator extends BucketsAggregator implements SingleBucketAggregator {
 
-    public GlobalAggregator(String name, AggregatorFactories subFactories, SearchContext aggregationContext,
-            Map<String, Object> metadata) throws IOException {
-        super(name, subFactories, aggregationContext, null, metadata);
+    public GlobalAggregator(String name, AggregatorFactories subFactories, AggregationContext context, Map<String, Object> metadata)
+        throws IOException {
+        super(name, subFactories, context, null, CardinalityUpperBound.ONE, metadata);
     }
 
     @Override

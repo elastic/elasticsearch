@@ -107,7 +107,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
      */
     @Override
     public String flushJob(FlushJobParams params) {
-        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, null);
+        FlushAcknowledgement flushAcknowledgement = new FlushAcknowledgement(FLUSH_ID, 0L);
         AutodetectResult result =
             new AutodetectResult(null, null, null, null, null, null, null, null, null, null, null, null, flushAcknowledgement);
         results.add(result);
@@ -116,6 +116,10 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
 
     @Override
     public void persistState() {
+    }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
     }
 
     @Override
@@ -134,7 +138,7 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void kill() {
+    public void kill(boolean awaitCompletion) {
         open = false;
     }
 

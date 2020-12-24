@@ -441,7 +441,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
      * Sets the settings for filtering out terms.
      */
     public TermVectorsRequest filterSettings(FilterSettings settings) {
-        this.filterSettings = settings != null ? settings : null;
+        this.filterSettings = settings;
         return this;
     }
 
@@ -503,10 +503,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
         }
         out.writeVLong(longFlags);
         if (selectedFields != null) {
-            out.writeVInt(selectedFields.size());
-            for (String selectedField : selectedFields) {
-                out.writeString(selectedField);
-            }
+            out.writeStringCollection(selectedFields);
         } else {
             out.writeVInt(0);
         }

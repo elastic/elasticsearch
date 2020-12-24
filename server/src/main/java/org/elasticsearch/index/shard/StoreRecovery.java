@@ -171,6 +171,7 @@ final class StoreRecovery {
 
         try (IndexWriter writer = new IndexWriter(new StatsDirectoryWrapper(hardLinkOrCopyTarget, indexRecoveryStats), iwc)) {
             writer.addIndexes(sources);
+            indexRecoveryStats.setFileDetailsComplete();
             if (split) {
                 writer.deleteDocuments(new ShardSplittingQuery(indexMetadata, shardId, hasNested));
             }
@@ -403,21 +404,23 @@ final class StoreRecovery {
                     writeEmptyRetentionLeasesFile(indexShard);
                 }
                 // since we recover from local, just fill the files and size
+                final RecoveryState.Index index = recoveryState.getIndex();
                 try {
-                    final RecoveryState.Index index = recoveryState.getIndex();
                     if (si != null) {
                         addRecoveredFileDetails(si, store, index);
                     }
                 } catch (IOException e) {
                     logger.debug("failed to list file details", e);
                 }
+                index.setFileDetailsComplete();
             } else {
-                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                store.createEmpty();
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId,
                     indexShard.getPendingPrimaryTerm());
                 store.associateIndexWithNewTranslog(translogUUID);
                 writeEmptyRetentionLeasesFile(indexShard);
+                indexShard.recoveryState().getIndex().setFileDetailsComplete();
             }
             indexShard.openEngineAndRecoverFromTranslog();
             indexShard.getEngine().fillSeqNoGaps(indexShard.getPendingPrimaryTerm());
@@ -487,8 +490,7 @@ final class StoreRecovery {
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(ActionListener.map(
-                    indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+                repository.getRepositoryData(indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
             } else {
                 indexIdListener.onResponse(indexId);
             }

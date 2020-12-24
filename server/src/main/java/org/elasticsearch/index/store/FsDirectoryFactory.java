@@ -130,7 +130,7 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
 
         @Override
         public IndexInput openInput(String name, IOContext context) throws IOException {
-            if (useDelegate(name)) {
+            if (useDelegate(name, context)) {
                 // we need to do these checks on the outer directory since the inner doesn't know about pending deletes
                 ensureOpen();
                 ensureCanRead(name);
@@ -149,7 +149,13 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
             IOUtils.close(super::close, delegate);
         }
 
-        boolean useDelegate(String name) {
+        boolean useDelegate(String name, IOContext ioContext) {
+            if (ioContext == Store.READONCE_CHECKSUM) {
+                // If we're just reading the footer for the checksum then mmap() isn't really necessary, and it's desperately inefficient
+                // if pre-loading is enabled on this file.
+                return false;
+            }
+
             String extension = FileSwitchDirectory.getExtension(name);
             switch(extension) {
                 // Norms, doc values and term dictionaries are typically performance-sensitive and hot in the page
@@ -160,7 +166,10 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // We want to open the terms index and KD-tree index off-heap to save memory, but this only performs
                 // well if using mmap.
                 case "tip":
+                // dim files only apply up to lucene 8.x indices. It can be removed once we are in lucene 10
                 case "dim":
+                case "kdd":
+                case "kdi":
                 // Compound files are tricky because they store all the information for the segment. Benchmarks
                 // suggested that not mapping them hurts performance.
                 case "cfs":

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.core.ml.datafeed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.ParseField;
@@ -22,7 +21,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -36,7 +34,8 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
 
 
 /**
@@ -130,19 +129,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             this.indices = null;
         }
-        // This consumes the list of types if there was one.
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            if (in.readBoolean()) {
-                in.readStringList();
-            }
-        }
-        if (in.getVersion().before(Version.V_7_0_0)) {
-            this.queryProvider = QueryProvider.fromParsedQuery(in.readOptionalNamedWriteable(QueryBuilder.class));
-            this.aggProvider = AggProvider.fromParsedAggs(in.readOptionalWriteable(AggregatorFactories.Builder::new));
-        } else {
-            this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
-            this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
-        }
+
+        this.queryProvider = in.readOptionalWriteable(QueryProvider::fromStream);
+        this.aggProvider = in.readOptionalWriteable(AggProvider::fromStream);
+
         if (in.readBoolean()) {
             this.scriptFields = in.readList(SearchSourceBuilder.ScriptField::new);
         } else {
@@ -151,16 +141,8 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         this.scrollSize = in.readOptionalVInt();
         this.chunkingConfig = in.readOptionalWriteable(ChunkingConfig::new);
         delayedDataCheckConfig = in.readOptionalWriteable(DelayedDataCheckConfig::new);
-        if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-            maxEmptySearches = in.readOptionalInt();
-        } else {
-            maxEmptySearches = null;
-        }
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
-        } else {
-            indicesOptions = null;
-        }
+        maxEmptySearches = in.readOptionalInt();
+        indicesOptions = in.readBoolean() ? IndicesOptions.readIndicesOptions(in) : null;
     }
 
     /**
@@ -182,19 +164,10 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         } else {
             out.writeBoolean(false);
         }
-        // Write the now removed types to prior versions.
-        // An empty list is expected
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeBoolean(true);
-            out.writeStringCollection(Collections.emptyList());
-        }
-        if (out.getVersion().before(Version.V_7_0_0)) {
-            out.writeOptionalNamedWriteable(queryProvider == null ? null : queryProvider.getParsedQuery());
-            out.writeOptionalWriteable(aggProvider == null ? null : aggProvider.getParsedAggs());
-        } else {
-            out.writeOptionalWriteable(queryProvider);
-            out.writeOptionalWriteable(aggProvider);
-        }
+
+        out.writeOptionalWriteable(queryProvider);
+        out.writeOptionalWriteable(aggProvider);
+
         if (scriptFields != null) {
             out.writeBoolean(true);
             out.writeList(scriptFields);
@@ -204,16 +177,12 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         out.writeOptionalVInt(scrollSize);
         out.writeOptionalWriteable(chunkingConfig);
         out.writeOptionalWriteable(delayedDataCheckConfig);
-        if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeOptionalInt(maxEmptySearches);
-        }
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            if (indicesOptions != null) {
-                out.writeBoolean(true);
-                indicesOptions.writeIndicesOptions(out);
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeOptionalInt(maxEmptySearches);
+        if (indicesOptions != null) {
+            out.writeBoolean(true);
+            indicesOptions.writeIndicesOptions(out);
+        } else {
+            out.writeBoolean(false);
         }
     }
 
@@ -377,15 +346,9 @@ public class DatafeedUpdate implements Writeable, ToXContentObject {
         if (indicesOptions != null) {
             builder.setIndicesOptions(indicesOptions);
         }
-
         if (headers.isEmpty() == false) {
-            // Adjust the request, adding security headers from the current thread context
-            Map<String, String> securityHeaders = headers.entrySet().stream()
-                    .filter(e -> ClientHelper.SECURITY_HEADER_FILTERS.contains(e.getKey()))
-                    .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-            builder.setHeaders(securityHeaders);
+            builder.setHeaders(filterSecurityHeaders(headers));
         }
-
         return builder.build();
     }
 

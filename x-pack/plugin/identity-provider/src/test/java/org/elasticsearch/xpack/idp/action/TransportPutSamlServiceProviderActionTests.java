@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.idp.saml.idp.SamlIdentityProvider;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndex.DocumentVersion;
-import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderIndexTests;
+import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderTestUtils;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -64,7 +64,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void testRegisterNewServiceProvider() throws Exception {
-        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument document = SamlServiceProviderTestUtils.randomDocument();
 
         mockExistingDocuments(document.entityId, Set.of());
 
@@ -88,9 +88,9 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void testUpdateExistingServiceProvider() throws Exception {
-        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument document = SamlServiceProviderTestUtils.randomDocument();
 
-        final SamlServiceProviderDocument existingDocument = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument existingDocument = SamlServiceProviderTestUtils.randomDocument();
         existingDocument.entityId = document.entityId;
         existingDocument.docId = randomAlphaOfLength(42);
         mockExistingDocuments(document.entityId, Set.of(existingDocument));
@@ -116,7 +116,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
     }
 
     public void testUnsupportedNameIDFormat() throws Exception {
-        final SamlServiceProviderDocument document = SamlServiceProviderIndexTests.randomDocument();
+        final SamlServiceProviderDocument document = SamlServiceProviderTestUtils.randomDocument();
         final String invalidFormat = randomFrom(PERSISTENT, EMAIL, randomAlphaOfLength(12));
         document.setNameIdFormat(invalidFormat);
 

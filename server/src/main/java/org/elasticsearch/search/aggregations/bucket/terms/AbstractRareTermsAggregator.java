@@ -25,10 +25,8 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.DeferableBucketAggregator;
-import org.elasticsearch.search.aggregations.bucket.DeferringBucketCollector;
-import org.elasticsearch.search.aggregations.bucket.MergingBucketsDeferringCollector;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -41,30 +39,24 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     protected final long maxDocCount;
     private final double precision;
     protected final DocValueFormat format;
-    protected final boolean collectsFromSingleBucket;
     private final int filterSeed;
-
-    protected MergingBucketsDeferringCollector deferringCollector;
 
     AbstractRareTermsAggregator(
         String name,
         AggregatorFactories factories,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
         long maxDocCount,
         double precision,
-        DocValueFormat format,
-        boolean collectsFromSingleBucket
+        DocValueFormat format
     ) throws IOException {
         super(name, factories, context, parent, metadata);
 
         this.maxDocCount = maxDocCount;
         this.precision = precision;
         this.format = format;
-        this.collectsFromSingleBucket = collectsFromSingleBucket;
-        // We seed the rng with the ShardID so results are deterministic and don't change randomly
-        this.filterSeed = context.indexShard().shardId().hashCode();
+        this.filterSeed = context.shardRandomSeed();
         String scoringAgg = subAggsNeedScore();
         String nestedAgg = descendsFromNestedAggregator(parent);
         if (scoringAgg != null && nestedAgg != null) {
@@ -91,12 +83,6 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
     @Override
     protected boolean shouldDefer(Aggregator aggregator) {
         return true;
-    }
-
-    @Override
-    public DeferringBucketCollector getDeferringCollector() {
-        deferringCollector = new MergingBucketsDeferringCollector(context, descendsFromGlobalAggregator(parent()));
-        return deferringCollector;
     }
 
     private String subAggsNeedScore() {

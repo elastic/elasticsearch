@@ -17,11 +17,11 @@ import java.util.Objects;
 
 public class BetweenFunctionPipe extends Pipe {
 
-    private final Pipe source, left, right, greedy, caseSensitive;
+    private final Pipe input, left, right, greedy, caseSensitive;
 
-    public BetweenFunctionPipe(Source source, Expression expression, Pipe src, Pipe left, Pipe right, Pipe greedy, Pipe caseSensitive) {
-        super(source, expression, Arrays.asList(src, left, right, greedy, caseSensitive));
-        this.source = src;
+    public BetweenFunctionPipe(Source source, Expression expression, Pipe input, Pipe left, Pipe right, Pipe greedy, Pipe caseSensitive) {
+        super(source, expression, Arrays.asList(input, left, right, greedy, caseSensitive));
+        this.input = input;
         this.left = left;
         this.right = right;
         this.greedy = greedy;
@@ -38,35 +38,35 @@ public class BetweenFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
+        Pipe newInput = input.resolveAttributes(resolver);
         Pipe newLeft = left.resolveAttributes(resolver);
         Pipe newRight = right.resolveAttributes(resolver);
         Pipe newGreedy = greedy.resolveAttributes(resolver);
         Pipe newCaseSensitive = caseSensitive.resolveAttributes(resolver);
-        if (newSource == source && newLeft == left && newRight == right && newGreedy == greedy && newCaseSensitive == caseSensitive) {
+        if (newInput == input && newLeft == left && newRight == right && newGreedy == greedy && newCaseSensitive == caseSensitive) {
             return this;
         }
-        return replaceChildren(newSource, newLeft, newRight, newGreedy, newCaseSensitive);
+        return replaceChildren(newInput, newLeft, newRight, newGreedy, newCaseSensitive);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        return source.supportedByAggsOnlyQuery() && left.supportedByAggsOnlyQuery() && right.supportedByAggsOnlyQuery()
+        return input.supportedByAggsOnlyQuery() && left.supportedByAggsOnlyQuery() && right.supportedByAggsOnlyQuery()
                 && greedy.supportedByAggsOnlyQuery() && caseSensitive.supportedByAggsOnlyQuery();
     }
 
     @Override
     public boolean resolved() {
-        return source.resolved() && left.resolved() && right.resolved() && greedy.resolved() && caseSensitive.resolved();
+        return input.resolved() && left.resolved() && right.resolved() && greedy.resolved() && caseSensitive.resolved();
     }
 
-    protected Pipe replaceChildren(Pipe newSource, Pipe newLeft, Pipe newRight, Pipe newGreedy, Pipe newCaseSensitive) {
-        return new BetweenFunctionPipe(source(), expression(), newSource, newLeft, newRight, newGreedy, newCaseSensitive);
+    protected Pipe replaceChildren(Pipe newInput, Pipe newLeft, Pipe newRight, Pipe newGreedy, Pipe newCaseSensitive) {
+        return new BetweenFunctionPipe(source(), expression(), newInput, newLeft, newRight, newGreedy, newCaseSensitive);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         left.collectFields(sourceBuilder);
         right.collectFields(sourceBuilder);
         greedy.collectFields(sourceBuilder);
@@ -75,17 +75,17 @@ public class BetweenFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<BetweenFunctionPipe> info() {
-        return NodeInfo.create(this, BetweenFunctionPipe::new, expression(), source, left, right, greedy, caseSensitive);
+        return NodeInfo.create(this, BetweenFunctionPipe::new, expression(), input, left, right, greedy, caseSensitive);
     }
 
     @Override
     public BetweenFunctionProcessor asProcessor() {
-        return new BetweenFunctionProcessor(source.asProcessor(), left.asProcessor(), right.asProcessor(),
+        return new BetweenFunctionProcessor(input.asProcessor(), left.asProcessor(), right.asProcessor(),
                 greedy.asProcessor(), caseSensitive.asProcessor());
     }
 
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
 
     public Pipe left() {
@@ -106,7 +106,7 @@ public class BetweenFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), left(), right(), greedy(), caseSensitive());
+        return Objects.hash(input(), left(), right(), greedy(), caseSensitive());
     }
 
     @Override
@@ -120,7 +120,7 @@ public class BetweenFunctionPipe extends Pipe {
         }
 
         BetweenFunctionPipe other = (BetweenFunctionPipe) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(left(), other.left())
                 && Objects.equals(right(), other.right())
                 && Objects.equals(greedy(), other.greedy())

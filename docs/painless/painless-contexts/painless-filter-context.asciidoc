@@ -45,20 +45,20 @@ all available theatre seats for evening performances that are under $18.
 ----
 GET seats/_search
 {
-    "query": {
-        "bool" : {
-            "filter" : {
-                "script" : {
-                    "script" : {
-                        "source" : "doc['sold'].value == false && doc['cost'].value < params.cost",
-                        "params" : {
-                            "cost" : 18
-                        }
-                    }
-                }
+  "query": {
+    "bool": {
+      "filter": {
+        "script": {
+          "script": {
+            "source": "doc['sold'].value == false && doc['cost'].value < params.cost",
+            "params": {
+              "cost": 18
             }
+          }
         }
+      }
     }
+  }
 }
 ----
 // TEST[skip: requires setup from other pages]

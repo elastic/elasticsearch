@@ -12,7 +12,7 @@ Additional `lang` plugins enable you to run scripts written in other languages.
 Everywhere a script can be used, you can include a `lang` parameter
 to specify the language of the script.
 
-[float]
+[discrete]
 == General-purpose languages
 
 These languages can be used for any purpose in the scripting APIs,
@@ -30,7 +30,7 @@ and give the most flexibility.
 
 |=======================================================================
 
-[float]
+[discrete]
 == Special-purpose languages
 
 These languages are less flexible, but typically have higher performance for

@@ -25,7 +25,6 @@ import org.elasticsearch.action.admin.cluster.configuration.AddVotingConfigExclu
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -33,6 +32,9 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
 
+import static org.elasticsearch.test.NodeRoles.dataOnlyNode;
+import static org.elasticsearch.test.NodeRoles.masterNode;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -43,9 +45,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
     public void testSimpleOnlyMasterNodeElection() throws IOException {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-            .put("discovery.initial_state_timeout", "1s"));
+        internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms")
                 .execute().actionGet().getState().nodes().getMasterNodeId(), nullValue());
@@ -54,8 +54,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             // all is well, no master elected
         }
         logger.info("--> start master node");
-        final String masterNodeName = internalCluster()
-            .startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
+        final String masterNodeName = internalCluster().startMasterOnlyNode();
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()
@@ -75,8 +74,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> start previous master node again");
         final String nextMasterEligibleNodeName = internalCluster()
-            .startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true)
-                .put(masterDataPathSettings));
+            .startNode(Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings));
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(nextMasterEligibleNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()
@@ -86,8 +84,7 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
     public void testElectOnlyBetweenMasterNodes() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
-        internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), true)
-            .put(Node.NODE_MASTER_SETTING.getKey(), false).put("discovery.initial_state_timeout", "1s"));
+        internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
         try {
             assertThat(client().admin().cluster().prepareState().setMasterNodeTimeout("100ms")
                 .execute().actionGet().getState().nodes().getMasterNodeId(), nullValue());
@@ -96,16 +93,14 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
             // all is well, no master elected
         }
         logger.info("--> start master node (1)");
-        final String masterNodeName = internalCluster().startNode(Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false)
-            .put(Node.NODE_MASTER_SETTING.getKey(), true));
+        final String masterNodeName = internalCluster().startMasterOnlyNode();
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
         assertThat(internalCluster().masterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
 
         logger.info("--> start master node (2)");
-        final String nextMasterEligableNodeName = internalCluster().startNode(Settings.builder()
-            .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
+        final String nextMasterEligableNodeName = internalCluster().startMasterOnlyNode();
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
             .execute().actionGet().getState().nodes().getMasterNode().getName(), equalTo(masterNodeName));
         assertThat(internalCluster().nonMasterClient().admin().cluster().prepareState()
@@ -132,12 +127,10 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
     public void testAliasFilterValidation() {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start master node / non data");
-        internalCluster().startNode(Settings.builder()
-            .put(Node.NODE_DATA_SETTING.getKey(), false).put(Node.NODE_MASTER_SETTING.getKey(), true));
+        internalCluster().startMasterOnlyNode();
 
         logger.info("--> start data node / non master node");
-        internalCluster().startNode(Settings.builder()
-            .put(Node.NODE_DATA_SETTING.getKey(), true).put(Node.NODE_MASTER_SETTING.getKey(), false));
+        internalCluster().startDataOnlyNode();
 
         assertAcked(prepareCreate("test").setMapping(
             "{\"properties\" : {\"table_a\" : { \"type\" : \"nested\", " +
@@ -145,4 +138,5 @@ public class SpecificMasterNodesIT extends ESIntegTestCase {
         client().admin().indices().prepareAliases().addAlias("test", "a_test",
             QueryBuilders.nestedQuery("table_a", QueryBuilders.termQuery("table_a.field_b", "y"), ScoreMode.Avg)).get();
     }
+
 }

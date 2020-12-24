@@ -19,53 +19,29 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
-import org.elasticsearch.painless.symbol.ScopeTable;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-public final class NewObjectNode extends ArgumentsNode {
+public class NewObjectNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessConstructor constructor;
-    private boolean read;
-
-    public void setConstructor(PainlessConstructor constructor) {
-        this.constructor = constructor;
-    }
-
-    public PainlessConstructor getConstructor() {
-        return constructor;
-    }
-
-    public void setRead(boolean read) {
-        this.read = read;
-    }
-
-    public boolean getRead() {
-        return read;
-    }
-
-    /* ---- end node data ---- */
+    /* ---- begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
-
-        if (read) {
-            methodWriter.dup();
-        }
-
-        for (ExpressionNode argumentNode : getArgumentNodes()) {
-            argumentNode.write(classWriter, methodWriter, scopeTable);
-        }
-
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitNewObject(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        for (ExpressionNode argumentNode : getArgumentNodes()) {
+            argumentNode.visit(irTreeVisitor, scope);
+        }
+    }
+
+    /* ---- end visitor ---- */
+
+    public NewObjectNode(Location location) {
+        super(location);
+    }
+
 }

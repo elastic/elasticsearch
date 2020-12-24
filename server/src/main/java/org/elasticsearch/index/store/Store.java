@@ -136,7 +136,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         Setting.timeSetting("index.store.stats_refresh_interval", TimeValue.timeValueSeconds(10), Property.IndexScope);
 
     /**
-     * Specific {@link IOContext} used to verify Lucene files footer checksums.
+     * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile(Directory, String, Map, Logger, Version, boolean)}
      */
     public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE.context);
@@ -346,9 +346,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     }
 
-    public StoreStats stats() throws IOException {
+    /**
+     * @param reservedBytes a prediction of how much larger the store is expected to grow, or {@link StoreStats#UNKNOWN_RESERVED_BYTES}.
+     */
+    public StoreStats stats(long reservedBytes) throws IOException {
         ensureOpen();
-        return new StoreStats(directory.estimateSize());
+        return new StoreStats(directory.estimateSize(), reservedBytes);
     }
 
     /**
@@ -394,18 +397,26 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * @see #incRef
      */
     @Override
-    public final void decRef() {
-        refCounter.decRef();
+    public final boolean decRef() {
+        return refCounter.decRef();
     }
 
     @Override
     public void close() {
-
         if (isClosed.compareAndSet(false, true)) {
             // only do this once!
             decRef();
             logger.debug("store reference count on close: {}", refCounter.refCount());
         }
+    }
+
+    /**
+     * @return true if the {@link Store#close()} method has been called. This indicates that the current
+     * store is either closed or being closed waiting for all references to it to be released.
+     * You might prefer to use {@link Store#ensureOpen()} instead.
+     */
+    public boolean isClosing() {
+        return isClosed.get();
     }
 
     private void closeInternal() {
@@ -672,6 +683,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      */
     public int refCount() {
         return refCounter.refCount();
+    }
+
+    public void beforeClose() {
+        shardLock.setDetails("closing shard");
     }
 
     static final class StoreDirectory extends FilterDirectory {
@@ -1185,7 +1200,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         @Override
         public void writeBytes(byte[] b, int offset, int length) throws IOException {
             if (writtenBytes + length > checksumPosition) {
-                for (int i = 0; i < length; i++) { // don't optimze writing the last block of bytes
+                for (int i = 0; i < length; i++) { // don't optimize writing the last block of bytes
                     writeByte(b[offset+i]);
                 }
             } else {
@@ -1381,7 +1396,8 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     /**
      * creates an empty lucene index and a corresponding empty translog. Any existing data will be deleted.
      */
-    public void createEmpty(Version luceneVersion) throws IOException {
+    public void createEmpty() throws IOException {
+        Version luceneVersion = indexSettings.getIndexVersionCreated().luceneVersion;
         metadataLock.writeLock().lock();
         try (IndexWriter writer = newEmptyIndexWriter(directory, luceneVersion)) {
             final Map<String, String> map = new HashMap<>();

@@ -47,6 +47,8 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
 
     public static final String TYPE = "repositories";
 
+    public static final RepositoriesMetadata EMPTY = new RepositoriesMetadata(Collections.emptyList());
+
     /**
      * Serialization parameter used to hide the {@link RepositoryMetadata#generation()} and {@link RepositoryMetadata#pendingGeneration()}
      * in {@link org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse}.
@@ -164,11 +166,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
     }
 
     public RepositoriesMetadata(StreamInput in) throws IOException {
-        RepositoryMetadata[] repository = new RepositoryMetadata[in.readVInt()];
-        for (int i = 0; i < repository.length; i++) {
-            repository[i] = new RepositoryMetadata(in);
-        }
-        this.repositories = List.of(repository);
+        this.repositories = in.readList(RepositoryMetadata::new);
     }
 
     public static NamedDiff<Custom> readDiffFrom(StreamInput in) throws  IOException {
@@ -180,10 +178,7 @@ public class RepositoriesMetadata extends AbstractNamedDiffable<Custom> implemen
      */
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(repositories.size());
-        for (RepositoryMetadata repository : repositories) {
-            repository.writeTo(out);
-        }
+        out.writeList(repositories);
     }
 
     public static RepositoriesMetadata fromXContent(XContentParser parser) throws IOException {

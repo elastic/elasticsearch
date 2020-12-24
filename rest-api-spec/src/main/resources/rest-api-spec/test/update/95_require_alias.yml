@@ -1,0 +1,35 @@
+---
+"Set require_alias flag":
+  - skip:
+      version: " - 7.9.99"
+      reason: "require_alias flag added in 7.10"
+  - do:
+      catch: missing
+      update:
+        index:            test_require_alias
+        id:               1
+        require_alias:   true
+        body:
+          doc:            { foo: bar, count: 1 }
+          doc_as_upsert:  true
+  - do:
+      catch: missing
+      indices.get:
+        index: test_require_alias
+
+  - do:
+      indices.create:
+        index: backing_index
+        body:
+          mappings: {}
+          aliases:
+            test_require_alias: {}
+
+  - do:
+      update:
+        index:            test_require_alias
+        id:               1
+        require_alias:   true
+        body:
+          doc:            { foo: bar, count: 1 }
+          doc_as_upsert:  true

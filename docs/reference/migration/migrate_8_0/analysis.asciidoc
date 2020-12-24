@@ -1,4 +1,4 @@
-[float]
+[discrete]
 [[breaking_80_analysis_changes]]
 === Analysis changes
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -67,7 +68,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
 
     // These are not reserved because they're Elasticsearch keywords, not
     // field names
-    private static List<String> KEYWORDS = Arrays.asList(
+    private static final List<String> KEYWORDS = Arrays.asList(
             ElasticsearchMappings.ANALYZER,
             ElasticsearchMappings.COPY_TO,
             ElasticsearchMappings.DYNAMIC,
@@ -75,10 +76,11 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.NESTED,
             ElasticsearchMappings.PROPERTIES,
             ElasticsearchMappings.TYPE,
-            ElasticsearchMappings.WHITESPACE
+            ElasticsearchMappings.WHITESPACE,
+            SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()
     );
 
-    private static List<String> INTERNAL_FIELDS = Arrays.asList(
+    private static final List<String> INTERNAL_FIELDS = Arrays.asList(
             GetResult._ID,
             GetResult._INDEX
     );
@@ -95,6 +97,9 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         overridden.add(Quantiles.TYPE.getPreferredName());
         overridden.add(TimingStats.TYPE.getPreferredName());
         overridden.add(DatafeedTimingStats.TYPE.getPreferredName());
+        // This is a special case so that categorical job results can be paired easily with anomaly results
+        // This is acceptable as both mappings are keyword for the results documents and for category definitions
+        overridden.add(CategoryDefinition.MLCATEGORY.getPreferredName());
 
         Set<String> expected = collectResultsDocFieldNames();
         expected.removeAll(overridden);
@@ -191,6 +196,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
             ElasticsearchMappings.mappingRequiresUpdate(cs, indices, VersionUtils.getPreviousMinorVersion()));
     }
 
+    @SuppressWarnings({"unchecked", "rawtypes"})
     public void testAddDocMappingIfMissing() {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
@@ -199,7 +205,7 @@ public class ElasticsearchMappingsTests extends ESTestCase {
         doAnswer(
             invocationOnMock -> {
                 ActionListener listener = (ActionListener) invocationOnMock.getArguments()[2];
-                listener.onResponse(new AcknowledgedResponse(true));
+                listener.onResponse(AcknowledgedResponse.TRUE);
                 return null;
             })
             .when(client).execute(eq(PutMappingAction.INSTANCE), any(), any(ActionListener.class));

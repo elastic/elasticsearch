@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.ArrayList;
@@ -86,13 +87,15 @@ public class AuthenticationService {
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final AtomicLong numInvalidation = new AtomicLong();
     private final ApiKeyService apiKeyService;
+    private final OperatorPrivilegesService operatorPrivilegesService;
     private final boolean runAsEnabled;
     private final boolean isAnonymousUserEnabled;
     private final AuthenticationContextSerializer authenticationSerializer;
 
     public AuthenticationService(Settings settings, Realms realms, AuditTrailService auditTrailService,
                                  AuthenticationFailureHandler failureHandler, ThreadPool threadPool,
-                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService) {
+                                 AnonymousUser anonymousUser, TokenService tokenService, ApiKeyService apiKeyService,
+                                 OperatorPrivilegesService operatorPrivilegesService) {
         this.nodeName = Node.NODE_NAME_SETTING.get(settings);
         this.realms = realms;
         this.auditTrailService = auditTrailService;
@@ -111,6 +114,7 @@ public class AuthenticationService {
             this.lastSuccessfulAuthCache = null;
         }
         this.apiKeyService = apiKeyService;
+        this.operatorPrivilegesService = operatorPrivilegesService;
         this.authenticationSerializer = new AuthenticationContextSerializer();
     }
 
@@ -346,10 +350,9 @@ public class AuthenticationService {
         private void checkForApiKey() {
             apiKeyService.authenticateWithApiKeyIfPresent(threadContext, ActionListener.wrap(authResult -> {
                     if (authResult.isAuthenticated()) {
-                        final User user = authResult.getUser();
-                        authenticatedBy = new RealmRef(ApiKeyService.API_KEY_REALM_NAME, ApiKeyService.API_KEY_REALM_TYPE, nodeName);
-                        writeAuthToContext(new Authentication(user, authenticatedBy, null, Version.CURRENT,
-                            Authentication.AuthenticationType.API_KEY, authResult.getMetadata()));
+                        final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
+                        this.authenticatedBy = authentication.getAuthenticatedBy();
+                        writeAuthToContext(authentication);
                     } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                         Exception e = (authResult.getException() != null) ? authResult.getException()
                             : Exceptions.authenticationError(authResult.getMessage());
@@ -555,6 +558,13 @@ public class AuthenticationService {
          */
         // pkg-private for tests
         void handleNullToken() {
+            List<Realm> unlicensedRealms = realms.getUnlicensedRealms();
+            if (unlicensedRealms.isEmpty() == false) {
+                logger.warn("No authentication credential could be extracted using realms [{}]." +
+                                " Realms [{}] were skipped because they are not permitted on the current license",
+                            Strings.collectionToCommaDelimitedString(defaultOrderedRealmList),
+                            Strings.collectionToCommaDelimitedString(unlicensedRealms));
+            }
             final Authentication authentication;
             if (fallbackUser != null) {
                 logger.trace("No valid credentials found in request [{}], using fallback [{}]", request, fallbackUser.principal());
@@ -676,13 +686,16 @@ public class AuthenticationService {
          * successful
          */
         void writeAuthToContext(Authentication authentication) {
-            request.authenticationSuccess(authentication.getAuthenticatedBy().getName(), authentication.getUser());
             Runnable action = () -> {
                 logger.trace("Established authentication [{}] for request [{}]", authentication, request);
                 listener.onResponse(authentication);
             };
             try {
                 authenticationSerializer.writeToContext(authentication, threadContext);
+                request.authenticationSuccess(authentication);
+                // Header for operator privileges will only be written if authentication actually happens,
+                // i.e. not read from either header or transient header
+                operatorPrivilegesService.maybeMarkOperatorUser(authentication, threadContext);
             } catch (Exception e) {
                 action = () -> {
                     logger.debug(
@@ -725,7 +738,7 @@ public class AuthenticationService {
 
         abstract ElasticsearchSecurityException runAsDenied(Authentication authentication, AuthenticationToken token);
 
-        abstract void authenticationSuccess(String realm, User user);
+        abstract void authenticationSuccess(Authentication authentication);
 
     }
 
@@ -745,8 +758,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, action, transportRequest);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, action, transportRequest);
         }
 
         @Override
@@ -809,8 +822,8 @@ public class AuthenticationService {
         }
 
         @Override
-        void authenticationSuccess(String realm, User user) {
-            auditTrail.authenticationSuccess(requestId, realm, user, request);
+        void authenticationSuccess(Authentication authentication) {
+            auditTrail.authenticationSuccess(requestId, authentication, request);
         }
 
         @Override

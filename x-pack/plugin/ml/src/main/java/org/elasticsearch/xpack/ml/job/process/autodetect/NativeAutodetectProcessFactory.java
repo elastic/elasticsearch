@@ -71,17 +71,18 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
     }
 
     @Override
-    public AutodetectProcess createAutodetectProcess(Job job,
+    public AutodetectProcess createAutodetectProcess(String pipelineId,
+                                                     Job job,
                                                      AutodetectParams params,
                                                      ExecutorService executorService,
                                                      Consumer<String> onProcessCrash) {
         List<Path> filesToDelete = new ArrayList<>();
-        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, AutodetectBuilder.AUTODETECT, job.getId(),
-                false, true, true, params.modelSnapshot() != null,
-                !AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings));
+        ProcessPipes processPipes = new ProcessPipes(env, NAMED_PIPE_HELPER, processConnectTimeout, AutodetectBuilder.AUTODETECT,
+            pipelineId, null, false, true, true, params.modelSnapshot() != null,
+            AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.get(settings) == false);
         createNativeProcess(job, params, processPipes, filesToDelete);
         boolean includeTokensField = MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA
-                && job.getAnalysisConfig().getCategorizationFieldName() != null;
+            && job.getAnalysisConfig().getCategorizationFieldName() != null;
         // The extra 1 is the control field
         int numberOfFields = job.allInputFields().size() + (includeTokensField ? 1 : 0) + 1;
 
@@ -89,8 +90,8 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
         ProcessResultsParser<AutodetectResult> resultsParser = new ProcessResultsParser<>(AutodetectResult.PARSER,
             NamedXContentRegistry.EMPTY);
         NativeAutodetectProcess autodetect = new NativeAutodetectProcess(
-                job.getId(), nativeController, processPipes, numberOfFields,
-                filesToDelete, resultsParser, onProcessCrash, processConnectTimeout);
+            job.getId(), nativeController, processPipes, numberOfFields,
+            filesToDelete, resultsParser, onProcessCrash);
         try {
             autodetect.start(executorService, stateProcessor);
             return autodetect;
@@ -127,8 +128,11 @@ public class NativeAutodetectProcessFactory implements AutodetectProcessFactory 
                 autodetectBuilder.quantiles(autodetectParams.quantiles());
             }
             autodetectBuilder.build();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.warn("[{}] Interrupted while launching autodetect", job.getId());
         } catch (IOException e) {
-            String msg = "Failed to launch autodetect for job " + job.getId();
+            String msg = "[" + job.getId() + "] Failed to launch autodetect";
             LOGGER.error(msg);
             throw ExceptionsHelper.serverError(msg, e);
         }

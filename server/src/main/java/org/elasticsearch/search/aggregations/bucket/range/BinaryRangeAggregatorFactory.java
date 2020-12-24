@@ -18,17 +18,15 @@
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -37,42 +35,41 @@ import java.util.Map;
 public class BinaryRangeAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(IpRangeAggregationBuilder.NAME, CoreValuesSourceType.IP, (IpRangeAggregatorSupplier) BinaryRangeAggregator::new);
+        builder.register(IpRangeAggregationBuilder.REGISTRY_KEY, CoreValuesSourceType.IP, BinaryRangeAggregator::new, true);
     }
 
+    private final IpRangeAggregatorSupplier aggregatorSupplier;
     private final List<BinaryRangeAggregator.Range> ranges;
     private final boolean keyed;
 
     public BinaryRangeAggregatorFactory(String name,
             ValuesSourceConfig config,
             List<BinaryRangeAggregator.Range> ranges, boolean keyed,
-            QueryShardContext queryShardContext,
+            AggregationContext context,
             AggregatorFactory parent, Builder subFactoriesBuilder,
-            Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+            Map<String, Object> metadata,
+            IpRangeAggregatorSupplier aggregatorSupplier) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
+        this.aggregatorSupplier = aggregatorSupplier;
         this.ranges = ranges;
         this.keyed = keyed;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         return new BinaryRangeAggregator(name, factories, null, config.format(),
-                ranges, keyed, searchContext, parent, metadata);
+                ranges, keyed, context, parent, CardinalityUpperBound.NONE, metadata);
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
-                                          boolean collectsFromSingleBucket,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            IpRangeAggregationBuilder.NAME);
-
-        if (aggregatorSupplier instanceof IpRangeAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected IpRangeAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        return ((IpRangeAggregatorSupplier) aggregatorSupplier).build(name, factories, config.getValuesSource(), config.format(),
-                ranges, keyed, searchContext, parent, metadata);
+    protected Aggregator doCreateInternal(
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        return aggregatorSupplier
+            .build(name, factories, config.getValuesSource(), config.format(),
+                   ranges, keyed, context, parent, cardinality, metadata);
     }
 
 }

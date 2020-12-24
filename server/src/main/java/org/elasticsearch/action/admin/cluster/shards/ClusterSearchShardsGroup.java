@@ -41,19 +41,13 @@ public class ClusterSearchShardsGroup implements Writeable, ToXContentObject {
 
     ClusterSearchShardsGroup(StreamInput in) throws IOException {
         shardId = new ShardId(in);
-        shards = new ShardRouting[in.readVInt()];
-        for (int i = 0; i < shards.length; i++) {
-            shards[i] = new ShardRouting(shardId, in);
-        }
+        shards = in.readArray(i -> new ShardRouting(shardId, i), ShardRouting[]::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         shardId.writeTo(out);
-        out.writeVInt(shards.length);
-        for (ShardRouting shardRouting : shards) {
-            shardRouting.writeToThin(out);
-        }
+        out.writeArray((o, s) -> s.writeToThin(o), shards);
     }
 
     public ShardId getShardId() {

@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 
 import java.util.Objects;
@@ -24,11 +25,13 @@ import static java.util.stream.Collectors.toSet;
  * This class deletes empty indices matching .ml-state* pattern that are not pointed at by the .ml-state-write alias.
  */
 public class EmptyStateIndexRemover implements MlDataRemover {
-    
-    private final OriginSettingClient client;
 
-    public EmptyStateIndexRemover(OriginSettingClient client) {
+    private final OriginSettingClient client;
+    private final TaskId parentTaskId;
+
+    public EmptyStateIndexRemover(OriginSettingClient client, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
+        this.parentTaskId = parentTaskId;
     }
 
     @Override
@@ -69,6 +72,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
 
     private void getEmptyStateIndices(ActionListener<Set<String>> listener) {
         IndicesStatsRequest indicesStatsRequest = new IndicesStatsRequest().indices(AnomalyDetectorsIndex.jobStateIndexPattern());
+        indicesStatsRequest.setParentTask(parentTaskId);
         client.admin().indices().stats(
             indicesStatsRequest,
             ActionListener.wrap(
@@ -87,6 +91,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
 
     private void getCurrentStateIndices(ActionListener<Set<String>> listener) {
         GetIndexRequest getIndexRequest = new GetIndexRequest().indices(AnomalyDetectorsIndex.jobStateIndexWriteAlias());
+        getIndexRequest.setParentTask(parentTaskId);
         client.admin().indices().getIndex(
             getIndexRequest,
             ActionListener.wrap(
@@ -98,6 +103,7 @@ public class EmptyStateIndexRemover implements MlDataRemover {
 
     private void executeDeleteEmptyStateIndices(Set<String> emptyStateIndices, ActionListener<Boolean> listener) {
         DeleteIndexRequest deleteIndexRequest = new DeleteIndexRequest(emptyStateIndices.toArray(new String[0]));
+        deleteIndexRequest.setParentTask(parentTaskId);
         client.admin().indices().delete(
             deleteIndexRequest,
             ActionListener.wrap(

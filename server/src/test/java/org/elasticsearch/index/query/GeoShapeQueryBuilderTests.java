@@ -23,23 +23,19 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.AbstractQueryTestCase;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
@@ -50,8 +46,8 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.matchesPattern;
 
 public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
 
@@ -62,16 +58,6 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     protected static ShapeBuilder<?, ?, ?> indexedShapeToReturn;
 
     protected abstract String fieldName();
-
-    @Override
-    protected Settings createTestIndexSettings() {
-        // force the new shape impl
-        Version version = VersionUtils.randomIndexCompatibleVersion(random());
-        return Settings.builder()
-                .put(super.createTestIndexSettings())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-    }
 
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
@@ -226,7 +212,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             new GeoShapeQueryBuilder("unmapped", shape.buildGeometry());
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), matchesPattern("failed to find .*geo_shape.* field \\[unmapped\\]"));
+        assertThat(e.getMessage(), containsString("failed to find type for field [unmapped]"));
     }
 
     public void testWrongFieldType() throws IOException {
@@ -236,8 +222,7 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
             new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape) :
             new GeoShapeQueryBuilder(TEXT_FIELD_NAME, shape.buildGeometry());
         QueryShardException e = expectThrows(QueryShardException.class, () -> queryBuilder.toQuery(createShardContext()));
-        assertThat(e.getMessage(), matchesPattern("Field \\[mapped_string\\] is of unsupported type \\[text\\]." +
-            " \\[geo_shape\\] query supports the following types \\[.*geo_shape.*\\]"));
+        assertThat(e.getMessage(), containsString("Field [mapped_string] is of unsupported type [text] for [geo_shape] query"));
     }
 
     public void testSerializationFailsUnlessFetched() throws IOException {

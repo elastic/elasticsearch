@@ -27,22 +27,38 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
 
@@ -268,6 +284,337 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         memoryUsage.set(100);
         requestBreaker.addEstimateBytesAndMaybeBreak(reservationInBytes, "request");
         assertEquals(0, requestBreaker.getTrippedCount());
+    }
+
+    /**
+     * "Integration test" checking that we ask the G1 over limit check before parent breaking.
+     * Given that it depends on GC, the main assertion that we do not get a circuit breaking exception in the threads towards
+     * the end of the test is not enabled. The following tests checks this in more unit test style.
+     */
+    public void testParentTriggersG1GCBeforeBreaking() throws InterruptedException, TimeoutException, BrokenBarrierException {
+        assumeTrue("Only G1GC can utilize the over limit check", JvmInfo.jvmInfo().useG1GC().equals("true"));
+        long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
+        assumeTrue("Must have region size", g1RegionSize > 0);
+
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%")
+            .build();
+
+        AtomicInteger leaderTriggerCount = new AtomicInteger();
+        AtomicReference<Consumer<Boolean>> onOverLimit = new AtomicReference<>(leader -> {});
+        AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
+        long interval = randomLongBetween(1, 1000);
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            trackRealMemoryUsage -> new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(),
+                HierarchyCircuitBreakerService::realMemoryUsage,
+                HierarchyCircuitBreakerService.createYoungGcCountSupplier(), time::get, interval, TimeValue.timeValueSeconds(30)) {
+
+                @Override
+                void overLimitTriggered(boolean leader) {
+                    if (leader) {
+                        leaderTriggerCount.incrementAndGet();
+                    }
+                    onOverLimit.get().accept(leader);
+                }
+            });
+
+        long maxHeap = JvmInfo.jvmInfo().getConfiguredMaxHeapSize();
+        int regionCount = Math.toIntExact((maxHeap / 2 + g1RegionSize - 1) / g1RegionSize);
+
+        // First setup a host of large byte[]'s, must be Humongous objects since those are cleaned during a young phase (no concurrent cycle
+        // necessary, which is hard to control in the test).
+        List<byte[]> data = new ArrayList<>();
+        for (int i = 0; i < regionCount; ++i) {
+            data.add(new byte[(int) (JvmInfo.jvmInfo().getG1RegionSize() / 2)]);
+        }
+        try {
+            service.checkParentLimit(0, "test");
+            fail("must exceed memory limit");
+        } catch (CircuitBreakingException e) {
+            // OK
+        }
+
+        time.addAndGet(randomLongBetween(interval, interval + 10));
+        onOverLimit.set(leader -> {
+            if (leader) {
+                data.clear();
+            }
+        });
+
+        logger.trace("black hole [{}]", data.hashCode());
+
+        int threadCount = randomIntBetween(1, 10);
+        CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
+        List<Thread> threads = new ArrayList<>(threadCount);
+        for (int i = 0; i < threadCount; ++i) {
+            threads.add(
+                new Thread(() -> {
+                    try {
+                        barrier.await(10, TimeUnit.SECONDS);
+                        service.checkParentLimit(0, "test-thread");
+                    } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                        throw new AssertionError(e);
+                    } catch (CircuitBreakingException e) {
+                        // very rare
+                        logger.info("Thread got semi-unexpected circuit breaking exception", e);
+                    }
+                }));
+        }
+
+        threads.forEach(Thread::start);
+        barrier.await(20, TimeUnit.SECONDS);
+
+        for (Thread thread : threads) {
+            thread.join(10000);
+        }
+        threads.forEach(thread -> assertFalse(thread.isAlive()));
+
+        assertThat(leaderTriggerCount.get(), equalTo(2));
+    }
+
+    public void testParentDoesOverLimitCheck() {
+        long g1RegionSize = JvmInfo.jvmInfo().getG1RegionSize();
+
+        Settings clusterSettings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.getKey(), Boolean.TRUE)
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "50%")
+            .build();
+        boolean saveTheDay = randomBoolean();
+        AtomicBoolean overLimitTriggered = new AtomicBoolean();
+        final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(clusterSettings,
+            Collections.emptyList(),
+            new ClusterSettings(clusterSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            trackRealMemoryUsage ->
+                memoryUsed -> {
+                    assertTrue(overLimitTriggered.compareAndSet(false, true));
+                    if (saveTheDay) {
+                        return new HierarchyCircuitBreakerService.MemoryUsage(memoryUsed.baseUsage / 2,
+                            memoryUsed.totalUsage - (memoryUsed.baseUsage / 2), memoryUsed.transientChildUsage,
+                            memoryUsed.permanentChildUsage);
+                    } else {
+                        return memoryUsed;
+                    }
+                }
+            );
+
+        int allocationSize = g1RegionSize > 0 ? (int) (g1RegionSize / 2) : 1024 * 1024;
+        int allocationCount = (int) (JvmInfo.jvmInfo().getConfiguredMaxHeapSize() / allocationSize) + 1;
+        List<byte[]> data = new ArrayList<>();
+        try {
+            for (int i = 0 ; i < allocationCount && overLimitTriggered.get() == false; ++i) {
+                data.add(new byte[allocationSize]);
+                service.checkParentLimit(0, "test");
+            }
+            assertTrue(saveTheDay);
+        } catch (CircuitBreakingException e) {
+            assertFalse(saveTheDay);
+        }
+
+        logger.trace("black hole [{}]", data.hashCode());
+    }
+
+    public void testFallbackG1RegionSize() {
+        assumeTrue("Only G1GC can utilize the over limit check", JvmInfo.jvmInfo().useG1GC().equals("true"));
+        assumeTrue("Must have region size", JvmInfo.jvmInfo().getG1RegionSize() > 0);
+
+        assertThat(HierarchyCircuitBreakerService.G1OverLimitStrategy.fallbackRegionSize(JvmInfo.jvmInfo()),
+            equalTo(JvmInfo.jvmInfo().getG1RegionSize()));
+    }
+
+    public void testG1OverLimitStrategyBreakOnMemory() {
+        AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
+        AtomicInteger leaderTriggerCount = new AtomicInteger();
+        AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
+        long interval = randomLongBetween(1, 1000);
+        AtomicLong memoryUsage = new AtomicLong();
+
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0, time::get, interval,
+                TimeValue.timeValueSeconds(30)) {
+            @Override
+            void overLimitTriggered(boolean leader) {
+                if (leader) {
+                    leaderTriggerCount.incrementAndGet();
+                } else {
+                    nonLeaderTriggerCount.incrementAndGet();
+                }
+            }
+        };
+        memoryUsage.set(randomLongBetween(100, 110));
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(100, randomLongBetween(100, 110),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50));
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        assertThat(leaderTriggerCount.get(), equalTo(1));
+
+        memoryUsage.set(99);
+        HierarchyCircuitBreakerService.MemoryUsage output = strategy.overLimit(input);
+        assertThat(output, not(sameInstance(input)));
+        assertThat(output.baseUsage, equalTo(memoryUsage.get()));
+        assertThat(output.totalUsage, equalTo(99 + input.totalUsage - 100));
+        assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
+        assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
+        assertThat(nonLeaderTriggerCount.get(), equalTo(1));
+
+        time.addAndGet(randomLongBetween(interval, interval * 2));
+        output = strategy.overLimit(input);
+        assertThat(output, not(sameInstance(input)));
+        assertThat(output.baseUsage, equalTo(memoryUsage.get()));
+        assertThat(output.totalUsage, equalTo(99 + input.totalUsage - 100));
+        assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
+        assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
+        assertThat(leaderTriggerCount.get(), equalTo(2));
+    }
+
+    public void testG1OverLimitStrategyBreakOnGcCount() {
+        AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
+        AtomicInteger leaderTriggerCount = new AtomicInteger();
+        AtomicInteger nonLeaderTriggerCount = new AtomicInteger();
+        long interval = randomLongBetween(1, 1000);
+        AtomicLong memoryUsageCounter = new AtomicLong();
+        AtomicLong gcCounter = new AtomicLong();
+        LongSupplier memoryUsageSupplier = () -> {
+            memoryUsageCounter.incrementAndGet();
+            return randomLongBetween(100, 110);
+        };
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(),
+                memoryUsageSupplier,
+                gcCounter::incrementAndGet,
+                time::get, interval, TimeValue.timeValueSeconds(30)) {
+
+                @Override
+                void overLimitTriggered(boolean leader) {
+                    if (leader) {
+                        leaderTriggerCount.incrementAndGet();
+                    } else {
+                        nonLeaderTriggerCount.incrementAndGet();
+                    }
+                }
+            };
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(100, randomLongBetween(100, 110),
+            randomLongBetween(0, 50),
+            randomLongBetween(0, 50));
+
+        assertThat(strategy.overLimit(input), sameInstance(input));
+        assertThat(leaderTriggerCount.get(), equalTo(1));
+        assertThat(gcCounter.get(), equalTo(2L));
+        assertThat(memoryUsageCounter.get(), equalTo(2L)); // 1 before gc count break and 1 to get resulting memory usage.
+    }
+
+    public void testG1OverLimitStrategyThrottling() throws InterruptedException, BrokenBarrierException, TimeoutException {
+        AtomicLong time = new AtomicLong(randomLongBetween(Long.MIN_VALUE/2, Long.MAX_VALUE/2));
+        AtomicInteger leaderTriggerCount = new AtomicInteger();
+        long interval = randomLongBetween(1, 1000);
+        AtomicLong memoryUsage = new AtomicLong();
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), memoryUsage::get, () -> 0,
+                time::get, interval, TimeValue.timeValueSeconds(30)) {
+
+                @Override
+                void overLimitTriggered(boolean leader) {
+                    if (leader) {
+                        leaderTriggerCount.incrementAndGet();
+                    }
+                }
+            };
+
+        int threadCount = randomIntBetween(1, 10);
+        CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
+        AtomicReference<CountDownLatch> countDown = new AtomicReference<>(new CountDownLatch(randomIntBetween(1, 20)));
+        List<Thread> threads = IntStream.range(0, threadCount)
+            .mapToObj(i -> new Thread(() -> {
+                try {
+                    barrier.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+                    throw new AssertionError(e);
+                }
+                do {
+                    HierarchyCircuitBreakerService.MemoryUsage input =
+                        new HierarchyCircuitBreakerService.MemoryUsage(randomLongBetween(0, 100), randomLongBetween(0, 100),
+                            randomLongBetween(0, 100), randomLongBetween(0, 100));
+                    HierarchyCircuitBreakerService.MemoryUsage output = strategy.overLimit(input);
+                    assertThat(output.totalUsage, equalTo(output.baseUsage + input.totalUsage - input.baseUsage));
+                    assertThat(output.transientChildUsage, equalTo(input.transientChildUsage));
+                    assertThat(output.permanentChildUsage, equalTo(input.permanentChildUsage));
+                    countDown.get().countDown();
+                } while (!Thread.interrupted());
+            })).collect(Collectors.toList());
+
+        threads.forEach(Thread::start);
+        barrier.await(20, TimeUnit.SECONDS);
+
+        int iterationCount = randomIntBetween(1, 5);
+        for (int i = 0; i < iterationCount; ++i) {
+            memoryUsage.set(randomLongBetween(0, 100));
+            assertTrue(countDown.get().await(20, TimeUnit.SECONDS));
+            assertThat(leaderTriggerCount.get(), lessThanOrEqualTo(i + 1));
+            assertThat(leaderTriggerCount.get(), greaterThanOrEqualTo(i / 2 + 1));
+            time.addAndGet(randomLongBetween(interval, interval * 2));
+            countDown.set(new CountDownLatch(randomIntBetween(1, 20)));
+        }
+
+        threads.forEach(Thread::interrupt);
+        for (Thread thread : threads) {
+            thread.join(10000);
+        }
+        threads.forEach(thread -> assertFalse(thread.isAlive()));
+    }
+
+    public void testCreateOverLimitStrategy() {
+        assertThat(HierarchyCircuitBreakerService.createOverLimitStrategy(false),
+            not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+        HierarchyCircuitBreakerService.OverLimitStrategy overLimitStrategy = HierarchyCircuitBreakerService.createOverLimitStrategy(true);
+        if (JvmInfo.jvmInfo().useG1GC().equals("true")) {
+            assertThat(overLimitStrategy, instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class));
+            assertThat(((HierarchyCircuitBreakerService.G1OverLimitStrategy) overLimitStrategy).getLockTimeout(),
+                equalTo(TimeValue.timeValueMillis(500)));
+        } else {
+            assertThat(overLimitStrategy, not(instanceOf(HierarchyCircuitBreakerService.G1OverLimitStrategy.class)));
+        }
+    }
+
+    public void testG1LockTimeout() throws Exception {
+        CountDownLatch startedBlocking = new CountDownLatch(1);
+        CountDownLatch blockingUntil = new CountDownLatch(1);
+        AtomicLong gcCounter = new AtomicLong();
+        HierarchyCircuitBreakerService.G1OverLimitStrategy strategy =
+            new HierarchyCircuitBreakerService.G1OverLimitStrategy(JvmInfo.jvmInfo(), () -> 100, gcCounter::incrementAndGet,
+                () -> 0, 1, TimeValue.timeValueMillis(randomFrom(0, 5, 10))) {
+
+                @Override
+                void overLimitTriggered(boolean leader) {
+                    if (leader) {
+                        startedBlocking.countDown();
+                        try {
+                            // this is the central assertion - the overLimit call below should complete in a timely manner.
+                            assertThat(blockingUntil.await(10, TimeUnit.SECONDS), is(true));
+                        } catch (InterruptedException e) {
+                            throw new AssertionError(e);
+                        }
+                    }
+                }
+            };
+
+        HierarchyCircuitBreakerService.MemoryUsage input = new HierarchyCircuitBreakerService.MemoryUsage(100, 100, 0, 0);
+        Thread blocker = new Thread(() -> {
+            strategy.overLimit(input);
+        });
+        blocker.start();
+        try {
+            assertThat(startedBlocking.await(10, TimeUnit.SECONDS), is(true));
+
+            // this should complete in a timely manner, verified by the assertion in the thread.
+            assertThat(strategy.overLimit(input), sameInstance(input));
+        } finally {
+            blockingUntil.countDown();
+            blocker.join(10000);
+            assertThat(blocker.isAlive(), is(false));
+        }
     }
 
     public void testTrippedCircuitBreakerDurability() {

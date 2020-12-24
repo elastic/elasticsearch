@@ -25,6 +25,7 @@ import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.BufferedInputStream;
 import java.io.FileNotFoundException;
@@ -67,6 +68,15 @@ public class URLBlobContainer extends AbstractBlobContainer {
      */
     public URL url() {
         return this.path;
+    }
+
+    /**
+     * This operation is not supported by URLBlobContainer
+     */
+    @Override
+    public boolean blobExists(String blobName) {
+        assert false : "should never be called for a read-only url repo";
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
     /**
@@ -123,7 +133,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public void writeBlobAtomic(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
+    public void writeBlobAtomic(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 

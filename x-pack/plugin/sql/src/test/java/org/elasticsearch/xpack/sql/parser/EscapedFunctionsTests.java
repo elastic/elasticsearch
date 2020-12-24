@@ -34,6 +34,7 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EscapedFunctionsTests extends ESTestCase {
 
@@ -83,17 +84,19 @@ public class EscapedFunctionsTests extends ESTestCase {
 
     private String buildTime() {
         if (randomBoolean()) {
-            return (randomBoolean() ? "T" : " ") + "11:22" + buildSecsAndFractional();
+            return (randomBoolean() ? "T" : " ") + "11:22" + buildSecsFractionalAndTimezone();
         }
         return "";
     }
 
-    private String buildSecsAndFractional() {
+    private String buildSecsFractionalAndTimezone() {
+        String str = "";
         if (randomBoolean()) {
-            return ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
-                    ".1234567", ".12345678", ".123456789");
+            str = ":55" + randomFrom("", ".1", ".12", ".123", ".1234", ".12345", ".123456",
+                    ".1234567", ".12345678", ".123456789") +
+                    randomFrom("", "Z", "Etc/GMT-5", "-05:30", "+04:20");
         }
-        return "";
+        return str;
     }
 
     private Literal guidLiteral(String guid) {
@@ -231,7 +234,7 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimeLiteral() {
-        Literal l = timeLiteral("12:23" + buildSecsAndFractional());
+        Literal l = timeLiteral("12:23" + buildSecsFractionalAndTimezone());
         assertThat(l.dataType(), is(TIME));
     }
 
@@ -243,9 +246,9 @@ public class EscapedFunctionsTests extends ESTestCase {
     }
 
     public void testTimestampLiteral() {
-        Literal l = timestampLiteral(buildDate() + " 10:20" + buildSecsAndFractional());
+        Literal l = timestampLiteral(buildDate() + " 10:20" + buildSecsFractionalAndTimezone());
         assertThat(l.dataType(), is(DATETIME));
-        l = timestampLiteral(buildDate() + "T11:22" + buildSecsAndFractional());
+        l = timestampLiteral(buildDate() + "T11:22" + buildSecsFractionalAndTimezone());
         assertThat(l.dataType(), is(DATETIME));
     }
 
@@ -253,8 +256,8 @@ public class EscapedFunctionsTests extends ESTestCase {
         String date = buildDate();
         ParsingException ex = expectThrows(ParsingException.class, () -> timestampLiteral(date+ "_AB 10:01:02.3456"));
         assertEquals(
-                "line 1:2: Invalid timestamp received; Text '" + date + "_AB 10:01:02.3456' could not be parsed at index " +
-                        date.length(),
+                "line 1:2: Invalid timestamp received; Text '" + date + "_AB 10:01:02.3456' could not be parsed, " +
+                        "unparsed text found at index " + date.length(),
                 ex.getMessage());
         ex = expectThrows(ParsingException.class, () -> timestampLiteral("20120101_AB 10:01:02.3456"));
         assertEquals(
@@ -262,9 +265,9 @@ public class EscapedFunctionsTests extends ESTestCase {
                 ex.getMessage());
 
         ex = expectThrows(ParsingException.class, () -> timestampLiteral(date));
-        assertEquals(
-                "line 1:2: Invalid timestamp received; Text '" + date + "' could not be parsed at index " + date.length(),
-                ex.getMessage());
+        assertThat(ex.getMessage(), startsWith(
+                "line 1:2: Invalid timestamp received; Text '" + date + "' could not be parsed: " +
+                        "Unable to obtain ZonedDateTime from TemporalAccessor"));
     }
 
     public void testGUID() {

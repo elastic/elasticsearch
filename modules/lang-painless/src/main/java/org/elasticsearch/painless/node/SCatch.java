@@ -20,13 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.CatchNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.DeclarationNode;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -36,14 +30,16 @@ import java.util.Objects;
 public class SCatch extends AStatement {
 
     private final Class<?> baseException;
-    private final SDeclaration declarationNode;
+    private final String canonicalTypeName;
+    private final String symbol;
     private final SBlock blockNode;
 
-    public SCatch(int identifier, Location location, Class<?> baseException, SDeclaration declarationNode, SBlock blockNode) {
+    public SCatch(int identifier, Location location, Class<?> baseException, String canonicalTypeName, String symbol, SBlock blockNode) {
         super(identifier, location);
 
         this.baseException = Objects.requireNonNull(baseException);
-        this.declarationNode = Objects.requireNonNull(declarationNode);
+        this.canonicalTypeName = Objects.requireNonNull(canonicalTypeName);
+        this.symbol = Objects.requireNonNull(symbol);
         this.blockNode = blockNode;
     }
 
@@ -51,8 +47,12 @@ public class SCatch extends AStatement {
         return baseException;
     }
 
-    public SDeclaration getDeclarationNode() {
-        return declarationNode;
+    public String getCanonicalTypeName() {
+        return canonicalTypeName;
+    }
+
+    public String getSymbol() {
+        return symbol;
     }
 
     public SBlock getBlockNode() {
@@ -60,43 +60,14 @@ public class SCatch extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitCatch(this, scope);
+    }
 
-        Output declarationOutput = declarationNode.analyze(classNode, scriptRoot, scope, new Input());
-
-        Class<?> type = scope.getVariable(getLocation(), declarationNode.getSymbol()).getType();
-
-        if (baseException.isAssignableFrom(type) == false) {
-            throw createError(new ClassCastException(
-                    "cannot cast from [" + PainlessLookupUtility.typeToCanonicalTypeName(type) + "] " +
-                    "to [" + PainlessLookupUtility.typeToCanonicalTypeName(baseException) + "]"));
-        }
-
-        Output blockOutput = null;
-
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         if (blockNode != null) {
-            Input blockInput = new Input();
-            blockInput.lastSource = input.lastSource;
-            blockInput.inLoop = input.inLoop;
-            blockInput.lastLoop = input.lastLoop;
-            blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
-
-            output.methodEscape = blockOutput.methodEscape;
-            output.loopEscape = blockOutput.loopEscape;
-            output.allEscape = blockOutput.allEscape;
-            output.anyContinue = blockOutput.anyContinue;
-            output.anyBreak = blockOutput.anyBreak;
-            output.statementCount = blockOutput.statementCount;
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        CatchNode catchNode = new CatchNode();
-        catchNode.setDeclarationNode((DeclarationNode)declarationOutput.statementNode);
-        catchNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        catchNode.setLocation(getLocation());
-
-        output.statementNode = catchNode;
-
-        return output;
     }
 }

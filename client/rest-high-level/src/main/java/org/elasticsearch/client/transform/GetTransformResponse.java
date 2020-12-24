@@ -38,20 +38,25 @@ public class GetTransformResponse {
     public static final ParseField COUNT = new ParseField("count");
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<InvalidTransforms, Void> INVALID_TRANSFORMS_PARSER =
-            new ConstructingObjectParser<>("invalid_transforms", true, args -> new InvalidTransforms((List<String>) args[0]));
+    static final ConstructingObjectParser<InvalidTransforms, Void> INVALID_TRANSFORMS_PARSER = new ConstructingObjectParser<>(
+        "invalid_transforms",
+        true,
+        args -> new InvalidTransforms((List<String>) args[0])
+    );
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<GetTransformResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "get_transform", true, args -> new GetTransformResponse(
-                    (List<TransformConfig>) args[0], (int) args[1], (InvalidTransforms) args[2]));
+        "get_transform",
+        true,
+        args -> new GetTransformResponse((List<TransformConfig>) args[0], (long) args[1], (InvalidTransforms) args[2])
+    );
     static {
         // Discard the count field which is the size of the transforms array
-        INVALID_TRANSFORMS_PARSER.declareInt((a, b) -> {}, COUNT);
+        INVALID_TRANSFORMS_PARSER.declareLong((a, b) -> {}, COUNT);
         INVALID_TRANSFORMS_PARSER.declareStringArray(constructorArg(), TRANSFORMS);
 
         PARSER.declareObjectArray(constructorArg(), TransformConfig.PARSER::apply, TRANSFORMS);
-        PARSER.declareInt(constructorArg(), COUNT);
+        PARSER.declareLong(constructorArg(), COUNT);
         PARSER.declareObject(optionalConstructorArg(), INVALID_TRANSFORMS_PARSER::apply, INVALID_TRANSFORMS);
     }
 
@@ -60,12 +65,10 @@ public class GetTransformResponse {
     }
 
     private List<TransformConfig> transformConfigurations;
-    private int count;
+    private long count;
     private InvalidTransforms invalidTransforms;
 
-    public GetTransformResponse(List<TransformConfig> transformConfigurations,
-                                int count,
-                                @Nullable InvalidTransforms invalidTransforms) {
+    public GetTransformResponse(List<TransformConfig> transformConfigurations, long count, @Nullable InvalidTransforms invalidTransforms) {
         this.transformConfigurations = transformConfigurations;
         this.count = count;
         this.invalidTransforms = invalidTransforms;
@@ -76,7 +79,7 @@ public class GetTransformResponse {
         return invalidTransforms;
     }
 
-    public int getCount() {
+    public long getCount() {
         return count;
     }
 
@@ -101,8 +104,8 @@ public class GetTransformResponse {
 
         final GetTransformResponse that = (GetTransformResponse) other;
         return Objects.equals(this.transformConfigurations, that.transformConfigurations)
-                && Objects.equals(this.count, that.count)
-                && Objects.equals(this.invalidTransforms, that.invalidTransforms);
+            && Objects.equals(this.count, that.count)
+            && Objects.equals(this.invalidTransforms, that.invalidTransforms);
     }
 
     static class InvalidTransforms {
@@ -112,7 +115,7 @@ public class GetTransformResponse {
             this.transformIds = transformIds;
         }
 
-        public int getCount() {
+        public long getCount() {
             return transformIds.size();
         }
 

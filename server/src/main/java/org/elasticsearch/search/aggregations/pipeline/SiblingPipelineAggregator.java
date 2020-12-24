@@ -37,7 +37,7 @@ public abstract class SiblingPipelineAggregator extends PipelineAggregator {
         return aggregation.copyWithRewritenBuckets(aggregations -> {
             List<InternalAggregation> aggs = aggregations.copyResults();
             aggs.add(doReduce(aggregations, reduceContext));
-            return new InternalAggregations(aggs);
+            return InternalAggregations.from(aggs);
         });
     }
 

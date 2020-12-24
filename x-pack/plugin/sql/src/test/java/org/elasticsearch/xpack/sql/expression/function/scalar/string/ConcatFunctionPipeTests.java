@@ -68,8 +68,8 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
     @Override
     public void testReplaceChildren() {
         ConcatFunctionPipe b = randomInstance();
-        Pipe newLeft = pipe(((Expression) randomValueOtherThan(b.left(), () -> randomStringLiteral())));
-        Pipe newRight = pipe(((Expression) randomValueOtherThan(b.right(), () -> randomStringLiteral())));
+        Pipe newLeft = randomValueOtherThan(b.left(), () -> pipe(randomStringLiteral()));
+        Pipe newRight = randomValueOtherThan(b.right(), () -> pipe(randomStringLiteral()));
         ConcatFunctionPipe newB =
                 new ConcatFunctionPipe(b.source(), b.expression(), b.left(), b.right());
         BinaryPipe transformed = newB.replaceChildren(newLeft, b.right());
@@ -97,16 +97,16 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
         List<Function<ConcatFunctionPipe, ConcatFunctionPipe>> randoms = new ArrayList<>();
         randoms.add(f -> new ConcatFunctionPipe(f.source(),
                 f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
+                randomValueOtherThan(f.left(), () -> pipe(randomStringLiteral())),
                 f.right()));
         randoms.add(f -> new ConcatFunctionPipe(f.source(),
                 f.expression(),
                 f.left(),
-                pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral())))));
+                randomValueOtherThan(f.right(), () -> pipe(randomStringLiteral()))));
         randoms.add(f -> new ConcatFunctionPipe(f.source(),
                 f.expression(),
-                pipe(((Expression) randomValueOtherThan(f.left(), () -> randomStringLiteral()))),
-                pipe(((Expression) randomValueOtherThan(f.right(), () -> randomStringLiteral())))));
+                randomValueOtherThan(f.left(), () -> pipe(randomStringLiteral())),
+                randomValueOtherThan(f.right(), () -> pipe(randomStringLiteral()))));
         
         return randomFrom(randoms).apply(instance);
     }

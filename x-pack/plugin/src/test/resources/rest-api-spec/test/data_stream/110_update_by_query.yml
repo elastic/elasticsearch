@@ -1,0 +1,106 @@
+---
+"Update by query from data stream":
+  - skip:
+      features: allowed_warnings
+      version: " - 7.8.99"
+      reason: "data streams available in 7.9+"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template1] has index patterns [simple-data-stream1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [simple-data-stream1]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged
+
+  - do:
+      index:
+        index:   simple-data-stream1
+        id:      1
+        op_type: create
+        body:    { "number": 4, '@timestamp': '2020-12-12' }
+
+  # rollover data stream to create new backing index
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream1"
+
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  - do:
+      index:
+        index:   simple-data-stream1
+        id:      2
+        op_type: create
+        body:    { "number": 1, '@timestamp': '2020-12-12' }
+
+  # rollover data stream to create another new backing index
+  - do:
+      indices.rollover:
+        alias: "simple-data-stream1"
+
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000003/" }
+  - match: { rolled_over: true }
+  - match: { dry_run: false }
+
+  - do:
+      index:
+        index:   simple-data-stream1
+        id:      3
+        op_type: create
+        body:    { "number": 5, '@timestamp': '2020-12-12' }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  # increment by one any numbers >= 4
+  - do:
+      update_by_query:
+        index: simple-data-stream1
+        body:
+          script:
+            source: "ctx._source.number++"
+            lang: "painless"
+          query:
+            range:
+              number:
+                - gte: 4
+
+  - match: {updated: 2}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {noops: 0}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+
+  - do:
+      indices.refresh:
+        index: simple-data-stream1
+
+  # verify that both numbers originally >= 4 have been incremented by one
+  - do:
+      search:
+        index: simple-data-stream1
+        body: { query: { range: { number: { gte: 5 } } } }
+  - length:   { hits.hits: 2  }
+  - match: { hits.hits.0._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { hits.hits.0._source.number: 5 }
+  - match: { hits.hits.1._index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000003/" }
+  - match: { hits.hits.1._source.number: 6 }
+
+  - do:
+      indices.delete_data_stream:
+        name: simple-data-stream1
+  - is_true: acknowledged

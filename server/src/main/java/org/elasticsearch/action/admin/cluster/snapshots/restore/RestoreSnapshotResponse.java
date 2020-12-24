@@ -43,7 +43,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
 public class RestoreSnapshotResponse extends ActionResponse implements ToXContentObject {
 
     @Nullable
-    private RestoreInfo restoreInfo;
+    private final RestoreInfo restoreInfo;
 
     public RestoreSnapshotResponse(@Nullable RestoreInfo restoreInfo) {
         this.restoreInfo = restoreInfo;

@@ -18,8 +18,8 @@ examples.
 ==== Inline Shape Definition
 
 Similar to the `geo_shape` query, the `shape` query uses
-http://www.geojson.org[GeoJSON] or
-https://en.wikipedia.org/wiki/Well-known_text_representation_of_geometry[Well Known Text]
+http://geojson.org[GeoJSON] or
+{wikipedia}/Well-known_text_representation_of_geometry[Well Known Text]
 (WKT) to represent shapes.
 
 Given the following index:
@@ -28,22 +28,22 @@ Given the following index:
 --------------------------------------------------
 PUT /example
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "shape"
+      }
     }
+  }
 }
 
 PUT /example/_doc/1?refresh=wait_for
 {
-    "name": "Lucky Landing",
-    "geometry": {
-        "type": "point",
-        "coordinates": [1355.400544, 5255.530286]
-    }
+  "name": "Lucky Landing",
+  "geometry": {
+    "type": "point",
+    "coordinates": [ 1355.400544, 5255.530286 ]
+  }
 }
 --------------------------------------------------
 // TESTSETUP
@@ -55,17 +55,17 @@ The following query will find the point using the Elasticsearch's
 --------------------------------------------------
 GET /example/_search
 {
-    "query":{
+  "query": {
+    "shape": {
+      "geometry": {
         "shape": {
-            "geometry": {
-                "shape": {
-                    "type": "envelope",
-                    "coordinates" : [[1355.0, 5355.0], [1400.0, 5200.0]]
-                },
-                "relation": "within"
-            }
-        }
+          "type": "envelope",
+          "coordinates": [ [ 1355.0, 5355.0 ], [ 1400.0, 5200.0 ] ]
+        },
+        "relation": "within"
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -133,36 +133,36 @@ shape:
 --------------------------------------------------
 PUT /shapes
 {
-    "mappings": {
-        "properties": {
-            "geometry": {
-                "type": "shape"
-            }
-        }
+  "mappings": {
+    "properties": {
+      "geometry": {
+        "type": "shape"
+      }
     }
+  }
 }
 
 PUT /shapes/_doc/footprint
 {
-    "geometry": {
-        "type": "envelope",
-        "coordinates" : [[1355.0, 5355.0], [1400.0, 5200.0]]
-    }
+  "geometry": {
+    "type": "envelope",
+    "coordinates": [ [ 1355.0, 5355.0 ], [ 1400.0, 5200.0 ] ]
+  }
 }
 
 GET /example/_search
 {
-    "query": {
-        "shape": {
-            "geometry": {
-                "indexed_shape": {
-                    "index": "shapes",
-                    "id": "footprint",
-                    "path": "geometry"
-                }
-            }
+  "query": {
+    "shape": {
+      "geometry": {
+        "indexed_shape": {
+          "index": "shapes",
+          "id": "footprint",
+          "path": "geometry"
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 
@@ -179,7 +179,7 @@ is within the query geometry.
 * `CONTAINS` - Return all documents whose `shape` field
 contains the query geometry.
 
-[float]
+[discrete]
 ==== Ignore Unmapped
 
 When set to `true` the `ignore_unmapped` option will ignore an unmapped field

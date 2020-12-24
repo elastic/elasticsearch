@@ -21,10 +21,13 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
@@ -685,6 +688,54 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // we removed the setting but it should still have an explicit value since index metadata requires this
         assertTrue(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.exists(response.getIndexToSettings().get("test")));
         assertThat(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(response.getIndexToSettings().get("test")), equalTo(1));
+    }
+
+    public void testNoopUpdate() {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        final ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        assertAcked(client().admin().indices().prepareCreate("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)));
+
+        ClusterState currentState = clusterService.state();
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertNotSame(currentState, clusterService.state());
+        client().admin().cluster().prepareHealth()
+            .setWaitForGreenStatus()
+            .setWaitForNoInitializingShards(true)
+            .setWaitForEvents(Priority.LANGUID)
+            .setTimeout(TimeValue.MAX_VALUE)
+            .get();
+        currentState = clusterService.state();
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertSame(clusterService.state(), currentState);
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+        assertSame(clusterService.state(), currentState);
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .putNull(SETTING_BLOCKS_READ)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertSame(currentState, clusterService.state());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder()
+                .put(SETTING_BLOCKS_READ, true)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+        assertNotSame(currentState, clusterService.state());
+        currentState = clusterService.state();
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().put(SETTING_BLOCKS_READ, true)));
+        assertSame(currentState, clusterService.state());
+
+        assertAcked(client().admin().indices().prepareUpdateSettings("test")
+            .setSettings(Settings.builder().putNull(SETTING_BLOCKS_READ)));
+        assertNotSame(currentState, clusterService.state());
     }
 
 }

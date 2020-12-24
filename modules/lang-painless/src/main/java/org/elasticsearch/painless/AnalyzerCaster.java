@@ -505,6 +505,10 @@ public final class AnalyzerCaster {
     }
 
     public static Class<?> promoteEquality(Class<?> from0, Class<?> from1) {
+        if (from0 == String.class && from1 == String.class) {
+            return String.class;
+        }
+
         if (from0 == def.class || from1 == def.class) {
             return def.class;
         }

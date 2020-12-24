@@ -92,6 +92,8 @@ public final class IDGenerator {
             return Numbers.doubleToBytes((Double) value);
         } else if (value instanceof Integer) {
             return Numbers.intToBytes((Integer) value);
+        } else if (value instanceof Boolean) {
+            return new byte[] { (Boolean)value ? (byte)1 : (byte)0 };
         }
 
         throw new IllegalArgumentException("Value of type [" + value.getClass() + "] is not supported");

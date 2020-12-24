@@ -25,7 +25,7 @@ link:/downloads/elasticsearch[Download Elasticsearch] page.
 Other versions can be found on the
 link:/downloads/past-releases[Past Releases page].
 
-NOTE: Elasticsearch includes a bundled version of http://openjdk.java.net[OpenJDK]
+NOTE: Elasticsearch includes a bundled version of https://openjdk.java.net[OpenJDK]
 from the JDK maintainers (GPLv2+CE). To use your own version of Java,
 see the <<jvm-version, JVM version requirements>>
 

@@ -36,9 +36,10 @@ public class SimulateDocumentVerboseResultTests extends AbstractXContentTestCase
         for (int i = 0; i<numDocs; i++) {
             boolean isSuccessful = !(withFailures && randomBoolean());
             boolean isIgnoredError = withFailures && randomBoolean();
+            boolean hasCondition = withFailures && randomBoolean();
             results.add(
                 SimulateProcessorResultTests
-                    .createTestInstance(isSuccessful, isIgnoredError)
+                    .createTestInstance(isSuccessful, isIgnoredError, hasCondition)
             );
         }
         return new SimulateDocumentVerboseResult(results);

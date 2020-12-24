@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.ml.dataframe.evaluation;
 /**
  * Encapsulates parameters needed by evaluation.
  */
-public class EvaluationParameters {
+public final class EvaluationParameters {
 
     /**
      * Maximum number of buckets allowed in any single search request.

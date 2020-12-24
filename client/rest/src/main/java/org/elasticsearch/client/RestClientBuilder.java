@@ -55,6 +55,7 @@ public final class RestClientBuilder {
     private String pathPrefix;
     private NodeSelector nodeSelector = NodeSelector.ANY;
     private boolean strictDeprecationMode = false;
+    private boolean compressionEnabled = false;
 
     /**
      * Creates a new builder instance and sets the hosts that the client will send requests to.
@@ -182,6 +183,15 @@ public final class RestClientBuilder {
     }
 
     /**
+     * Whether the REST client should compress requests using gzip content encoding and add the "Accept-Encoding: gzip"
+     * header to receive compressed responses.
+     */
+    public RestClientBuilder setCompressionEnabled(boolean compressionEnabled) {
+        this.compressionEnabled = compressionEnabled;
+        return this;
+    }
+
+    /**
      * Creates a new {@link RestClient} based on the provided configuration.
      */
     public RestClient build() {
@@ -191,7 +201,7 @@ public final class RestClientBuilder {
         CloseableHttpAsyncClient httpClient = AccessController.doPrivileged(
             (PrivilegedAction<CloseableHttpAsyncClient>) this::createHttpClient);
         RestClient restClient = new RestClient(httpClient, defaultHeaders, nodes,
-                pathPrefix, failureListener, nodeSelector, strictDeprecationMode);
+                pathPrefix, failureListener, nodeSelector, strictDeprecationMode, compressionEnabled);
         httpClient.start();
         return restClient;
     }

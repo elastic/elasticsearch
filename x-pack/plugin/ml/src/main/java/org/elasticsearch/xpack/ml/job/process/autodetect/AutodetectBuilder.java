@@ -9,6 +9,9 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ml.calendars.ScheduledEvent;
@@ -63,7 +66,9 @@ public class AutodetectBuilder {
     public static final String QUANTILES_STATE_PATH_ARG = "--quantilesState=";
 
     private static final String CONF_EXTENSION = ".conf";
+    private static final String JSON_EXTENSION = ".json";
     static final String JOB_ID_ARG = "--jobid=";
+    private static final String CONFIG_ARG = "--config=";
     private static final String LIMIT_CONFIG_ARG = "--limitconfig=";
     private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
@@ -73,6 +78,7 @@ public class AutodetectBuilder {
     static final String MAX_QUANTILE_INTERVAL_ARG = "--maxQuantileInterval=";
     static final String SUMMARY_COUNT_FIELD_ARG = "--summarycountfield=";
     static final String TIME_FIELD_ARG = "--timefield=";
+    static final String STOP_CATEGORIZATION_ON_WARN_ARG = "--stopCategorizationOnWarnStatus";
 
     /**
      * Name of the config setting containing the path to the logs directory
@@ -168,15 +174,24 @@ public class AutodetectBuilder {
     /**
      * Requests that the controller daemon start an autodetect process.
      */
-    public void build() throws IOException {
+    public void build() throws IOException, InterruptedException {
 
         List<String> command = buildAutodetectCommand();
 
+        // While it may appear that the JSON formatted job config file contains data that
+        // is duplicated in the existing limits, modelPlot and field config files, over time
+        // the C++ backend will retrieve all its required configuration data from the new
+        // JSON config file and the old-style configuration files will be removed.
+        buildJobConfig(command);
+
+        // Per the comment above, these three lines will eventually be removed once migration
+        // to the new JSON formatted configuration file has been completed.
         buildLimits(command);
         buildModelPlotConfig(command);
+        buildFieldConfig(command);
 
         buildQuantiles(command);
-        buildFieldConfig(command);
+
         processPipes.addArgs(command);
         controller.startProcess(command);
     }
@@ -197,6 +212,9 @@ public class AutodetectBuilder {
             addIfNotNull(analysisConfig.getSummaryCountFieldName(), SUMMARY_COUNT_FIELD_ARG, command);
             if (Boolean.TRUE.equals(analysisConfig.getMultivariateByFields())) {
                 command.add(MULTIVARIATE_BY_FIELDS_ARG);
+            }
+            if (Boolean.TRUE.equals(analysisConfig.getPerPartitionCategorizationConfig().isStopOnWarn())) {
+                command.add(STOP_CATEGORIZATION_ON_WARN_ARG);
             }
         }
 
@@ -345,5 +363,18 @@ public class AutodetectBuilder {
             String fieldConfig = FIELD_CONFIG_ARG + fieldConfigFile.toString();
             command.add(fieldConfig);
         }
+    }
+
+    private void buildJobConfig(List<String> command) throws IOException {
+        Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
+        filesToDelete.add(configFile);
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(configFile),StandardCharsets.UTF_8);
+            XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+
+            job.toXContent(jsonBuilder, ToXContent.EMPTY_PARAMS);
+            osw.write(Strings.toString(jsonBuilder));
+        }
+
+        command.add(CONFIG_ARG + configFile.toString());
     }
 }

@@ -37,18 +37,12 @@ class CompositeKey implements Writeable {
     }
 
     CompositeKey(StreamInput in) throws IOException {
-        values = new Comparable[in.readVInt()];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = (Comparable) in.readGenericValue();
-        }
+        values = in.readArray(i -> (Comparable) i.readGenericValue(), Comparable[]::new);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(values.length);
-        for (int i = 0; i < values.length; i++) {
-            out.writeGenericValue(values[i]);
-        }
+        out.writeArray(StreamOutput::writeGenericValue, values);
     }
 
     Comparable[] values() {

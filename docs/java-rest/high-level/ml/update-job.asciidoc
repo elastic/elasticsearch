@@ -5,13 +5,13 @@
 --
 [role="xpack"]
 [id="{upid}-{api}"]
-=== Update {anomaly-job} API
+=== Update {anomaly-jobs} API
 
 Provides the ability to update an {anomaly-job}.
 It accepts a +{request}+ object and responds with a +{response}+ object.
 
 [id="{upid}-{api}-request"]
-==== Update {anomaly-job} request
+==== Update {anomaly-jobs} request
 
 An +{request}+ object gets created with a `JobUpdate` object.
 
@@ -56,7 +56,7 @@ include-tagged::{doc-tests-file}[{api}-detector-options]
 include::../execution.asciidoc[]
 
 [id="{upid}-{api}-response"]
-==== Update {anomaly-job} response
+==== Update {anomaly-jobs} response
 
 A +{response}+ contains the updated `Job` object
 

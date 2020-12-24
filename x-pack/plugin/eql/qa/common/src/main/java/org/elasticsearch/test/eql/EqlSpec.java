@@ -9,13 +9,23 @@ package org.elasticsearch.test.eql;
 import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
+import java.util.Objects;
 
 public class EqlSpec {
+    private String name;
     private String description;
     private String note;
     private String[] tags;
     private String query;
     private long[] expectedEventIds;
+
+    public String name() {
+        return name;
+    }
+
+    public void name(String name) {
+        this.name = name;
+    }
 
     public String description() {
         return description;
@@ -57,10 +67,23 @@ public class EqlSpec {
         this.expectedEventIds = expectedEventIds;
     }
 
+    public EqlSpec withSensitivity(boolean caseSensitive) {
+        EqlSpec spec = new EqlSpec();
+        spec.name = name;
+        spec.description = description;
+        spec.note = note;
+        spec.tags = tags;
+        spec.query = query;
+        spec.expectedEventIds = expectedEventIds;
+
+        return spec;
+    }
+
     @Override
     public String toString() {
         String str = "";
         str = appendWithComma(str, "query", query);
+        str = appendWithComma(str, "name", name);
         str = appendWithComma(str, "description", description);
         str = appendWithComma(str, "note", note);
 
@@ -72,6 +95,26 @@ public class EqlSpec {
             str = appendWithComma(str, "expected_event_ids", Arrays.toString(expectedEventIds));
         }
         return str;
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+
+        if (other == null || getClass() != other.getClass()) {
+            return false;
+        }
+
+        EqlSpec that = (EqlSpec) other;
+
+        return Objects.equals(this.query(), that.query());
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(this.query);
     }
 
     private static String appendWithComma(String str, String name, String append) {

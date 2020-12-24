@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.client.ml.inference;
 
+import org.elasticsearch.client.ml.inference.trainedmodel.InferenceStatsTests;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -58,7 +59,8 @@ public class TrainedModelStatsTests extends AbstractXContentTestCase<TrainedMode
         return new TrainedModelStats(
             randomAlphaOfLength(10),
             randomBoolean() ? null : randomIngestStats(),
-            randomInt());
+            randomInt(),
+            randomBoolean() ? null : InferenceStatsTests.randomInstance());
     }
 
     private Map<String, Object> randomIngestStats() {

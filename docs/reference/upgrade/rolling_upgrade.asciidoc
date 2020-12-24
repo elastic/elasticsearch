@@ -44,7 +44,7 @@ Upgrading directly to {version} from 6.6 or earlier requires a
 
 include::preparing_to_upgrade.asciidoc[]
 
-[float]
+[discrete]
 === Upgrading your cluster
 
 To perform a rolling upgrade to {version}:

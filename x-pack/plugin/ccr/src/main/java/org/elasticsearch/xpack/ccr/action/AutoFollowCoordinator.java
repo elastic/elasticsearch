@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -105,7 +106,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
         this.relativeMillisTimeProvider = relativeMillisTimeProvider;
         this.absoluteMillisTimeProvider = absoluteMillisTimeProvider;
         this.executor = Objects.requireNonNull(executor);
-        this.recentAutoFollowErrors = new LinkedHashMap<String, Tuple<Long, ElasticsearchException>>() {
+        this.recentAutoFollowErrors = new LinkedHashMap<>() {
             @Override
             protected boolean removeEldestEntry(final Map.Entry<String, Tuple<Long, ElasticsearchException>> eldest) {
                 return size() > MAX_AUTO_FOLLOW_ERRORS;
@@ -496,8 +497,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 leaderIndicesToFollow.size());
 
             for (final Index indexToFollow : leaderIndicesToFollow) {
+                IndexAbstraction indexAbstraction = remoteMetadata.getIndicesLookup().get(indexToFollow.getName());
                 List<String> otherMatchingPatterns = patternsForTheSameRemoteCluster.stream()
-                    .filter(otherPattern -> otherPattern.v2().match(indexToFollow.getName()))
+                    .filter(otherPattern -> otherPattern.v2().match(indexAbstraction))
                     .map(Tuple::v1)
                     .collect(Collectors.toList());
                 if (otherMatchingPatterns.size() != 0) {
@@ -560,6 +562,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.setRemoteCluster(remoteCluster);
             request.setLeaderIndex(indexToFollow.getName());
             request.setFollowerIndex(followIndexName);
+            request.setSettings(pattern.getSettings());
             request.getParameters().setMaxReadRequestOperationCount(pattern.getMaxReadRequestOperationCount());
             request.getParameters().setMaxReadRequestSize(pattern.getMaxReadRequestSize());
             request.getParameters().setMaxOutstandingReadRequests(pattern.getMaxOutstandingReadRequests());
@@ -570,6 +573,7 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
             request.getParameters().setMaxWriteBufferSize(pattern.getMaxWriteBufferSize());
             request.getParameters().setMaxRetryDelay(pattern.getMaxRetryDelay());
             request.getParameters().setReadPollTimeout(pattern.getReadPollTimeout());
+            request.masterNodeTimeout(TimeValue.MAX_VALUE);
 
             // Execute if the create and follow api call succeeds:
             Runnable successHandler = () -> {
@@ -613,7 +617,9 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                 if (leaderIndexMetadata.getState() != IndexMetadata.State.OPEN) {
                     continue;
                 }
-                if (autoFollowPattern.isActive() && autoFollowPattern.match(leaderIndexMetadata.getIndex().getName())) {
+                IndexAbstraction indexAbstraction =
+                    remoteClusterState.getMetadata().getIndicesLookup().get(leaderIndexMetadata.getIndex().getName());
+                if (autoFollowPattern.isActive() && autoFollowPattern.match(indexAbstraction)) {
                     IndexRoutingTable indexRoutingTable = remoteClusterState.routingTable().index(leaderIndexMetadata.getIndex());
                     if (indexRoutingTable != null &&
                         // Leader indices can be in the cluster state, but not all primary shards may be ready yet.
@@ -622,7 +628,6 @@ public class AutoFollowCoordinator extends AbstractLifecycleComponent implements
                         // this index will be auto followed.
                         indexRoutingTable.allPrimaryShardsActive() &&
                         followedIndexUUIDs.contains(leaderIndexMetadata.getIndex().getUUID()) == false) {
-
                         leaderIndicesToFollow.add(leaderIndexMetadata.getIndex());
                     }
                 }

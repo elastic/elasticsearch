@@ -240,7 +240,7 @@ public class RestCatTrainedModelsAction extends AbstractCatAction {
             // Trained Model Info
             table.addCell(config.getModelId());
             table.addCell(config.getCreatedBy());
-            table.addCell(new ByteSizeValue(config.getEstimatedHeapMemory()));
+            table.addCell(ByteSizeValue.ofBytes(config.getEstimatedHeapMemory()));
             table.addCell(config.getEstimatedOperations());
             table.addCell(config.getLicenseLevel());
             table.addCell(config.getCreateTime());

@@ -81,18 +81,18 @@ public class RealmsTests extends ESTestCase {
     }
 
     private void allowAllRealms() {
-        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
-        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
     }
 
     private void allowOnlyStandardRealms() {
-        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
-        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
+        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)).thenReturn(true);
     }
 
     private void allowOnlyNativeRealms() {
-        when(licenseState.isAllowed(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
-        when(licenseState.isAllowed(Feature.SECURITY_STANDARD_REALMS)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(false);
+        when(licenseState.checkFeature(Feature.SECURITY_STANDARD_REALMS)).thenReturn(false);
     }
 
     public void testWithSettings() throws Exception {

@@ -1,7 +1,7 @@
 [role="xpack"]
 [testenv="basic"]
 [[start-transform]]
-=== Start {transform} API
+= Start {transform} API
 
 [subs="attributes"]
 ++++
@@ -11,12 +11,12 @@
 Starts one or more {transforms}.
 
 [[start-transform-request]]
-==== {api-request-title}
+== {api-request-title}
 
 `POST _transform/<transform_id>/_start`
 
 [[start-transform-prereqs]]
-==== {api-prereq-title}
+== {api-prereq-title}
 
 If the {es} {security-features} are enabled, you must have the following 
 built-in roles and privileges:
@@ -28,7 +28,7 @@ For more information, see <<security-privileges>> and <<built-in-roles>>.
 
 
 [[start-transform-desc]]
-==== {api-description-title}
+== {api-description-title}
 
 When you start a {transform}, it creates the destination index if it
 does not already exist. The `number_of_shards` is set to `1` and the
@@ -51,14 +51,14 @@ required privileges on the source and destination indices, the
 {transform} fails when it attempts unauthorized operations.
 
 [[start-transform-path-parms]]
-==== {api-path-parms-title}
+== {api-path-parms-title}
 
 `<transform_id>`::
 (Required, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 
 [[start-transform-example]]
-==== {api-examples-title}
+== {api-examples-title}
 
 [source,console]
 --------------------------------------------------

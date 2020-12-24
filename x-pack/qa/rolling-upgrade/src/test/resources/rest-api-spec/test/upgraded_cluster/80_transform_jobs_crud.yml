@@ -279,6 +279,8 @@ setup:
 
 ---
 "Test index mappings for latest internal index and audit index":
+  - skip:
+      features: warnings
   - do:
       transform.put_transform:
         transform_id: "upgraded-simple-transform"
@@ -295,6 +297,8 @@ setup:
   - match: { acknowledged: true }
 
   - do:
+      warnings:
+        - "this request accesses system indices: [.transform-internal-005], but in a future major version, direct access to system indices will be prevented by default"
       indices.get_mapping:
         index: .transform-internal-005
   - match: { \.transform-internal-005.mappings.dynamic: "false" }

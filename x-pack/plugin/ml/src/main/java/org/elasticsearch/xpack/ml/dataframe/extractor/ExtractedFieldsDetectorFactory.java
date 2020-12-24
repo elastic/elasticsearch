@@ -6,8 +6,12 @@
 package org.elasticsearch.xpack.ml.dataframe.extractor;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -32,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.FieldCardinalityConstraint;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -41,10 +46,15 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+
 /**
  * A factory that retrieves all the parts necessary to build a {@link ExtractedFieldsDetector}.
  */
 public class ExtractedFieldsDetectorFactory {
+
+    private static final Logger LOGGER = LogManager.getLogger(ExtractedFieldsDetectorFactory.class);
 
     private final Client client;
 
@@ -68,8 +78,7 @@ public class ExtractedFieldsDetectorFactory {
         ActionListener<Map<String, Long>> fieldCardinalitiesHandler = ActionListener.wrap(
             fieldCardinalities -> {
                 ExtractedFieldsDetector detector =
-                    new ExtractedFieldsDetector(
-                        index, config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
+                    new ExtractedFieldsDetector(config, docValueFieldsLimitHolder.get(), fieldCapsResponseHolder.get(), fieldCardinalities);
                 listener.onResponse(detector);
             },
             listener::onFailure
@@ -78,6 +87,8 @@ public class ExtractedFieldsDetectorFactory {
         // Step 3. Get cardinalities for fields with constraints
         ActionListener<FieldCapabilitiesResponse> fieldCapabilitiesHandler = ActionListener.wrap(
             fieldCapabilitiesResponse -> {
+                LOGGER.debug(() -> new ParameterizedMessage(
+                    "[{}] Field capabilities response: {}", config.getId(), fieldCapabilitiesResponse));
                 fieldCapsResponseHolder.set(fieldCapabilitiesResponse);
                 getCardinalitiesForFieldsWithConstraints(index, config, fieldCapabilitiesResponse, fieldCardinalitiesHandler);
             },
@@ -114,7 +125,11 @@ public class ExtractedFieldsDetectorFactory {
 
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0).query(config.getSource().getParsedQuery());
         for (FieldCardinalityConstraint constraint : fieldCardinalityConstraints) {
-            for (FieldCapabilities fieldCaps : fieldCapabilitiesResponse.getField(constraint.getField()).values()) {
+            Map<String, FieldCapabilities> fieldCapsPerType = fieldCapabilitiesResponse.getField(constraint.getField());
+            if (fieldCapsPerType == null) {
+                throw ExceptionsHelper.badRequestException("no mappings could be found for field [{}]", constraint.getField());
+            }
+            for (FieldCapabilities fieldCaps : fieldCapsPerType.values()) {
                 if (fieldCaps.isAggregatable() == false) {
                     throw ExceptionsHelper.badRequestException("field [{}] of type [{}] is non-aggregatable",
                         fieldCaps.getName(), fieldCaps.getType());
@@ -127,7 +142,7 @@ public class ExtractedFieldsDetectorFactory {
         }
         SearchRequest searchRequest = new SearchRequest(index).source(searchSourceBuilder);
         ClientHelper.executeWithHeadersAsync(
-            config.getHeaders(), ClientHelper.ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
+            config.getHeaders(), ML_ORIGIN, client, SearchAction.INSTANCE, searchRequest, searchListener);
     }
 
     private void buildFieldCardinalitiesMap(DataFrameAnalyticsConfig config, SearchResponse searchResponse,
@@ -155,7 +170,9 @@ public class ExtractedFieldsDetectorFactory {
         fieldCapabilitiesRequest.indices(index);
         fieldCapabilitiesRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         fieldCapabilitiesRequest.fields("*");
-        ClientHelper.executeWithHeaders(config.getHeaders(), ClientHelper.ML_ORIGIN, client, () -> {
+        LOGGER.debug(() -> new ParameterizedMessage(
+            "[{}] Requesting field caps for index {}", config.getId(), Arrays.toString(index)));
+        ClientHelper.executeWithHeaders(config.getHeaders(), ML_ORIGIN, client, () -> {
             client.execute(FieldCapabilitiesAction.INSTANCE, fieldCapabilitiesRequest, listener);
             // This response gets discarded - the listener handles the real response
             return null;
@@ -192,6 +209,6 @@ public class ExtractedFieldsDetectorFactory {
         getSettingsRequest.indices(index);
         getSettingsRequest.includeDefaults(true);
         getSettingsRequest.names(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
-        client.admin().indices().getSettings(getSettingsRequest, settingsListener);
+        executeAsyncWithOrigin(client, ML_ORIGIN, GetSettingsAction.INSTANCE, getSettingsRequest, settingsListener);
     }
 }

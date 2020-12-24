@@ -21,6 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.script.Script;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 
 /**
@@ -44,6 +45,13 @@ public class SortBuilders {
      */
     public static FieldSortBuilder fieldSort(String field) {
         return new FieldSortBuilder(field);
+    }
+
+    /**
+     * Constructs a sort tiebreaker that can be used within a point in time reader {@link PointInTimeBuilder}.
+     */
+    public static FieldSortBuilder pitTiebreaker() {
+        return new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME);
     }
 
     /**

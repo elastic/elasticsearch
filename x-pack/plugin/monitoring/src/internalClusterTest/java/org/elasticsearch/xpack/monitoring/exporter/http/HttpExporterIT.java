@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.TestUtils;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.monitoring.collector.indices.IndexRecoveryMonitor
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
 import org.elasticsearch.xpack.monitoring.exporter.ExportBulk;
 import org.elasticsearch.xpack.monitoring.exporter.Exporter;
+import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinator;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -99,6 +100,7 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
     private final boolean watcherAlreadyExists = randomBoolean();
     private final Environment environment = TestEnvironment.newEnvironment(Settings.builder().put("path.home", createTempDir()).build());
     private final String userName = "elasticuser";
+    private final MonitoringMigrationCoordinator coordinator = new MonitoringMigrationCoordinator();
 
     private MockWebServer webServer;
 
@@ -648,10 +650,10 @@ public class HttpExporterIT extends MonitoringIntegTestCase {
 
     private HttpExporter createHttpExporter(final Settings settings) {
         final Exporter.Config config =
-                new Exporter.Config("_http", "http", settings, clusterService(), new XPackLicenseState(Settings.EMPTY));
+                new Exporter.Config("_http", "http", settings, clusterService(), TestUtils.newTestLicenseState());
 
         final Environment env = TestEnvironment.newEnvironment(buildEnvSettings(settings));
-        return new HttpExporter(config, new SSLService(env), new ThreadContext(settings));
+        return new HttpExporter(config, new SSLService(env), new ThreadContext(settings), coordinator);
     }
 
     private void export(final Settings settings, final Collection<MonitoringDoc> docs) throws Exception {

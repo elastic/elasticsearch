@@ -138,6 +138,7 @@ public final class ReservedFieldNames {
             DataCounts.LAST_DATA_TIME.getPreferredName(),
             DataCounts.LATEST_EMPTY_BUCKET_TIME.getPreferredName(),
             DataCounts.LATEST_SPARSE_BUCKET_TIME.getPreferredName(),
+            DataCounts.LOG_TIME.getPreferredName(),
 
             Detector.DETECTOR_INDEX.getPreferredName(),
 
@@ -173,11 +174,13 @@ public final class ReservedFieldNames {
             ForecastRequestStats.MEMORY_USAGE.getPreferredName(),
 
             ModelSizeStats.MODEL_BYTES_FIELD.getPreferredName(),
+            ModelSizeStats.PEAK_MODEL_BYTES_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_BY_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_OVER_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.TOTAL_PARTITION_FIELD_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.BUCKET_ALLOCATION_FAILURES_COUNT_FIELD.getPreferredName(),
             ModelSizeStats.MEMORY_STATUS_FIELD.getPreferredName(),
+            ModelSizeStats.ASSIGNMENT_MEMORY_BASIS_FIELD.getPreferredName(),
             ModelSizeStats.LOG_TIME_FIELD.getPreferredName(),
 
             ModelSnapshot.DESCRIPTION.getPreferredName(),
@@ -325,12 +328,14 @@ public final class ReservedFieldNames {
             Regression.LOSS_FUNCTION_PARAMETER.getPreferredName(),
             Regression.PREDICTION_FIELD_NAME.getPreferredName(),
             Regression.TRAINING_PERCENT.getPreferredName(),
+            Regression.FEATURE_PROCESSORS.getPreferredName(),
             Classification.NAME.getPreferredName(),
             Classification.DEPENDENT_VARIABLE.getPreferredName(),
             Classification.PREDICTION_FIELD_NAME.getPreferredName(),
             Classification.CLASS_ASSIGNMENT_OBJECTIVE.getPreferredName(),
             Classification.NUM_TOP_CLASSES.getPreferredName(),
             Classification.TRAINING_PERCENT.getPreferredName(),
+            Classification.FEATURE_PROCESSORS.getPreferredName(),
             BoostedTreeParams.LAMBDA.getPreferredName(),
             BoostedTreeParams.GAMMA.getPreferredName(),
             BoostedTreeParams.ETA.getPreferredName(),

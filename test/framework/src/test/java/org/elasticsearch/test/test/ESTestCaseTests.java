@@ -22,6 +22,7 @@ package org.elasticsearch.test.test;
 import junit.framework.AssertionFailedError;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
@@ -198,5 +200,21 @@ public class ESTestCaseTests extends ESTestCase {
     public void testBasePortIDE() {
         assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
         assertEquals(10300, ESTestCase.getBasePort());
+    }
+
+    public void testRandomDateFormatterPattern() {
+        DateFormatter formatter = DateFormatter.forPattern(randomDateFormatterPattern());
+        /*
+         * Make sure it doesn't crash trying to format some dates and
+         * that round tripping through millis doesn't lose any information.
+         * Interestingly, round tripping through a string *can* lose
+         * information because not all date formats spit out milliseconds.
+         * Hell, not all of them spit out the time of day at all!
+         * But going from text back to millis back to text should
+         * be fine!
+         */
+        String formatted = formatter.formatMillis(randomLongBetween(0, 2_000_000_000_000L));
+        String formattedAgain = formatter.formatMillis(formatter.parseMillis(formatted));
+        assertThat(formattedAgain, equalTo(formatted));
     }
 }

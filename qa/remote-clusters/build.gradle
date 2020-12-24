@@ -23,7 +23,7 @@ import org.elasticsearch.gradle.testfixtures.TestFixturesPlugin
 
 apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.test.fixtures'
-apply plugin: 'elasticsearch.distribution-download'
+apply plugin: 'elasticsearch.internal-distribution-download'
 
 testFixtures.useFixture()
 
@@ -31,13 +31,17 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-task copyKeystore(type: Sync) {
+tasks.register("copyNodeKeyMaterial", Sync) {
   from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
   into "${buildDir}/certs"
   doLast {
     file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
+    file("${buildDir}/certs/testnode.pem").setReadable(true, false)
+    file("${buildDir}/certs/testnode.crt").setReadable(true, false)
   }
 }
 
@@ -51,8 +55,8 @@ elasticsearch_distributions {
   }
 }
 
-preProcessFixture {
-  dependsOn copyKeystore, elasticsearch_distributions.docker
+tasks.named("preProcessFixture").configure {
+  dependsOn "copyNodeKeyMaterial", elasticsearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -87,15 +91,18 @@ def createAndSetWritable(Object... locations) {
   }
 }
 
-processTestResources {
+tasks.named("processTestResources").configure {
   from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
 }
 
-task integTest(type: Test) {
+tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
 }
 
-check.dependsOn integTest
+tasks.named("check").configure { dependsOn "integTest" }

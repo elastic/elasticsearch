@@ -20,6 +20,7 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.BitMixer;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -46,10 +47,19 @@ public final class BytesRefHash extends AbstractHash {
     //Constructor with configurable capacity and load factor.
     public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
-        startOffsets = bigArrays.newLongArray(capacity + 1, false);
-        startOffsets.set(0, 0);
-        bytes = bigArrays.newByteArray(capacity * 3, false);
-        hashes = bigArrays.newIntArray(capacity, false);
+        boolean success = false;
+        try {
+            // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
+            startOffsets = bigArrays.newLongArray(capacity + 1, false);
+            startOffsets.set(0, 0);
+            bytes = bigArrays.newByteArray(capacity * 3, false);
+            hashes = bigArrays.newIntArray(capacity, false);
+            success = true;
+        } finally {
+            if (false == success) {
+                close();
+            }
+        }
         spare = new BytesRef();
     }
 

@@ -11,8 +11,10 @@ import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.config.PerPartitionCategorizationConfig;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 public final class UpdateParams {
 
@@ -70,6 +72,23 @@ public final class UpdateParams {
 
     public boolean isUpdateScheduledEvents() {
         return updateScheduledEvents;
+    }
+
+    /**
+     * Returns all filters referenced by this update
+     * @return all referenced filters
+     */
+    public Set<String> extractReferencedFilters() {
+        Set<String> filterIds = new HashSet<>();
+        if (filter != null) {
+            filterIds.add(filter.getId());
+        }
+        if (detectorUpdates != null) {
+            detectorUpdates.forEach(
+                detectorUpdate -> detectorUpdate.getRules().forEach(
+                    rule -> filterIds.addAll(rule.extractReferencedFilters())));
+        }
+        return filterIds;
     }
 
     public static UpdateParams fromJobUpdate(JobUpdate jobUpdate) {

@@ -1,0 +1,31 @@
+// This file is auto-generated. Do not edit.
+
+[[painless-api-reference-number-sort]]
+=== Number Sort API
+
+The following specialized API is available in the Number Sort context.
+
+* See the <<painless-api-reference-shared, Shared API>> for further API available in all contexts.
+
+==== Classes By Package
+The following classes are available grouped by their respective packages. Click on a class to view details about the available methods and fields.
+
+
+==== java.lang
+<<painless-api-reference-number-sort-java-lang, Expand details for java.lang>>
+
+* <<painless-api-reference-number-sort-String, String>>
+
+==== org.elasticsearch.xpack.sql.expression.literal.geo
+<<painless-api-reference-number-sort-org-elasticsearch-xpack-sql-expression-literal-geo, Expand details for org.elasticsearch.xpack.sql.expression.literal.geo>>
+
+* <<painless-api-reference-number-sort-GeoShape, GeoShape>>
+
+==== org.elasticsearch.xpack.sql.expression.literal.interval
+<<painless-api-reference-number-sort-org-elasticsearch-xpack-sql-expression-literal-interval, Expand details for org.elasticsearch.xpack.sql.expression.literal.interval>>
+
+* <<painless-api-reference-number-sort-IntervalDayTime, IntervalDayTime>>
+* <<painless-api-reference-number-sort-IntervalYearMonth, IntervalYearMonth>>
+
+include::packages.asciidoc[]
+

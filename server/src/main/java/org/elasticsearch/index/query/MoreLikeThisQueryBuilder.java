@@ -971,9 +971,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // set analyzer
         Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.getMapperService().searchAnalyzer();
+            analyzerObj = context.getIndexAnalyzer(f -> {
+                throw new UnsupportedOperationException("No analyzer configured for field " + f);
+            });
         }
-        mltQuery.setAnalyzer(analyzerObj);
+        mltQuery.setAnalyzer(analyzer, analyzerObj);
 
         // set like text fields
         boolean useDefaultField = (fields == null);
@@ -989,7 +991,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         } else {
             for (String field : fields) {
-                MappedFieldType fieldType = context.fieldMapper(field);
+                MappedFieldType fieldType = context.getFieldType(field);
                 if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
@@ -1106,7 +1108,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             // no mappings, nothing to exclude
             return;

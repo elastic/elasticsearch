@@ -80,6 +80,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -462,6 +463,35 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
+    public void testNoChannelsExceptREG() throws Exception {
+        List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
+        try (MockTransportService seedTransport = startTransport("seed_node", knownNodes, Version.CURRENT)) {
+            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            knownNodes.add(seedTransport.getLocalDiscoNode());
+            try (MockTransportService service = MockTransportService.createNewService(Settings.EMPTY, Version.CURRENT, threadPool, null)) {
+                service.start();
+                service.acceptIncomingRequests();
+                String clusterAlias = "test-cluster";
+                Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
+
+                try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
+                    PlainActionFuture<Void> plainActionFuture = new PlainActionFuture<>();
+                    connection.ensureConnected(plainActionFuture);
+                    plainActionFuture.get(10, TimeUnit.SECONDS);
+
+                    for (TransportRequestOptions.Type type : TransportRequestOptions.Type.values()) {
+                        if (type != TransportRequestOptions.Type.REG) {
+                            assertThat(expectThrows(IllegalStateException.class,
+                                    () -> connection.getConnection().sendRequest(randomNonNegativeLong(),
+                                    "arbitrary", TransportRequest.Empty.INSTANCE, TransportRequestOptions.of(null, type))).getMessage(),
+                                    allOf(containsString("can't select"), containsString(type.toString())));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     public void testConnectedNodesConcurrentAccess() throws IOException, InterruptedException {
         List<DiscoveryNode> knownNodes = new CopyOnWriteArrayList<>();
         List<MockTransportService> discoverableTransports = new CopyOnWriteArrayList<>();
@@ -559,7 +589,7 @@ public class RemoteClusterConnectionTests extends ESTestCase {
                 String clusterAlias = "test-cluster";
                 Settings settings = buildRandomSettings(clusterAlias, addresses(seedNode));
                 try (RemoteClusterConnection connection = new RemoteClusterConnection(settings, clusterAlias, service)) {
-                    PlainActionFuture.get(fut -> connection.ensureConnected(ActionListener.map(fut, x -> null)));
+                    PlainActionFuture.get(fut -> connection.ensureConnected(fut.map(x -> null)));
                     for (int i = 0; i < 10; i++) {
                         //always a direct connection as the remote node is already connected
                         Transport.Connection remoteConnection = connection.getConnection(seedNode);

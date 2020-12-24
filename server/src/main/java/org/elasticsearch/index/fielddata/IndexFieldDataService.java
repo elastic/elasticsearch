@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -38,6 +39,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
@@ -106,14 +108,16 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         ExceptionsHelper.maybeThrowRuntimeAndSuppress(exceptions);
     }
 
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return getForField(fieldType, index().getName());
-    }
-
+    /**
+     * Returns fielddata for the provided field type, given the provided fully qualified index name, while also making
+     * a {@link SearchLookup} supplier available that is required for runtime fields.
+     */
     @SuppressWarnings("unchecked")
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType, String fullyQualifiedIndexName) {
+    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType,
+                                                           String fullyQualifiedIndexName,
+                                                           Supplier<SearchLookup> searchLookup) {
         final String fieldName = fieldType.name();
-        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName);
+        IndexFieldData.Builder builder = fieldType.fielddataBuilder(fullyQualifiedIndexName, searchLookup);
 
         IndexFieldDataCache cache;
         synchronized (this) {
@@ -131,7 +135,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
             }
         }
 
-        return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);
+        return (IFD) builder.build(cache, circuitBreakerService);
     }
 
     /**

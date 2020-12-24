@@ -19,15 +19,9 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.NewArrayNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -62,50 +56,14 @@ public class ENewArray extends AExpression {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        if (input.write) {
-            throw createError(new IllegalArgumentException("invalid assignment: cannot assign a value to new array"));
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitNewArray(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        for (AExpression valueNode : valueNodes) {
+            valueNode.visit(userTreeVisitor, scope);
         }
-
-        if (input.read == false) {
-            throw createError(new IllegalArgumentException("not a statement: result not used from new array"));
-        }
-
-        Output output = new Output();
-
-        Class<?> clazz = scriptRoot.getPainlessLookup().canonicalTypeNameToType(canonicalTypeName);
-
-        if (clazz == null) {
-            throw createError(new IllegalArgumentException("Not a type [" + canonicalTypeName + "]."));
-        }
-
-        List<Output> argumentOutputs = new ArrayList<>();
-        List<PainlessCast> argumentCasts = new ArrayList<>();
-
-        for (AExpression expression : valueNodes) {
-            Input expressionInput = new Input();
-            expressionInput.expected = isInitializer ? clazz.getComponentType() : int.class;
-            expressionInput.internal = true;
-            Output expressionOutput = analyze(expression, classNode, scriptRoot, scope, expressionInput);
-            argumentOutputs.add(expressionOutput);
-            argumentCasts.add(AnalyzerCaster.getLegalCast(expression.getLocation(),
-                    expressionOutput.actual, expressionInput.expected, expressionInput.explicit, expressionInput.internal));
-        }
-
-        output.actual = clazz;
-
-        NewArrayNode newArrayNode = new NewArrayNode();
-
-        for (int i = 0; i < valueNodes.size(); ++ i) {
-            newArrayNode.addArgumentNode(cast(argumentOutputs.get(i).expressionNode, argumentCasts.get(i)));
-        }
-
-        newArrayNode.setLocation(getLocation());
-        newArrayNode.setExpressionType(output.actual);
-        newArrayNode.setInitialize(isInitializer);
-
-        output.expressionNode = newArrayNode;
-
-        return output;
     }
 }

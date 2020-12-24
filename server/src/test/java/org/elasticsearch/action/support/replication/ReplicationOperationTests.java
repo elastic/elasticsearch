@@ -387,7 +387,7 @@ public class ReplicationOperationTests extends ESTestCase {
         final TestPrimary primary = new TestPrimary(primaryShard, replicationGroup::get, threadPool) {
             @Override
             public void perform(Request request, ActionListener<Result> listener) {
-                super.perform(request, ActionListener.map(listener, result -> {
+                super.perform(request, listener.map(result -> {
                     replicationGroup.set(updatedReplicationGroup);
                     logger.debug("--> state after primary operation:\n{}", replicationGroup.get());
                     return result;
@@ -561,8 +561,8 @@ public class ReplicationOperationTests extends ESTestCase {
         final long maxSeqNoOfUpdatesOrDeletes;
         final Supplier<ReplicationGroup> replicationGroupSupplier;
         final PendingReplicationActions pendingReplicationActions;
-        final Map<String, Long> knownLocalCheckpoints = new HashMap<>();
-        final Map<String, Long> knownGlobalCheckpoints = new HashMap<>();
+        final Map<String, Long> knownLocalCheckpoints = Collections.synchronizedMap(new HashMap<>());
+        final Map<String, Long> knownGlobalCheckpoints = Collections.synchronizedMap(new HashMap<>());
 
         TestPrimary(ShardRouting routing, Supplier<ReplicationGroup> replicationGroupSupplier, ThreadPool threadPool) {
             this.routing = routing;

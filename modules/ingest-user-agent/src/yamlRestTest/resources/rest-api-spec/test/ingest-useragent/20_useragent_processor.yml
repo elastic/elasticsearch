@@ -1,0 +1,73 @@
+---
+"Test user agent processor with defaults":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "user_agent" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36" }
+  - match: { _source.user_agent.name: "Chrome" }
+  - match: { _source.user_agent.original: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36" }
+  - match: { _source.user_agent.os: {"name":"Mac OS X", "version":"10.9.2", "full":"Mac OS X 10.9.2"} }
+  - match: { _source.user_agent.version: "33.0.1750.149" }
+  - match: { _source.user_agent.device: {"name": "Mac" }}
+
+---
+"Test user agent processor with parameters":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "user_agent" : {
+                  "field" : "field1",
+                  "target_field": "field2",
+                  "properties": ["os"]
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: 1
+        pipeline: "my_pipeline"
+        body: {field1: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36"}
+
+  - do:
+      get:
+        index: test
+        id: 1
+  - match: { _source.field1: "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_9_2) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/33.0.1750.149 Safari/537.36" }
+  - match: { _source.field2.os.full: "Mac OS X 10.9.2" }
+  - is_false: _source.user_agent
+  - is_false: _source.field2.name
+  - is_false: _source.field2.device
+  - is_false: _source.field2.original

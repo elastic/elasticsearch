@@ -38,7 +38,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Netty4Utils {
 
-    private static AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
+    private static final AtomicBoolean isAvailableProcessorsSet = new AtomicBoolean();
 
     /**
      * Set the number of available processors that Netty uses for sizing various resources (e.g., thread pools).

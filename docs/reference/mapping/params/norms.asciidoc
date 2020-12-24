@@ -19,7 +19,7 @@ Norms can be disabled (but not reenabled after the fact), using the
 
 [source,console]
 ------------
-PUT my_index/_mapping
+PUT my-index-000001/_mapping
 {
   "properties": {
     "title": {
@@ -29,7 +29,7 @@ PUT my_index/_mapping
   }
 }
 ------------
-// TEST[s/^/PUT my_index\n/]
+// TEST[s/^/PUT my-index-000001\n/]
 
 NOTE: Norms will not be removed instantly, but will be removed as old segments
 are merged into new segments as you continue indexing new documents. Any score

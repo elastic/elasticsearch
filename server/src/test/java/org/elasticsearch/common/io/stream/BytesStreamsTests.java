@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,6 +36,7 @@ import org.joda.time.DateTimeZone;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -60,7 +62,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
- * Tests for {@link BytesStreamOutput} paging behaviour.
+ * Tests for {@link StreamOutput}.
  */
 public class BytesStreamsTests extends ESTestCase {
     public void testEmpty() throws Exception {
@@ -311,6 +313,8 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeOptionalTimeZone(DateTimeZone.getDefault());
         out.writeOptionalTimeZone(null);
         out.writeGenericValue(new DateTime(123456, DateTimeZone.forID("America/Los_Angeles")));
+        final OffsetTime offsetNow = OffsetTime.now(randomZone());
+        out.writeGenericValue(offsetNow);
         final byte[] bytes = BytesReference.toBytes(out.bytes());
         StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
         assertEquals(in.available(), bytes.length);
@@ -348,6 +352,7 @@ public class BytesStreamsTests extends ESTestCase {
         JodaCompatibleZonedDateTime jdt = (JodaCompatibleZonedDateTime) dt;
         assertThat(jdt.getZonedDateTime().toInstant().toEpochMilli(), equalTo(123456L));
         assertThat(jdt.getZonedDateTime().getZone(), equalTo(ZoneId.of("America/Los_Angeles")));
+        assertThat(in.readGenericValue(), equalTo(offsetNow));
         assertEquals(0, in.available());
         IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> out.writeGenericValue(new Object() {
             @Override
@@ -498,6 +503,38 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat(expected, equalTo(loaded));
     }
 
+    public void testWriteImmutableMap() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final ImmutableOpenMap.Builder<String, String> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expectedBuilder.put(randomAlphaOfLength(2), randomAlphaOfLength(5));
+        }
+
+        final ImmutableOpenMap<String, String> expected = expectedBuilder.build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected, StreamOutput::writeString, StreamOutput::writeString);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final ImmutableOpenMap<String, String> loaded = in.readImmutableMap(StreamInput::readString, StreamInput::readString);
+
+        assertThat(expected, equalTo(loaded));
+    }
+
+    public void testWriteImmutableMapOfWritable() throws IOException {
+        final int size = randomIntBetween(0, 100);
+        final ImmutableOpenMap.Builder<TestWriteable, TestWriteable> expectedBuilder = ImmutableOpenMap.builder(randomIntBetween(0, 100));
+        for (int i = 0; i < size; ++i) {
+            expectedBuilder.put(new TestWriteable(randomBoolean()), new TestWriteable(randomBoolean()));
+        }
+
+        final ImmutableOpenMap<TestWriteable, TestWriteable> expected = expectedBuilder.build();
+        final BytesStreamOutput out = new BytesStreamOutput();
+        out.writeMap(expected);
+        final StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
+        final ImmutableOpenMap<TestWriteable, TestWriteable> loaded = in.readImmutableMap(TestWriteable::new, TestWriteable::new);
+
+        assertThat(expected, equalTo(loaded));
+    }
+
     public void testWriteMapOfLists() throws IOException {
         final int size = randomIntBetween(0, 5);
         final Map<String, List<String>> expected = new HashMap<>(size);
@@ -628,6 +665,16 @@ public class BytesStreamsTests extends ESTestCase {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeBoolean(value);
         }
+
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof TestWriteable && value == ((TestWriteable) o).value;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(value);
+        }
     }
 
     public void testWriteMapWithConsistentOrder() throws IOException {
@@ -753,7 +800,7 @@ public class BytesStreamsTests extends ESTestCase {
                     assertEquals(i, ints[i]);
                 }
                 EOFException eofException = expectThrows(EOFException.class, () -> streamInput.readIntArray());
-                assertEquals("tried to read: 100 bytes but only 40 remaining", eofException.getMessage());
+                assertEquals("tried to read: 100 bytes but this stream is limited to: 82", eofException.getMessage());
             }
         }
     }
@@ -784,6 +831,16 @@ public class BytesStreamsTests extends ESTestCase {
         final int value = randomInt();
         BytesStreamOutput output = new BytesStreamOutput();
         output.writeVInt(value);
+
+        BytesStreamOutput simple = new BytesStreamOutput();
+        int i = value;
+        while ((i & ~0x7F) != 0) {
+            simple.writeByte(((byte) ((i & 0x7f) | 0x80)));
+            i >>>= 7;
+        }
+        simple.writeByte((byte) i);
+        assertEquals(simple.bytes().toBytesRef().toString(), output.bytes().toBytesRef().toString());
+
         StreamInput input = output.bytes().streamInput();
         assertEquals(value, input.readVInt());
     }

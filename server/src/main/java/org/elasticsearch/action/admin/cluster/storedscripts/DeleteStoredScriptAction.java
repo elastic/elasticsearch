@@ -28,7 +28,7 @@ public class DeleteStoredScriptAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/script/delete";
 
     private DeleteStoredScriptAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

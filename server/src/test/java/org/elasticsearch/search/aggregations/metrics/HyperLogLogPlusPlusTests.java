@@ -21,13 +21,25 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
+
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus.MAX_PRECISION;
-import static org.elasticsearch.search.aggregations.metrics.HyperLogLogPlusPlus.MIN_PRECISION;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MAX_PRECISION;
+import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class HyperLogLogPlusPlusTests extends ESTestCase {
     public void testEncodeDecode() {
@@ -47,11 +59,11 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     }
 
     private void testEncodeDecode(int p1, long hash) {
-        final long index = HyperLogLogPlusPlus.index(hash, p1);
-        final int runLen = HyperLogLogPlusPlus.runLen(hash, p1);
-        final int encoded = HyperLogLogPlusPlus.encodeHash(hash, p1);
-        assertEquals(index, HyperLogLogPlusPlus.decodeIndex(encoded, p1));
-        assertEquals(runLen, HyperLogLogPlusPlus.decodeRunLen(encoded, p1));
+        final long index = AbstractHyperLogLog.index(hash, p1);
+        final int runLen = AbstractHyperLogLog.runLen(hash, p1);
+        final int encoded = AbstractLinearCounting.encodeHash(hash, p1);
+        assertEquals(index, AbstractHyperLogLog.decodeIndex(encoded, p1));
+        assertEquals(runLen, AbstractHyperLogLog.decodeRunLen(encoded, p1));
     }
 
     public void testAccuracy() {
@@ -126,5 +138,61 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertEquals(16, HyperLogLogPlusPlus.precisionFromThreshold(10000));
         assertEquals(18, HyperLogLogPlusPlus.precisionFromThreshold(100000));
         assertEquals(18, HyperLogLogPlusPlus.precisionFromThreshold(1000000));
+    }
+
+    public void testCircuitBreakerOnConstruction() {
+        int whenToBreak = randomInt(10);
+        AtomicLong total = new AtomicLong();
+        CircuitBreakerService breakerService = mock(CircuitBreakerService.class);
+        when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
+            private int countDown = whenToBreak;
+            @Override
+            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (countDown-- == 0) {
+                    throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
+                }
+                total.addAndGet(bytes);
+                return total.get();
+            }
+
+            @Override
+            public long addWithoutBreaking(long bytes) {
+                total.addAndGet(bytes);
+                return total.get();
+            }
+        });
+        BigArrays bigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();
+        final int p = randomIntBetween(HyperLogLogPlusPlus.MIN_PRECISION, HyperLogLogPlusPlus.MAX_PRECISION);
+        try {
+            for (int i = 0; i < whenToBreak + 1; ++i) {
+                final HyperLogLogPlusPlus subject = new HyperLogLogPlusPlus(p, bigArrays, 0);
+                subject.close();
+            }
+            fail("Must fail");
+        } catch (CircuitBreakingException e) {
+            // OK
+        }
+
+        assertThat(total.get(), equalTo(0L));
+    }
+
+    public void testRetrieveCardinality() {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        int bucket = randomInt(100);
+        counts.collect(bucket, randomLong());
+        for (int i = 0; i < 1000; i++) {
+            int cardinality = bucket == i ? 1 : 0;
+            assertEquals(cardinality, counts.cardinality(i));
+        }
+    }
+
+    public void testAllocation() {
+        int precision = between(MIN_PRECISION, MAX_PRECISION);
+        long initialBucketCount = between(0, 100);
+        MockBigArrays.assertFitsIn(
+            ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
+            bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
+        );
     }
 }

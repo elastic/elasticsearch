@@ -74,14 +74,6 @@ public abstract class AllocationDecider {
     }
 
     /**
-     * Returns a {@link Decision} whether the given node can allow any allocation at all at this state of the
-     * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
-     */
-    public Decision canAllocate(RoutingNode node, RoutingAllocation allocation) {
-        return Decision.ALWAYS;
-    }
-
-    /**
      * Returns a {@link Decision} whether shards of the given index should be auto-expanded to this node at this state of the
      * {@link RoutingAllocation}. The default is {@link Decision#ALWAYS}.
      */

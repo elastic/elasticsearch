@@ -129,7 +129,6 @@ public class SnapshotRequestsTests extends ESTestCase {
         builder.field("allow_no_indices", indicesOptions.allowNoIndices());
         boolean partial = randomBoolean();
         builder.field("partial", partial);
-        builder.startObject("settings").field("set1", "val1").endObject();
         builder.startObject("index_settings").field("set1", "val2").endObject();
         if (randomBoolean()) {
             builder.field("ignore_index_settings", "set2,set3");
@@ -152,7 +151,6 @@ public class SnapshotRequestsTests extends ESTestCase {
         assertEquals("test-snap", request.snapshot());
         assertArrayEquals(request.indices(), new String[]{"foo", "bar", "baz"});
         assertEquals(partial, request.partial());
-        assertEquals("val1", request.settings().get("set1"));
         boolean expectedIgnoreAvailable = includeIgnoreUnavailable
             ? indicesOptions.ignoreUnavailable()
             : IndicesOptions.strictExpandOpen().ignoreUnavailable();

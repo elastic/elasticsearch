@@ -31,11 +31,11 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -53,9 +53,12 @@ import java.util.Map;
 import java.util.Objects;
 
 
-public final class IpRangeAggregationBuilder
-        extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
+public final class IpRangeAggregationBuilder extends ValuesSourceAggregationBuilder<IpRangeAggregationBuilder> {
     public static final String NAME = "ip_range";
+    public static final ValuesSourceRegistry.RegistryKey<IpRangeAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
+        NAME,
+        IpRangeAggregatorSupplier.class
+    );
     private static final ParseField MASK_FIELD = new ParseField("mask");
 
     public static final ObjectParser<IpRangeAggregationBuilder, String> PARSER =
@@ -238,6 +241,11 @@ public final class IpRangeAggregationBuilder
         return NAME;
     }
 
+    @Override
+    protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+        return REGISTRY_KEY;
+    }
+
     public IpRangeAggregationBuilder keyed(boolean keyed) {
         this.keyed = keyed;
         return this;
@@ -374,8 +382,11 @@ public final class IpRangeAggregationBuilder
 
     @Override
     protected ValuesSourceAggregatorFactory innerBuild(
-                QueryShardContext queryShardContext, ValuesSourceConfig config,
-                AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+            AggregationContext context, ValuesSourceConfig config,
+            AggregatorFactory parent, Builder subFactoriesBuilder) throws IOException {
+        IpRangeAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         List<BinaryRangeAggregator.Range> ranges = new ArrayList<>();
         if(this.ranges.size() == 0){
             throw new IllegalArgumentException("No [ranges] specified for the [" + this.getName() + "] aggregation");
@@ -383,8 +394,9 @@ public final class IpRangeAggregationBuilder
         for (Range range : this.ranges) {
             ranges.add(new BinaryRangeAggregator.Range(range.key, toBytesRef(range.from), toBytesRef(range.to)));
         }
+
         return new BinaryRangeAggregatorFactory(name, config, ranges,
-                keyed, queryShardContext, parent, subFactoriesBuilder, metadata);
+                keyed, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

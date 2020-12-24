@@ -69,7 +69,7 @@ public class NativeStorageProvider {
     public Path tryGetLocalTmpStorage(String uniqueIdentifier, ByteSizeValue requestedSize) {
         Path path = allocatedStorage.get(uniqueIdentifier);
         if (path != null && localTmpStorageHasEnoughSpace(path, requestedSize) == false) {
-            LOGGER.debug("Previous tmp storage for [{}] run out, returning null", uniqueIdentifier);
+            LOGGER.warn("Previous tmp storage for [{}] run out, returning null", uniqueIdentifier);
             return null;
         } else {
             path = tryAllocateStorage(uniqueIdentifier, requestedSize);
@@ -87,10 +87,10 @@ public class NativeStorageProvider {
                     return tmpDirectory;
                 }
             } catch (IOException e) {
-                LOGGER.debug("Failed to obtain information about path [{}]: {}", path, e);
+                LOGGER.warn("Failed to obtain information about path [{}]: {}", path, e);
             }
         }
-        LOGGER.debug("Failed to find native storage for [{}], returning null", uniqueIdentifier);
+        LOGGER.warn("Failed to find native storage for [{}], returning null", uniqueIdentifier);
         return null;
     }
 
@@ -102,7 +102,7 @@ public class NativeStorageProvider {
                     return getUsableSpace(p) >= requestedSize.getBytes() + minLocalStorageAvailable.getBytes();
                 }
             } catch (IOException e) {
-                LOGGER.debug("Failed to optain information about path [{}]: {}", path, e);
+                LOGGER.warn("Failed to obtain information about path [{}]: {}", path, e);
             }
         }
 

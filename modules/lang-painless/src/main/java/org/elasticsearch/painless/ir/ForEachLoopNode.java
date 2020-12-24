@@ -19,9 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.symbol.ScopeTable;
+import org.elasticsearch.painless.Location;
+import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class ForEachLoopNode extends StatementNode {
 
@@ -37,11 +36,22 @@ public class ForEachLoopNode extends StatementNode {
         return conditionNode;
     }
 
-    /* ---- end tree structure ---- */
+    /* ---- end tree structure, begin visitor ---- */
 
     @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, ScopeTable scopeTable) {
-        scopeTable = scopeTable.newScope();
-        conditionNode.write(classWriter, methodWriter, scopeTable);
+    public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        irTreeVisitor.visitForEachLoop(this, scope);
     }
+
+    @Override
+    public <Scope> void visitChildren(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
+        conditionNode.visit(irTreeVisitor, scope);
+    }
+
+    /* ---- end visitor ---- */
+
+    public ForEachLoopNode(Location location) {
+        super(location);
+    }
+
 }

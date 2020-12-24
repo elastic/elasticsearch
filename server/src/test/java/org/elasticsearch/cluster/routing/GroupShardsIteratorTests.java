@@ -155,7 +155,7 @@ public class GroupShardsIteratorTests extends ESTestCase {
         List<SearchShardIterator> shuffled = new ArrayList<>(sorted);
         Collections.shuffle(shuffled, random());
         {
-            List<ShardIterator> actualIterators = new ArrayList<>();
+            List<SearchShardIterator> actualIterators = new ArrayList<>();
             GroupShardsIterator<SearchShardIterator> iter = new GroupShardsIterator<>(shuffled);
             for (SearchShardIterator searchShardIterator : iter) {
                 actualIterators.add(searchShardIterator);
@@ -163,7 +163,7 @@ public class GroupShardsIteratorTests extends ESTestCase {
             assertEquals(shuffled, actualIterators);
         }
         {
-            List<ShardIterator> actualIterators = new ArrayList<>();
+            List<SearchShardIterator> actualIterators = new ArrayList<>();
             GroupShardsIterator<SearchShardIterator> iter = GroupShardsIterator.sortAndCreate(shuffled);
             for (SearchShardIterator searchShardIterator : iter) {
                 actualIterators.add(searchShardIterator);

@@ -107,7 +107,7 @@ with a text equivalent.
 
 [source,console]
 ----
-PUT /my_index
+PUT /my-index-000001
 {
   "settings": {
     "analysis": {
@@ -139,7 +139,7 @@ the text `I'm delighted about it :(`.
 
 [source,console]
 ----
-GET /my_index/_analyze
+GET /my-index-000001/_analyze
 {
   "tokenizer": "keyword",
   "char_filter": [ "my_mappings_char_filter" ],

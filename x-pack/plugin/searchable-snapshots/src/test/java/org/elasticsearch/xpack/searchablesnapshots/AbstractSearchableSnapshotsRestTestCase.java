@@ -9,19 +9,15 @@ import org.apache.http.client.methods.HttpDelete;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
-import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,17 +27,20 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Function;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTestCase {
+
+    private static final String REPOSITORY_NAME = "repository";
+    private static final String SNAPSHOT_NAME = "searchable-snapshot";
 
     protected abstract String repositoryType();
 
@@ -51,9 +50,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         final String repositoryType = repositoryType();
         final Settings repositorySettings = repositorySettings();
 
-        final String repository = "repository";
-        logger.info("creating repository [{}] of type [{}]", repository, repositoryType);
-        registerRepository(repository, repositoryType, true, repositorySettings);
+        logger.info("creating repository [{}] of type [{}]", REPOSITORY_NAME, repositoryType);
+        registerRepository(REPOSITORY_NAME, repositoryType, true, repositorySettings);
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numberOfShards = randomIntBetween(1, 5);
@@ -68,7 +66,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         );
         ensureGreen(indexName);
 
-        final int numDocs = randomIntBetween(1, 10_000);
+        final int numDocs = randomIntBetween(1, 500);
         logger.info("indexing [{}] documents", numDocs);
 
         final StringBuilder bulkBody = new StringBuilder();
@@ -98,21 +96,19 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         logger.info("force merging index [{}]", indexName);
         forceMerge(indexName, randomBoolean(), randomBoolean());
 
-        final String snapshot = "searchable-snapshot";
-
         // Remove the snapshots, if a previous test failed to delete them. This is
         // useful for third party tests that runs the test against a real external service.
-        deleteSnapshot(repository, snapshot, true);
+        deleteSnapshot(SNAPSHOT_NAME, true);
 
-        logger.info("creating snapshot [{}]", snapshot);
-        createSnapshot(repository, snapshot, true);
+        logger.info("creating snapshot [{}]", SNAPSHOT_NAME);
+        createSnapshot(REPOSITORY_NAME, SNAPSHOT_NAME, true);
 
         logger.info("deleting index [{}]", indexName);
         deleteIndex(indexName);
 
         final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, snapshot, restoredIndexName);
-        mountSnapshot(repository, snapshot, true, indexName, restoredIndexName, Settings.EMPTY);
+        logger.info("restoring index [{}] from snapshot [{}] as [{}]", indexName, SNAPSHOT_NAME, restoredIndexName);
+        mountSnapshot(indexName, restoredIndexName);
 
         ensureGreen(restoredIndexName);
 
@@ -121,8 +117,8 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
         testCaseBody.runTest(restoredIndexName, numDocs);
 
-        logger.info("deleting snapshot [{}]", snapshot);
-        deleteSnapshot(repository, snapshot, false);
+        logger.info("deleting snapshot [{}]", SNAPSHOT_NAME);
+        deleteSnapshot(SNAPSHOT_NAME, false);
     }
 
     public void testSearchResults() throws Exception {
@@ -203,8 +199,70 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
             searchResults = search(restoredIndexName, QueryBuilders.matchAllQuery(), Boolean.TRUE);
             assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
 
-            final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
-            assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            assertBusy(() -> {
+                final long bytesInCacheAfterSearch = sumCachedBytesWritten.apply(searchableSnapshotStats(restoredIndexName));
+                assertThat(bytesInCacheAfterSearch, greaterThan(bytesInCacheBeforeClear));
+            });
+        });
+    }
+
+    public void testSnapshotOfSearchableSnapshot() throws Exception {
+        runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
+
+            final boolean frozen = randomBoolean();
+            if (frozen) {
+                logger.info("--> freezing index [{}]", restoredIndexName);
+                final Request freezeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_freeze");
+                assertOK(client().performRequest(freezeRequest));
+            }
+
+            if (randomBoolean()) {
+                logger.info("--> closing index [{}]", restoredIndexName);
+                final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
+                assertOK(client().performRequest(closeRequest));
+            }
+
+            ensureGreen(restoredIndexName);
+
+            final String snapshot2Name = "snapshotception";
+
+            // Remove the snapshots, if a previous test failed to delete them. This is
+            // useful for third party tests that runs the test against a real external service.
+            deleteSnapshot(snapshot2Name, true);
+
+            final Request snapshotRequest = new Request(HttpPut.METHOD_NAME, "_snapshot/" + REPOSITORY_NAME + '/' + snapshot2Name);
+            snapshotRequest.addParameter("wait_for_completion", "true");
+            try (XContentBuilder builder = jsonBuilder()) {
+                builder.startObject();
+                builder.field("indices", restoredIndexName);
+                builder.endObject();
+                snapshotRequest.setEntity(new StringEntity(Strings.toString(builder), ContentType.APPLICATION_JSON));
+            }
+            assertOK(client().performRequest(snapshotRequest));
+
+            final List<Map<String, Map<String, Object>>> snapshotShardsStats = extractValue(
+                responseAsMap(
+                    client().performRequest(
+                        new Request(HttpGet.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + snapshot2Name + "/_status")
+                    )
+                ),
+                "snapshots.indices." + restoredIndexName + ".shards"
+            );
+
+            assertThat(snapshotShardsStats.size(), equalTo(1));
+            for (Map<String, Object> value : snapshotShardsStats.get(0).values()) {
+                assertThat(extractValue(value, "stats.total.file_count"), equalTo(1));
+                assertThat(extractValue(value, "stats.incremental.file_count"), lessThanOrEqualTo(1));
+            }
+
+            deleteIndex(restoredIndexName);
+
+            restoreSnapshot(REPOSITORY_NAME, snapshot2Name, true);
+            ensureGreen(restoredIndexName);
+
+            deleteSnapshot(snapshot2Name, false);
+
+            assertSearchResults(restoredIndexName, numDocs, frozen ? Boolean.FALSE : randomFrom(Boolean.TRUE, Boolean.FALSE, null));
         });
     }
 
@@ -248,39 +306,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
-        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).verify(verify).settings(settings)));
-
-        final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create repository [" + repository + "] of type [" + type + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
-    }
-
-    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
-        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
-        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
-
-        final Response response = client().performRequest(request);
-        assertThat(
-            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-            response.getStatusLine().getStatusCode(),
-            equalTo(RestStatus.OK.getStatus())
-        );
-    }
-
-    protected static void deleteSnapshot(String repository, String snapshot, boolean ignoreMissing) throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+    protected static void deleteSnapshot(String snapshot, boolean ignoreMissing) throws IOException {
+        final Request request = new Request(HttpDelete.METHOD_NAME, "_snapshot/" + REPOSITORY_NAME + '/' + snapshot);
         try {
             final Response response = client().performRequest(request);
-            assertThat(
-                "Failed to delete snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
-                response.getStatusLine().getStatusCode(),
-                equalTo(RestStatus.OK.getStatus())
-            );
+            assertAcked("Failed to delete snapshot [" + snapshot + "] in repository [" + REPOSITORY_NAME + "]: " + response, response);
         } catch (IOException e) {
             if (ignoreMissing && e instanceof ResponseException) {
                 Response response = ((ResponseException) e).getResponse();
@@ -291,35 +321,39 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         }
     }
 
-    protected static void mountSnapshot(
-        String repository,
-        String snapshot,
-        boolean waitForCompletion,
-        String snapshotIndexName,
-        String mountIndexName,
-        Settings indexSettings
-    ) throws IOException {
-        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + repository + "/" + snapshot + "/_mount");
-        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+    protected static void mountSnapshot(String snapshotIndexName, String mountIndexName) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "/_snapshot/" + REPOSITORY_NAME + "/" + SNAPSHOT_NAME + "/_mount");
+        request.addParameter("wait_for_completion", Boolean.toString(true));
 
         final XContentBuilder builder = JsonXContent.contentBuilder().startObject().field("index", snapshotIndexName);
         if (snapshotIndexName.equals(mountIndexName) == false || randomBoolean()) {
             builder.field("renamed_index", mountIndexName);
-        }
-        if (indexSettings.isEmpty() == false) {
-            builder.startObject("index_settings");
-            indexSettings.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            builder.endObject();
         }
         builder.endObject();
         request.setJsonEntity(Strings.toString(builder));
 
         final Response response = client().performRequest(request);
         assertThat(
-            "Failed to restore snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            "Failed to restore snapshot [" + SNAPSHOT_NAME + "] in repository [" + REPOSITORY_NAME + "]: " + response,
             response.getStatusLine().getStatusCode(),
             equalTo(RestStatus.OK.getStatus())
         );
+    }
+
+    protected static void deleteIndex(String index) throws IOException {
+        final Response response = client().performRequest(new Request("DELETE", "/" + index));
+        assertAcked("Fail to delete index [" + index + ']', response);
+    }
+
+    private static void assertAcked(String message, Response response) throws IOException {
+        final int responseStatusCode = response.getStatusLine().getStatusCode();
+        assertThat(
+            message + ": expecting response code [200] but got [" + responseStatusCode + ']',
+            responseStatusCode,
+            equalTo(RestStatus.OK.getStatus())
+        );
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        assertThat(message + ": response is not acknowledged", extractValue(responseAsMap, "acknowledged"), equalTo(Boolean.TRUE));
     }
 
     protected static void forceMerge(String index, boolean onlyExpungeDeletes, boolean flush) throws IOException {
@@ -396,19 +430,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         return extractValue(responseAsMap(response), index + ".settings");
     }
 
-    protected static Map<String, Object> responseAsMap(Response response) throws IOException {
-        final XContentType xContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
-        assertThat("Unknown XContentType", xContentType, notNullValue());
-
-        BytesReference bytesReference = Streams.readFully(response.getEntity().getContent());
-
-        try (InputStream responseBody = bytesReference.streamInput()) {
-            return XContentHelper.convertToMap(xContentType.xContent(), responseBody, true);
-        } catch (Exception e) {
-            throw new IOException(bytesReference.utf8ToString(), e);
-        }
-    }
-
     @SuppressWarnings("unchecked")
     protected static <T> T extractValue(Map<String, Object> map, String path) {
         return (T) XContentMapValues.extractValue(path, map);
@@ -419,6 +440,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
      */
     @FunctionalInterface
     interface SearchableSnapshotsTestCaseBody {
-        void runTest(String indexName, int numDocs) throws IOException;
+        void runTest(String indexName, int numDocs) throws Exception;
     }
 }

@@ -5,6 +5,11 @@
       "description":"Creates or updates a document in an index."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -92,6 +97,10 @@
       "pipeline":{
         "type":"string",
         "description":"The pipeline id to preprocess incoming documents with"
+      },
+      "require_alias": {
+        "type": "boolean",
+        "description": "When true, requires destination to be an alias. Default is false"
       }
     },
     "body":{

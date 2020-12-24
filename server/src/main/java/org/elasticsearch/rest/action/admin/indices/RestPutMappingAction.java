@@ -67,6 +67,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         putMappingRequest.timeout(request.paramAsTime("timeout", putMappingRequest.timeout()));
         putMappingRequest.masterNodeTimeout(request.paramAsTime("master_timeout", putMappingRequest.masterNodeTimeout()));
         putMappingRequest.indicesOptions(IndicesOptions.fromRequest(request, putMappingRequest.indicesOptions()));
+        putMappingRequest.writeIndexOnly(request.paramAsBoolean("write_index_only", false));
         return channel -> client.admin().indices().putMapping(putMappingRequest, new RestToXContentListener<>(channel));
     }
 }

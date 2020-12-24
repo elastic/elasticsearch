@@ -23,12 +23,16 @@ import org.elasticsearch.gradle.test.GradleIntegrationTestCase;
 import org.gradle.testkit.runner.BuildResult;
 import org.junit.Before;
 
+import static org.elasticsearch.gradle.test.TestClasspathUtils.setupJarJdkClasspath;
+
 public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
     @Before
     public void setUp() throws Exception {
         // Build the sample jars
         getGradleRunner("thirdPartyAudit").withArguments(":sample_jars:build", "-s").build();
+        // propagate jdkjarhell jar
+        setupJarJdkClasspath(getProjectDir("thirdPartyAudit"));
     }
 
     public void testElasticsearchIgnored() {

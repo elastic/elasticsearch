@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.integration;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -47,8 +48,7 @@ public class AnnotationIndexIT extends MlSingleNodeTestCase {
     }
 
     public void testCreatedWhenAfterOtherMlIndex() throws Exception {
-
-        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), "node_1");
+        AnomalyDetectionAuditor auditor = new AnomalyDetectionAuditor(client(), getInstanceFromNode(ClusterService.class));
         auditor.info("whatever", "blah");
 
         // Creating a document in the .ml-notifications-000001 index should cause .ml-annotations

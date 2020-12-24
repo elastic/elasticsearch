@@ -65,13 +65,13 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             emptyBucketInfo = null;
         } else {
             minDocCount = 0;
-            ExtendedBounds extendedBounds = null;
+            LongBounds extendedBounds = null;
             if (randomBoolean()) {
                 //it's ok if min and max are outside the range of the generated buckets, that will just mean that
                 //empty buckets won't be added before the first bucket and/or after the last one
                 long min = baseMillis - intervalMillis * randomNumberOfBuckets();
                 long max = baseMillis + randomNumberOfBuckets() * intervalMillis;
-                extendedBounds = new ExtendedBounds(min, max);
+                extendedBounds = new LongBounds(min, max);
             }
             emptyBucketInfo = new InternalDateHistogram.EmptyBucketInfo(rounding, InternalAggregations.EMPTY, extendedBounds);
         }

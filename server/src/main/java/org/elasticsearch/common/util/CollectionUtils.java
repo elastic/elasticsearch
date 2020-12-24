@@ -20,7 +20,6 @@
 package org.elasticsearch.common.util;
 
 import com.carrotsearch.hppc.ObjectArrayList;
-
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefArray;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -316,6 +315,20 @@ public class CollectionUtils {
         list.add(second);
         list.addAll(Arrays.asList(other));
         return list;
+    }
+
+    /**
+     * Creates a copy of the given collection with the given element appended.
+     *
+     * @param collection collection to copy
+     * @param element    element to append
+     */
+    @SuppressWarnings("unchecked")
+    public static <E> List<E> appendToCopy(Collection<E> collection, E element) {
+        final int size = collection.size() + 1;
+        final E[] array = collection.toArray((E[]) new Object[size]);
+        array[size - 1] = element;
+        return Arrays.asList(array);
     }
 
     public static <E> ArrayList<E> newSingletonArrayList(E element) {

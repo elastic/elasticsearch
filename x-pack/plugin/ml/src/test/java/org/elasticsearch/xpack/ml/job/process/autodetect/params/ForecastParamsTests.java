@@ -16,7 +16,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ForecastParamsTests extends ESTestCase {
 
-    private static ParseField DURATION = new ParseField("duration");
+    private static final ParseField DURATION = new ParseField("duration");
 
     public void testForecastIdsAreUnique() {
         Set<String> ids = new HashSet<>();

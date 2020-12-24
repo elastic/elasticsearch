@@ -66,8 +66,7 @@ public interface AutodetectProcess extends NativeProcess {
      * @param rules Detector rules
      * @throws IOException If the write fails
      */
-    void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules)
-            throws IOException;
+    void writeUpdateDetectorRulesMessage(int detectorIndex, List<DetectionRule> rules) throws IOException;
 
     /**
      * Write message to update the filters

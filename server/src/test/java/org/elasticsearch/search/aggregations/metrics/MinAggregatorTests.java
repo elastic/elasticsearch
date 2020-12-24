@@ -43,26 +43,15 @@ import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
@@ -70,7 +59,6 @@ import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.bucket.filter.Filter;
@@ -83,14 +71,11 @@ import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.search.aggregations.support.FieldContext;
-import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -106,13 +91,10 @@ import java.util.function.Supplier;
 import static java.util.Collections.singleton;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MinAggregatorTests extends AggregatorTestCase {
 
     private final String SCRIPT_NAME = "script_name";
-    private QueryShardContext queryShardContext;
     private final long SCRIPT_VALUE = 19L;
 
     /** Script to take a field name in params and sum the values of the field. */
@@ -175,14 +157,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
         return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS);
-    }
-
-    @Override
-    protected QueryShardContext queryShardContextMock(IndexSearcher searcher, MapperService mapperService,
-                                                      IndexSettings indexSettings, CircuitBreakerService circuitBreakerService,
-                                                      BigArrays bigArrays) {
-         this.queryShardContext = super.queryShardContextMock(searcher, mapperService, indexSettings, circuitBreakerService, bigArrays);
-         return queryShardContext;
     }
 
     public void testNoMatchingField() throws IOException {
@@ -642,11 +616,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(2.0, min.getValue(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-
-                assertTrue(queryShardContext.isCacheable());
+                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
+                createAggregator(aggregationBuilder, context);
+                assertTrue(context.isCacheable());
             }
         }
     }
@@ -673,118 +645,15 @@ public class MinAggregatorTests extends AggregatorTestCase {
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), nonDeterministicAggregationBuilder, fieldType);
-                assertTrue(min.getValue() >= 0.0 && min.getValue() <= 1.0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
+                AggregationContext context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
+                createAggregator(nonDeterministicAggregationBuilder, context);
+                assertFalse(context.isCacheable());
 
-                assertFalse(queryShardContext.isCacheable());
-
-                indexSearcher = newSearcher(indexReader, true, true);
-
-                min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(-7.0, min.getValue(), 0);
-                assertTrue(AggregationInspectionHelper.hasValue(min));
-
-                assertTrue(queryShardContext.isCacheable());
+                context = createAggregationContext(indexSearcher, new MatchAllDocsQuery(), fieldType);
+                createAggregator(aggregationBuilder, context);
+                assertTrue(context.isCacheable());
             }
         }
-    }
-
-    public void testShortcutIsApplicable() {
-        for (NumberFieldMapper.NumberType type : NumberFieldMapper.NumberType.values()) {
-            assertNotNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(new MatchAllDocsQuery()),
-                    null,
-                    mockNumericValuesSourceConfig("number", type, true)
-                )
-            );
-            assertNotNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    null,
-                    mockNumericValuesSourceConfig("number", type, true)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    mockAggregator(),
-                    mockNumericValuesSourceConfig("number", type, true)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
-                    null,
-                    mockNumericValuesSourceConfig("number", type, true)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    mockAggregator(),
-                    mockNumericValuesSourceConfig("number", type, true)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    null,
-                    mockNumericValuesSourceConfig("number", type, false)
-                )
-            );
-        }
-        for (DateFieldMapper.Resolution resolution : DateFieldMapper.Resolution.values()) {
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(new MatchAllDocsQuery()),
-                    mockAggregator(),
-                    mockDateValuesSourceConfig("number", true, resolution)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(new TermQuery(new Term("foo", "bar"))),
-                    null,
-                    mockDateValuesSourceConfig("number", true, resolution)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    mockAggregator(),
-                    mockDateValuesSourceConfig("number", true, resolution)
-                )
-            );
-            assertNull(
-                MinAggregator.getPointReaderOrNull(
-                    mockSearchContext(null),
-                    null,
-                    mockDateValuesSourceConfig("number", false, resolution)
-                )
-            );
-        }
-        // Check that we decode a dates "just like" the doc values instance.
-        Instant expected = Instant.from(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parse("2020-01-01T00:00:00Z"));
-        byte[] scratch = new byte[8];
-        LongPoint.encodeDimension(DateFieldMapper.Resolution.MILLISECONDS.convert(expected), scratch, 0);
-        assertThat(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
-                null,
-                mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.MILLISECONDS)
-            ).apply(scratch), equalTo(expected.toEpochMilli())
-        );
-        LongPoint.encodeDimension(DateFieldMapper.Resolution.NANOSECONDS.convert(expected), scratch, 0);
-        assertThat(
-            MinAggregator.getPointReaderOrNull(
-                mockSearchContext(new MatchAllDocsQuery()),
-                null,
-                mockDateValuesSourceConfig("number", true, DateFieldMapper.Resolution.NANOSECONDS)
-            ).apply(scratch), equalTo(expected.toEpochMilli())
-        );
-
     }
 
     public void testMinShortcutRandom() throws Exception {
@@ -860,40 +729,6 @@ public class MinAggregatorTests extends AggregatorTestCase {
         }
         indexWriter.close();
         directory.close();
-    }
-
-    private SearchContext mockSearchContext(Query query) {
-        SearchContext searchContext = mock(SearchContext.class);
-        when(searchContext.query()).thenReturn(query);
-        return searchContext;
-    }
-
-    private Aggregator mockAggregator() {
-        return mock(Aggregator.class);
-    }
-
-    private ValuesSourceConfig mockNumericValuesSourceConfig(String fieldName,
-                                                             NumberFieldMapper.NumberType numType,
-                                                             boolean indexed) {
-        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
-        MappedFieldType ft = new NumberFieldMapper.NumberFieldType(fieldName, numType, indexed, true, Collections.emptyMap());
-        when(config.fieldContext()).thenReturn(new FieldContext(fieldName, null, ft));
-        return config;
-    }
-
-    private ValuesSourceConfig mockDateValuesSourceConfig(String fieldName, boolean indexed,
-            DateFieldMapper.Resolution resolution) {
-        ValuesSourceConfig config = mock(ValuesSourceConfig.class);
-        Mapper.BuilderContext builderContext = new Mapper.BuilderContext(
-                Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build(),
-                new ContentPath());
-        MappedFieldType ft = new DateFieldMapper.Builder(fieldName)
-                .index(indexed)
-                .withResolution(resolution)
-                .build(builderContext)
-                .fieldType();
-        when(config.fieldContext()).thenReturn(new FieldContext(fieldName, null, ft));
-        return config;
     }
 
     private void testCase(Query query,

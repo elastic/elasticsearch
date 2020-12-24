@@ -11,17 +11,17 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
 
-class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
+public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
 
-    HistoBackedTDigestPercentilesAggregator(String name,
+    public HistoBackedTDigestPercentilesAggregator(String name,
                                  ValuesSource valuesSource,
-                                 SearchContext context,
+                                 AggregationContext context,
                                  Aggregator parent,
                                  double[] percents,
                                  double compression,

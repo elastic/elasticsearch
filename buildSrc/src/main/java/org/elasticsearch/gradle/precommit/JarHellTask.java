@@ -24,7 +24,9 @@ import org.gradle.api.file.FileCollection;
 import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.CompileClasspath;
 import org.gradle.api.tasks.TaskAction;
+import org.gradle.process.ExecOperations;
 
+import javax.inject.Inject;
 import java.io.File;
 
 /**
@@ -34,14 +36,17 @@ import java.io.File;
 public class JarHellTask extends PrecommitTask {
 
     private FileCollection classpath;
+    private ExecOperations execOperations;
 
-    public JarHellTask() {
+    @Inject
+    public JarHellTask(ExecOperations execOperations) {
+        this.execOperations = execOperations;
         setDescription("Runs CheckJarHell on the configured classpath");
     }
 
     @TaskAction
     public void runJarHellCheck() {
-        LoggedExec.javaexec(getProject(), spec -> {
+        LoggedExec.javaexec(execOperations, spec -> {
             spec.environment("CLASSPATH", getClasspath().getAsPath());
             spec.setMain("org.elasticsearch.bootstrap.JarHell");
         });

@@ -20,7 +20,6 @@ package org.elasticsearch.search.aggregations.bucket.range;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValueType;
@@ -34,10 +33,6 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     public static final Factory FACTORY = new Factory();
 
     static class Bucket extends InternalRange.Bucket {
-
-        Bucket(String key, double from, double to, long docCount, List<InternalAggregation> aggregations, boolean keyed) {
-            this(key, from, to, docCount, new InternalAggregations(aggregations), keyed);
-        }
 
         Bucket(String key, double from, double to, long docCount, InternalAggregations aggregations, boolean keyed) {
             super(key, from, to, docCount, aggregations, keyed, DocValueFormat.RAW);

@@ -55,7 +55,7 @@ PUT test1
     "alias2": {
       "filter": {
         "match": {
-          "user": "kimchy"
+          "user.id": "kimchy"
         }
       }
     },

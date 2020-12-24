@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
@@ -24,6 +25,7 @@ import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
@@ -44,7 +46,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,
-                mock(ActionFilters.class), securityContext);
+                mock(ActionFilters.class), securityContext, prepareAnonymousUser());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -70,7 +72,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,
-                mock(ActionFilters.class), securityContext);
+                mock(ActionFilters.class), securityContext, prepareAnonymousUser());
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -98,10 +100,12 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         SecurityContext securityContext = mock(SecurityContext.class);
         when(securityContext.getAuthentication()).thenReturn(authentication);
         when(securityContext.getUser()).thenReturn(user);
+
+        final AnonymousUser anonymousUser = prepareAnonymousUser();
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         TransportAuthenticateAction action = new TransportAuthenticateAction(transportService,
-                mock(ActionFilters.class), securityContext);
+                mock(ActionFilters.class), securityContext, anonymousUser);
 
         final AtomicReference<Throwable> throwableRef = new AtomicReference<>();
         final AtomicReference<AuthenticateResponse> responseRef = new AtomicReference<>();
@@ -118,7 +122,33 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        assertThat(responseRef.get().authentication(), sameInstance(authentication));
+        if (anonymousUser.enabled()) {
+            final Authentication auth = responseRef.get().authentication();
+            final User authUser = auth.getUser();
+            List.of(authUser.roles()).containsAll(List.of(authentication.getUser().roles()));
+            List.of(authUser.roles()).containsAll(List.of(anonymousUser.roles()));
+            assertThat(authUser.authenticatedUser(), sameInstance(user.authenticatedUser()));
+            assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
+            assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
+            assertThat(auth.getVersion(), sameInstance(auth.getVersion()));
+            assertThat(auth.getAuthenticationType(), sameInstance(auth.getAuthenticationType()));
+            assertThat(auth.getMetadata(), sameInstance(auth.getMetadata()));
+        } else {
+            assertThat(responseRef.get().authentication(), sameInstance(authentication));
+        }
         assertThat(throwableRef.get(), nullValue());
     }
+
+    private AnonymousUser prepareAnonymousUser() {
+        final AnonymousUser anonymousUser = mock(AnonymousUser.class);
+        if (randomBoolean()) {
+            when(anonymousUser.enabled()).thenReturn(true);
+            when(anonymousUser.roles()).thenReturn(
+                randomList(1, 4, () -> randomAlphaOfLengthBetween(4, 12)).toArray(new String[0]));
+        } else {
+            when(anonymousUser.enabled()).thenReturn(false);
+        }
+        return anonymousUser;
+    }
+
 }

@@ -33,14 +33,12 @@ import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -67,21 +65,11 @@ public class TransportSimulateTemplateAction
                                            ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                            NamedXContentRegistry xContentRegistry, IndicesService indicesService) {
         super(SimulateTemplateAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            SimulateTemplateAction.Request::new, indexNameExpressionResolver);
+            SimulateTemplateAction.Request::new, indexNameExpressionResolver, SimulateIndexTemplateResponse::new, ThreadPool.Names.SAME);
         this.indexTemplateService = indexTemplateService;
         this.xContentRegistry = xContentRegistry;
         this.indicesService = indicesService;
         this.aliasValidator = new AliasValidator();
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected SimulateIndexTemplateResponse read(StreamInput in) throws IOException {
-        return new SimulateIndexTemplateResponse(in);
     }
 
     @Override
@@ -95,8 +83,10 @@ public class TransportSimulateTemplateAction
         // First, if a template body was requested, we need to "fake add" that template to the
         // cluster state, so it can be used when we resolved settings/etc
         if (request.getIndexTemplateRequest() != null) {
-            // we'll "locally" add the template defined by the user in the cluster state (as if it existed in the system)
-            simulateTemplateToAdd = "simulate_template_" + uuid;
+            // we'll "locally" add the template defined by the user in the cluster state (as if it
+            // existed in the system), either with a temporary name, or with the given name if
+            // specified, to simulate replacing the existing template
+            simulateTemplateToAdd = request.getTemplateName() == null ? "simulate_template_" + uuid : request.getTemplateName();
             // Perform validation for things like typos in component template names
             MetadataIndexTemplateService.validateV2TemplateRequest(state.metadata(), simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate());

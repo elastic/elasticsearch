@@ -652,11 +652,11 @@ public class SearchActionTests extends ESTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = new InternalAggregations(aggTree);
+        Aggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[]{item}, 1);
@@ -736,7 +736,7 @@ public class SearchActionTests extends ESTestCase {
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
         InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = new InternalAggregations(protoAggTree);
+        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -764,11 +764,11 @@ public class SearchActionTests extends ESTestCase {
         when(count.getType()).thenReturn(SumAggregationBuilder.NAME);
         subaggs.add(count);
 
-        when(filter.getAggregations()).thenReturn(new InternalAggregations(subaggs));
+        when(filter.getAggregations()).thenReturn(InternalAggregations.from(subaggs));
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = new InternalAggregations(aggTree);
+        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 

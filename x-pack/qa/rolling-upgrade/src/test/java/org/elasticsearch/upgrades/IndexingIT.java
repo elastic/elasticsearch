@@ -117,7 +117,7 @@ public class IndexingIT extends AbstractUpgradeTestCase {
         client().performRequest(bulk);
     }
 
-    private void assertCount(String index, int count) throws IOException {
+    static void assertCount(String index, int count) throws IOException {
         Request searchTestIndexRequest = new Request("POST", "/" + index + "/_search");
         searchTestIndexRequest.addParameter(TOTAL_HITS_AS_INT_PARAM, "true");
         searchTestIndexRequest.addParameter("filter_path", "hits.total");

@@ -29,9 +29,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -40,16 +40,11 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class SnapshotsStatusResponse extends ActionResponse implements ToXContentObject {
 
-    private List<SnapshotStatus> snapshots = Collections.emptyList();
+    private final List<SnapshotStatus> snapshots;
 
     public SnapshotsStatusResponse(StreamInput in) throws IOException {
         super(in);
-        int size = in.readVInt();
-        List<SnapshotStatus> builder = new ArrayList<>();
-        for (int i = 0; i < size; i++) {
-            builder.add(new SnapshotStatus(in));
-        }
-        snapshots = Collections.unmodifiableList(builder);
+        snapshots = Collections.unmodifiableList(in.readList(SnapshotStatus::new));
     }
 
     SnapshotsStatusResponse(List<SnapshotStatus> snapshots) {
@@ -67,10 +62,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(snapshots.size());
-        for (SnapshotStatus snapshotInfo : snapshots) {
-            snapshotInfo.writeTo(out);
-        }
+        out.writeList(snapshots);
     }
 
     @Override
@@ -105,9 +97,7 @@ public class SnapshotsStatusResponse extends ActionResponse implements ToXConten
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        SnapshotsStatusResponse response = (SnapshotsStatusResponse) o;
-
-        return snapshots != null ? snapshots.equals(response.snapshots) : response.snapshots == null;
+        return Objects.equals(snapshots, ((SnapshotsStatusResponse) o).snapshots);
     }
 
     @Override

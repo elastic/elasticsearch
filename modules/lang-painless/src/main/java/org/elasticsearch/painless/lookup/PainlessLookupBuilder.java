@@ -30,6 +30,7 @@ import org.elasticsearch.painless.spi.WhitelistConstructor;
 import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
+import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -249,6 +250,7 @@ public final class PainlessLookupBuilder {
 
     public void addPainlessClass(Class<?> clazz, boolean importClassName) {
         Objects.requireNonNull(clazz);
+        //Matcher m = new Matcher();
 
         if (clazz == def.class) {
             throw new IllegalArgumentException("cannot add reserved class [" + DEF_CLASS_NAME + "]");
@@ -533,6 +535,17 @@ public final class PainlessLookupBuilder {
             }
         }
 
+        // injections alter the type parameters required for the user to call this method, since some are injected by compiler
+        if (annotations.containsKey(InjectConstantAnnotation.class)) {
+            int numInjections = ((InjectConstantAnnotation)annotations.get(InjectConstantAnnotation.class)).injects.size();
+
+            if (numInjections > 0) {
+                typeParameters.subList(0, numInjections).clear();
+            }
+
+            typeParametersSize = typeParameters.size();
+        }
+
         if (javaMethod.getReturnType() != typeToJavaType(returnType)) {
             throw new IllegalArgumentException("return type [" + typeToCanonicalTypeName(javaMethod.getReturnType()) + "] " +
                     "does not match the specified returned type [" + typeToCanonicalTypeName(returnType) + "] " +
@@ -562,7 +575,6 @@ public final class PainlessLookupBuilder {
         }
 
         MethodType methodType = methodHandle.type();
-
         boolean isStatic = augmentedClass == null && Modifier.isStatic(javaMethod.getModifiers());
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
         PainlessMethod existingPainlessMethod = isStatic ?

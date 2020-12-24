@@ -34,12 +34,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -123,14 +124,14 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     }
 
     private final String[] keys;
-    private Weight[] filters;
+    private final Weight[] filters;
     private final int totalNumKeys;
     private final int totalNumIntersections;
     private final String separator;
 
     public AdjacencyMatrixAggregator(String name, AggregatorFactories factories, String separator, String[] keys,
-            Weight[] filters, SearchContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        super(name, factories, context, parent, metadata);
+            Weight[] filters, AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.separator = separator;
         this.keys = keys;
         this.filters = filters;
@@ -199,7 +200,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
             for (int i = 0; i < keys.length; i++) {
                 long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], i);
-                int docCount = bucketDocCount(bucketOrd);
+                long docCount = bucketDocCount(bucketOrd);
                 // Empty buckets are not returned because this aggregation will commonly be used under a
                 // a date-histogram where we will look for transactions over time and can expect many
                 // empty buckets.
@@ -213,7 +214,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             for (int i = 0; i < keys.length; i++) {
                 for (int j = i + 1; j < keys.length; j++) {
                     long bucketOrd = bucketOrd(owningBucketOrds[owningBucketOrdIdx], pos);
-                    int docCount = bucketDocCount(bucketOrd);
+                    long docCount = bucketDocCount(bucketOrd);
                     // Empty buckets are not returned due to potential for very sparse matrices
                     if (docCount > 0) {
                         String intersectKey = keys[i] + separator + keys[j];

@@ -67,7 +67,7 @@ teardown:
 
   - do: # superuser
       indices.refresh:
-        index: "_all"
+        index: "write-*"
 
   - do: # superuser
       search:
@@ -104,7 +104,7 @@ teardown:
 
   - do: # superuser
       indices.refresh:
-        index: "_all"
+        index: "read-*"
 
   - do: # superuser
       search:
@@ -129,7 +129,7 @@ teardown:
 
   - do: # superuser
       indices.refresh:
-        index: "_all"
+        index: "write-*"
 
   - do: # superuser
       search:

@@ -14,7 +14,7 @@ PUT data/_doc/1 <1>
 --------------------------------------------------
 
 <1> Creates the `data` index, the `_doc` mapping type, and a field
-    called `count` with datatype `long`.
+    called `count` with data type `long`.
 
 The automatic detection and addition of new fields is called
 _dynamic mapping_. The dynamic mapping rules can be customised to suit your

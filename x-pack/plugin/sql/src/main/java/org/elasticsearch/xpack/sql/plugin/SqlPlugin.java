@@ -29,7 +29,6 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -54,20 +53,17 @@ public class SqlPlugin extends Plugin implements ActionPlugin {
             XPackLicenseState licenseState = getLicenseState();
             switch (mode) {
                 case JDBC:
-                    if (licenseState.isAllowed(XPackLicenseState.Feature.JDBC) == false) {
+                    if (licenseState.checkFeature(XPackLicenseState.Feature.JDBC) == false) {
                         throw LicenseUtils.newComplianceException("jdbc");
                     }
                     break;
                 case ODBC:
-                    if (licenseState.isAllowed(XPackLicenseState.Feature.ODBC) == false) {
+                    if (licenseState.checkFeature(XPackLicenseState.Feature.ODBC) == false) {
                         throw LicenseUtils.newComplianceException("odbc");
                     }
                     break;
                 case PLAIN:
                 case CLI:
-                    if (licenseState.isAllowed(XPackLicenseState.Feature.SQL) == false) {
-                        throw LicenseUtils.newComplianceException(XPackField.SQL);
-                    }
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown SQL mode " + mode);

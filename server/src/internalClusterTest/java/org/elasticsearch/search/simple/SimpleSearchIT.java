@@ -23,11 +23,15 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -50,6 +54,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class SimpleSearchIT extends ESIntegTestCase {
 
@@ -194,6 +200,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("test");
         client().prepareIndex("test").setId("1").setSource("field", "2010-01-05T02:00").get();
         client().prepareIndex("test").setId("2").setSource("field", "2010-01-06T02:00").get();
+        client().prepareIndex("test").setId("3").setSource("field", "1967-01-01T00:00").get();
         ensureGreen();
         refresh();
         SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("2010-01-03||+2d")
@@ -219,6 +226,68 @@ public class SimpleSearchIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("test").setQuery(
                 QueryBuilders.queryStringQuery("field:[2010-01-03||+2d TO 2010-01-04||+2d/d]")).get();
         assertHitCount(searchResponse, 2L);
+
+        // a string value of "1000" should be parsed as the year 1000 and return all three docs
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gt("1000"))
+            .get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 3L);
+
+        // a numeric value of 1000 should be parsed as 1000 millis since epoch and return only docs after 1970
+        searchResponse = client().prepareSearch("test")
+            .setQuery(QueryBuilders.rangeQuery("field").gt(1000))
+            .get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2L);
+        String[] expectedIds = new String[] {"1", "2"};
+        assertThat(searchResponse.getHits().getHits()[0].getId(), is(oneOf(expectedIds)));
+        assertThat(searchResponse.getHits().getHits()[1].getId(), is(oneOf(expectedIds)));
+    }
+
+    public void testRangeQueryKeyword() throws Exception {
+        createIndex("test");
+
+        client().admin().indices().preparePutMapping("test").setSource("field", "type=keyword").get();
+
+        client().prepareIndex("test").setId("0").setSource("field", "").get();
+        client().prepareIndex("test").setId("1").setSource("field", "A").get();
+        client().prepareIndex("test").setId("2").setSource("field", "B").get();
+        client().prepareIndex("test").setId("3").setSource("field", "C").get();
+        ensureGreen();
+        refresh();
+
+        SearchResponse searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lte("B")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("A").lte("B")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("A").lt("B")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 1L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte(null).lt("C")).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 3L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("B").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 2L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt(null).lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 4L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gte("").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 4L);
+
+        searchResponse = client().prepareSearch("test").setQuery(QueryBuilders.rangeQuery("field").gt("").lt(null)).get();
+        assertNoFailures(searchResponse);
+        assertHitCount(searchResponse, 3L);
     }
 
     public void testSimpleTerminateAfterCount() throws Exception {
@@ -425,6 +494,24 @@ public class SimpleSearchIT extends ESIntegTestCase {
             assertThat(ex.getRootCause().getMessage(),
                 containsString("Can only use regexp queries on keyword and text fields"));
         }
+    }
+
+    public void testTermQueryBigInt() throws Exception {
+        prepareCreate("idx").setMapping("field", "type=keyword").get();
+        ensureGreen("idx");
+
+        client().prepareIndex("idx")
+            .setId("1")
+            .setSource("{\"field\" : 80315953321748200608 }", XContentType.JSON)
+            .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
+            .get();
+
+        String queryJson = "{ \"field\" : { \"value\" : 80315953321748200608 } }";
+        XContentParser parser = createParser(JsonXContent.jsonXContent, queryJson);
+        parser.nextToken();
+        TermQueryBuilder query = TermQueryBuilder.fromXContent(parser);
+        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(query).get();
+        assertEquals(1, searchResponse.getHits().getTotalHits().value);
     }
 
     public void testTooLongRegexInRegexpQuery() throws Exception {

@@ -328,6 +328,17 @@ public class RestClientDocumentation {
             //end::rest-client-config-timeouts
         }
         {
+            //tag::rest-client-config-request-options-timeouts
+            RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectTimeout(5000)
+                .setSocketTimeout(60000)
+                .build();
+            RequestOptions options = RequestOptions.DEFAULT.toBuilder()
+                .setRequestConfig(requestConfig)
+                .build();
+            //end::rest-client-config-request-options-timeouts
+        }
+        {
             //tag::rest-client-config-threads
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))
@@ -348,7 +359,7 @@ public class RestClientDocumentation {
             final CredentialsProvider credentialsProvider =
                 new BasicCredentialsProvider();
             credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("user", "password"));
+                new UsernamePasswordCredentials("user", "test-user-password"));
 
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))
@@ -367,7 +378,7 @@ public class RestClientDocumentation {
             final CredentialsProvider credentialsProvider =
                 new BasicCredentialsProvider();
             credentialsProvider.setCredentials(AuthScope.ANY,
-                new UsernamePasswordCredentials("user", "password"));
+                new UsernamePasswordCredentials("user", "test-user-password"));
 
             RestClientBuilder builder = RestClient.builder(
                 new HttpHost("localhost", 9200))

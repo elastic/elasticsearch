@@ -22,10 +22,8 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,12 +47,10 @@ public class DelayedDataCheckConfig implements ToXContentObject {
         "delayed_data_check_config", true, a -> new DelayedDataCheckConfig((Boolean) a[0], (TimeValue) a[1]));
     static {
         PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return TimeValue.parseTimeValue(p.text(), CHECK_WINDOW.getPreferredName());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CHECK_WINDOW, ObjectParser.ValueType.STRING);
+        PARSER.declareString(
+            ConstructingObjectParser.optionalConstructorArg(),
+            text -> TimeValue.parseTimeValue(text, CHECK_WINDOW.getPreferredName()),
+            CHECK_WINDOW);
     }
 
    /**

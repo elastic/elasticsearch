@@ -90,7 +90,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: "write_manage_alias"
 
   # rollover using alias
   - do:
@@ -127,7 +128,8 @@ teardown:
           }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: write_manage_alias
 
   # check alias points to the new index and the doc was indexed
   - do:

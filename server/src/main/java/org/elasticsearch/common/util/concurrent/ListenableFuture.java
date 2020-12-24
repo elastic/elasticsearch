@@ -93,7 +93,7 @@ public final class ListenableFuture<V> extends BaseFuture<V> implements ActionLi
     }
 
     @Override
-    protected synchronized void done() {
+    protected synchronized void done(boolean ignored) {
         done = true;
         listeners.forEach(t -> notifyListener(t.v1(), t.v2()));
         // release references to any listeners as we no longer need them and will live

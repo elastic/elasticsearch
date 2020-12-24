@@ -38,10 +38,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
 
         ClientTransformIndexer indexer = new ClientTransformIndexer(
             mock(ThreadPool.class),
-            ThreadPool.Names.GENERIC,
             mock(IndexBasedTransformConfigManager.class),
             mock(CheckpointProvider.class),
-            new TransformProgressGatherer(mock(Client.class)),
             new AtomicReference<>(IndexerState.STOPPED),
             null,
             mock(Client.class),

@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -93,13 +94,19 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
     @Override
     protected void doStart() {
-        indicesService.clusterService().addListener(this);
+        final ClusterService clusterService = indicesService.clusterService();
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            clusterService.addListener(this);
+        }
     }
 
     @Override
     protected void doStop() {
-        ongoingRecoveries.awaitEmpty();
-        indicesService.clusterService().removeListener(this);
+        final ClusterService clusterService = indicesService.clusterService();
+        if (DiscoveryNode.isDataNode(clusterService.getSettings())) {
+            ongoingRecoveries.awaitEmpty();
+            indicesService.clusterService().removeListener(this);
+        }
     }
 
     @Override
@@ -320,7 +327,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     new RemoteRecoveryTargetHandler(request.recoveryId(), request.shardId(), transportService,
                         request.targetNode(), recoverySettings, throttleTime -> shard.recoveryStats().addThrottleTime(throttleTime));
                 handler = new RecoverySourceHandler(shard, recoveryTarget, shard.getThreadPool(), request,
-                    Math.toIntExact(recoverySettings.getChunkSize().getBytes()), recoverySettings.getMaxConcurrentFileChunks());
+                    Math.toIntExact(recoverySettings.getChunkSize().getBytes()),
+                    recoverySettings.getMaxConcurrentFileChunks(),
+                    recoverySettings.getMaxConcurrentOperations());
                 return Tuple.tuple(handler, recoveryTarget);
             }
         }

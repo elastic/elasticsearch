@@ -29,8 +29,8 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.locationtech.jts.geom.Coordinate;
 
-import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(ExternalMapperPlugin.class);
+        return Collections.singletonList(ExternalMapperPlugin.class);
     }
 
     public void testHighlightingOnCustomString() throws Exception {
@@ -91,8 +91,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").setMapping(
                 XContentFactory.jsonBuilder().startObject().startObject("_doc")
-                .startObject(ExternalMetadataMapper.CONTENT_TYPE)
-                .endObject()
                 .startObject("properties")
                     .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()

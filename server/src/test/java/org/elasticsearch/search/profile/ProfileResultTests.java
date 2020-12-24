@@ -97,7 +97,7 @@ public class ProfileResultTests extends ESTestCase {
         }
         ProfileResult parsed;
         try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             parsed = ProfileResult.fromXContent(parser);
             assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
             assertNull(parser.nextToken());

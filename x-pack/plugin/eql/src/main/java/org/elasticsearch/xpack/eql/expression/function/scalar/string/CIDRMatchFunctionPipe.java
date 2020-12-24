@@ -20,12 +20,12 @@ import java.util.Objects;
 
 public class CIDRMatchFunctionPipe extends Pipe {
 
-    private final Pipe source;
+    private final Pipe input;
     private final List<Pipe> addresses;
 
-    public CIDRMatchFunctionPipe(Source source, Expression expression, Pipe src, List<Pipe> addresses) {
-        super(source, expression, CollectionUtils.combine(Collections.singletonList(src), addresses));
-        this.source = src;
+    public CIDRMatchFunctionPipe(Source source, Expression expression, Pipe input, List<Pipe> addresses) {
+        super(source, expression, CollectionUtils.combine(Collections.singletonList(input), addresses));
+        this.input = input;
         this.addresses = addresses;
     }
 
@@ -39,8 +39,8 @@ public class CIDRMatchFunctionPipe extends Pipe {
 
     @Override
     public final Pipe resolveAttributes(AttributeResolver resolver) {
-        Pipe newSource = source.resolveAttributes(resolver);
-        boolean same = (newSource == source);
+        Pipe newInput = input.resolveAttributes(resolver);
+        boolean same = (newInput == input);
 
         ArrayList<Pipe> newAddresses = new ArrayList<Pipe>(addresses.size());
         for (Pipe address : addresses) {
@@ -48,15 +48,12 @@ public class CIDRMatchFunctionPipe extends Pipe {
             newAddresses.add(newAddress);
             same = same && (address == newAddress);
         }
-        if (same) {
-            return this;
-        }
-        return replaceChildren(newSource, newAddresses);
+        return same ? this : replaceChildren(newInput, newAddresses);
     }
 
     @Override
     public boolean supportedByAggsOnlyQuery() {
-        if (source.supportedByAggsOnlyQuery() == false) {
+        if (input.supportedByAggsOnlyQuery() == false) {
             return false;
         }
         for (Pipe address : addresses) {
@@ -69,7 +66,7 @@ public class CIDRMatchFunctionPipe extends Pipe {
 
     @Override
     public boolean resolved() {
-        if (source.resolved() == false) {
+        if (input.resolved() == false) {
             return false;
         }
         for (Pipe address : addresses) {
@@ -80,13 +77,13 @@ public class CIDRMatchFunctionPipe extends Pipe {
         return true;
     }
 
-    protected Pipe replaceChildren(Pipe newSource, List<Pipe> newAddresses) {
-        return new CIDRMatchFunctionPipe(source(), expression(), newSource, newAddresses);
+    protected CIDRMatchFunctionPipe replaceChildren(Pipe newInput, List<Pipe> newAddresses) {
+        return new CIDRMatchFunctionPipe(source(), expression(), newInput, newAddresses);
     }
 
     @Override
     public final void collectFields(QlSourceBuilder sourceBuilder) {
-        source.collectFields(sourceBuilder);
+        input.collectFields(sourceBuilder);
         for (Pipe address : addresses) {
             address.collectFields(sourceBuilder);
         }
@@ -94,7 +91,7 @@ public class CIDRMatchFunctionPipe extends Pipe {
 
     @Override
     protected NodeInfo<CIDRMatchFunctionPipe> info() {
-        return NodeInfo.create(this, CIDRMatchFunctionPipe::new, expression(), source, addresses);
+        return NodeInfo.create(this, CIDRMatchFunctionPipe::new, expression(), input, addresses);
     }
 
     @Override
@@ -103,11 +100,11 @@ public class CIDRMatchFunctionPipe extends Pipe {
         for (Pipe address: addresses) {
             processors.add(address.asProcessor());
         }
-        return new CIDRMatchFunctionProcessor(source.asProcessor(), processors);
+        return new CIDRMatchFunctionProcessor(input.asProcessor(), processors);
     }
 
-    public Pipe src() {
-        return source;
+    public Pipe input() {
+        return input;
     }
 
     public List<Pipe> addresses() {
@@ -116,7 +113,7 @@ public class CIDRMatchFunctionPipe extends Pipe {
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), addresses());
+        return Objects.hash(input(), addresses());
     }
 
     @Override
@@ -130,7 +127,6 @@ public class CIDRMatchFunctionPipe extends Pipe {
         }
 
         CIDRMatchFunctionPipe other = (CIDRMatchFunctionPipe) obj;
-        return Objects.equals(source(), other.source())
-                && Objects.equals(addresses(), other.addresses());
+        return Objects.equals(input(), other.input()) && Objects.equals(addresses(), other.addresses());
     }
 }

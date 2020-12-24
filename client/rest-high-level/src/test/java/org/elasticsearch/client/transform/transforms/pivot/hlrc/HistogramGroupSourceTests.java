@@ -36,9 +36,9 @@ public class HistogramGroupSourceTests extends AbstractResponseTestCase<
     public static HistogramGroupSource randomHistogramGroupSource() {
         String field = randomBoolean() ? null : randomAlphaOfLengthBetween(1, 20);
         ScriptConfig scriptConfig = randomBoolean() ? null : DateHistogramGroupSourceTests.randomScriptConfig();
-
+        boolean missingBucket = randomBoolean();
         double interval = randomDoubleBetween(Math.nextUp(0), Double.MAX_VALUE, false);
-        return new HistogramGroupSource(field, scriptConfig, interval);
+        return new HistogramGroupSource(field, scriptConfig, missingBucket, interval);
     }
 
     @Override

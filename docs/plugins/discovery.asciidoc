@@ -5,7 +5,7 @@ Discovery plugins extend Elasticsearch by adding new seed hosts providers that
 can be used to extend the {ref}/modules-discovery.html[cluster formation
 module].
 
-[float]
+[discrete]
 ==== Core discovery plugins
 
 The core discovery plugins are:
@@ -25,12 +25,12 @@ addresses of seed hosts.
 The Google Compute Engine discovery plugin uses the GCE API to identify the
 addresses of seed hosts.
 
-[float]
+[discrete]
 ==== Community contributed discovery plugins
 
 The following discovery plugins have been contributed by our community:
 
-* https://github.com/fabric8io/elasticsearch-cloud-kubernetes[Kubernetes Discovery Plugin] (by Jimmi Dyson, http://fabric8.io[fabric8])
+* https://github.com/fabric8io/elasticsearch-cloud-kubernetes[Kubernetes Discovery Plugin] (by Jimmi Dyson, https://fabric8.io[fabric8])
 
 include::discovery-ec2.asciidoc[]
 

@@ -37,6 +37,8 @@ import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
+import static org.elasticsearch.gradle.test.TestClasspathUtils.setupJarJdkClasspath;
+
 public class BuildPluginIT extends GradleIntegrationTestCase {
 
     @Rule
@@ -49,6 +51,7 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
     }
 
     public void testCheckTask() {
+        setupJarJdkClasspath(getProjectDir("elasticsearch.build"));
         BuildResult result = getGradleRunner("elasticsearch.build").withArguments("check", "assemble", "-s").build();
         assertTaskSuccessful(result, ":check");
     }

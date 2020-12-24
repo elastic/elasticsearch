@@ -34,7 +34,12 @@ public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
     }
 
     public static MemoryUsage createRandom() {
-        return new MemoryUsage(randomBoolean() ? null : Instant.now(), randomNonNegativeLong());
+        return new MemoryUsage(
+            randomBoolean() ? null : Instant.now(),
+            randomNonNegativeLong(),
+            randomFrom(MemoryUsage.Status.values()),
+            randomBoolean() ? null : randomNonNegativeLong()
+        );
     }
 
     @Override
@@ -48,7 +53,8 @@ public class MemoryUsageTests extends AbstractXContentTestCase<MemoryUsage> {
     }
 
     public void testToString_GivenNullTimestamp() {
-        MemoryUsage memoryUsage = new MemoryUsage(null, 42L);
-        assertThat(memoryUsage.toString(), equalTo("MemoryUsage[timestamp=null, peak_usage_bytes=42]"));
+        MemoryUsage memoryUsage = new MemoryUsage(null, 42L, MemoryUsage.Status.OK, null);
+        assertThat(memoryUsage.toString(), equalTo(
+            "MemoryUsage[timestamp=null, peak_usage_bytes=42, status=ok, memory_reestimate_bytes=null]"));
     }
 }

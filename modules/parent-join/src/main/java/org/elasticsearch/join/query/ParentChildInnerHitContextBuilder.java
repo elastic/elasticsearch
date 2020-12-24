@@ -21,11 +21,13 @@ package org.elasticsearch.join.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.MultiCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollector;
@@ -43,8 +45,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
 import org.elasticsearch.search.internal.SearchContext;
@@ -69,11 +70,11 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     @Override
     protected void doBuild(SearchContext context, InnerHitsContext innerHitsContext) throws IOException {
         QueryShardContext queryShardContext = context.getQueryShardContext();
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.mapperService());
-        if (joinFieldMapper != null) {
+        Joiner joiner = Joiner.getJoiner(queryShardContext);
+        if (joiner != null) {
             String name = innerHitBuilder.getName() != null ? innerHitBuilder.getName() : typeName;
             JoinFieldInnerHitSubContext joinFieldInnerHits = new JoinFieldInnerHitSubContext(name, context, typeName,
-                fetchChildInnerHits, joinFieldMapper);
+                fetchChildInnerHits, joiner);
             setupInnerHitsContext(queryShardContext, joinFieldInnerHits);
             innerHitsContext.addInnerHitDefinition(joinFieldInnerHits);
         } else {
@@ -86,94 +87,76 @@ class ParentChildInnerHitContextBuilder extends InnerHitContextBuilder {
     static final class JoinFieldInnerHitSubContext extends InnerHitsContext.InnerHitSubContext {
         private final String typeName;
         private final boolean fetchChildInnerHits;
-        private final ParentJoinFieldMapper joinFieldMapper;
+        private final Joiner joiner;
 
         JoinFieldInnerHitSubContext(String name, SearchContext context, String typeName, boolean fetchChildInnerHits,
-                                    ParentJoinFieldMapper joinFieldMapper) {
+                                    Joiner joiner) {
             super(name, context);
             this.typeName = typeName;
             this.fetchChildInnerHits = fetchChildInnerHits;
-            this.joinFieldMapper = joinFieldMapper;
+            this.joiner = joiner;
         }
 
         @Override
-        public TopDocsAndMaxScore[] topDocs(SearchHit[] hits) throws IOException {
-            Weight innerHitQueryWeight = createInnerHitQueryWeight();
-            TopDocsAndMaxScore[] result = new TopDocsAndMaxScore[hits.length];
-            for (int i = 0; i < hits.length; i++) {
-                SearchHit hit = hits[i];
-                String joinName = getSortedDocValue(joinFieldMapper.name(), context, hit.docId());
-                if (joinName == null) {
-                    result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
-                    continue;
-                }
+        public TopDocsAndMaxScore topDocs(SearchHit hit) throws IOException {
+            Weight innerHitQueryWeight = getInnerHitQueryWeight();
+            String joinName = getSortedDocValue(joiner.getJoinField(), context, hit.docId());
+            if (joinName == null) {
+                return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
+            }
 
-                QueryShardContext qsc = context.getQueryShardContext();
-                ParentIdFieldMapper parentIdFieldMapper =
-                    joinFieldMapper.getParentIdFieldMapper(typeName, fetchChildInnerHits == false);
-                if (parentIdFieldMapper == null) {
-                    result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
-                    continue;
+            QueryShardContext qsc = context.getQueryShardContext();
+            Query q;
+            if (fetchChildInnerHits) {
+                Query hitQuery = new TermQuery(new Term(joiner.parentJoinField(typeName), hit.getId()));
+                q = new BooleanQuery.Builder()
+                    // Only include child documents that have the current hit as parent:
+                    .add(hitQuery, BooleanClause.Occur.FILTER)
+                    // and only include child documents of a single relation:
+                    .add(new TermQuery(new Term(joiner.getJoinField(), typeName)), BooleanClause.Occur.FILTER)
+                    .build();
+            } else {
+                String parentId = getSortedDocValue(joiner.childJoinField(typeName), context, hit.docId());
+                if (parentId == null) {
+                    return new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
                 }
+                q = context.getQueryShardContext().getFieldType(IdFieldMapper.NAME).termQuery(parentId, qsc);
+            }
 
-                Query q;
-                if (fetchChildInnerHits) {
-                    Query hitQuery = parentIdFieldMapper.fieldType().termQuery(hit.getId(), qsc);
-                    q = new BooleanQuery.Builder()
-                        // Only include child documents that have the current hit as parent:
-                        .add(hitQuery, BooleanClause.Occur.FILTER)
-                        // and only include child documents of a single relation:
-                        .add(joinFieldMapper.fieldType().termQuery(typeName, qsc), BooleanClause.Occur.FILTER)
-                        .build();
-                } else {
-                    String parentId = getSortedDocValue(parentIdFieldMapper.name(), context, hit.docId());
-                    if (parentId == null) {
-                        result[i] = new TopDocsAndMaxScore(Lucene.EMPTY_TOP_DOCS, Float.NaN);
-                        continue;
-                    }
-                    q = context.mapperService().fieldType(IdFieldMapper.NAME).termQuery(parentId, qsc);
+            Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            if (size() == 0) {
+                TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
+                for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                    intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
                 }
-
-                Weight weight = context.searcher().createWeight(context.searcher().rewrite(q), ScoreMode.COMPLETE_NO_SCORES, 1f);
-                if (size() == 0) {
-                    TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                    for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                        intersect(weight, innerHitQueryWeight, totalHitCountCollector, ctx);
-                    }
-                    result[i] = new TopDocsAndMaxScore(
-                        new TopDocs(
-                            new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
-                            Lucene.EMPTY_SCORE_DOCS
-                        ), Float.NaN);
-                } else {
-                    int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
-                    TopDocsCollector<?> topDocsCollector;
-                    MaxScoreCollector maxScoreCollector = null;
-                    if (sort() != null) {
-                        topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
-                        if (trackScores()) {
-                            maxScoreCollector = new MaxScoreCollector();
-                        }
-                    } else {
-                        topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                return new TopDocsAndMaxScore(
+                    new TopDocs(
+                        new TotalHits(totalHitCountCollector.getTotalHits(), TotalHits.Relation.EQUAL_TO),
+                        Lucene.EMPTY_SCORE_DOCS
+                    ), Float.NaN);
+            } else {
+                int topN = Math.min(from() + size(), context.searcher().getIndexReader().maxDoc());
+                TopDocsCollector<?> topDocsCollector;
+                MaxScoreCollector maxScoreCollector = null;
+                if (sort() != null) {
+                    topDocsCollector = TopFieldCollector.create(sort().sort, topN, Integer.MAX_VALUE);
+                    if (trackScores()) {
                         maxScoreCollector = new MaxScoreCollector();
                     }
-                    try {
-                        for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
-                            intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
-                        }
-                    } finally {
-                        clearReleasables(Lifetime.COLLECTION);
-                    }
-                    TopDocs topDocs = topDocsCollector.topDocs(from(), size());
-                    float maxScore = Float.NaN;
-                    if (maxScoreCollector != null) {
-                        maxScore = maxScoreCollector.getMaxScore();
-                    }
-                    result[i] = new TopDocsAndMaxScore(topDocs, maxScore);
+                } else {
+                    topDocsCollector = TopScoreDocCollector.create(topN, Integer.MAX_VALUE);
+                    maxScoreCollector = new MaxScoreCollector();
                 }
+                for (LeafReaderContext ctx : context.searcher().getIndexReader().leaves()) {
+                    intersect(weight, innerHitQueryWeight, MultiCollector.wrap(topDocsCollector, maxScoreCollector), ctx);
+                }
+                TopDocs topDocs = topDocsCollector.topDocs(from(), size());
+                float maxScore = Float.NaN;
+                if (maxScoreCollector != null) {
+                    maxScore = maxScoreCollector.getMaxScore();
+                }
+                return new TopDocsAndMaxScore(topDocs, maxScore);
             }
-            return result;
         }
 
         private String getSortedDocValue(String field, SearchContext context, int docId) {

@@ -20,15 +20,16 @@
 package org.elasticsearch.env;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.NodeRoles;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -38,9 +39,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.test.NodeRoles.nonDataNode;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -69,54 +72,40 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
                 indicesService -> assertTrue(indicesService.allPendingDanglingIndicesWritten())));
         }
 
-        logger.info("--> restarting the node with node.data=false and node.master=false");
+        logger.info("--> restarting the node without the data and master roles");
         IllegalStateException ex = expectThrows(IllegalStateException.class,
-            "Node started with node.data=false and node.master=false while having existing index metadata must fail",
+            "node not having the data and master roles while having existing index metadata must fail",
             () ->
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) {
-                        return Settings.builder()
-                            .put(Node.NODE_DATA_SETTING.getKey(), false)
-                            .put(Node.NODE_MASTER_SETTING.getKey(), false)
-                            .build();
+                        return NodeRoles.removeRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE));
                     }
                 }));
         if (writeDanglingIndices) {
-            assertThat(ex.getMessage(),
-                startsWith("Node is started with "
-                    + Node.NODE_DATA_SETTING.getKey()
-                    + "=false and "
-                    + Node.NODE_MASTER_SETTING.getKey()
-                    + "=false, but has index metadata"));
+            assertThat(ex.getMessage(), startsWith("node does not have the data and master roles but has index metadata"));
         } else {
-            assertThat(ex.getMessage(),
-                startsWith("Node is started with "
-                    + Node.NODE_DATA_SETTING.getKey()
-                    + "=false, but has shard data"));
+            assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
         }
 
-        logger.info("--> start the node again with node.data=true and node.master=true");
+        logger.info("--> start the node again with data and master roles");
         internalCluster().startNode(dataPathSettings);
 
         logger.info("--> indexing a simple document");
         client().prepareIndex(indexName).setId("1").setSource("field1", "value1").get();
 
-        logger.info("--> restarting the node with node.data=false");
+        logger.info("--> restarting the node without the data role");
         ex = expectThrows(IllegalStateException.class,
-            "Node started with node.data=false while having existing shard data must fail",
+            "node not having the data role while having existing shard data must fail",
             () ->
                 internalCluster().restartRandomDataNode(new InternalTestCluster.RestartCallback() {
                     @Override
                     public Settings onNodeStopped(String nodeName) {
-                        return Settings.builder().put(Node.NODE_DATA_SETTING.getKey(), false).build();
+                        return nonDataNode();
                     }
                 }));
         assertThat(ex.getMessage(), containsString(indexUUID));
-        assertThat(ex.getMessage(),
-            startsWith("Node is started with "
-                + Node.NODE_DATA_SETTING.getKey()
-                + "=false, but has shard data"));
+        assertThat(ex.getMessage(), startsWith("node does not have the data role but has shard data"));
     }
 
     private IllegalStateException expectThrowsOnRestart(CheckedConsumer<Path[], Exception> onNodeStopped) {

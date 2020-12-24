@@ -184,3 +184,18 @@ setup:
   - match: {hits.hits.0._index: test1 }
   - match: {hits.hits.1._index: test1 }
   - match: {hits.hits.2._index: test2 }
+
+---
+"Field retrieval":
+
+  - do:
+      search:
+        index: test*
+        body:
+          fields: [ foo ]
+          sort: [ { _index: asc } ]
+
+  - match: { "hits.total.value": 3 }
+  - match: {hits.hits.0.fields.foo.0: bar }
+  - match: {hits.hits.1.fields.foo.0: bar }
+  - match: {hits.hits.2.fields.foo.0: baz }

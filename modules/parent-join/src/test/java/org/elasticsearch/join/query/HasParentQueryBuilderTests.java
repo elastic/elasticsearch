@@ -24,10 +24,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -40,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.WrapperQueryBuilder;
 import org.elasticsearch.join.ParentJoinPlugin;
+import org.elasticsearch.join.query.HasChildQueryBuilder.LateParsingQuery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -73,14 +72,6 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
-    }
-
-    @Override
-    protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(super.createTestIndexSettings())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
     }
 
     @Override
@@ -142,8 +133,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     @Override
     protected void doAssertLuceneQuery(HasParentQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(HasChildQueryBuilder.LateParsingQuery.class));
-        HasChildQueryBuilder.LateParsingQuery lpq = (HasChildQueryBuilder.LateParsingQuery) query;
+        assertThat(query, instanceOf(LateParsingQuery.class));
+        LateParsingQuery lpq = (LateParsingQuery) query;
         assertEquals(queryBuilder.score() ? ScoreMode.Max : ScoreMode.None, lpq.getScoreMode());
 
         if (queryBuilder.innerHit() != null) {

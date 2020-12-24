@@ -6,7 +6,7 @@
 == SQL ODBC
 
 [[sql-odbc-overview]]
-[float]
+[discrete]
 === Overview
 
 {odbc} is a 3.80 compliant ODBC driver for {es}.

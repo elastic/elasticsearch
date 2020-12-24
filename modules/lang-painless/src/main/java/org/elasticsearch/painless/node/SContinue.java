@@ -20,10 +20,7 @@
 package org.elasticsearch.painless.node;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.ContinueNode;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 /**
  * Represents a continue statement.
@@ -35,26 +32,12 @@ public class SContinue extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitContinue(this, scope);
+    }
 
-        if (input.inLoop == false) {
-            throw createError(new IllegalArgumentException("Continue statement outside of a loop."));
-        }
-
-        if (input.lastLoop) {
-            throw createError(new IllegalArgumentException("Extraneous continue statement."));
-        }
-
-        output.allEscape = true;
-        output.anyContinue = true;
-        output.statementCount = 1;
-
-        ContinueNode continueNode = new ContinueNode();
-        continueNode.setLocation(getLocation());
-
-        output.statementNode = continueNode;
-
-        return output;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        // terminal node; no children
     }
 }

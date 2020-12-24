@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.rest;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
@@ -36,6 +38,7 @@ import static java.util.stream.Collectors.toSet;
 
 public abstract class AbstractRestChannel implements RestChannel {
 
+    private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();
 
@@ -45,6 +48,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private final String filterPath;
     private final boolean pretty;
     private final boolean human;
+    private final String acceptHeader;
 
     private BytesStreamOutput bytesOut;
 
@@ -58,7 +62,8 @@ public abstract class AbstractRestChannel implements RestChannel {
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
-        this.format = request.param("format", request.header("Accept"));
+        this.format = request.param("format");
+        this.acceptHeader = request.header("Accept");
         this.filterPath = request.param("filter_path", null);
         this.pretty = request.paramAsBoolean("pretty", false);
         this.human = request.paramAsBoolean("human", false);
@@ -96,7 +101,12 @@ public abstract class AbstractRestChannel implements RestChannel {
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
         if (responseContentType == null) {
-            responseContentType = XContentType.fromMediaTypeOrFormat(format);
+            if (Strings.hasText(format)) {
+                responseContentType = XContentType.fromFormat(format);
+            }
+            if (responseContentType == null && Strings.hasText(acceptHeader)) {
+                responseContentType = XContentType.fromMediaType(acceptHeader);
+            }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
         // taking precedence over the Accept header

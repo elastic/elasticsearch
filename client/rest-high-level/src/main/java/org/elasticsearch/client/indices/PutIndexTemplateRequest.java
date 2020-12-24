@@ -22,7 +22,6 @@ import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.client.TimedRequest;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -170,13 +169,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
      * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 

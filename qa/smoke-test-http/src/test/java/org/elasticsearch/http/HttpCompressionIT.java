@@ -59,7 +59,7 @@ public class HttpCompressionIT extends ESRestTestCase {
         request.setOptions(requestOptions);
         response = client().performRequest(request);
         assertEquals(200, response.getStatusLine().getStatusCode());
-        assertEquals(GZIP_ENCODING, response.getHeader(HttpHeaders.CONTENT_ENCODING));
+        assertNull(response.getHeader(HttpHeaders.CONTENT_ENCODING));
         assertThat(response.getEntity(), instanceOf(GzipDecompressingEntity.class));
 
         String body = EntityUtils.toString(response.getEntity());

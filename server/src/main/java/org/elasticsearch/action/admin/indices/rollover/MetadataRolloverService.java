@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -38,6 +39,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -63,7 +65,6 @@ public class MetadataRolloverService {
     private final MetadataCreateIndexService createIndexService;
     private final MetadataIndexAliasesService indexAliasesService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
-
     @Inject
     public MetadataRolloverService(ThreadPool threadPool,
                                    MetadataCreateIndexService createIndexService, MetadataIndexAliasesService indexAliasesService,
@@ -146,9 +147,11 @@ public class MetadataRolloverService {
                                               boolean silent, boolean onlyValidate) throws Exception {
         lookupTemplateForDataStream(dataStreamName, currentState.metadata());
 
+        final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1);
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1, minNodeVersion);
+        ds.rollover(new Index(newWriteIndexName, "uuid"), minNodeVersion); // just for validation
         createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), currentState);
@@ -157,7 +160,7 @@ public class MetadataRolloverService {
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
             prepareDataStreamCreateIndexRequest(dataStreamName, newWriteIndexName, createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex())));
+            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), minNodeVersion)));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -228,7 +231,7 @@ public class MetadataRolloverService {
         } else {
             return List.of(
                 new AliasAction.Add(newIndex, alias, null, null, null, null, isHidden),
-                new AliasAction.Remove(oldIndex, alias));
+                new AliasAction.Remove(oldIndex, alias, null));
         }
     }
 

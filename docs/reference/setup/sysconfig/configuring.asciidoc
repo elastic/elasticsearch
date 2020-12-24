@@ -81,7 +81,7 @@ However, system limits need to be specified via <<systemd,systemd>>.
 ==== Systemd configuration
 
 When using the RPM or Debian packages on systems that use
-https://en.wikipedia.org/wiki/Systemd[systemd], system limits must be
+{wikipedia}/Systemd[systemd], system limits must be
 specified via systemd.
 
 The systemd service file (`/usr/lib/systemd/system/elasticsearch.service`)

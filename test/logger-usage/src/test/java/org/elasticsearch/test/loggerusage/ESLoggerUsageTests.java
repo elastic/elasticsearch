@@ -262,7 +262,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     }
 
     public void checkDeprecationLogger() {
-        DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+        DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ESLoggerUsageTests.class);
         deprecationLogger.deprecate("key","message {}", 123);
     }
 

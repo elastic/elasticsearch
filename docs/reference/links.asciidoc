@@ -1,0 +1,4 @@
+// These attributes define common links in the Elasticsearch Reference
+
+:ml-docs-setup:            {ml-docs}/setup.html[Set up {ml-features}]
+:ml-docs-setup-privileges: {ml-docs}/setup.html#setup-privileges[{ml-cap} security privileges]

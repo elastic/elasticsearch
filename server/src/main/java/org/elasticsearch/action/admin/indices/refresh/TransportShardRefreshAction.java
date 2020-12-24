@@ -68,9 +68,12 @@ public class TransportShardRefreshAction
     }
 
     @Override
-    protected ReplicaResult shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica) {
-        replica.refresh("api");
-        logger.trace("{} refresh request executed on replica", replica.shardId());
-        return new ReplicaResult();
+    protected void shardOperationOnReplica(BasicReplicationRequest request, IndexShard replica,
+            ActionListener<ReplicaResult> listener) {
+        ActionListener.completeWith(listener, () -> {
+            replica.refresh("api");
+            logger.trace("{} refresh request executed on replica", replica.shardId());
+            return new ReplicaResult();
+        });
     }
 }

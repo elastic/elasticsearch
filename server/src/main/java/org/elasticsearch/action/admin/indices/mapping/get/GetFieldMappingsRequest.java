@@ -89,6 +89,11 @@ public class GetFieldMappingsRequest extends ActionRequest implements IndicesReq
         return indicesOptions;
     }
 
+    @Override
+    public boolean includeDataStreams() {
+        return true;
+    }
+
     /** @param fields a list of fields to retrieve the mapping for */
     public GetFieldMappingsRequest fields(String... fields) {
         this.fields = fields;

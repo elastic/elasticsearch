@@ -6,51 +6,29 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.function.scalar.BinaryScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter;
 
 import java.time.ZoneId;
 
-import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isDateOrTime;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter.DATE_TIME_FORMAT;
 
-public class DateTimeFormat extends BinaryDateTimeFunction {
+public class DateTimeFormat extends BaseDateTimeFormatFunction {
 
     public DateTimeFormat(Source source, Expression timestamp, Expression pattern, ZoneId zoneId) {
         super(source, timestamp, pattern, zoneId);
     }
 
     @Override
-    public DataType dataType() {
-        return DataTypes.KEYWORD;
+    protected Formatter formatter() {
+        return DATE_TIME_FORMAT;
     }
 
     @Override
-    protected TypeResolution resolveType() {
-        TypeResolution resolution = isDateOrTime(left(), sourceText(), Expressions.ParamOrdinal.FIRST);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        resolution = isString(right(), sourceText(), Expressions.ParamOrdinal.SECOND);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-        return TypeResolution.TYPE_RESOLVED;
-    }
-
-    @Override
-    protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
-        return new DateTimeFormat(source(), timestamp, pattern, zoneId());
-    }
-
-    @Override
-    protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, DateTimeFormat::new, left(), right(), zoneId());
+    protected NodeInfo.NodeCtor3<Expression, Expression, ZoneId, BaseDateTimeFormatFunction> ctor() {
+        return DateTimeFormat::new;
     }
 
     @Override
@@ -59,12 +37,7 @@ public class DateTimeFormat extends BinaryDateTimeFunction {
     }
 
     @Override
-    public Object fold() {
-        return DateTimeFormatProcessor.process(left().fold(), right().fold(), zoneId());
-    }
-
-    @Override
-    protected Pipe createPipe(Pipe timestamp, Pipe pattern, ZoneId zoneId) {
-        return new DateTimeFormatPipe(source(), this, timestamp, pattern, zoneId);
+    protected BinaryScalarFunction replaceChildren(Expression timestamp, Expression pattern) {
+        return new DateTimeFormat(source(), timestamp, pattern, zoneId());
     }
 }

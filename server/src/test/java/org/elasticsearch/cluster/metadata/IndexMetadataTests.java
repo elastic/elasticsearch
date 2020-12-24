@@ -75,6 +75,7 @@ public class IndexMetadataTests extends ESTestCase {
     public void testIndexMetadataSerialization() throws IOException {
         Integer numShard = randomFrom(1, 2, 4, 8, 16);
         int numberOfReplicas = randomIntBetween(0, 10);
+        final boolean system = randomBoolean();
         Map<String, String> customMap = new HashMap<>();
         customMap.put(randomAlphaOfLength(5), randomAlphaOfLength(10));
         customMap.put(randomAlphaOfLength(10), randomAlphaOfLength(15));
@@ -87,6 +88,7 @@ public class IndexMetadataTests extends ESTestCase {
             .creationDate(randomLong())
             .primaryTerm(0, 2)
             .setRoutingNumShards(32)
+            .system(system)
             .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
@@ -94,6 +96,7 @@ public class IndexMetadataTests extends ESTestCase {
                         new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
                         new MaxDocsCondition(randomNonNegativeLong())),
                     randomNonNegativeLong())).build();
+        assertEquals(system, metadata.isSystem());
 
         final XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -112,6 +115,7 @@ public class IndexMetadataTests extends ESTestCase {
         assertEquals(metadata.getCreationDate(), fromXContentMeta.getCreationDate());
         assertEquals(metadata.getRoutingFactor(), fromXContentMeta.getRoutingFactor());
         assertEquals(metadata.primaryTerm(0), fromXContentMeta.primaryTerm(0));
+        assertEquals(metadata.isSystem(), fromXContentMeta.isSystem());
         ImmutableOpenMap.Builder<String, DiffableStringMap> expectedCustomBuilder = ImmutableOpenMap.builder();
         expectedCustomBuilder.put("my_custom", new DiffableStringMap(customMap));
         ImmutableOpenMap<String, DiffableStringMap> expectedCustom = expectedCustomBuilder.build();
@@ -135,6 +139,7 @@ public class IndexMetadataTests extends ESTestCase {
             assertEquals(metadata.getRolloverInfos(), deserialized.getRolloverInfos());
             assertEquals(deserialized.getCustomData(), expectedCustom);
             assertEquals(metadata.getCustomData(),  deserialized.getCustomData());
+            assertEquals(metadata.isSystem(), deserialized.isSystem());
         }
     }
 
@@ -308,6 +313,15 @@ public class IndexMetadataTests extends ESTestCase {
         assertThat(
             e.getMessage(),
             equalTo("Failed to parse value [" + numberOfShards + "] for setting [index.number_of_shards] must be >= 1"));
+    }
+
+    public void testMissingCreatedVersion() {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
+            IndexMetadata.builder("test").settings(settings).build());
+        assertThat(e.getMessage(), containsString("[index.version.created] is not present"));
     }
 
     public void testMissingNumberOfReplicas() {

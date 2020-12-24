@@ -112,10 +112,10 @@ public final class TransportSamlLogoutAction
         final String session = getMetadataString(tokenMetadata, SamlRealm.TOKEN_METADATA_SESSION);
         final LogoutRequest logout = realm.buildLogoutRequest(nameId.asXml(), session);
         if (logout == null) {
-            return new SamlLogoutResponse((String)null);
+            return new SamlLogoutResponse(null, null);
         }
         final String uri = new SamlRedirect(logout, realm.getSigningConfiguration()).getRedirectUrl();
-        return new SamlLogoutResponse(uri);
+        return new SamlLogoutResponse(logout.getID(), uri);
     }
 
     private String getMetadataString(Map<String, Object> metadata, String key) {

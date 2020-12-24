@@ -22,7 +22,6 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,7 +39,6 @@ import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.action.PutDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.rollup.action.GetRollupIndexCapsAction;
@@ -80,8 +78,8 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                                       XPackLicenseState licenseState, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver,
                                       NamedXContentRegistry xContentRegistry) {
-        super(PutDatafeedAction.NAME, transportService, clusterService, threadPool,
-                actionFilters, PutDatafeedAction.Request::new, indexNameExpressionResolver);
+        super(PutDatafeedAction.NAME, transportService, clusterService, threadPool, actionFilters, PutDatafeedAction.Request::new,
+                indexNameExpressionResolver, PutDatafeedAction.Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.client = client;
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
@@ -89,16 +87,6 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
         this.datafeedConfigProvider = new DatafeedConfigProvider(client, xContentRegistry);
         this.jobConfigProvider = new JobConfigProvider(client, xContentRegistry);
         this.xContentRegistry = xContentRegistry;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected PutDatafeedAction.Response read(StreamInput in) throws IOException {
-        return new PutDatafeedAction.Response(in);
     }
 
     @Override
@@ -211,7 +199,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
                 return;
             }
             ElasticsearchMappings.addDocMappingIfMissing(
-                AnomalyDetectorsIndex.configIndexName(),
+                MlConfigIndex.indexName(),
                 MlConfigIndex::mapping,
                 client,
                 clusterState,
@@ -266,7 +254,7 @@ public class TransportPutDatafeedAction extends TransportMasterNodeAction<PutDat
 
     @Override
     protected void doExecute(Task task, PutDatafeedAction.Request request, ActionListener<PutDatafeedAction.Response> listener) {
-        if (licenseState.isAllowed(XPackLicenseState.Feature.MACHINE_LEARNING)) {
+        if (licenseState.checkFeature(XPackLicenseState.Feature.MACHINE_LEARNING)) {
             super.doExecute(task, request, listener);
         } else {
             listener.onFailure(LicenseUtils.newComplianceException(XPackField.MACHINE_LEARNING));

@@ -19,11 +19,8 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.collect.CopyOnWriteHashMap;
-
-import java.util.Collections;
-import java.util.Iterator;
 import java.util.Map;
+import java.util.stream.Stream;
 
 /**
  * A container that supports looking up field types for 'dynamic key' fields ({@link DynamicKeyFieldMapper}).
@@ -36,7 +33,7 @@ import java.util.Map;
  * Flattened object fields live in the 'mapper-flattened' module.
  */
 class DynamicKeyFieldTypeLookup {
-    private final CopyOnWriteHashMap<String, DynamicKeyFieldMapper> mappers;
+    private final Map<String, DynamicKeyFieldMapper> mappers;
     private final Map<String, String> aliasToConcreteName;
 
     /**
@@ -45,25 +42,11 @@ class DynamicKeyFieldTypeLookup {
      */
     private final int maxKeyDepth;
 
-    DynamicKeyFieldTypeLookup() {
-        this.mappers = new CopyOnWriteHashMap<>();
-        this.aliasToConcreteName = Collections.emptyMap();
-        this.maxKeyDepth = 0;
-    }
-
-    private DynamicKeyFieldTypeLookup(CopyOnWriteHashMap<String, DynamicKeyFieldMapper> mappers,
-                                      Map<String, String> aliasToConcreteName,
-                                      int maxKeyDepth) {
-        this.mappers = mappers;
+    DynamicKeyFieldTypeLookup(Map<String, DynamicKeyFieldMapper> newMappers,
+                              Map<String, String> aliasToConcreteName) {
+        this.mappers = newMappers;
         this.aliasToConcreteName = aliasToConcreteName;
-        this.maxKeyDepth = maxKeyDepth;
-    }
-
-    DynamicKeyFieldTypeLookup copyAndAddAll(Map<String, DynamicKeyFieldMapper> newMappers,
-                                            Map<String, String> aliasToConcreteName) {
-        CopyOnWriteHashMap<String, DynamicKeyFieldMapper> combinedMappers = this.mappers.copyAndPutAll(newMappers);
-        int maxKeyDepth = getMaxKeyDepth(combinedMappers, aliasToConcreteName);
-        return new DynamicKeyFieldTypeLookup(combinedMappers, aliasToConcreteName, maxKeyDepth);
+        this.maxKeyDepth = getMaxKeyDepth(mappers, aliasToConcreteName);
     }
 
     /**
@@ -100,10 +83,8 @@ class DynamicKeyFieldTypeLookup {
         }
     }
 
-    Iterator<MappedFieldType> fieldTypes() {
-        return mappers.values().stream()
-            .<MappedFieldType>map(mapper -> mapper.keyedFieldType(""))
-            .iterator();
+    Stream<MappedFieldType> fieldTypes() {
+        return mappers.values().stream().map(mapper -> mapper.keyedFieldType(""));
     }
 
     // Visible for testing.

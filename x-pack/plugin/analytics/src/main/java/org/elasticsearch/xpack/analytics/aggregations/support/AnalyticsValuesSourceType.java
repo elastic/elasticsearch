@@ -10,13 +10,13 @@ import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.util.Locale;
-import java.util.function.LongSupplier;
 
 public enum AnalyticsValuesSourceType implements ValuesSourceType {
     HISTOGRAM() {
@@ -32,7 +32,7 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script) {
+        public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
             final IndexFieldData<?> indexFieldData = fieldContext.indexFieldData();
 
             if (!(indexFieldData instanceof IndexHistogramFieldData)) {
@@ -43,7 +43,12 @@ public enum AnalyticsValuesSourceType implements ValuesSourceType {
         }
 
         @Override
-        public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat, LongSupplier now) {
+        public ValuesSource replaceMissing(
+            ValuesSource valuesSource,
+            Object rawMissing,
+            DocValueFormat docValueFormat,
+            AggregationContext context
+        ) {
             throw new IllegalArgumentException("Can't apply missing values on a " + valuesSource.getClass());
         }
     };

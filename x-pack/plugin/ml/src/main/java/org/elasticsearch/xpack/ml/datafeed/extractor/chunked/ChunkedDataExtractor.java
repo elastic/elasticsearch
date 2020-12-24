@@ -239,6 +239,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             return new SearchSourceBuilder()
                 .size(0)
                 .query(ExtractorUtils.wrapInTimeRangeQuery(context.query, context.timeField, currentStart, context.end))
+                .runtimeMappings(context.runtimeMappings)
                 .aggregation(AggregationBuilders.min(EARLIEST_TIME).field(context.timeField))
                 .aggregation(AggregationBuilders.max(LATEST_TIME).field(context.timeField));
         }
@@ -320,11 +321,11 @@ public class ChunkedDataExtractor implements DataExtractor {
         }
 
         /**
-         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig.Builder}
+         * This heuristic is a direct copy of the manual chunking config auto-creation done in {@link DatafeedConfig}
          */
         @Override
         public long estimateChunk() {
-            return DatafeedConfig.Builder.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
+            return DatafeedConfig.DEFAULT_AGGREGATION_CHUNKING_BUCKETS * histogramIntervalMillis;
         }
 
         @Override

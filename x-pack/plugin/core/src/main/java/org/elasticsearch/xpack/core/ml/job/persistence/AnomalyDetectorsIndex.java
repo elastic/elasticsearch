@@ -66,15 +66,6 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * The name of the index where job and datafeed configuration
-     * is stored
-     * @return The index name
-     */
-    public static String configIndexName() {
-        return AnomalyDetectorsIndexFields.CONFIG_INDEX;
-    }
-
-    /**
      * Creates the .ml-state-000001 index (if necessary)
      * Creates the .ml-state-write alias for the .ml-state-000001 index (if necessary)
      */

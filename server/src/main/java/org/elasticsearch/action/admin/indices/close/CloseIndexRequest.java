@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.close;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -46,11 +45,7 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_7_2_0)) {
-            waitForActiveShards = ActiveShardCount.readFrom(in);
-        } else {
-            waitForActiveShards = ActiveShardCount.NONE;
-        }
+        waitForActiveShards = ActiveShardCount.readFrom(in);
     }
 
     public CloseIndexRequest() {
@@ -129,8 +124,6 @@ public class CloseIndexRequest extends AcknowledgedRequest<CloseIndexRequest> im
         super.writeTo(out);
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            waitForActiveShards.writeTo(out);
-        }
+        waitForActiveShards.writeTo(out);
     }
 }

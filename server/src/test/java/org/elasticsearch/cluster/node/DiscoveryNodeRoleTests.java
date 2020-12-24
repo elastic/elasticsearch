@@ -33,11 +33,11 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> DiscoveryNode.setPossibleRoles(Set.of(
+                () -> DiscoveryNode.setAdditionalRoles(Set.of(
                         new DiscoveryNodeRole("foo", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -45,7 +45,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                         new DiscoveryNodeRole("foo", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -56,11 +56,11 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNameAbbreviations() {
         final IllegalStateException e = expectThrows(
                 IllegalStateException.class,
-                () -> DiscoveryNode.setPossibleRoles(Set.of(
+                () -> DiscoveryNode.setAdditionalRoles(Set.of(
                         new DiscoveryNodeRole("foo_1", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -68,7 +68,7 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
                         new DiscoveryNodeRole("foo_2", "f") {
 
                             @Override
-                            protected Setting<Boolean> roleSetting() {
+                            public Setting<Boolean> legacySetting() {
                                 return null;
                             }
 
@@ -77,13 +77,27 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
     }
 
     public void testDiscoveryNodeRoleEqualsHashCode() {
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(new DiscoveryNodeRole.UnknownRole(randomAlphaOfLength(10), randomAlphaOfLength(1)),
-            r -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation()),
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
+            new DiscoveryNodeRole.UnknownRole(randomAlphaOfLength(10), randomAlphaOfLength(1), randomBoolean()),
+            r -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData()),
             r -> {
-                if (randomBoolean()) {
-                    return new DiscoveryNodeRole.UnknownRole(randomAlphaOfLength(21 - r.roleName().length()), r.roleNameAbbreviation());
-                } else {
-                    return new DiscoveryNodeRole.UnknownRole(r.roleName(), randomAlphaOfLength(3 - r.roleNameAbbreviation().length()));
+                final int value = randomIntBetween(0, 2);
+                switch (value) {
+                    case 0:
+                    return new DiscoveryNodeRole.UnknownRole(
+                        randomAlphaOfLength(21 - r.roleName().length()),
+                        r.roleNameAbbreviation(),
+                        r.canContainData()
+                    );
+                    case 1:
+                    return new DiscoveryNodeRole.UnknownRole(
+                        r.roleName(),
+                        randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
+                        r.canContainData());
+                    case 2:
+                        return new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
+                    default:
+                        throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
                 }
             });
 
@@ -91,8 +105,11 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
 
     public void testUnknownRoleIsDistinctFromKnownRoles() {
         for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.BUILT_IN_ROLES) {
-            final DiscoveryNodeRole.UnknownRole unknownDataRole
-                = new DiscoveryNodeRole.UnknownRole(buildInRole.roleName(), buildInRole.roleNameAbbreviation());
+            final DiscoveryNodeRole.UnknownRole unknownDataRole = new DiscoveryNodeRole.UnknownRole(
+                buildInRole.roleName(),
+                buildInRole.roleNameAbbreviation(),
+                buildInRole.canContainData()
+            );
             assertNotEquals(buildInRole, unknownDataRole);
             assertNotEquals(buildInRole.toString(), unknownDataRole.toString());
         }

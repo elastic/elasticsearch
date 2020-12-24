@@ -71,7 +71,17 @@ public final class QueryBuilders {
     public static MultiMatchQueryBuilder multiMatchQuery(Object text, String... fieldNames) {
         return new MultiMatchQueryBuilder(text, fieldNames); // BOOLEAN is the default
     }
-
+    
+    /**
+     * Creates a text query with type "BOOL_PREFIX" for the provided field name and text.
+     *
+     * @param name The field name.
+     * @param text The query text (to be analyzed).
+     */
+    public static MatchBoolPrefixQueryBuilder matchBoolPrefixQuery(String name, Object text) {
+        return new MatchBoolPrefixQueryBuilder(name, text);
+    }
+    
     /**
      * Creates a text query with type "PHRASE" for the provided field name and text.
      *

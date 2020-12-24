@@ -3,7 +3,7 @@
 
 Management plugins offer UIs for managing and interacting with Elasticsearch.
 
-[float]
+[discrete]
 === Core management plugins
 
 The core management plugins are:

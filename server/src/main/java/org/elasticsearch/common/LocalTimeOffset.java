@@ -22,6 +22,7 @@ package org.elasticsearch.common;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.temporal.ChronoField;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneOffsetTransitionRule;
 import java.time.zone.ZoneRules;
@@ -174,6 +175,12 @@ public abstract class LocalTimeOffset {
      */
     protected abstract LocalTimeOffset offsetContaining(long utcMillis);
 
+    /**
+     * Does this transition or any previous transitions move back to the
+     * previous day? See {@link Lookup#anyMoveBackToPreviousDay()} for rules.
+     */
+    protected abstract boolean anyMoveBackToPreviousDay();
+
     @Override
     public String toString() {
         return toString(millis);
@@ -194,6 +201,15 @@ public abstract class LocalTimeOffset {
          * return {@code null}.
          */
         public abstract LocalTimeOffset fixedInRange(long minUtcMillis, long maxUtcMillis);
+
+        /**
+         * Do any of the transitions move back to the previous day?
+         * <p>
+         * Note: If an overlap occurs at, say, 1 am and jumps back to
+         * <strong>exactly</strong> midnight then it doesn't count because
+         * midnight is still counted as being in the "next" day.
+         */
+        public abstract boolean anyMoveBackToPreviousDay();
 
         /**
          * The number of offsets in the lookup. Package private for testing.
@@ -223,6 +239,11 @@ public abstract class LocalTimeOffset {
              * the provided time.
              */
             return this;
+        }
+
+        @Override
+        protected boolean anyMoveBackToPreviousDay() {
+            return false;
         }
 
         @Override
@@ -299,6 +320,11 @@ public abstract class LocalTimeOffset {
         }
 
         @Override
+        protected boolean anyMoveBackToPreviousDay() {
+            return previous().anyMoveBackToPreviousDay();
+        }
+
+        @Override
         protected String toString(long millis) {
             return "Gap of " + millis + "@" + Instant.ofEpochMilli(startUtcMillis());
         }
@@ -307,13 +333,21 @@ public abstract class LocalTimeOffset {
     public static class Overlap extends Transition {
         private final long firstOverlappingLocalTime;
         private final long firstNonOverlappingLocalTime;
+        private final boolean movesBackToPreviousDay;
 
-        private Overlap(long millis, LocalTimeOffset previous, long startUtcMillis,
-                long firstOverlappingLocalTime, long firstNonOverlappingLocalTime) {
+        private Overlap(
+            long millis,
+            LocalTimeOffset previous,
+            long startUtcMillis,
+            long firstOverlappingLocalTime,
+            long firstNonOverlappingLocalTime,
+            boolean movesBackToPreviousDay
+        ) {
             super(millis, previous, startUtcMillis);
             this.firstOverlappingLocalTime = firstOverlappingLocalTime;
             this.firstNonOverlappingLocalTime = firstNonOverlappingLocalTime;
             assert firstOverlappingLocalTime < firstNonOverlappingLocalTime;
+            this.movesBackToPreviousDay = movesBackToPreviousDay;
         }
 
         @Override
@@ -339,6 +373,11 @@ public abstract class LocalTimeOffset {
          */
         public long firstOverlappingLocalTime() {
             return firstOverlappingLocalTime;
+        }
+
+        @Override
+        protected boolean anyMoveBackToPreviousDay() {
+            return movesBackToPreviousDay || previous().anyMoveBackToPreviousDay();
         }
 
         @Override
@@ -375,6 +414,11 @@ public abstract class LocalTimeOffset {
         public String toString() {
             return String.format(Locale.ROOT, "FixedLookup[for %s at %s]", zone, fixed);
         }
+
+        @Override
+        public boolean anyMoveBackToPreviousDay() {
+            return false;
+        }
     }
 
     /**
@@ -405,6 +449,11 @@ public abstract class LocalTimeOffset {
         @Override
         int size() {
             return size;
+        }
+
+        @Override
+        public boolean anyMoveBackToPreviousDay() {
+            return lastOffset.anyMoveBackToPreviousDay();
         }
     }
 
@@ -451,6 +500,11 @@ public abstract class LocalTimeOffset {
         @Override
         int size() {
             return offsets.length;
+        }
+
+        @Override
+        public boolean anyMoveBackToPreviousDay() {
+            return offsets[offsets.length - 1].anyMoveBackToPreviousDay();
         }
 
         @Override
@@ -505,7 +559,25 @@ public abstract class LocalTimeOffset {
             }
             long firstOverlappingLocalTime = utcStart + offsetAfterMillis;
             long firstNonOverlappingLocalTime = utcStart + offsetBeforeMillis;
-            return new Overlap(offsetAfterMillis, previous, utcStart, firstOverlappingLocalTime, firstNonOverlappingLocalTime);
+            return new Overlap(
+                offsetAfterMillis,
+                previous,
+                utcStart,
+                firstOverlappingLocalTime,
+                firstNonOverlappingLocalTime,
+                movesBackToPreviousDay(transition)
+            );
+        }
+
+        private static boolean movesBackToPreviousDay(ZoneOffsetTransition transition) {
+            if (transition.getDateTimeBefore().getDayOfMonth() == transition.getDateTimeAfter().getDayOfMonth()) {
+                return false;
+            }
+            if (transition.getDateTimeBefore().getLong(ChronoField.NANO_OF_DAY) == 0L) {
+                // If we change *at* midnight this is ok.
+                return false;
+            }
+            return true;
         }
     }
 

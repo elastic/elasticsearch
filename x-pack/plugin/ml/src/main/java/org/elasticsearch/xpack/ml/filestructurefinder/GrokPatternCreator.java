@@ -150,9 +150,9 @@ public final class GrokPatternCreator {
         this.mappings = mappings;
         this.fieldStats = fieldStats;
         if (customGrokPatternDefinitions.isEmpty()) {
-            grokPatternDefinitions = Grok.getBuiltinPatterns();
+            grokPatternDefinitions = Grok.BUILTIN_PATTERNS;
         } else {
-            grokPatternDefinitions = new HashMap<>(Grok.getBuiltinPatterns());
+            grokPatternDefinitions = new HashMap<>(Grok.BUILTIN_PATTERNS);
             grokPatternDefinitions.putAll(customGrokPatternDefinitions);
         }
         this.timeoutChecker = Objects.requireNonNull(timeoutChecker);
@@ -457,7 +457,7 @@ public final class GrokPatternCreator {
          */
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName) {
             this(grokPatternName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType), fieldName,
-                "\\b", "\\b", Grok.getBuiltinPatterns());
+                "\\b", "\\b", Grok.BUILTIN_PATTERNS);
         }
 
         /**
@@ -481,7 +481,7 @@ public final class GrokPatternCreator {
          */
         ValueOnlyGrokPatternCandidate(String grokPatternName, String mappingType, String fieldName, String preBreak, String postBreak) {
             this(grokPatternName, Collections.singletonMap(FileStructureUtils.MAPPING_TYPE_SETTING, mappingType), fieldName,
-                preBreak, postBreak, Grok.getBuiltinPatterns());
+                preBreak, postBreak, Grok.BUILTIN_PATTERNS);
         }
 
         /**
@@ -594,7 +594,7 @@ public final class GrokPatternCreator {
             if (fieldName == null) {
                 throw new IllegalStateException("Cannot process KV matches until a field name has been determined");
             }
-            Grok grok = new Grok(Grok.getBuiltinPatterns(), "(?m)%{DATA:" + PREFACE + "}\\b" +
+            Grok grok = new Grok(Grok.BUILTIN_PATTERNS, "(?m)%{DATA:" + PREFACE + "}\\b" +
                 fieldName + "=%{USER:" + VALUE + "}%{GREEDYDATA:" + EPILOGUE + "}", TimeoutChecker.watchdog, logger::warn);
             Collection<String> values = new ArrayList<>();
             for (String snippet : snippets) {
@@ -649,7 +649,7 @@ public final class GrokPatternCreator {
         private final Grok grok;
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(String grokPatternName, String timeField) {
-            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.getBuiltinPatterns());
+            return new FullMatchGrokPatternCandidate("%{" + grokPatternName + "}", timeField, Grok.BUILTIN_PATTERNS);
         }
 
         static FullMatchGrokPatternCandidate fromGrokPatternName(String grokPatternName, String timeField,
@@ -658,7 +658,7 @@ public final class GrokPatternCreator {
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField) {
-            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.getBuiltinPatterns());
+            return new FullMatchGrokPatternCandidate(grokPattern, timeField, Grok.BUILTIN_PATTERNS);
         }
 
         static FullMatchGrokPatternCandidate fromGrokPattern(String grokPattern, String timeField,

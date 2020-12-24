@@ -62,7 +62,7 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
 
     public static final Setting<List<String>> KIBANA_INDEX_NAMES_SETTING = Setting.listSetting(
         "kibana.system_indices",
-        List.of(".kibana*", ".reporting"),
+        List.of(".kibana", ".kibana_*", ".reporting-*", ".apm-agent-configuration", ".apm-custom-link"),
         Function.identity(),
         Property.NodeScope
     );
@@ -131,6 +131,11 @@ public class KibanaPlugin extends Plugin implements SystemIndexPlugin {
         @Override
         public String getName() {
             return "kibana_" + super.getName();
+        }
+
+        @Override
+        public boolean allowSystemIndexAccessByDefault() {
+            return true;
         }
 
         @Override

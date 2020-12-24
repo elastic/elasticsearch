@@ -45,7 +45,7 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
         for (int i = 0; i < randomIntBetween(1, 4); ++i) {
             String targetFieldName = randomAlphaOfLengthBetween(1, 20);
             if (names.add(targetFieldName)) {
-                SingleGroupSource groupBy;
+                SingleGroupSource groupBy = null;
                 SingleGroupSource.Type type = randomFrom(SingleGroupSource.Type.values());
                 switch (type) {
                     case TERMS:
@@ -58,8 +58,10 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
                         groupBy = DateHistogramGroupSourceTests.randomDateHistogramGroupSource();
                         break;
                     case GEOTILE_GRID:
-                    default:
                         groupBy = GeoTileGroupSourceTests.randomGeoTileGroupSource();
+                        break;
+                    default:
+                        fail("unknown group source type, please implement tests and add support here");
                 }
                 groups.put(targetFieldName, groupBy);
             }
@@ -109,8 +111,11 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
                 + "  ]"
                 + "}"
         );
-        XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
+        XContentParser parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            json.streamInput()
+        );
 
         GroupConfig gc = GroupConfig.fromXContent(parser);
 
@@ -138,8 +143,11 @@ public class GroupConfigTests extends AbstractXContentTestCase<GroupConfig> {
                 + "  }"
                 + "}"
         );
-        XContentParser parser = JsonXContent.jsonXContent
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, json.streamInput());
+        XContentParser parser = JsonXContent.jsonXContent.createParser(
+            NamedXContentRegistry.EMPTY,
+            DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+            json.streamInput()
+        );
 
         GroupConfig gc = GroupConfig.fromXContent(parser);
 

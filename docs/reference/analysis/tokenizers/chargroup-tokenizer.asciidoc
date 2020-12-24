@@ -1,12 +1,15 @@
 [[analysis-chargroup-tokenizer]]
-=== Char Group Tokenizer
+=== Character group tokenizer
+++++
+<titleabbrev>Character group</titleabbrev>
+++++
 
 The `char_group` tokenizer breaks text into terms whenever it encounters a
 character which is in a defined set. It is mostly useful for cases where a simple
 custom tokenization is desired, and the overhead of use of the <<analysis-pattern-tokenizer, `pattern` tokenizer>>
 is not acceptable.
 
-[float]
+[discrete]
 === Configuration
 
 The `char_group` tokenizer accepts one parameter:
@@ -23,7 +26,7 @@ The `char_group` tokenizer accepts one parameter:
     it is split at `max_token_length` intervals. Defaults to `255`.
 
 
-[float]
+[discrete]
 === Example output
 
 [source,console]

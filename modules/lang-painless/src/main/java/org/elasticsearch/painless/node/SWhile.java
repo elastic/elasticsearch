@@ -19,14 +19,8 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.Scope;
-import org.elasticsearch.painless.ir.BlockNode;
-import org.elasticsearch.painless.ir.ClassNode;
-import org.elasticsearch.painless.ir.WhileNode;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.symbol.ScriptRoot;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 import java.util.Objects;
 
@@ -54,62 +48,16 @@ public class SWhile extends AStatement {
     }
 
     @Override
-    Output analyze(ClassNode classNode, ScriptRoot scriptRoot, Scope scope, Input input) {
-        Output output = new Output();
-        scope = scope.newLocalScope();
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitWhile(this, scope);
+    }
 
-        AExpression.Input conditionInput = new AExpression.Input();
-        conditionInput.expected = boolean.class;
-        AExpression.Output conditionOutput = AExpression.analyze(conditionNode, classNode, scriptRoot, scope, conditionInput);
-        PainlessCast conditionCast = AnalyzerCaster.getLegalCast(conditionNode.getLocation(),
-                conditionOutput.actual, conditionInput.expected, conditionInput.explicit, conditionInput.internal);
-
-
-        boolean continuous = false;
-
-        if (conditionNode instanceof EBoolean) {
-            continuous = ((EBoolean)conditionNode).getBool();
-
-            if (!continuous) {
-                throw createError(new IllegalArgumentException("Extraneous while loop."));
-            }
-
-            if (blockNode == null) {
-                throw createError(new IllegalArgumentException("While loop has no escape."));
-            }
-        }
-
-        Output blockOutput = null;
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        conditionNode.visit(userTreeVisitor, scope);
 
         if (blockNode != null) {
-            Input blockInput = new Input();
-            blockInput.beginLoop = true;
-            blockInput.inLoop = true;
-
-            blockOutput = blockNode.analyze(classNode, scriptRoot, scope, blockInput);
-
-            if (blockOutput.loopEscape && blockOutput.anyContinue == false) {
-                throw createError(new IllegalArgumentException("Extraneous while loop."));
-            }
-
-            if (continuous && blockOutput.anyBreak == false) {
-                output.methodEscape = true;
-                output.allEscape = true;
-            }
-
-            blockOutput.statementCount = Math.max(1, blockOutput.statementCount);
+            blockNode.visit(userTreeVisitor, scope);
         }
-
-        output.statementCount = 1;
-
-        WhileNode whileNode = new WhileNode();
-        whileNode.setConditionNode(AExpression.cast(conditionOutput.expressionNode, conditionCast));
-        whileNode.setBlockNode(blockOutput == null ? null : (BlockNode)blockOutput.statementNode);
-        whileNode.setLocation(getLocation());
-        whileNode.setContinuous(continuous);
-
-        output.statementNode = whileNode;
-
-        return output;
     }
 }

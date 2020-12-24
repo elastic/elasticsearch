@@ -18,15 +18,17 @@
  */
 package org.elasticsearch.client.ml.dataframe;
 
+import org.elasticsearch.client.ml.inference.NamedXContentObjectHelper;
+import org.elasticsearch.client.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
@@ -54,7 +56,9 @@ public class Classification implements DataFrameAnalysis {
     static final ParseField CLASS_ASSIGNMENT_OBJECTIVE = new ParseField("class_assignment_objective");
     static final ParseField NUM_TOP_CLASSES = new ParseField("num_top_classes");
     static final ParseField RANDOMIZE_SEED = new ParseField("randomize_seed");
+    static final ParseField FEATURE_PROCESSORS = new ParseField("feature_processors");
 
+    @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<Classification, Void> PARSER =
         new ConstructingObjectParser<>(
             NAME.getPreferredName(),
@@ -71,7 +75,8 @@ public class Classification implements DataFrameAnalysis {
                 (Double) a[8],
                 (Integer) a[9],
                 (Long) a[10],
-                (ClassAssignmentObjective) a[11]));
+                (ClassAssignmentObjective) a[11],
+                (List<PreProcessor>) a[12]));
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), DEPENDENT_VARIABLE);
@@ -85,12 +90,12 @@ public class Classification implements DataFrameAnalysis {
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), TRAINING_PERCENT);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUM_TOP_CLASSES);
         PARSER.declareLong(ConstructingObjectParser.optionalConstructorArg(), RANDOMIZE_SEED);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_STRING) {
-                return ClassAssignmentObjective.fromString(p.text());
-            }
-            throw new IllegalArgumentException("Unsupported token [" + p.currentToken() + "]");
-        }, CLASS_ASSIGNMENT_OBJECTIVE, ObjectParser.ValueType.STRING);
+        PARSER.declareString(
+            ConstructingObjectParser.optionalConstructorArg(), ClassAssignmentObjective::fromString, CLASS_ASSIGNMENT_OBJECTIVE);
+        PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(),
+            (p, c, n) -> p.namedObject(PreProcessor.class, n, c),
+            (classification) -> {},
+            FEATURE_PROCESSORS);
     }
 
     private final String dependentVariable;
@@ -105,12 +110,13 @@ public class Classification implements DataFrameAnalysis {
     private final ClassAssignmentObjective classAssignmentObjective;
     private final Integer numTopClasses;
     private final Long randomizeSeed;
+    private final List<PreProcessor> featureProcessors;
 
     private Classification(String dependentVariable, @Nullable Double lambda, @Nullable Double gamma, @Nullable Double eta,
                            @Nullable Integer maxTrees, @Nullable Double featureBagFraction,
                            @Nullable Integer numTopFeatureImportanceValues, @Nullable String predictionFieldName,
                            @Nullable Double trainingPercent, @Nullable Integer numTopClasses, @Nullable Long randomizeSeed,
-                           @Nullable ClassAssignmentObjective classAssignmentObjective) {
+                           @Nullable ClassAssignmentObjective classAssignmentObjective, @Nullable List<PreProcessor> featureProcessors) {
         this.dependentVariable = Objects.requireNonNull(dependentVariable);
         this.lambda = lambda;
         this.gamma = gamma;
@@ -123,6 +129,7 @@ public class Classification implements DataFrameAnalysis {
         this.classAssignmentObjective = classAssignmentObjective;
         this.numTopClasses = numTopClasses;
         this.randomizeSeed = randomizeSeed;
+        this.featureProcessors = featureProcessors;
     }
 
     @Override
@@ -178,6 +185,10 @@ public class Classification implements DataFrameAnalysis {
         return numTopClasses;
     }
 
+    public List<PreProcessor> getFeatureProcessors() {
+        return featureProcessors;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -215,6 +226,9 @@ public class Classification implements DataFrameAnalysis {
         if (numTopClasses != null) {
             builder.field(NUM_TOP_CLASSES.getPreferredName(), numTopClasses);
         }
+        if (featureProcessors != null) {
+            NamedXContentObjectHelper.writeNamedObjects(builder, params, true, FEATURE_PROCESSORS.getPreferredName(), featureProcessors);
+        }
         builder.endObject();
         return builder;
     }
@@ -222,7 +236,7 @@ public class Classification implements DataFrameAnalysis {
     @Override
     public int hashCode() {
         return Objects.hash(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues,
-            predictionFieldName, trainingPercent, randomizeSeed, numTopClasses, classAssignmentObjective);
+            predictionFieldName, trainingPercent, randomizeSeed, numTopClasses, classAssignmentObjective, featureProcessors);
     }
 
     @Override
@@ -241,7 +255,8 @@ public class Classification implements DataFrameAnalysis {
             && Objects.equals(trainingPercent, that.trainingPercent)
             && Objects.equals(randomizeSeed, that.randomizeSeed)
             && Objects.equals(numTopClasses, that.numTopClasses)
-            && Objects.equals(classAssignmentObjective, that.classAssignmentObjective);
+            && Objects.equals(classAssignmentObjective, that.classAssignmentObjective)
+            && Objects.equals(featureProcessors, that.featureProcessors);
     }
 
     @Override
@@ -275,6 +290,7 @@ public class Classification implements DataFrameAnalysis {
         private Integer numTopClasses;
         private Long randomizeSeed;
         private ClassAssignmentObjective classAssignmentObjective;
+        private List<PreProcessor> featureProcessors;
 
         private Builder(String dependentVariable) {
             this.dependentVariable = Objects.requireNonNull(dependentVariable);
@@ -335,10 +351,15 @@ public class Classification implements DataFrameAnalysis {
             return this;
         }
 
+        public Builder setFeatureProcessors(List<PreProcessor> featureProcessors) {
+            this.featureProcessors = featureProcessors;
+            return this;
+        }
+
         public Classification build() {
             return new Classification(dependentVariable, lambda, gamma, eta, maxTrees, featureBagFraction,
                 numTopFeatureImportanceValues, predictionFieldName, trainingPercent, numTopClasses, randomizeSeed,
-                classAssignmentObjective);
+                classAssignmentObjective, featureProcessors);
         }
     }
 }

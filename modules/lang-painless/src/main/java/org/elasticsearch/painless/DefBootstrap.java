@@ -29,6 +29,7 @@ import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
 import java.lang.invoke.MutableCallSite;
 import java.lang.invoke.WrongMethodTypeException;
+import java.util.Map;
 
 /**
  * Painless invokedynamic bootstrap for the call site.
@@ -107,13 +108,14 @@ public final class DefBootstrap {
 
         private final PainlessLookup painlessLookup;
         private final FunctionTable functions;
+        private final Map<String, Object> constants;
         private final MethodHandles.Lookup methodHandlesLookup;
         private final String name;
         private final int flavor;
         private final Object[] args;
         int depth; // pkg-protected for testing
 
-        PIC(PainlessLookup painlessLookup, FunctionTable functions,
+        PIC(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
                 MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object[] args) {
             super(type);
             if (type.parameterType(0) != Object.class) {
@@ -121,6 +123,7 @@ public final class DefBootstrap {
             }
             this.painlessLookup = painlessLookup;
             this.functions = functions;
+            this.constants = constants;
             this.methodHandlesLookup = methodHandlesLookup;
             this.name = name;
             this.flavor = flavor;
@@ -148,7 +151,7 @@ public final class DefBootstrap {
         private MethodHandle lookup(int flavor, String name, Class<?> receiver) throws Throwable {
             switch(flavor) {
                 case METHOD_CALL:
-                    return Def.lookupMethod(painlessLookup, functions, methodHandlesLookup, type(), receiver, name, args);
+                    return Def.lookupMethod(painlessLookup, functions, constants, methodHandlesLookup, type(), receiver, name, args);
                 case LOAD:
                     return Def.lookupGetter(painlessLookup, receiver, name);
                 case STORE:
@@ -160,7 +163,7 @@ public final class DefBootstrap {
                 case ITERATOR:
                     return Def.lookupIterator(receiver);
                 case REFERENCE:
-                    return Def.lookupReference(painlessLookup, functions, methodHandlesLookup, (String) args[0], receiver, name);
+                    return Def.lookupReference(painlessLookup, functions, constants, methodHandlesLookup, (String) args[0], receiver, name);
                 case INDEX_NORMALIZE:
                     return Def.lookupIndexNormalize(receiver);
                 default: throw new AssertionError();
@@ -436,7 +439,7 @@ public final class DefBootstrap {
      * see https://docs.oracle.com/javase/specs/jvms/se7/html/jvms-6.html#jvms-6.5.invokedynamic
      */
     @SuppressWarnings("unchecked")
-    public static CallSite bootstrap(PainlessLookup painlessLookup, FunctionTable functions,
+    public static CallSite bootstrap(PainlessLookup painlessLookup, FunctionTable functions, Map<String, Object> constants,
             MethodHandles.Lookup methodHandlesLookup, String name, MethodType type, int initialDepth, int flavor, Object... args) {
         // validate arguments
         switch(flavor) {
@@ -456,7 +459,7 @@ public final class DefBootstrap {
                 if (args.length != numLambdas + 1) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
-                return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case LOAD:
             case STORE:
             case ARRAY_LOAD:
@@ -466,7 +469,7 @@ public final class DefBootstrap {
                 if (args.length > 0) {
                     throw new BootstrapMethodError("Illegal static bootstrap parameters for flavor: " + flavor);
                 }
-                return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
             case REFERENCE:
                 if (args.length != 1) {
                     throw new BootstrapMethodError("Invalid number of parameters for reference call");
@@ -474,7 +477,7 @@ public final class DefBootstrap {
                 if (args[0] instanceof String == false) {
                     throw new BootstrapMethodError("Illegal parameter for reference call: " + args[0]);
                 }
-                return new PIC(painlessLookup, functions, methodHandlesLookup, name, type, initialDepth, flavor, args);
+                return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);
 
             // operators get monomorphic cache, with a generic impl for a fallback
             case UNARY_OPERATOR:

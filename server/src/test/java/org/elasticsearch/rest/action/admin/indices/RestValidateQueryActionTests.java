@@ -26,9 +26,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.rest.CompatibleVersion;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.AbstractSearchTestCase;
@@ -38,18 +40,21 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
@@ -58,7 +63,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
     private static UsageService usageService = new UsageService();
     private static RestController controller = new RestController(emptySet(), null, client,
-        new NoneCircuitBreakerService(), usageService);
+        new NoneCircuitBreakerService(), usageService, CompatibleVersion.CURRENT_VERSION);
     private static RestValidateQueryAction action = new RestValidateQueryAction();
 
     /**
@@ -80,7 +85,8 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, taskManager, () -> "local", null);
+        client.initialize(actions, taskManager, () -> "local",
+            mock(Transport.Connection.class), null, new NamedWriteableRegistry(List.of()));
         controller.registerHandler(action);
     }
 

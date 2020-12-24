@@ -76,7 +76,7 @@ again. While an active monitoring index is read-only, it will naturally fail to
 write (index) new data and will continuously log errors that indicate the write
 failure. For more information, see <<disk-based-shard-allocation>>.
 
-[float]
+[discrete]
 [[es-monitoring-default-exporter]]
 === Default exporters
 
@@ -96,7 +96,7 @@ If another exporter is already defined, the default exporter is _not_ created.
 When you define a new exporter, if the default exporter exists, it is
 automatically removed.
 
-[float]
+[discrete]
 [[es-monitoring-templates]]
 === Exporter templates and ingest pipelines
 

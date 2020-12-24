@@ -20,12 +20,10 @@
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -197,10 +195,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             out.writeBoolean(false);
         }
         out.writeOptionalBoolean(writeIndex());
-
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeOptionalBoolean(isHidden);
-        }
+        out.writeOptionalBoolean(isHidden);
     }
 
     public AliasMetadata(StreamInput in) throws IOException {
@@ -223,12 +218,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
             searchRoutingValues = emptySet();
         }
         writeIndex = in.readOptionalBoolean();
-
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            isHidden = in.readOptionalBoolean();
-        } else {
-            isHidden = null;
-        }
+        isHidden = in.readOptionalBoolean();
     }
 
     public static Diff<AliasMetadata> readDiffFrom(StreamInput in) throws IOException {
@@ -336,7 +326,7 @@ public class AliasMetadata extends AbstractDiffable<AliasMetadata> implements To
                 if (binary) {
                     builder.field("filter", aliasMetadata.filter.compressed());
                 } else {
-                    builder.field("filter", XContentHelper.convertToMap(new BytesArray(aliasMetadata.filter().uncompressed()), true).v2());
+                    builder.field("filter", XContentHelper.convertToMap(aliasMetadata.filter().uncompressed(), true).v2());
                 }
             }
             if (aliasMetadata.indexRouting() != null) {

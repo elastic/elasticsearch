@@ -18,40 +18,40 @@ public class EndsWithFunctionProcessor implements Processor {
 
     public static final String NAME = "senw";
 
-    private final Processor source;
+    private final Processor input;
     private final Processor pattern;
     private final boolean isCaseSensitive;
 
-    public EndsWithFunctionProcessor(Processor source, Processor pattern, boolean isCaseSensitive) {
-        this.source = source;
+    public EndsWithFunctionProcessor(Processor input, Processor pattern, boolean isCaseSensitive) {
+        this.input = input;
         this.pattern = pattern;
         this.isCaseSensitive = isCaseSensitive;
     }
 
     public EndsWithFunctionProcessor(StreamInput in) throws IOException {
-        source = in.readNamedWriteable(Processor.class);
+        input = in.readNamedWriteable(Processor.class);
         pattern = in.readNamedWriteable(Processor.class);
         isCaseSensitive = in.readBoolean();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        out.writeNamedWriteable(source);
+        out.writeNamedWriteable(input);
         out.writeNamedWriteable(pattern);
         out.writeBoolean(isCaseSensitive);
     }
 
     @Override
-    public Object process(Object input) {
-        return doProcess(source.process(input), pattern.process(input), isCaseSensitive());
+    public Object process(Object o) {
+        return doProcess(input.process(o), pattern.process(o), isCaseSensitive());
     }
 
-    public static Object doProcess(Object source, Object pattern, boolean isCaseSensitive) {
-        if (source == null) {
+    public static Object doProcess(Object input, Object pattern, boolean isCaseSensitive) {
+        if (input == null) {
             return null;
         }
-        if (source instanceof String == false && source instanceof Character == false) {
-            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", source);
+        if (input instanceof String == false && input instanceof Character == false) {
+            throw new EqlIllegalArgumentException("A string/char is required; received [{}]", input);
         }
         if (pattern == null) {
             return null;
@@ -61,14 +61,14 @@ public class EndsWithFunctionProcessor implements Processor {
         }
 
         if (isCaseSensitive) {
-            return  source.toString().endsWith(pattern.toString());
+            return input.toString().endsWith(pattern.toString());
         } else {
-            return source.toString().toLowerCase(Locale.ROOT).endsWith(pattern.toString().toLowerCase(Locale.ROOT));
+            return input.toString().toLowerCase(Locale.ROOT).endsWith(pattern.toString().toLowerCase(Locale.ROOT));
         }
     }
     
-    protected Processor source() {
-        return source;
+    protected Processor input() {
+        return input;
     }
 
     protected Processor pattern() {
@@ -90,14 +90,14 @@ public class EndsWithFunctionProcessor implements Processor {
         }
         
         EndsWithFunctionProcessor other = (EndsWithFunctionProcessor) obj;
-        return Objects.equals(source(), other.source())
+        return Objects.equals(input(), other.input())
                 && Objects.equals(pattern(), other.pattern())
                 && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
     }
     
     @Override
     public int hashCode() {
-        return Objects.hash(source(), pattern(), isCaseSensitive());
+        return Objects.hash(input(), pattern(), isCaseSensitive());
     }
     
 

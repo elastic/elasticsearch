@@ -202,7 +202,7 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         if (token == null) {
             token = parser.nextToken();
         }
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
         long startTime = 0;
         long time = 0;
         int incrementalFileCount = 0;
@@ -212,20 +212,20 @@ public class SnapshotStats implements Writeable, ToXContentObject {
         long totalSize = 0;
         long processedSize = 0;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             String currentName = parser.currentName();
             token = parser.nextToken();
             if (currentName.equals(Fields.INCREMENTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         incrementalFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         incrementalSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -235,16 +235,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.PROCESSED)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         processedFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         processedSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -254,16 +254,16 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.TOTAL)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
                     String innerName = parser.currentName();
                     token = parser.nextToken();
                     if (innerName.equals(Fields.FILE_COUNT)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         totalFileCount = parser.intValue();
                     } else if (innerName.equals(Fields.SIZE_IN_BYTES)) {
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                         totalSize = parser.longValue();
                     } else {
                         // Unknown sub field, skip
@@ -273,10 +273,10 @@ public class SnapshotStats implements Writeable, ToXContentObject {
                     }
                 }
             } else if (currentName.equals(Fields.START_TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                 startTime = parser.longValue();
             } else if (currentName.equals(Fields.TIME_IN_MILLIS)) {
-                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser::getTokenLocation);
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, token, parser);
                 time = parser.longValue();
             } else {
                 // Unknown field, skip

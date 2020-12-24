@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceHelpers;
@@ -134,19 +135,22 @@ public class LangIdentNeuralNetwork implements StrictlyParsedTrainedModel, Lenie
         double[] probabilities = softMax(scores);
 
         ClassificationConfig classificationConfig = (ClassificationConfig) config;
-        Tuple<Integer, List<ClassificationInferenceResults.TopClassEntry>> topClasses = InferenceHelpers.topClasses(
+        Tuple<InferenceHelpers.TopClassificationValue, List<TopClassEntry>> topClasses = InferenceHelpers.topClasses(
             probabilities,
             LANGUAGE_NAMES,
             null,
             classificationConfig.getNumTopClasses(),
             PredictionFieldType.STRING);
-        assert topClasses.v1() >= 0 && topClasses.v1() < LANGUAGE_NAMES.size() :
+        final InferenceHelpers.TopClassificationValue classificationValue = topClasses.v1();
+        assert classificationValue.getValue() >= 0 && classificationValue.getValue() < LANGUAGE_NAMES.size() :
             "Invalid language predicted. Predicted language index " + topClasses.v1();
-        return new ClassificationInferenceResults(topClasses.v1(),
-            LANGUAGE_NAMES.get(topClasses.v1()),
+        return new ClassificationInferenceResults(classificationValue.getValue(),
+            LANGUAGE_NAMES.get(classificationValue.getValue()),
             topClasses.v2(),
             Collections.emptyList(),
-            classificationConfig);
+            classificationConfig,
+            classificationValue.getProbability(),
+            classificationValue.getScore());
     }
 
     @Override

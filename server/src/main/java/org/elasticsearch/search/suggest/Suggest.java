@@ -68,8 +68,8 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         return first.getText().compareTo(second.getText());
      };
 
-    private List<Suggestion<? extends Entry<? extends Option>>> suggestions;
-    private boolean hasScoreDocs;
+    private final List<Suggestion<? extends Entry<? extends Option>>> suggestions;
+    private final boolean hasScoreDocs;
 
     private Map<String, Suggestion<? extends Entry<? extends Option>>> suggestMap;
 
@@ -82,13 +82,9 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         this.hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
-    @SuppressWarnings("unchecked")
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public Suggest(StreamInput in) throws IOException {
-        int suggestionCount = in.readVInt();
-        suggestions = new ArrayList<>(suggestionCount);
-        for (int i = 0; i < suggestionCount; i++) {
-            suggestions.add(in.readNamedWriteable(Suggestion.class));
-        }
+        suggestions = (List) in.readNamedWriteableList(Suggestion.class);
         hasScoreDocs = filter(CompletionSuggestion.class).stream().anyMatch(CompletionSuggestion::hasScoreDocs);
     }
 
@@ -128,10 +124,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(suggestions.size());
-        for (Suggestion<? extends Entry<? extends Option>> suggestion : suggestions) {
-            out.writeNamedWriteable(suggestion);
-        }
+        out.writeNamedWriteableList(suggestions);
     }
 
     @Override
@@ -148,12 +141,12 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
      * this parsing method assumes that the leading "suggest" field name has already been parsed by the caller
      */
     public static Suggest fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         List<Suggestion<? extends Entry<? extends Option>>> suggestions = new ArrayList<>();
         while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String currentField = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
             Suggestion<? extends Entry<? extends Option>> suggestion = Suggestion.fromXContent(parser);
             if (suggestion != null) {
                 suggestions.add(suggestion);
@@ -247,17 +240,6 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
             entries.add(entry);
         }
 
-        /**
-         * Returns a integer representing the type of the suggestion. This is used for
-         * internal serialization over the network.
-         *
-         * This class is now serialized as a NamedWriteable and this method only remains for backwards compatibility
-         */
-        @Deprecated
-        public int getWriteableType() {
-            return TYPE;
-        }
-
         @Override
         public Iterator<T> iterator() {
             return entries.iterator();
@@ -338,10 +320,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(name);
             out.writeVInt(size);
-            out.writeVInt(entries.size());
-            for (Entry<?> entry : entries) {
-                entry.writeTo(out);
-            }
+            out.writeList(entries);
         }
 
         @Override
@@ -388,7 +367,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
 
         @SuppressWarnings("unchecked")
         public static Suggestion<? extends Entry<? extends Option>> fromXContent(XContentParser parser) throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
             SetOnce<Suggestion> suggestion = new SetOnce<>();
             XContentParserUtils.parseTypedKeysObject(parser, Aggregation.TYPED_KEYS_DELIMITER, Suggestion.class, suggestion::set);
             return suggestion.get();
@@ -397,7 +376,7 @@ public class Suggest implements Iterable<Suggest.Suggestion<? extends Entry<? ex
         protected static <E extends Suggestion.Entry<?>> void parseEntries(XContentParser parser, Suggestion<E> suggestion,
                                                                            CheckedFunction<XContentParser, E, IOException> entryParser)
                 throws IOException {
-            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
             while ((parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                 suggestion.addTerm(entryParser.apply(parser));
             }

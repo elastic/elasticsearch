@@ -691,7 +691,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                         .startObject("field2").field("type", "text").field("analyzer", "custom_1").endObject()
                         .endObject().endObject().endObject())
                 .get());
-        assertThat(e.getMessage(), containsString("analyzer [custom_1] not found for field [field2]"));
+        assertThat(e.getMessage(), containsString("analyzer [custom_1] has not been configured in mappings"));
 
         response = client().admin().indices().prepareGetTemplates().get();
         assertThat(response.getIndexTemplates(), hasSize(1));

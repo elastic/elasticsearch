@@ -6,40 +6,35 @@
 
 package org.elasticsearch.xpack.eql.execution.sequence;
 
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.xpack.eql.execution.search.HitReference;
+import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 
 import java.util.Objects;
 
 /**
- * A match within a sequence, holding the result and occurrance time.
+ * A match within a sequence, holding the result and occurrence time.
  */
 class Match {
 
-    private final long timestamp;
-    private final Comparable<Object> tiebreaker;
-    private final SearchHit hit;
+    private final Ordinal ordinal;
+    private final HitReference hit;
 
-    Match(long timestamp, Comparable<Object> tiebreaker, SearchHit hit) {
-        this.timestamp = timestamp;
-        this.tiebreaker = tiebreaker;
+    Match(Ordinal ordinal, HitReference hit) {
+        this.ordinal = ordinal;
         this.hit = hit;
     }
 
-    long timestamp() {
-        return timestamp;
+    Ordinal ordinal() {
+        return ordinal;
     }
 
-    Comparable<Object> tiebreaker() {
-        return tiebreaker;
-    }
-
-    SearchHit hit() {
+    HitReference hit() {
         return hit;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(timestamp, tiebreaker, hit);
+        return Objects.hash(ordinal, hit);
     }
 
     @Override
@@ -53,13 +48,12 @@ class Match {
         }
 
         Match other = (Match) obj;
-        return Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker)
+        return Objects.equals(ordinal, other.ordinal)
                 && Objects.equals(hit, other.hit);
     }
 
     @Override
     public String toString() {
-        return timestamp + "[" + (tiebreaker != null ? tiebreaker : "") + "]->" + hit.getId();
+        return ordinal + "->" + hit;
     }
 }

@@ -58,7 +58,7 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testPutGlobalTemplatesCannotHaveHiddenIndexSetting() {
         Template template = new Template(Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, true).build(), null, null);
-        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null);
+        ComposableIndexTemplate globalTemplate = new ComposableIndexTemplate(List.of("*"), template, null, null, null, null, null, null);
 
         PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request("test");
         request.indexTemplate(globalTemplate);
@@ -84,7 +84,7 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
 
     public void testValidationOfPriority() {
         PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
-        req.indexTemplate(new ComposableIndexTemplate(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null));
+        req.indexTemplate(new ComposableIndexTemplate(Arrays.asList("foo", "bar"), null, null, -5L, null, null, null, null));
         ActionRequestValidationException validationException = req.validate();
         assertThat(validationException, is(notNullValue()));
         List<String> validationErrors = validationException.validationErrors();

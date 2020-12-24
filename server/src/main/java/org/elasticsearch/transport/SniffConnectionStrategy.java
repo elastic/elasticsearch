@@ -244,7 +244,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
             final StepListener<TransportService.HandshakeResponse> handshakeStep = new StepListener<>();
             openConnectionStep.whenComplete(connection -> {
                 ConnectionProfile connectionProfile = connectionManager.getConnectionProfile();
-                transportService.handshake(connection, connectionProfile.getHandshakeTimeout().millis(),
+                transportService.handshake(connection, connectionProfile.getHandshakeTimeout(),
                     getRemoteClusterNamePredicate(), handshakeStep);
             }, onFailure);
 
@@ -304,7 +304,7 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
                 onFailure.accept(e);
             });
         } else {
-            listener.onFailure(new IllegalStateException("no seed node left"));
+            listener.onFailure(new NoSeedNodeLeftException(clusterAlias));
         }
     }
 

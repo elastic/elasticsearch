@@ -56,12 +56,19 @@ public final class InternalAggregations extends Aggregations implements Writeabl
     /**
      * Constructs a new aggregation.
      */
-    public InternalAggregations(List<InternalAggregation> aggregations) {
+    private InternalAggregations(List<InternalAggregation> aggregations) {
         super(aggregations);
     }
 
-    public InternalAggregations(StreamInput in) throws IOException {
-        super(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
+    public static InternalAggregations from(List<InternalAggregation> aggregations) {
+        if (aggregations.isEmpty()) {
+            return EMPTY;
+        }
+        return new InternalAggregations(aggregations);
+    }
+
+    public static InternalAggregations readFrom(StreamInput in) throws IOException {
+        return from(in.readList(stream -> in.readNamedWriteable(InternalAggregation.class)));
     }
 
     @Override
@@ -117,10 +124,10 @@ public final class InternalAggregations extends Aggregations implements Writeabl
 
             for (PipelineAggregator pipelineAggregator : context.pipelineTreeRoot().aggregators()) {
                 SiblingPipelineAggregator sib = (SiblingPipelineAggregator) pipelineAggregator;
-                InternalAggregation newAgg = sib.doReduce(new InternalAggregations(reducedInternalAggs), context);
+                InternalAggregation newAgg = sib.doReduce(from(reducedInternalAggs), context);
                 reducedInternalAggs.add(newAgg);
             }
-            return new InternalAggregations(reducedInternalAggs);
+            return from(reducedInternalAggs);
         }
         return reduced;
     }
@@ -154,9 +161,14 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             // If all aggs are unmapped, the agg that leads the reduction will just return itself
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(aggregations, context));
+            if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
+                reducedAggregations.add(first.reduce(aggregations, context));
+            } else {
+                // no need for reduce phase
+                reducedAggregations.add(first);
+            }
         }
 
-        return new InternalAggregations(reducedAggregations);
+        return from(reducedAggregations);
     }
 }

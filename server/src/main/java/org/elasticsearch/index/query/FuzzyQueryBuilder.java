@@ -324,7 +324,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         QueryShardContext context = queryRewriteContext.convertToShardContext();
         if (context != null) {
-            MappedFieldType fieldType = context.fieldMapper(fieldName);
+            MappedFieldType fieldType = context.getFieldType(fieldName);
             if (fieldType == null) {
                 return new MatchNoneQueryBuilder();
             }
@@ -334,7 +334,7 @@ public class FuzzyQueryBuilder extends AbstractQueryBuilder<FuzzyQueryBuilder> i
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             throw new IllegalStateException("Rewrite first");
         }

@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms.pivot;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -24,16 +25,24 @@ import static org.hamcrest.Matchers.empty;
 public class PivotConfigTests extends AbstractSerializingTransformTestCase<PivotConfig> {
 
     public static PivotConfig randomPivotConfigWithDeprecatedFields() {
+        return randomPivotConfigWithDeprecatedFields(Version.CURRENT);
+    }
+
+    public static PivotConfig randomPivotConfigWithDeprecatedFields(Version version) {
         return new PivotConfig(
-            GroupConfigTests.randomGroupConfig(),
+            GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
             randomIntBetween(10, 10_000) // deprecated
         );
     }
 
     public static PivotConfig randomPivotConfig() {
+        return randomPivotConfig(Version.CURRENT);
+    }
+
+    public static PivotConfig randomPivotConfig(Version version) {
         return new PivotConfig(
-            GroupConfigTests.randomGroupConfig(),
+            GroupConfigTests.randomGroupConfig(version),
             AggregationConfigTests.randomAggregationConfig(),
             null // deprecated
         );
@@ -149,6 +158,28 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
         expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
     }
 
+    public void testAggDuplicates() throws IOException {
+        String pivot = "{"
+            + " \"group_by\": {"
+            + "   \"id\": {"
+            + "     \"terms\": {"
+            + "       \"field\": \"id\""
+            + "} } },"
+            + " \"aggs\": {"
+            + "   \"points\": {"
+            + "     \"max\": {"
+            + "       \"field\": \"points\""
+            + "} },"
+            + "   \"points\": {"
+            + "     \"min\": {"
+            + "       \"field\": \"points\""
+            + "} } }"
+            + "}";
+
+        // this throws early in the agg framework
+        expectThrows(IllegalArgumentException.class, () -> createPivotConfigFromString(pivot, false));
+    }
+
     public void testValidAggNames() throws IOException {
         String pivotAggs = "{"
             + " \"group_by\": {"
@@ -165,6 +196,182 @@ public class PivotConfigTests extends AbstractSerializingTransformTestCase<Pivot
         assertTrue(pivotConfig.isValid());
         List<String> fieldValidation = pivotConfig.aggFieldValidation();
         assertTrue(fieldValidation.isEmpty());
+    }
+
+    public void testValidAggNamesNested() throws IOException {
+        String pivotAggs = "{"
+            + "\"group_by\": {"
+            + "  \"timestamp\": {"
+            + "    \"date_histogram\": {"
+            + "      \"field\": \"timestamp\","
+            + "      \"fixed_interval\": \"1d\""
+            + "    }"
+            + "  }"
+            + "},"
+            + "\"aggregations\": {"
+            + "  \"jp\": {"
+            + "    \"filter\": {"
+            + "      \"term\": {"
+            + "        \"geo.src\": \"JP\""
+            + "      }"
+            + "    },"
+            + "    \"aggs\": {"
+            + "      \"os.dc\": {"
+            + "        \"cardinality\": {"
+            + "          \"field\": \"machine.os.keyword\""
+            + "        }"
+            + "      }"
+            + "    }"
+            + "  },"
+            + "  \"us\": {"
+            + "    \"filter\": {"
+            + "      \"term\": {"
+            + "        \"geo.src\": \"US\""
+            + "      }"
+            + "    },"
+            + "    \"aggs\": {"
+            + "      \"os.dc\": {"
+            + "        \"cardinality\": {"
+            + "          \"field\": \"machine.os.keyword\""
+            + "} } } } } }";
+
+        PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        List<String> fieldValidation = pivotConfig.aggFieldValidation();
+        assertTrue(Strings.collectionToCommaDelimitedString(fieldValidation), fieldValidation.isEmpty());
+    }
+
+    public void testValidAggNamesNestedTwice() throws IOException {
+        String pivotAggs = "{"
+            + "    \"group_by\": {"
+            + "      \"timestamp\": {"
+            + "        \"date_histogram\": {"
+            + "          \"field\": \"timestamp\","
+            + "          \"fixed_interval\": \"1d\""
+            + "        }"
+            + "      }"
+            + "    },"
+            + "    \"aggregations\": {"
+            + "      \"jp\": {"
+            + "        \"filter\": {"
+            + "          \"term\": {"
+            + "            \"geo.src\": \"JP\""
+            + "          }"
+            + "        },"
+            + "        \"aggs\": {"
+            + "          \"us\": {"
+            + "            \"filter\": {"
+            + "              \"term\": {"
+            + "                \"geo.dest\": \"US\""
+            + "              }"
+            + "            },"
+            + "            \"aggs\": {"
+            + "              \"os.dc\": {"
+            + "                \"cardinality\": {"
+            + "                  \"field\": \"machine.os.keyword\""
+            + "                }"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        }"
+            + "      },"
+            + "      \"us\": {"
+            + "        \"filter\": {"
+            + "          \"term\": {"
+            + "            \"geo.src\": \"US\""
+            + "          }"
+            + "        },"
+            + "        \"aggs\": {"
+            + "          \"jp\": {"
+            + "            \"filter\": {"
+            + "              \"term\": {"
+            + "                \"geo.dest\": \"JP\""
+            + "              }"
+            + "            },"
+            + "            \"aggs\": {"
+            + "              \"os.dc\": {"
+            + "                \"cardinality\": {"
+            + "                  \"field\": \"machine.os.keyword\""
+            + "                }"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        }"
+            + "      }"
+            + "    }"
+            + "  }";
+
+        PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        List<String> fieldValidation = pivotConfig.aggFieldValidation();
+        assertTrue(Strings.collectionToCommaDelimitedString(fieldValidation), fieldValidation.isEmpty());
+    }
+
+    public void testInValidAggNamesNestedTwice() throws IOException {
+        String pivotAggs = "{"
+            + "    \"group_by\": {"
+            + "      \"jp.us.os.dc\": {"
+            + "        \"date_histogram\": {"
+            + "          \"field\": \"timestamp\","
+            + "          \"fixed_interval\": \"1d\""
+            + "        }"
+            + "      }"
+            + "    },"
+            + "    \"aggregations\": {"
+            + "      \"jp\": {"
+            + "        \"filter\": {"
+            + "          \"term\": {"
+            + "            \"geo.src\": \"JP\""
+            + "          }"
+            + "        },"
+            + "        \"aggs\": {"
+            + "          \"us\": {"
+            + "            \"filter\": {"
+            + "              \"term\": {"
+            + "                \"geo.dest\": \"US\""
+            + "              }"
+            + "            },"
+            + "            \"aggs\": {"
+            + "              \"os.dc\": {"
+            + "                \"cardinality\": {"
+            + "                  \"field\": \"machine.os.keyword\""
+            + "                }"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        }"
+            + "      },"
+            + "      \"us\": {"
+            + "        \"filter\": {"
+            + "          \"term\": {"
+            + "            \"geo.src\": \"US\""
+            + "          }"
+            + "        },"
+            + "        \"aggs\": {"
+            + "          \"jp\": {"
+            + "            \"filter\": {"
+            + "              \"term\": {"
+            + "                \"geo.dest\": \"JP\""
+            + "              }"
+            + "            },"
+            + "            \"aggs\": {"
+            + "              \"os.dc\": {"
+            + "                \"cardinality\": {"
+            + "                  \"field\": \"machine.os.keyword\""
+            + "                }"
+            + "              }"
+            + "            }"
+            + "          }"
+            + "        }"
+            + "      }"
+            + "    }"
+            + "  }";
+
+        PivotConfig pivotConfig = createPivotConfigFromString(pivotAggs, true);
+        assertTrue(pivotConfig.isValid());
+        List<String> fieldValidation = pivotConfig.aggFieldValidation();
+
+        assertThat(fieldValidation, containsInAnyOrder("duplicate field [jp.us.os.dc] detected"));
     }
 
     public void testAggNameValidationsWithoutIssues() {

@@ -1,0 +1,131 @@
+###############################################################################################################
+# Test aggregations on an aggregate index containing aggregate_metric_double fields and a raw index containing
+# raw data.
+###############################################################################################################
+
+setup:
+  # Setup aggregate index with field metric of type aggregate_metric_double
+  - do:
+      indices.create:
+        index:  test_metric_aggregate
+        body:
+          mappings:
+            properties:
+              t:
+                type: long
+              metric:
+                type: aggregate_metric_double
+                metrics: [min, max, sum, value_count]
+                default_metric: max
+  - do:
+      bulk:
+        index: test_metric_aggregate
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"t": 10, "metric": {"min": 10.999, "max": 400.11, "sum": 400, "value_count": 6} }'
+          - '{"index": {}}'
+          - '{"t": 20, "metric": {"min": 200, "max": 300, "sum": 1000, "value_count": 5} }'
+          - '{"index": {}}'
+          - '{"t": 30, "metric": {"min": 10, "max": 50, "sum": 2000, "value_count": 5} }'
+          - '{"index": {}}'
+          - '{"t": 50, "metric": {"min": 10, "max": 400, "sum": 3000, "value_count": 5} }'
+
+  # Setup raw index with field metric of type double
+  - do:
+      indices.create:
+        index:  test_metric_raw
+        body:
+          mappings:
+            properties:
+              t:
+                type: long
+              metric:
+                type: double
+  - do:
+      bulk:
+        index: test_metric_raw
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"t": 10, "metric": 50}'
+          - '{"index": {}}'
+          - '{"t": 10, "metric": 100}'
+          - '{"index": {}}'
+          - '{"t": 20, "metric": 200}'
+          - '{"index": {}}'
+          - '{"t": 30, "metric": 600}'
+
+---
+"Test mixed aggregations":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      search:
+        index: test_metric_*
+        size: 0
+        body:
+          aggs:
+            max_agg:
+              max:
+                field: metric
+            min_agg:
+              min:
+                field: metric
+            sum_agg:
+              sum:
+                field: metric
+            avg_agg:
+              avg:
+                field: metric
+            value_count_agg:
+              value_count:
+                field: metric
+
+  - match: { hits.total.value: 8 }
+  - match: { aggregations.max_agg.value: 600}
+  - match: { aggregations.min_agg.value: 10}
+  - match: { aggregations.sum_agg.value: 7350}
+  - match: { aggregations.avg_agg.value: 294}
+  - match: { aggregations.value_count_agg.value: 25}
+
+---
+"Test mixed aggregations with query":
+  - skip:
+      version: " - 7.10.99"
+      reason: "Aggregate metric fields have been added in 7.11"
+
+  - do:
+      search:
+        index: test_metric_*
+        size: 0
+        body:
+          query:
+            term:
+              t:
+                value: 10
+          aggs:
+            max_agg:
+              max:
+                field: metric
+            min_agg:
+              min:
+                field: metric
+            sum_agg:
+              sum:
+                field: metric
+            avg_agg:
+              avg:
+                field: metric
+            value_count_agg:
+              value_count:
+                field: metric
+
+  - match: { hits.total.value: 3 }
+  - match: { aggregations.max_agg.value: 400.11}
+  - match: { aggregations.min_agg.value: 10.999}
+  - match: { aggregations.sum_agg.value: 550}
+  - match: { aggregations.avg_agg.value: 68.75}
+  - match: { aggregations.value_count_agg.value: 8}

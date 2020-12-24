@@ -26,7 +26,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
 
@@ -98,8 +97,8 @@ public final class Pipeline {
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metrics.preIngest();
         compoundProcessor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(relativeTimeProvider.getAsLong() - startTimeInNanos);
-            metrics.postIngest(ingestTimeInMillis);
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metrics.postIngest(ingestTimeInNanos);
             if (e != null) {
                 metrics.ingestFailed();
             }

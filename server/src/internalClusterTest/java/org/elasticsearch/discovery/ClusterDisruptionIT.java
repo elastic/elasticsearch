@@ -48,8 +48,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.NetworkDisruption.Bridge;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkDisconnect;
-import org.elasticsearch.test.disruption.NetworkDisruption.NetworkLinkDisruptionType;
 import org.elasticsearch.test.disruption.NetworkDisruption.TwoPartitions;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
@@ -346,8 +344,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
         TwoPartitions partitions = isolateNode(isolatedNode);
         // we cannot use the NetworkUnresponsive disruption type here as it will swallow the "shard failed" request, calling neither
         // onSuccess nor onFailure on the provided listener.
-        NetworkLinkDisruptionType disruptionType = new NetworkDisconnect();
-        NetworkDisruption networkDisruption = new NetworkDisruption(partitions, disruptionType);
+        NetworkDisruption networkDisruption = new NetworkDisruption(partitions, NetworkDisruption.DISCONNECT);
         setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
 
@@ -444,7 +441,7 @@ public class ClusterDisruptionIT extends AbstractDisruptionTestCase {
 
         final String masterNode1 = internalCluster().getMasterName();
         NetworkDisruption networkDisruption =
-                new NetworkDisruption(new TwoPartitions(masterNode1, dataNode), new NetworkDisruption.NetworkUnresponsive());
+            new NetworkDisruption(new TwoPartitions(masterNode1, dataNode), NetworkDisruption.UNRESPONSIVE);
         internalCluster().setDisruptionScheme(networkDisruption);
         networkDisruption.startDisrupting();
         // We know this will time out due to the partition, we check manually below to not proceed until

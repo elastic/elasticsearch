@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-daterange-aggregation]]
-=== Date Range Aggregation
+=== Date range aggregation
+++++
+<titleabbrev>Date range</titleabbrev>
+++++
 
 A range aggregation that is dedicated for date values. The main difference
 between this aggregation and the normal
@@ -16,18 +19,18 @@ Example:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "range": {
-            "date_range": {
-                "field": "date",
-                "format": "MM-yyyy",
-                "ranges": [
-                    { "to": "now-10M/M" }, <1>
-                    { "from": "now-10M/M" } <2>
-                ]
-            }
-        }
+  "aggs": {
+    "range": {
+      "date_range": {
+        "field": "date",
+        "format": "MM-yyyy",
+        "ranges": [
+          { "to": "now-10M/M" },  <1>
+          { "from": "now-10M/M" } <2>
+        ]
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales s/now-10M\/M/10-2015/]
@@ -44,28 +47,32 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "range": {
-            "buckets": [
-                {
-                    "to": 1.4436576E12,
-                    "to_as_string": "10-2015",
-                    "doc_count": 7,
-                    "key": "*-10-2015"
-                },
-                {
-                    "from": 1.4436576E12,
-                    "from_as_string": "10-2015",
-                    "doc_count": 0,
-                    "key": "10-2015-*"
-                }
-            ]
+  ...
+  "aggregations": {
+    "range": {
+      "buckets": [
+        {
+          "to": 1.4436576E12,
+          "to_as_string": "10-2015",
+          "doc_count": 7,
+          "key": "*-10-2015"
+        },
+        {
+          "from": 1.4436576E12,
+          "from_as_string": "10-2015",
+          "doc_count": 0,
+          "key": "10-2015-*"
         }
+      ]
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+
+WARNING: If a format or date value is incomplete, the date range aggregation
+replaces any missing components with default values. See
+<<missing-date-components>>.
 
 ==== Missing Values
 
@@ -298,19 +305,19 @@ bucket and return the ranges as a hash rather than an array:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "range": {
-            "date_range": {
-                "field": "date",
-                "format": "MM-yyy",
-                "ranges": [
-                    { "to": "now-10M/M" },
-                    { "from": "now-10M/M" }
-                ],
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "range": {
+      "date_range": {
+        "field": "date",
+        "format": "MM-yyy",
+        "ranges": [
+          { "to": "now-10M/M" },
+          { "from": "now-10M/M" }
+        ],
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales s/now-10M\/M/10-2015/]
@@ -320,23 +327,23 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "range": {
-            "buckets": {
-                "*-10-2015": {
-                    "to": 1.4436576E12,
-                    "to_as_string": "10-2015",
-                    "doc_count": 7
-                },
-                "10-2015-*": {
-                    "from": 1.4436576E12,
-                    "from_as_string": "10-2015",
-                    "doc_count": 0
-                }
-            }
+  ...
+  "aggregations": {
+    "range": {
+      "buckets": {
+        "*-10-2015": {
+          "to": 1.4436576E12,
+          "to_as_string": "10-2015",
+          "doc_count": 7
+        },
+        "10-2015-*": {
+          "from": 1.4436576E12,
+          "from_as_string": "10-2015",
+          "doc_count": 0
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
@@ -347,19 +354,19 @@ It is also possible to customize the key for each range:
 --------------------------------------------------
 POST /sales/_search?size=0
 {
-    "aggs": {
-        "range": {
-            "date_range": {
-                "field": "date",
-                "format": "MM-yyy",
-                "ranges": [
-                    { "from": "01-2015",  "to": "03-2015", "key": "quarter_01" },
-                    { "from": "03-2015", "to": "06-2015", "key": "quarter_02" }
-                ],
-                "keyed": true
-            }
-        }
+  "aggs": {
+    "range": {
+      "date_range": {
+        "field": "date",
+        "format": "MM-yyy",
+        "ranges": [
+          { "from": "01-2015", "to": "03-2015", "key": "quarter_01" },
+          { "from": "03-2015", "to": "06-2015", "key": "quarter_02" }
+        ],
+        "keyed": true
+      }
     }
+  }
 }
 --------------------------------------------------
 // TEST[setup:sales]
@@ -369,27 +376,27 @@ Response:
 [source,console-result]
 --------------------------------------------------
 {
-    ...
-    "aggregations": {
-        "range": {
-            "buckets": {
-                "quarter_01": {
-                    "from": 1.4200704E12,
-                    "from_as_string": "01-2015",
-                    "to": 1.425168E12,
-                    "to_as_string": "03-2015",
-                    "doc_count": 5
-                },
-                "quarter_02": {
-                    "from": 1.425168E12,
-                    "from_as_string": "03-2015",
-                    "to": 1.4331168E12,
-                    "to_as_string": "06-2015",
-                    "doc_count": 2
-                }
-            }
+  ...
+  "aggregations": {
+    "range": {
+      "buckets": {
+        "quarter_01": {
+          "from": 1.4200704E12,
+          "from_as_string": "01-2015",
+          "to": 1.425168E12,
+          "to_as_string": "03-2015",
+          "doc_count": 5
+        },
+        "quarter_02": {
+          "from": 1.425168E12,
+          "from_as_string": "03-2015",
+          "to": 1.4331168E12,
+          "to_as_string": "06-2015",
+          "doc_count": 2
         }
+      }
     }
+  }
 }
 --------------------------------------------------
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]

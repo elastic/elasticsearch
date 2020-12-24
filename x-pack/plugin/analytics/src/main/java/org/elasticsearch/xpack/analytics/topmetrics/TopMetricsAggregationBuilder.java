@@ -12,13 +12,16 @@ import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ContextParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry.RegistryKey;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
@@ -33,6 +36,28 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.SORT_FIELD;
 public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<TopMetricsAggregationBuilder> {
     public static final String NAME = "top_metrics";
     public static final ParseField METRIC_FIELD = new ParseField("metrics");
+
+    static final RegistryKey<TopMetricsAggregator.MetricValuesSupplier> REGISTRY_KEY = new RegistryKey<>(
+        TopMetricsAggregationBuilder.NAME,
+        TopMetricsAggregator.MetricValuesSupplier.class
+    );
+
+    public static void registerAggregators(ValuesSourceRegistry.Builder registry) {
+        registry.registerUsage(NAME);
+        registry.register(REGISTRY_KEY, List.of(CoreValuesSourceType.NUMERIC), TopMetricsAggregator::buildNumericMetricValues, false);
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            TopMetricsAggregator.LongMetricValues::new,
+            false
+        );
+        registry.register(
+            REGISTRY_KEY,
+            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            TopMetricsAggregator.GlobalOrdsValues::new,
+            false
+        );
+    }
 
     /**
      * Default to returning only a single top metric.
@@ -120,10 +145,9 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subFactoriesBuilder)
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subFactoriesBuilder)
             throws IOException {
-        return new TopMetricsAggregatorFactory(name, queryShardContext, parent, subFactoriesBuilder, metadata, sortBuilders,
-                size, metricFields);
+        return new TopMetricsAggregatorFactory(name, context, parent, subFactoriesBuilder, metadata, sortBuilders, size, metricFields);
     }
 
     @Override

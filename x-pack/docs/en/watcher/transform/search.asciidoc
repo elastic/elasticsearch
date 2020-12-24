@@ -1,6 +1,9 @@
 [role="xpack"]
 [[transform-search]]
-=== Search {watcher-transform}
+=== {watcher} search {watcher-transform}
+++++
+<titleabbrev>Search {watcher-transform}</titleabbrev>
+++++
 
 A <<transform,{watcher-transform}>> that executes a search on the cluster and
 replaces the current payload in the watch execution context with the returned
@@ -55,7 +58,7 @@ The following table lists all available settings for the search
 |======
 | Name                                          |Required   | Default           | Description
 
-| `request.search_type`                         | no        | query_then_fetch  | The search <<request-body-search-search-type,type>>.
+| `request.search_type`                         | no        | query_then_fetch  | The search <<search-type,type>>.
 
 | `request.indices`                             | no        | all indices       | One or more indices to search on.
 

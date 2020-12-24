@@ -26,18 +26,16 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 import org.elasticsearch.xpack.spatial.common.ShapeUtils;
+import org.elasticsearch.xpack.spatial.index.mapper.PointFieldMapper;
 
 
-public class ShapeQueryPointProcessor implements QueryProcessor {
+public class ShapeQueryPointProcessor {
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
         validateIsPointFieldType(fieldName, context);
         // only the intersects relation is supported for indexed cartesian point types
         if (relation != ShapeRelation.INTERSECTS) {
@@ -49,7 +47,7 @@ public class ShapeQueryPointProcessor implements QueryProcessor {
     }
 
     private void validateIsPointFieldType(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof PointFieldMapper.PointFieldType == false) {
             throw new QueryShardException(context, "Expected " + PointFieldMapper.CONTENT_TYPE
                 + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
@@ -70,7 +68,7 @@ public class ShapeQueryPointProcessor implements QueryProcessor {
 
         ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
-            this.fieldType = context.fieldMapper(fieldName);
+            this.fieldType = context.getFieldType(fieldName);
             this.fieldName = fieldName;
             this.relation = relation;
         }

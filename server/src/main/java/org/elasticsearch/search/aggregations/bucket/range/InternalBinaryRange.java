@@ -77,7 +77,7 @@ public final class InternalBinaryRange
             BytesRef from = in.readBoolean() ? in.readBytesRef() : null;
             BytesRef to = in.readBoolean() ? in.readBytesRef() : null;
             long docCount = in.readLong();
-            InternalAggregations aggregations = new InternalAggregations(in);
+            InternalAggregations aggregations = InternalAggregations.readFrom(in);
 
             return new Bucket(format, keyed, key, from, to, docCount, aggregations);
         }

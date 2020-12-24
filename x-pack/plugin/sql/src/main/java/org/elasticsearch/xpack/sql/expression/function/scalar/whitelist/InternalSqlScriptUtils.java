@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateAddProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateDiffProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DatePartProcessor;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFormatProcessor.Formatter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeFunction;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTruncProcessor;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.NamedDateTimeProcessor.NameExtractor;
@@ -280,22 +280,30 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return DateTruncProcessor.process(truncateTo, asDateTime(dateTimeOrInterval), ZoneId.of(tzId));
     }
 
+    public static Object dateParse(String dateField, String pattern, String tzId) {
+        return Parser.DATE.parse(dateField, pattern, ZoneId.of(tzId));
+    }
+
     public static Integer datePart(String dateField, Object dateTime, String tzId) {
         return (Integer) DatePartProcessor.process(dateField, asDateTime(dateTime), ZoneId.of(tzId));
     }
 
     public static String dateTimeFormat(Object dateTime, String pattern, String tzId) {
-        return (String) DateTimeFormatProcessor.process(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+        return (String) Formatter.DATE_TIME_FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }
 
     public static Object dateTimeParse(String dateField, String pattern, String tzId) {
         return Parser.DATE_TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
 
+    public static String format(Object dateTime, String pattern, String tzId) {
+        return (String) Formatter.FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
     public static Object timeParse(String dateField, String pattern, String tzId) {
         return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }
-    
+
     public static ZonedDateTime asDateTime(Object dateTime) {
         return (ZonedDateTime) asDateTime(dateTime, false);
     }

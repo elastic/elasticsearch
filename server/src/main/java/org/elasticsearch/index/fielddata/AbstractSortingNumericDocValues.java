@@ -22,6 +22,7 @@ package org.elasticsearch.index.fielddata;
 import org.apache.lucene.search.DocIdSetIterator;
 
 import java.io.IOException;
+import java.util.function.LongConsumer;
 
 /**
  * Base implementation that throws an {@link IOException} for the
@@ -30,6 +31,14 @@ import java.io.IOException;
  * {@link #docValueCount()} and {@link #nextValue()}.
  */
 public abstract class AbstractSortingNumericDocValues extends SortingNumericDocValues {
+
+    public AbstractSortingNumericDocValues() {
+        super();
+    }
+
+    public AbstractSortingNumericDocValues(LongConsumer circuitBreakerConsumer) {
+        super(circuitBreakerConsumer);
+    }
 
     @Override
     public int docID() {

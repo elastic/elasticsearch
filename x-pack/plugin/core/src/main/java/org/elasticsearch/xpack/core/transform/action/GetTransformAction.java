@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.ParseField;
@@ -33,8 +32,7 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
     public static final GetTransformAction INSTANCE = new GetTransformAction();
     public static final String NAME = "cluster:monitor/transform/get";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(GetTransformAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(GetTransformAction.class);
 
     private GetTransformAction() {
         super(NAME, GetTransformAction.Response::new);
@@ -64,8 +62,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
         public ActionRequestValidationException validate() {
             ActionRequestValidationException exception = null;
             if (getPageParams() != null && getPageParams().getSize() > MAX_SIZE_RETURN) {
-                exception = addValidationError("Param [" + PageParams.SIZE.getPreferredName() +
-                    "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]", exception);
+                exception = addValidationError(
+                    "Param [" + PageParams.SIZE.getPreferredName() + "] has a max acceptable value of [" + MAX_SIZE_RETURN + "]",
+                    exception
+                );
             }
             return exception;
         }
@@ -95,6 +95,10 @@ public class GetTransformAction extends ActionType<GetTransformAction.Response> 
 
         public List<TransformConfig> getTransformConfigurations() {
             return getResources().results();
+        }
+
+        public long getCount() {
+            return getResources().count();
         }
 
         @Override

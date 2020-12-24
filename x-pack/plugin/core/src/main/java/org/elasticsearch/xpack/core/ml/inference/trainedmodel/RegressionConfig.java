@@ -65,11 +65,7 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
 
     public RegressionConfig(StreamInput in) throws IOException {
         this.resultsField = in.readString();
-        if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-            this.numTopFeatureImportanceValues = in.readVInt();
-        } else {
-            this.numTopFeatureImportanceValues = 0;
-        }
+        this.numTopFeatureImportanceValues = in.readVInt();
     }
 
     public int getNumTopFeatureImportanceValues() {
@@ -93,9 +89,7 @@ public class RegressionConfig implements LenientlyParsedInferenceConfig, Strictl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(resultsField);
-        if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-            out.writeVInt(numTopFeatureImportanceValues);
-        }
+        out.writeVInt(numTopFeatureImportanceValues);
     }
 
     @Override

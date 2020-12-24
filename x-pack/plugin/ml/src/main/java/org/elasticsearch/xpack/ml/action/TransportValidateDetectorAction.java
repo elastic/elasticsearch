@@ -23,7 +23,7 @@ public class TransportValidateDetectorAction extends HandledTransportAction<Vali
 
     @Override
     protected void doExecute(Task task, ValidateDetectorAction.Request request, ActionListener<AcknowledgedResponse> listener) {
-        listener.onResponse(new AcknowledgedResponse(true));
+        listener.onResponse(AcknowledgedResponse.TRUE);
     }
 
 }

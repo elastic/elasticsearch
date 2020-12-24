@@ -48,7 +48,7 @@ public class PersistentTasksService {
 
     private static final Logger logger = LogManager.getLogger(PersistentTasksService.class);
 
-    private static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
+    public static final String PERSISTENT_TASK_ORIGIN = "persistent_tasks";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -68,7 +68,7 @@ public class PersistentTasksService {
                                                                        final Params taskParams,
                                                                        final ActionListener<PersistentTask<Params>> listener) {
         @SuppressWarnings("unchecked")
-        final ActionListener<PersistentTask<?>> wrappedListener = ActionListener.map(listener, t -> (PersistentTask<Params>) t);
+        final ActionListener<PersistentTask<?>> wrappedListener = listener.map(t -> (PersistentTask<Params>) t);
         StartPersistentTaskAction.Request request = new StartPersistentTaskAction.Request(taskId, taskName, taskParams);
         execute(request, StartPersistentTaskAction.INSTANCE, wrappedListener);
     }
@@ -131,7 +131,7 @@ public class PersistentTasksService {
     private <Req extends ActionRequest, Resp extends PersistentTaskResponse>
         void execute(final Req request, final ActionType<Resp> action, final ActionListener<PersistentTask<?>> listener) {
             try {
-                client.execute(action, request, ActionListener.map(listener, PersistentTaskResponse::getTask));
+                client.execute(action, request, listener.map(PersistentTaskResponse::getTask));
             } catch (Exception e) {
                 listener.onFailure(e);
             }

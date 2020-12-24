@@ -30,6 +30,7 @@ public class TimeValue implements Comparable<TimeValue> {
 
     public static final TimeValue MINUS_ONE = timeValueMillis(-1);
     public static final TimeValue ZERO = timeValueMillis(0);
+    public static final TimeValue MAX_VALUE = TimeValue.timeValueNanos(Long.MAX_VALUE);
 
     private static final long C0 = 1L;
     private static final long C1 = C0 * 1000L;

@@ -7,10 +7,8 @@ package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -63,7 +61,9 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         public static final ParseField EXCLUDE_INTERIM = new ParseField("exclude_interim");
         public static final ParseField START = new ParseField("start");
         public static final ParseField END = new ParseField("end");
-        public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+        @Deprecated
+        public static final String ALLOW_NO_JOBS = "allow_no_jobs";
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_JOBS);
 
         private static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
 
@@ -77,7 +77,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
                     startTime, START, System::currentTimeMillis)), START);
             PARSER.declareString((request, endTime) -> request.setEnd(parseDateOrThrow(
                     endTime, END, System::currentTimeMillis)), END);
-            PARSER.declareBoolean(Request::setAllowNoJobs, ALLOW_NO_JOBS);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
 
         static long parseDateOrThrow(String date, ParseField paramName, LongSupplier now) {
@@ -106,7 +106,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
         private boolean excludeInterim = false;
         private Long start;
         private Long end;
-        private boolean allowNoJobs = true;
+        private boolean allowNoMatch = true;
 
         public Request() {
         }
@@ -120,7 +120,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             excludeInterim = in.readBoolean();
             start = in.readOptionalLong();
             end = in.readOptionalLong();
-            allowNoJobs = in.readBoolean();
+            allowNoMatch = in.readBoolean();
         }
 
         public Request(String jobId) {
@@ -194,12 +194,12 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             setEnd(parseDateOrThrow(end, END, System::currentTimeMillis));
         }
 
-        public boolean allowNoJobs() {
-            return allowNoJobs;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoJobs(boolean allowNoJobs) {
-            this.allowNoJobs = allowNoJobs;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -217,7 +217,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             out.writeBoolean(excludeInterim);
             out.writeOptionalLong(start);
             out.writeOptionalLong(end);
-            out.writeBoolean(allowNoJobs);
+            out.writeBoolean(allowNoMatch);
         }
 
         @Override
@@ -236,14 +236,14 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
             if (end != null) {
                 builder.field(END.getPreferredName(), String.valueOf(end));
             }
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(jobId, topN, bucketSpan, overallScore, excludeInterim, start, end, allowNoJobs);
+            return Objects.hash(jobId, topN, bucketSpan, overallScore, excludeInterim, start, end, allowNoMatch);
         }
 
         @Override
@@ -262,14 +262,7 @@ public class GetOverallBucketsAction extends ActionType<GetOverallBucketsAction.
                     this.overallScore == that.overallScore &&
                     Objects.equals(start, that.start) &&
                     Objects.equals(end, that.end) &&
-                    this.allowNoJobs == that.allowNoJobs;
-        }
-    }
-
-    static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
+                    this.allowNoMatch == that.allowNoMatch;
         }
     }
 

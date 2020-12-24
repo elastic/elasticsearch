@@ -41,7 +41,7 @@ output { <2>
 
 ----------------------------------------------------------
 // NOTCONSOLE
-<1> The meetup data stream is formatted in JSON.
+<1> The meetup data is formatted in JSON.
 <2> Index the meetup data into Elasticsearch.
 --
 

@@ -312,6 +312,7 @@ public final class Role {
         public static final String MANAGE_ROLLUP = "manage_rollup";
         public static final String MANAGE_INDEX_TEMPLATES = "manage_index_templates";
         public static final String MANAGE_INGEST_PIPELINES = "manage_ingest_pipelines";
+        public static final String READ_PIPELINE = "read_pipeline";
         public static final String TRANSPORT_CLIENT = "transport_client";
         public static final String MANAGE_SECURITY = "manage_security";
         public static final String MANAGE_SAML = "manage_saml";
@@ -326,9 +327,9 @@ public final class Role {
         public static final String MANAGE_ENRICH = "manage_enrich";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, MONITOR, MONITOR_TRANSFORM_DEPRECATED, MONITOR_TRANSFORM,
             MONITOR_ML, MONITOR_WATCHER, MONITOR_ROLLUP, MANAGE, MANAGE_TRANSFORM_DEPRECATED, MANAGE_TRANSFORM,
-            MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, TRANSPORT_CLIENT,
-            MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_AUTOSCALING, MANAGE_CCR, READ_CCR,
-            MANAGE_ILM, READ_ILM, MANAGE_ENRICH };
+            MANAGE_ML, MANAGE_WATCHER, MANAGE_ROLLUP, MANAGE_INDEX_TEMPLATES, MANAGE_INGEST_PIPELINES, READ_PIPELINE,
+            TRANSPORT_CLIENT, MANAGE_SECURITY, MANAGE_SAML, MANAGE_OIDC, MANAGE_TOKEN, MANAGE_PIPELINE, MANAGE_AUTOSCALING, MANAGE_CCR,
+            READ_CCR, MANAGE_ILM, READ_ILM, MANAGE_ENRICH };
     }
 
     /**
@@ -352,8 +353,10 @@ public final class Role {
         public static final String MANAGE_ILM = "manage_ilm";
         public static final String CREATE_DOC = "create_doc";
         public static final String MAINTENANCE = "maintenance";
+        public static final String AUTO_CONFIGURE = "auto_configure";
         public static final String[] ALL_ARRAY = new String[] { NONE, ALL, READ, READ_CROSS, CREATE, INDEX, DELETE, WRITE, MONITOR, MANAGE,
-                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX, MANAGE_ILM, CREATE_DOC, MAINTENANCE };
+                DELETE_INDEX, CREATE_INDEX, VIEW_INDEX_METADATA, MANAGE_FOLLOW_INDEX, MANAGE_ILM, CREATE_DOC, MAINTENANCE,
+            AUTO_CONFIGURE};
     }
 
 }

@@ -122,7 +122,7 @@ public class RoutingNode implements Iterable<ShardRouting> {
 
     /**
      * Add a new shard to this node
-     * @param shard Shard to crate on this Node
+     * @param shard Shard to create on this Node
      */
     void add(ShardRouting shard) {
         assert invariant();

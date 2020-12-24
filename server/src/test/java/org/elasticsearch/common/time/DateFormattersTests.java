@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.time;
 
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.time.Clock;
@@ -87,6 +88,18 @@ public class DateFormattersTests extends ESTestCase {
         }
     }
 
+    /**
+     * test that formatting a date with Long.MAX_VALUE or Long.MIN_VALUE doesn throw errors since we use these
+     * e.g. for sorting documents with `null` values first or last
+     */
+    public void testPrintersLongMinMaxValue() {
+        for (FormatNames format : FormatNames.values()) {
+            DateFormatter formatter = DateFormatters.forPattern(format.getName());
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MIN_VALUE));
+            formatter.format(DateFieldMapper.Resolution.MILLISECONDS.toInstant(Long.MAX_VALUE));
+        }
+    }
+
     public void testInvalidEpochMilliParser() {
         DateFormatter formatter = DateFormatters.forPattern("epoch_millis");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> formatter.parse("invalid"));
@@ -137,6 +150,15 @@ public class DateFormattersTests extends ESTestCase {
         ZonedDateTime second = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00"));
         assertThat(first, is(second));
+    }
+
+    public void testNanoOfSecondWidth() throws Exception {
+        ZonedDateTime first = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.1"));
+        assertThat(first.getNano(), is(100000000));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("1970-01-01T00:00:00.000000001"));
+        assertThat(second.getNano(), is(1));
     }
 
     public void testLocales() {

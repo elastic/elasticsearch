@@ -42,17 +42,17 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
 
     private static final IndexTemplateConfig ANOMALY_DETECTION_STATE_TEMPLATE = stateTemplate();
 
-    private static final IndexTemplateConfig META_TEMPLATE = new IndexTemplateConfig(MlMetaIndex.INDEX_NAME,
+    private static final IndexTemplateConfig META_TEMPLATE = new IndexTemplateConfig(MlMetaIndex.indexName(),
         ROOT_RESOURCE_PATH + "meta_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 
-    private static final IndexTemplateConfig NOTIFICATIONS_TEMPLATE = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
+    public static final IndexTemplateConfig NOTIFICATIONS_TEMPLATE = new IndexTemplateConfig(NotificationsIndex.NOTIFICATIONS_INDEX,
         ROOT_RESOURCE_PATH + "notifications_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 
     private static final IndexTemplateConfig CONFIG_TEMPLATE = configTemplate();
 
-    private static final IndexTemplateConfig INFERENCE_TEMPLATE = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
+    public static final IndexTemplateConfig INFERENCE_TEMPLATE = new IndexTemplateConfig(InferenceIndexConstants.LATEST_INDEX_NAME,
         ROOT_RESOURCE_PATH + "inference_index_template.json", Version.CURRENT.id, VERSION_PATTERN,
         Collections.singletonMap(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id)));
 
@@ -69,7 +69,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
             String.valueOf(AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW));
         variables.put("xpack.ml.config.mappings", MlConfigIndex.mapping());
 
-        return new IndexTemplateConfig(AnomalyDetectorsIndex.configIndexName(),
+        return new IndexTemplateConfig(MlConfigIndex.indexName(),
             ROOT_RESOURCE_PATH + "config_index_template.json",
             Version.CURRENT.id, VERSION_PATTERN,
             variables);
@@ -132,7 +132,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     }
 
     @Override
-    protected List<IndexTemplateConfig> getTemplateConfigs() {
+    protected List<IndexTemplateConfig> getLegacyTemplateConfigs() {
         return templatesToUse;
     }
 

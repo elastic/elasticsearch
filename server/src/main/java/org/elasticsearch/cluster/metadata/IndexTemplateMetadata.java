@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -170,7 +169,8 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         if (!settings.equals(that.settings)) return false;
         if (!patterns.equals(that.patterns)) return false;
 
-        return Objects.equals(version, that.version);
+        return Objects.equals(aliases, that.aliases) &&
+            Objects.equals(version, that.version);
     }
 
     @Override
@@ -181,6 +181,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         result = 31 * result + patterns.hashCode();
         result = 31 * result + settings.hashCode();
         result = 31 * result + mappings.hashCode();
+        result = 31 * result + aliases.hashCode();
         return result;
     }
 
@@ -392,7 +393,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
 
             CompressedXContent m = indexTemplateMetadata.mappings();
             if (m != null) {
-                Map<String, Object> documentMapping = XContentHelper.convertToMap(new BytesArray(m.uncompressed()), true).v2();
+                Map<String, Object> documentMapping = XContentHelper.convertToMap(m.uncompressed(), true).v2();
                 if (includeTypeName == false) {
                     documentMapping = reduceMapping(documentMapping);
                 }

@@ -15,5 +15,5 @@ public interface Executable {
 
     List<Attribute> output();
 
-    void execute(EqlSession session, ActionListener<Results> listener);
+    void execute(EqlSession session, ActionListener<Payload> listener);
 }

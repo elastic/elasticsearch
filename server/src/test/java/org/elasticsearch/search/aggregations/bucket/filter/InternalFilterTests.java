@@ -64,7 +64,7 @@ public class InternalFilterTests extends InternalSingleBucketAggregationTestCase
         InternalFilter dummy = createTestInstance();
         InternalFilter inner = createTestInstance();
 
-        InternalAggregations sub = new InternalAggregations(List.of(inner));
+        InternalAggregations sub = InternalAggregations.from(List.of(inner));
         InternalFilter test = createTestInstance("test", randomNonNegativeLong(), sub, emptyMap());
         PipelineAggregator mockPipeline = new PipelineAggregator(null, null, null) {
             @Override

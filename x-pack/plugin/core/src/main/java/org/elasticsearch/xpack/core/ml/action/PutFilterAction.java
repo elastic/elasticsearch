@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -49,10 +47,6 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
         }
 
         private MlFilter filter;
-
-        public Request() {
-
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -99,13 +93,6 @@ public class PutFilterAction extends ActionType<PutFilterAction.Response> {
             }
             Request other = (Request) obj;
             return Objects.equals(filter, other.filter);
-        }
-    }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, Response> {
-
-        public RequestBuilder(ElasticsearchClient client) {
-            super(client, INSTANCE, new Request());
         }
     }
 

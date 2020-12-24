@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
@@ -65,13 +66,13 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         SimilarityService similarityService = new SimilarityService(indexSettings, null, emptyMap());
         MapperRegistry mapperRegistry = new IndicesModule(emptyList()).getMapperRegistry();
         mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
-                () -> null, () -> false);
+                () -> null, () -> false, null);
     }
 
     private DocumentMapperForType docMapper(String type) {
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, Version.CURRENT);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
-        return new DocumentMapperForType(b.build(mapperService), null);
+        return new DocumentMapperForType(b.build(), null);
     }
 
     private void applyOperation(Engine engine, Engine.Operation operation) throws IOException {
@@ -118,10 +119,8 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
                 return engineIndex;
             case DELETE:
                 final Translog.Delete delete = (Translog.Delete) operation;
-                final Engine.Delete engineDelete = new Engine.Delete(delete.id(), delete.uid(), delete.seqNo(),
-                    delete.primaryTerm(), delete.version(), versionType, origin, System.nanoTime(),
-                    SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
-                return engineDelete;
+                return IndexShard.prepareDelete(delete.id(), delete.seqNo(), delete.primaryTerm(), delete.version(), versionType,
+                    origin, SequenceNumbers.UNASSIGNED_SEQ_NO, SequenceNumbers.UNASSIGNED_PRIMARY_TERM);
             case NO_OP:
                 final Translog.NoOp noOp = (Translog.NoOp) operation;
                 final Engine.NoOp engineNoOp =

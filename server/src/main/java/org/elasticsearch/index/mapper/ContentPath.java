@@ -45,6 +45,13 @@ public final class ContentPath {
         this.index = 0;
     }
 
+    public ContentPath(String path) {
+        this.sb = new StringBuilder();
+        this.offset = 0;
+        this.index = 0;
+        add(path);
+    }
+
     public void add(String name) {
         path[index++] = name;
         if (index == path.length) { // expand if needed

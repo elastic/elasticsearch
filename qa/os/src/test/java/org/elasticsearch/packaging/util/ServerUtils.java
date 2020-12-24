@@ -71,7 +71,7 @@ public class ServerUtils {
         boolean xpackEnabled = false;
 
         // TODO: need a way to check if docker has security enabled, the yml config is not bind mounted so can't look from here
-        if (installation.distribution.packaging != Distribution.Packaging.DOCKER) {
+        if (installation.distribution.isDocker() == false) {
             Path configFilePath = installation.config("elasticsearch.yml");
             // this is fragile, but currently doesn't deviate from a single line enablement and not worth the parsing effort
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);

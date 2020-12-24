@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -77,15 +78,22 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
+        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
 
         // append Gradle test runner test filter string
         b.append("'" + task + "'");
-        b.append(" --tests \"");
+        if (isBwcTest) {
+            // Use "legacy" method for bwc tests so that it applies globally to all upstream bwc test tasks
+            b.append(" -Dtests.class=\"");
+        } else {
+            b.append(" --tests \"");
+        }
         b.append(failure.getDescription().getClassName());
+
         final String methodName = failure.getDescription().getMethodName();
         if (methodName != null) {
             // fallback to system property filter when tests contain "."
-            if (methodName.contains(".")) {
+            if (methodName.contains(".") || isBwcTest) {
                 b.append("\" -Dtests.method=\"");
                 b.append(methodName);
             } else {
@@ -94,7 +102,6 @@ public class ReproduceInfoPrinter extends RunListener {
             }
         }
         b.append("\"");
-
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -172,8 +179,8 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
-            appendOpt("compiler.java", System.getProperty("compiler.java"));
-            appendOpt("runtime.java", System.getProperty("runtime.java"));
+            appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+            appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
         }

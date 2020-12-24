@@ -6,11 +6,9 @@
 package org.elasticsearch.xpack.core.ml.action;
 
 import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -25,16 +23,13 @@ public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/delete";
 
     private DeleteModelSnapshotAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends ActionRequest {
 
         private String jobId;
         private String snapshotId;
-
-        public Request() {
-        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -67,12 +62,4 @@ public class DeleteModelSnapshotAction extends ActionType<AcknowledgedResponse> 
             out.writeString(snapshotId);
         }
     }
-
-    public static class RequestBuilder extends ActionRequestBuilder<Request, AcknowledgedResponse> {
-
-        public RequestBuilder(ElasticsearchClient client, DeleteModelSnapshotAction action) {
-            super(client, action, new Request());
-        }
-    }
-
 }

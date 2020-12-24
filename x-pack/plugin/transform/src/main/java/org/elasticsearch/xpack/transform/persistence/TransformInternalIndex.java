@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -70,6 +69,7 @@ public final class TransformInternalIndex {
     public static final String TEXT = "text";
     public static final String FIELDS = "fields";
     public static final String RAW = "raw";
+    public static final String IGNORE_ABOVE = "ignore_above";
 
     // data types
     public static final String FLOAT = "float";
@@ -128,6 +128,7 @@ public final class TransformInternalIndex {
                 .startObject(FIELDS)
                     .startObject(RAW)
                         .field(TYPE, KEYWORD)
+                        .field(IGNORE_ABOVE, 1024)
                     .endObject()
                 .endObject()
             .endObject()
@@ -281,7 +282,7 @@ public final class TransformInternalIndex {
                         .field(TYPE, KEYWORD)
                     .endObject()
                     .startObject(SourceConfig.QUERY.getPreferredName())
-                        .field(ENABLED, "false")
+                        .field(ENABLED, false)
                     .endObject()
                 .endObject()
             .endObject()
@@ -370,7 +371,7 @@ public final class TransformInternalIndex {
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
             IndexTemplateMetadata indexTemplateMetadata = getIndexTemplateMetadata();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().uncompressed());
+            BytesReference jsonMappings = indexTemplateMetadata.mappings().uncompressed();
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
                 .patterns(indexTemplateMetadata.patterns())
                 .version(indexTemplateMetadata.version())
@@ -404,7 +405,7 @@ public final class TransformInternalIndex {
         // Installing the template involves communication with the master node, so it's more expensive but much rarer
         try {
             IndexTemplateMetadata indexTemplateMetadata = getAuditIndexTemplateMetadata();
-            BytesReference jsonMappings = new BytesArray(indexTemplateMetadata.mappings().uncompressed());
+            BytesReference jsonMappings = indexTemplateMetadata.mappings().uncompressed();
             PutIndexTemplateRequest request = new PutIndexTemplateRequest(TransformInternalIndexConstants.AUDIT_INDEX).patterns(
                 indexTemplateMetadata.patterns()
             )

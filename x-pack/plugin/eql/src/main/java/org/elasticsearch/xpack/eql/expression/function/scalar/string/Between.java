@@ -32,20 +32,20 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 
 /**
  * EQL specific between function.
- * between(source, left, right[, greedy=false, case_sensitive=false])
+ * between(source, left, right[, greedy=false])
  * Extracts a substring from source that’s between left and right substrings
  */
 public class Between extends ScalarFunction implements OptionalArgument {
 
-    private final Expression source, left, right, greedy, caseSensitive;
+    private final Expression input, left, right, greedy, caseSensitive;
 
-    public Between(Source source, Expression src, Expression left, Expression right, Expression greedy, Expression caseSensitive) {
-        super(source, Arrays.asList(src, left, right, toDefault(greedy), toDefault(caseSensitive)));
-        this.source = src;
+    public Between(Source source, Expression input, Expression left, Expression right, Expression greedy) {
+        super(source, Arrays.asList(input, left, right, toDefault(greedy)));
+        this.input = input;
         this.left = left;
         this.right = right;
         this.greedy = arguments().get(3);
-        this.caseSensitive = arguments().get(4);
+        this.caseSensitive = Literal.TRUE;
     }
 
     private static Expression toDefault(Expression exp) {
@@ -58,7 +58,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution resolution = isStringAndExact(source, sourceText(), Expressions.ParamOrdinal.FIRST);
+        TypeResolution resolution = isStringAndExact(input, sourceText(), Expressions.ParamOrdinal.FIRST);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -73,58 +73,58 @@ public class Between extends ScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        resolution = isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FOURTH);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return isBoolean(caseSensitive, sourceText(), Expressions.ParamOrdinal.FIFTH);
+        return isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FOURTH);
+//        if (resolution.unresolved()) {
+//            return resolution;
+//        }
+//
+//        return isBoolean(caseSensitive, sourceText(), Expressions.ParamOrdinal.FIFTH);
     }
 
     @Override
     protected Pipe makePipe() {
-        return new BetweenFunctionPipe(source(), this, Expressions.pipe(source),
+        return new BetweenFunctionPipe(source(), this, Expressions.pipe(input),
                 Expressions.pipe(left), Expressions.pipe(right),
                 Expressions.pipe(greedy), Expressions.pipe(caseSensitive));
     }
 
     @Override
     public boolean foldable() {
-        return source.foldable() && left.foldable() && right.foldable() && greedy.foldable() && caseSensitive.foldable();
+        return input.foldable() && left.foldable() && right.foldable() && greedy.foldable() && caseSensitive.foldable();
     }
 
     @Override
     public Object fold() {
-        return doProcess(source.fold(), left.fold(), right.fold(), greedy.fold(), caseSensitive.fold());
+        return doProcess(input.fold(), left.fold(), right.fold(), greedy.fold(), caseSensitive.fold());
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Between::new, source, left, right, greedy, caseSensitive);
+        return NodeInfo.create(this, Between::new, input, left, right, greedy);
     }
 
     @Override
     public ScriptTemplate asScript() {
-        ScriptTemplate sourceScript = asScript(source);
+        ScriptTemplate inputScript = asScript(input);
         ScriptTemplate leftScript = asScript(left);
         ScriptTemplate rightScript = asScript(right);
         ScriptTemplate greedyScript = asScript(greedy);
         ScriptTemplate caseSensitiveScript = asScript(caseSensitive);
 
-        return asScriptFrom(sourceScript, leftScript, rightScript, greedyScript, caseSensitiveScript);
+        return asScriptFrom(inputScript, leftScript, rightScript, greedyScript, caseSensitiveScript);
     }
 
-    protected ScriptTemplate asScriptFrom(ScriptTemplate sourceScript, ScriptTemplate leftScript,
+    protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate leftScript,
                                           ScriptTemplate rightScript, ScriptTemplate greedyScript, ScriptTemplate caseSensitiveScript) {
         return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s,%s,%s)"),
                 "between",
-                sourceScript.template(),
+                inputScript.template(),
                 leftScript.template(),
                 rightScript.template(),
                 greedyScript.template(),
                 caseSensitiveScript.template()),
                 paramsBuilder()
-                        .script(sourceScript.params())
+                        .script(inputScript.params())
                         .script(leftScript.params())
                         .script(rightScript.params())
                         .script(greedyScript.params())
@@ -146,10 +146,10 @@ public class Between extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 5) {
-            throw new IllegalArgumentException("expected [5] children but received [" + newChildren.size() + "]");
+        if (newChildren.size() != 4) {
+            throw new IllegalArgumentException("expected [4] children but received [" + newChildren.size() + "]");
         }
 
-        return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
+        return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldcaps;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,19 +33,21 @@ import java.util.Objects;
  * Response for {@link TransportFieldCapabilitiesIndexAction}.
  */
 public class FieldCapabilitiesIndexResponse extends ActionResponse implements Writeable {
-    private String indexName;
-    private Map<String, IndexFieldCapabilities> responseMap;
+    private final String indexName;
+    private final Map<String, IndexFieldCapabilities> responseMap;
+    private final boolean canMatch;
 
-    FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap) {
+    FieldCapabilitiesIndexResponse(String indexName, Map<String, IndexFieldCapabilities> responseMap, boolean canMatch) {
         this.indexName = indexName;
         this.responseMap = responseMap;
+        this.canMatch = canMatch;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
         super(in);
         this.indexName = in.readString();
-        this.responseMap =
-            in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
+        this.responseMap = in.readMap(StreamInput::readString, IndexFieldCapabilities::new);
+        this.canMatch = in.getVersion().onOrAfter(Version.V_7_9_0) ? in.readBoolean() : true;
     }
 
     /**
@@ -52,6 +55,10 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
      */
     public String getIndexName() {
         return indexName;
+    }
+
+    public boolean canMatch() {
+        return canMatch;
     }
 
     /**
@@ -72,8 +79,10 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(indexName);
-        out.writeMap(responseMap,
-            StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        out.writeMap(responseMap, StreamOutput::writeString, (valueOut, fc) -> fc.writeTo(valueOut));
+        if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
+            out.writeBoolean(canMatch);
+        }
     }
 
     @Override
@@ -81,12 +90,13 @@ public class FieldCapabilitiesIndexResponse extends ActionResponse implements Wr
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
-        return Objects.equals(indexName, that.indexName) &&
+        return canMatch == that.canMatch &&
+            Objects.equals(indexName, that.indexName) &&
             Objects.equals(responseMap, that.responseMap);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, responseMap);
+        return Objects.hash(indexName, responseMap, canMatch);
     }
 }

@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -121,11 +122,27 @@ public class DocumentFieldTests extends ESTestCase {
             }
             return Tuple.tuple(documentField, documentField);
         } else {
-            String fieldName = randomAlphaOfLengthBetween(3, 10);
-            Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
-            DocumentField input = new DocumentField(fieldName, tuple.v1());
-            DocumentField expected = new DocumentField(fieldName, tuple.v2());
-            return Tuple.tuple(input, expected);
+            switch (randomIntBetween(0, 2)) {
+                case 0:
+                    String fieldName = randomAlphaOfLengthBetween(3, 10);
+                    Tuple<List<Object>, List<Object>> tuple = RandomObjects.randomStoredFieldValues(random(), xContentType);
+                    DocumentField input = new DocumentField(fieldName, tuple.v1());
+                    DocumentField expected = new DocumentField(fieldName, tuple.v2());
+                    return Tuple.tuple(input, expected);
+                case 1:
+                    List<Object> listValues = randomList(1, 5, () -> randomList(1, 5, ESTestCase::randomInt));
+                    DocumentField listField = new DocumentField(randomAlphaOfLength(5), listValues);
+                    return Tuple.tuple(listField, listField);
+                case 2:
+                    List<Object> objectValues = randomList(1, 5, () ->
+                        Map.of(randomAlphaOfLength(5), randomInt(),
+                            randomAlphaOfLength(5), randomBoolean(),
+                            randomAlphaOfLength(5), randomAlphaOfLength(10)));
+                    DocumentField objectField = new DocumentField(randomAlphaOfLength(5), objectValues);
+                    return Tuple.tuple(objectField, objectField);
+                default:
+                    throw new IllegalStateException();
+            }
         }
     }
 }

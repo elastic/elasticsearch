@@ -41,7 +41,6 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
         {"%a", "EEE"},
         {"%b", "MMM"},
         {"%c", "MM"},
-        {"%D", "d"},
         {"%d", "dd"},
         {"%e", "d"},
         {"%f", "SSSSSS"},
@@ -102,7 +101,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 "\\{%'(\\w)'\\}",
                 "%$1"
             );
-            
+
             // replace %x with x, for any "x" not used in mysql date format specifiers
             pattern = pattern.replaceAll(
                 "%([^abcDdefHhIijklMmprSsTUuVvWwXxYy])",
@@ -145,7 +144,11 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 ta = asTimeAtZone((OffsetTime) timestamp, zoneId);
             }
             try {
-                return DateTimeFormatter.ofPattern(getJavaPattern(patternString), Locale.ROOT).format(ta);
+                String javaPattern = getJavaPattern(patternString);
+                if (this == DATE_FORMAT) {
+                    javaPattern = interpretAndEscapeDayOfMonthWithOrdinalIndicator(ta, javaPattern);
+                }
+                return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT).format(ta);
             } catch (IllegalArgumentException | DateTimeException e) {
                 throw new SqlIllegalArgumentException(
                     "Invalid pattern [{}] is received for formatting date/time [{}]; {}",
@@ -154,6 +157,23 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                     e.getMessage()
                 );
             }
+        }
+
+        private String interpretAndEscapeDayOfMonthWithOrdinalIndicator(TemporalAccessor ta, String javaPattern) {
+            if (javaPattern.contains("%D")) {
+                String dayOfMonth = DateTimeFormatter.ofPattern("d", Locale.ROOT).format(ta);
+                if (dayOfMonth.endsWith("1")) {
+                    dayOfMonth = "'" + dayOfMonth + "st'";
+                } else if (dayOfMonth.endsWith("2")) {
+                    dayOfMonth = "'" + dayOfMonth + "nd'";
+                } else if (dayOfMonth.endsWith("3")) {
+                    dayOfMonth = "'" + dayOfMonth + "rd'";
+                } else {
+                    dayOfMonth = "'" +dayOfMonth+ "th'";
+                }
+                javaPattern = javaPattern.replace("%D", dayOfMonth);
+            }
+            return javaPattern;
         }
     }
 

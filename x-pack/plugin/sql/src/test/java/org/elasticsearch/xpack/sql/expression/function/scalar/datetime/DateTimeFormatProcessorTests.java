@@ -346,12 +346,10 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateFormat(Source.EMPTY, dateTime, l("%H:%i:%s"), zoneId).makePipe().asProcessor().process(null)
         );
 
-/*
         assertEquals(
-            "4th 19 Wed 04 09 Sep 247", // I dont know how to format day of month with ordinal indicator
+            "4th 19 Wed 04 09 Sep 247",
             new DateFormat(Source.EMPTY, dateTime, l("%D %y %a %d %m %b %j"), zoneId).makePipe().asProcessor().process(null)
         );
-*/
 
         assertEquals(
             "04 4 04 04:10:37 AM 04:10:37 37 3",
@@ -391,13 +389,35 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateFormat(Source.EMPTY, dateTime, l("%c"), zoneId).makePipe().asProcessor().process(null)
         );
 
-/*
         assertEquals(
-            "1st", I dont know how to add ordinal indicator
+            "1st",
             new DateFormat(Source.EMPTY, dateTime, l("%D"), zoneId).makePipe().asProcessor().process(null)
         );
-*/
-        
+
+        assertEquals(
+            "10th",
+            new DateFormat(Source.EMPTY, l(dateTime(2009, 10, 10, 22, 23, 0, 123456789)),
+                l("%D"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "21st",
+            new DateFormat(Source.EMPTY, l(dateTime(2009, 10, 21, 22, 23, 0, 123456789)),
+                l("%D"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "22nd",
+            new DateFormat(Source.EMPTY, l(dateTime(2009, 10, 22, 22, 23, 0, 123456789)),
+                l("%D"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "23rd",
+            new DateFormat(Source.EMPTY, l(dateTime(2009, 10, 23, 22, 23, 0, 123456789)),
+                l("%D"), zoneId).makePipe().asProcessor().process(null)
+        );
+
         assertEquals(
             "01",
             new DateFormat(Source.EMPTY, dateTime, l("%d"), zoneId).makePipe().asProcessor().process(null)
@@ -483,7 +503,7 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             "20:59:00",
             new DateFormat(Source.EMPTY, dateTime, l("%T"), zoneId).makePipe().asProcessor().process(null)
         );
-        
+
 /*
         assertEquals(
             "48",// the actual value always be 49, why?
@@ -555,12 +575,10 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
 
         dateTime = l(dateTime(1900, 10, 4, 22, 23, 0, 123456789));
-/*
         assertEquals(
-            "4th 00 Thu 04 10 Oct 277",// I dont know how to format day of month with ordinal indicator
+            "4th 00 Thu 04 10 Oct 277",
             new DateFormat(Source.EMPTY, dateTime, l("%D %y %a %d %m %b %j"), zoneId).makePipe().asProcessor().process(null)
         );
-*/
 
         dateTime = l(dateTime(1997, 10, 4, 22, 23, 0, 0));
         assertEquals(

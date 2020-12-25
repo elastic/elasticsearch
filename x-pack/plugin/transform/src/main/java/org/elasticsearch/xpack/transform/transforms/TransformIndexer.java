@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -43,7 +44,6 @@ import org.elasticsearch.xpack.transform.transforms.Function.ChangeCollector;
 import org.elasticsearch.xpack.transform.utils.ExceptionRootCauseFinder;
 
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -97,7 +97,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private final Map<String, String> fieldMappings;
 
-    // the function of the transform, e.g. pivot
+    // the function of the transform, e.g. pivot or latest
     private Function function;
 
     // collects changes for continuous mode
@@ -118,9 +118,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     private volatile long lastCheckpointCleanup = 0L;
 
+    protected volatile boolean indexerThreadShuttingDown = false;
+    protected volatile boolean stopCalledDuringIndexerThreadShutdown = false;
+
     public TransformIndexer(
         ThreadPool threadPool,
-        String executorName,
         TransformConfigManager transformsConfigManager,
         CheckpointProvider checkpointProvider,
         TransformAuditor auditor,
@@ -134,7 +136,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformCheckpoint nextCheckpoint,
         TransformContext context
     ) {
-        super(threadPool, executorName, initialState, initialPosition, jobStats);
+        super(threadPool, initialState, initialPosition, jobStats);
         this.transformsConfigManager = ExceptionsHelper.requireNonNull(transformsConfigManager, "transformsConfigManager");
         this.checkpointProvider = ExceptionsHelper.requireNonNull(checkpointProvider, "checkpointProvider");
         this.auditor = ExceptionsHelper.requireNonNull(auditor, "auditor");
@@ -387,6 +389,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFinish(ActionListener<Void> listener) {
+        startIndexerThreadShutdown();
         try {
             // This indicates an early exit since no changes were found.
             // So, don't treat this like a checkpoint being completed, as no work was done.
@@ -454,6 +457,11 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     @Override
+    protected void afterFinishOrFailure() {
+        finishIndexerThreadShutdown();
+    }
+
+    @Override
     protected IterationResult<TransformIndexerPosition> doProcess(SearchResponse searchResponse) {
         switch (runState) {
             case APPLY_RESULTS:
@@ -503,6 +511,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     @Override
     protected void onFailure(Exception exc) {
+        startIndexerThreadShutdown();
         // the failure handler must not throw an exception due to internal problems
         try {
             handleFailure(exc);
@@ -599,10 +608,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
                 return Collections.singletonList(shouldStopAtCheckpointListener);
             }
-
-            List<ActionListener<Void>> newListeners = new ArrayList<>(currentListeners);
-            newListeners.add(shouldStopAtCheckpointListener);
-            return newListeners;
+            return CollectionUtils.appendToCopy(currentListeners, shouldStopAtCheckpointListener);
         }) == null) {
             return false;
         }
@@ -613,14 +619,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         return true;
     }
 
-    void stopAndSaveState() {
+    synchronized void stopAndSaveState() {
         onStop();
-        doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        if (indexerThreadShuttingDown) {
+            stopCalledDuringIndexerThreadShutdown = true;
+        } else {
+            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
+        }
     }
 
     synchronized void handleFailure(Exception e) {
         logger.warn(new ParameterizedMessage("[{}] transform encountered an exception: ", getJobId()), e);
-        Throwable unwrappedException = ExceptionRootCauseFinder.getRootCauseException(e);
+        Throwable unwrappedException = ExceptionsHelper.findSearchExceptionRootCause(e);
 
         if (unwrappedException instanceof CircuitBreakingException) {
             handleCircuitBreakingException((CircuitBreakingException) unwrappedException);
@@ -860,30 +870,30 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         TransformIndexerPosition position = getPosition();
 
         TransformConfig config = getConfig();
-        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         function.buildSearchQuery(sourceBuilder, position != null ? position.getIndexerPosition() : null, pageSize);
 
-        // if its either the 1st run or not continuous, do not apply extra filters
-        if (nextCheckpoint.getCheckpoint() == 1 || isContinuous() == false) {
-            sourceBuilder.query(queryBuilder);
-            logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
+        QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
-            return sourceBuilder;
+        if (isContinuous()) {
+            BoolQueryBuilder filteredQuery =
+                new BoolQueryBuilder()
+                    .filter(queryBuilder)
+                    .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+
+            // Only apply extra filter if it is the subsequent run of the continuous transform
+            if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
+                QueryBuilder filter =
+                    changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+                if (filter != null) {
+                    filteredQuery.filter(filter);
+                }
+            }
+
+            queryBuilder = filteredQuery;
         }
 
-        BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
-            .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
-
-        QueryBuilder filter = changeCollector != null
-            ? changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound())
-            : null;
-
-        if (filter != null) {
-            filteredQuery.filter(filter);
-        }
-
-        sourceBuilder.query(filteredQuery);
+        sourceBuilder.query(queryBuilder);
         logger.debug(() -> new ParameterizedMessage("[{}] Querying for data: {}", getJobId(), sourceBuilder));
 
         return sourceBuilder;
@@ -998,6 +1008,18 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             pageSize = initialConfiguredPageSize;
         } else {
             pageSize = function.getInitialPageSize();
+        }
+    }
+
+    private synchronized void startIndexerThreadShutdown() {
+        indexerThreadShuttingDown = true;
+        stopCalledDuringIndexerThreadShutdown = false;
+    }
+
+    private synchronized void finishIndexerThreadShutdown() {
+        indexerThreadShuttingDown = false;
+        if (stopCalledDuringIndexerThreadShutdown) {
+            doSaveState(IndexerState.STOPPED, getPosition(), () -> {});
         }
     }
 

@@ -123,6 +123,16 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             builder.endObject();
 
             Request request = new Request("PUT", "/_template/template");
+            if (inFipsJvm()) {
+                request.setOptions(expectWarnings(
+                    "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
+                    "[ilm-history,.triggered_watches,.watch-history-14,.slm-history,synthetics,metrics,.deprecation-indexing-template," +
+                    ".watches,logs] with patterns (ilm-history => [ilm-history-5*],.triggered_watches => [.triggered_watches*]," +
+                    ".watch-history-14 => [.watcher-history-14*],.slm-history => [.slm-history-5*],synthetics => [synthetics-*-*]" +
+                    ",metrics => [metrics-*-*],.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
+                    ".watches => [.watches*],logs => [logs-*-*]); this template [template] may be ignored in favor " +
+                    "of a composable template at index creation time"));
+                }
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
             headTestCase("/_template/template", emptyMap(), greaterThan(0));

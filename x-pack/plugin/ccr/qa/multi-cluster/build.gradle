@@ -10,7 +10,7 @@ dependencies {
 }
 
 task "leader-cluster"(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
+  mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 
@@ -56,4 +56,4 @@ testClusters."follow-cluster" {
 }
 
 check.dependsOn "follow-cluster"
-test.enabled = false // no unit tests for multi-cluster-search, only the rest integration test
+tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test

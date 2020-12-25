@@ -5,7 +5,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -22,7 +25,10 @@ import java.util.List;
  * A {@link LifecycleAction} which freezes the index.
  */
 public class FreezeAction implements LifecycleAction {
+    private static final Logger logger = LogManager.getLogger(FreezeAction.class);
+
     public static final String NAME = "freeze";
+    public static final String CONDITIONAL_SKIP_FREEZE_STEP = BranchingStep.NAME + "-freeze-check-prerequisites";
 
     private static final ObjectParser<FreezeAction, Void> PARSER = new ObjectParser<>(NAME, FreezeAction::new);
 
@@ -59,13 +65,31 @@ public class FreezeAction implements LifecycleAction {
 
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
+        StepKey preFreezeMergeBranchingKey = new StepKey(phase, NAME, CONDITIONAL_SKIP_FREEZE_STEP);
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
         StepKey freezeStepKey = new StepKey(phase, NAME, FreezeStep.NAME);
 
+        BranchingStep conditionalSkipFreezeStep = new BranchingStep(preFreezeMergeBranchingKey, checkNotWriteIndex, nextStepKey,
+            (index, clusterState) -> {
+                IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+                assert indexMetadata != null : "index " + index.getName() + " must exist in the cluster state";
+                String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+                if (indexMetadata.getSettings().get(LifecycleSettings.SNAPSHOT_INDEX_NAME) != null) {
+                    logger.warn("[{}] action is configured for index [{}] in policy [{}] which is mounted as searchable snapshot. " +
+                        "Skipping this action", FreezeAction.NAME, index.getName(), policyName);
+                    return true;
+                }
+                if (indexMetadata.getSettings().getAsBoolean("index.frozen", false)) {
+                    logger.debug("skipping [{}] action for index [{}] in policy [{}] as the index is already frozen", FreezeAction.NAME,
+                        index.getName(), policyName);
+                    return true;
+                }
+                return false;
+            });
         CheckNotDataStreamWriteIndexStep checkNoWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             freezeStepKey);
         FreezeStep freezeStep = new FreezeStep(freezeStepKey, nextStepKey, client);
-        return Arrays.asList(checkNoWriteIndexStep, freezeStep);
+        return Arrays.asList(conditionalSkipFreezeStep, checkNoWriteIndexStep, freezeStep);
     }
 
     @Override

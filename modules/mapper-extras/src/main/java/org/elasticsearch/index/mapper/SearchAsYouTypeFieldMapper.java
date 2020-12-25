@@ -48,10 +48,10 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +62,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.index.mapper.TextFieldMapper.TextFieldType.hasGaps;
 
@@ -94,7 +93,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER
-        = new TypeParser((n, c) -> new Builder(n, () -> c.getIndexAnalyzers().getDefaultIndexAnalyzer()));
+        = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     private static Builder builder(FieldMapper in) {
         return ((SearchAsYouTypeFieldMapper)in).builder;
@@ -135,9 +134,9 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        public Builder(String name, Supplier<NamedAnalyzer> defaultAnalyzer) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.analyzers = new TextParams.Analyzers(defaultAnalyzer, m -> builder(m).analyzers);
+            this.analyzers = new TextParams.Analyzers(indexAnalyzers, m -> builder(m).analyzers);
         }
 
         @Override
@@ -167,8 +166,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             indexAnalyzers.put(ft.name(), indexAnalyzer);
 
             // set up the prefix field
-            FieldType prefixft = new FieldType(fieldType);
-            prefixft.setStoreTermVectors(false);
+            FieldType prefixft = new FieldType();
+            prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
             final String fullName = buildFullName(contentPath);
@@ -180,10 +179,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize.getValue()));
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
-            final PrefixFieldType prefixFieldType
-                = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
-            final NamedAnalyzer prefixAnalyzer
-                = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            final NamedAnalyzer prefixAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
             indexAnalyzers.put(prefixFieldType.name(), prefixAnalyzer);
 
@@ -207,8 +204,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
-                NamedAnalyzer shingleAnalyzer
-                    = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
+                NamedAnalyzer shingleAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
                 indexAnalyzers.put(shingleFieldType.name(), shingleAnalyzer);
             }
@@ -268,7 +264,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
@@ -379,7 +375,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
@@ -486,7 +482,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             // Because this internal field is modelled as a multi-field, SourceValueFetcher will look up its
             // parent field in _source. So we don't need to use the parent field name here.
             return SourceValueFetcher.toString(name(), context, format);
@@ -593,7 +589,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.analyzers.indexAnalyzer::getDefaultValue).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

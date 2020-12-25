@@ -59,6 +59,8 @@ include::update-datafeed.asciidoc[leveloffset=+2]
 include::update-filter.asciidoc[leveloffset=+2]
 include::update-job.asciidoc[leveloffset=+2]
 include::update-snapshot.asciidoc[leveloffset=+2]
+//UPGRADE
+include::upgrade-job-model-snapshot.asciidoc[leveloffset=+2]
 //VALIDATE
 //include::validate-detector.asciidoc[leveloffset=+2]
 //include::validate-job.asciidoc[leveloffset=+2]

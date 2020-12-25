@@ -771,7 +771,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void disableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, false, null);
+            licenseState.update(operationMode, false, Long.MAX_VALUE, null);
         }
     }
 
@@ -781,7 +781,7 @@ public class MachineLearningLicensingIT extends BaseMlIntegTestCase {
 
     public static void enableLicensing(License.OperationMode operationMode) {
         for (XPackLicenseState licenseState : internalCluster().getInstances(XPackLicenseState.class)) {
-            licenseState.update(operationMode, true, null);
+            licenseState.update(operationMode, true, Long.MAX_VALUE, null);
         }
     }
 }

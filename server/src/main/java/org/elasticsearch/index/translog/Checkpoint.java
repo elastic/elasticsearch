@@ -172,9 +172,8 @@ final class Checkpoint {
         // now go and write to the channel, in one go.
         try (FileChannel channel = factory.open(checkpointFile, options)) {
             Channels.writeToChannel(bytes, channel);
-            // no need to force metadata, file size stays the same and we did the full fsync
-            // when we first created the file, so the directory entry doesn't change as well
-            channel.force(false);
+            // fsync with metadata as we use this method when creating the file
+            channel.force(true);
         }
     }
 

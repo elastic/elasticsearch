@@ -18,7 +18,6 @@
  */
 
 import org.gradle.internal.jvm.Jvm
-import org.gradle.util.GradleVersion
 
 plugins {
   id 'java-gradle-plugin'
@@ -50,7 +49,7 @@ def generateVersionProperties = tasks.register("generateVersionProperties", Writ
   properties(props)
 }
 
-processResources {
+tasks.named("processResources").configure {
   from(generateVersionProperties)
 }
 
@@ -104,6 +103,10 @@ dependencies {
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.13.4'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
+  api 'org.ow2.asm:asm:9.0'
+  api 'org.ow2.asm:asm-tree:9.0'
+  api "org.apache.httpcomponents:httpclient:${props.getProperty('httpclient')}"
+  api "org.apache.httpcomponents:httpcore:${props.getProperty('httpcore')}"
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testFixturesApi "junit:junit:${props.getProperty('junit')}"
@@ -132,7 +135,9 @@ if (project == rootProject) {
     runtimeOnly project('reaper')
   }
   // only run tests as build-tools
-  test.enabled = false
+  tasks.named("test").configure {
+    enabled = false
+  }
 }
 
 /*****************************************************************************
@@ -146,21 +151,21 @@ if (project != rootProject) {
   apply plugin: 'elasticsearch.publish'
 
   // groovydoc succeeds, but has some weird internal exception...
-  groovydoc.enabled = false
-
-  // build-tools is not ready for primetime with these...
-  tasks.named("dependencyLicenses").configure { it.enabled = false }
-  dependenciesInfo.enabled = false
-  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
-  jarHell.enabled = false
-  thirdPartyAudit.enabled = false
-  if (org.elasticsearch.gradle.info.BuildParams.inFipsJvm) {
-    // We don't support running gradle with a JVM that is in FIPS 140 mode, so we don't test it.
-    // WaitForHttpResourceTests tests would fail as they use JKS/PKCS12 keystores
-    test.enabled = false
-    testingConventions.enabled = false
+  tasks.named("groovydoc").configure {
+    enabled = false
   }
 
+  // build-tools is not ready for primetime with these...
+  tasks.named("dependencyLicenses").configure { enabled = false }
+  tasks.named("dependenciesInfo").configure {enabled = false }
+  tasks.named("dependenciesGraph").configure {enabled = false }
+  disableTasks('forbiddenApisMain', 'forbiddenApisTest', 'forbiddenApisIntegTest', 'forbiddenApisTestFixtures')
+  tasks.named("jarHell").configure {
+    enabled = false
+  }
+  tasks.named("thirdPartyAudit").configure {
+    enabled = false
+  }
   configurations.register("distribution")
   configurations.register("reaper")
 
@@ -185,7 +190,7 @@ if (project != rootProject) {
   }
 
   // for external projects we want to remove the marker file indicating we are running the Elasticsearch project
-  processResources {
+  tasks.named("processResources").configure {
     exclude 'buildSrc.marker'
     into('META-INF') {
       from configurations.reaper
@@ -204,7 +209,7 @@ if (project != rootProject) {
     }
   }
 
-  forbiddenPatterns {
+  tasks.named("forbiddenPatterns").configure {
     exclude '**/*.wav'
     exclude '**/*.p12'
     exclude '**/*.jks'
@@ -214,7 +219,7 @@ if (project != rootProject) {
     exclude '**/*.bcfks'
   }
 
-  testingConventions {
+  tasks.named("testingConventions") {
     naming.clear()
     naming {
       Tests {
@@ -229,16 +234,16 @@ if (project != rootProject) {
   tasks.register("integTest", Test) {
     inputs.dir(file("src/testKit")).withPropertyName("testkit dir").withPathSensitivity(PathSensitivity.RELATIVE)
     systemProperty 'test.version_under_test', version
-    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
-    maxParallelForks = System.getProperty('tests.jvms', org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
     testClassesDirs = sourceSets.integTest.output.classesDirs
     classpath = sourceSets.integTest.runtimeClasspath
   }
-  check.dependsOn("integTest")
+  tasks.named("check").configure { dependsOn("integTest") }
 
   // for now we hardcode the tests for our build to use the gradle jvm.
   tasks.withType(Test).configureEach {
+    onlyIf { org.elasticsearch.gradle.info.BuildParams.inFipsJvm == false }
     it.executable = Jvm.current().getJavaExecutable()
+    maxParallelForks = providers.systemProperty('tests.jvms').forUseAtConfigurationTime().getOrElse(org.elasticsearch.gradle.info.BuildParams.defaultParallel.toString()) as Integer
   }
 
   /*
@@ -246,7 +251,9 @@ if (project != rootProject) {
    * comes from the java-gradle-plugin.
    */
   afterEvaluate {
-    generatePomFileForPluginMavenPublication.enabled = false
+    tasks.named("generatePomFileForPluginMavenPublication").configure {
+      enabled = false
+    }
   }
 
   publishing.publications.named("nebula").configure {

@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
+import org.elasticsearch.index.mapper.DynamicRuntimeFieldsBuilder;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -77,8 +79,8 @@ public class IndicesModule extends AbstractModule {
     private final MapperRegistry mapperRegistry;
 
     public IndicesModule(List<MapperPlugin> mapperPlugins) {
-        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getMetadataMappers(mapperPlugins),
-                getFieldFilter(mapperPlugins));
+        this.mapperRegistry = new MapperRegistry(getMappers(mapperPlugins), getRuntimeFieldTypes(mapperPlugins),
+            getDynamicRuntimeFieldsBuilder(mapperPlugins), getMetadataMappers(mapperPlugins), getFieldFilter(mapperPlugins));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
@@ -134,9 +136,34 @@ public class IndicesModule extends AbstractModule {
         return Collections.unmodifiableMap(mappers);
     }
 
+    private static Map<String, RuntimeFieldType.Parser> getRuntimeFieldTypes(List<MapperPlugin> mapperPlugins) {
+        Map<String, RuntimeFieldType.Parser> runtimeParsers = new LinkedHashMap<>();
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            for (Map.Entry<String, RuntimeFieldType.Parser> entry : mapperPlugin.getRuntimeFieldTypes().entrySet()) {
+                if (runtimeParsers.put(entry.getKey(), entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Runtime field type [" + entry.getKey() + "] is already registered");
+                }
+            }
+        }
+        return Collections.unmodifiableMap(runtimeParsers);
+    }
+
+    private static DynamicRuntimeFieldsBuilder getDynamicRuntimeFieldsBuilder(List<MapperPlugin> mapperPlugins) {
+        DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder = null;
+        for (MapperPlugin mapperPlugin : mapperPlugins) {
+            if (mapperPlugin.getDynamicRuntimeFieldsBuilder() != null) {
+                if (dynamicRuntimeFieldsBuilder != null) {
+                    throw new IllegalArgumentException("Dynamic runtime fields builder already registered");
+                }
+                dynamicRuntimeFieldsBuilder = mapperPlugin.getDynamicRuntimeFieldsBuilder();
+            }
+        }
+        return dynamicRuntimeFieldsBuilder;
+    }
+
     private static final Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers = initBuiltInMetadataMappers();
 
-    private static Set<String> builtInMetadataFields = Collections.unmodifiableSet(builtInMetadataMappers.keySet());
+    private static final Set<String> builtInMetadataFields = Collections.unmodifiableSet(builtInMetadataMappers.keySet());
 
     private static Map<String, MetadataFieldMapper.TypeParser> initBuiltInMetadataMappers() {
         Map<String, MetadataFieldMapper.TypeParser> builtInMetadataMappers;

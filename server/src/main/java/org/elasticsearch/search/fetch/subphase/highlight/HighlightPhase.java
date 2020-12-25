@@ -55,7 +55,10 @@ public class HighlightPhase implements FetchSubPhase {
     }
 
     public FetchSubPhaseProcessor getProcessor(FetchContext context, SearchHighlightContext highlightContext, Query query) {
-        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(context, highlightContext, query);
+        Map<String, Object> sharedCache = new HashMap<>();
+        Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders = contextBuilders(
+            context, highlightContext, query, sharedCache);
+
         return new FetchSubPhaseProcessor() {
             @Override
             public void setNextReader(LeafReaderContext readerContext) {
@@ -97,7 +100,8 @@ public class HighlightPhase implements FetchSubPhase {
 
     private Map<String, Function<HitContext, FieldHighlightContext>> contextBuilders(FetchContext context,
                                                                                      SearchHighlightContext highlightContext,
-                                                                                     Query query) {
+                                                                                     Query query,
+                                                                                     Map<String, Object> sharedCache) {
         Map<String, Function<HitContext, FieldHighlightContext>> builders = new LinkedHashMap<>();
         for (SearchHighlightContext.Field field : highlightContext.fields()) {
             Highlighter highlighter = getHighlighter(field);
@@ -145,7 +149,7 @@ public class HighlightPhase implements FetchSubPhase {
                 boolean forceSource = highlightContext.forceSource(field);
                 builders.put(fieldName,
                     hc -> new FieldHighlightContext(fieldType.name(), field, fieldType, context, hc,
-                        highlightQuery == null ? query : highlightQuery, forceSource));
+                        highlightQuery == null ? query : highlightQuery, forceSource, sharedCache));
             }
         }
         return builders;

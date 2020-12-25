@@ -19,22 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +35,22 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import org.apache.lucene.document.Field;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
@@ -187,10 +187,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
-        if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-            for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldMapper != null) {
+            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
+            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
+                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
+                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                }
             }
         }
     }
@@ -278,15 +281,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         Conflicts conflicts = new Conflicts(name());
         builder.merge((FieldMapper) mergeWith, conflicts);
         conflicts.check();
-        return builder.build(parentPath(name()));
-    }
-
-    private static ContentPath parentPath(String name) {
-        int endPos = name.lastIndexOf(".");
-        if (endPos == -1) {
-            return new ContentPath(0);
-        }
-        return new ContentPath(name.substring(0, endPos));
+        return builder.build(Builder.parentPath(name()));
     }
 
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
@@ -482,7 +477,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Serializes a parameter
      */
-    protected interface Serializer<T> {
+    public interface Serializer<T> {
         void serialize(XContentBuilder builder, String name, T value) throws IOException;
     }
 
@@ -493,7 +488,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     /**
      * Check on whether or not a parameter should be serialized
      */
-    protected interface SerializerCheck<T> {
+    public interface SerializerCheck<T> {
         /**
          * Check on whether or not a parameter should be serialized
          * @param includeDefaults   if defaults have been requested
@@ -931,7 +926,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         /**
          * Writes the current builder parameter values as XContent
          */
-        protected final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
+        public final void toXContent(XContentBuilder builder, boolean includeDefaults) throws IOException {
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
             }
@@ -1009,6 +1004,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 iterator.remove();
             }
             validate();
+        }
+
+        protected static ContentPath parentPath(String name) {
+            int endPos = name.lastIndexOf(".");
+            if (endPos == -1) {
+                return new ContentPath(0);
+            }
+            return new ContentPath(name.substring(0, endPos));
         }
 
         // These parameters were previously *always* parsed by TypeParsers#parseField(), even if they

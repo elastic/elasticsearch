@@ -26,7 +26,8 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentSet;
 import static org.elasticsearch.index.store.cache.TestUtils.mergeContiguousRanges;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.index.store.cache.TestUtils.randomRanges;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -34,6 +35,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SparseFileTrackerTests extends ESTestCase {
 
@@ -414,7 +416,33 @@ public class SparseFileTrackerTests extends ESTestCase {
         checkThread.join();
     }
 
-    public void testCompletedRanges() {
+    public void testSparseFileTrackerCreatedWithCompletedRanges() {
+        final long fileLength = between(0, 1000);
+        final SortedSet<Tuple<Long, Long>> completedRanges = randomRanges(fileLength);
+
+        final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileLength, completedRanges);
+        assertThat(sparseFileTracker.getCompletedRanges(), equalTo(completedRanges));
+
+        for (Tuple<Long, Long> completedRange : completedRanges) {
+            assertThat(sparseFileTracker.getAbsentRangeWithin(completedRange.v1(), completedRange.v2()), nullValue());
+
+            final AtomicBoolean listenerCalled = new AtomicBoolean();
+            assertThat(sparseFileTracker.waitForRange(completedRange, completedRange, new ActionListener<>() {
+                @Override
+                public void onResponse(Void aVoid) {
+                    listenerCalled.set(true);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+            }), hasSize(0));
+            assertThat(listenerCalled.get(), is(true));
+        }
+    }
+
+    public void testGetCompletedRanges() {
         final byte[] fileContents = new byte[between(0, 1000)];
         final SparseFileTracker sparseFileTracker = new SparseFileTracker("test", fileContents.length);
 

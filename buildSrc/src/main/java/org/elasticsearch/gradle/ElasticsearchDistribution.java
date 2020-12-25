@@ -319,8 +319,12 @@ public class ElasticsearchDistribution implements Buildable, Iterable<File> {
         bundledJdk.finalizeValue();
     }
 
-    public Configuration getArchive() {
-        maybeFreeze();
-        return configuration;
+    public TaskDependency getArchiveDependencies() {
+        if (skippingDockerDistributionBuild()) {
+            return task -> Collections.emptySet();
+        } else {
+            maybeFreeze();
+            return configuration.getBuildDependencies();
+        }
     }
 }

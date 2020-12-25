@@ -10,6 +10,7 @@ import org.elasticsearch.client.analytics.ParsedTopMetrics;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -240,10 +241,8 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> result = new ArrayList<>(super.getNamedXContents());
-        result.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(TopMetricsAggregationBuilder.NAME),
-                (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c)));
-        return result;
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(TopMetricsAggregationBuilder.NAME), (p, c) -> ParsedTopMetrics.PARSER.parse(p, (String) c)));
     }
 
     @Override
@@ -328,6 +327,27 @@ public class InternalTopMetricsTests extends InternalAggregationTestCase<Interna
                 }
             }
         }
+    }
+
+    @Override
+    protected List<InternalTopMetrics> randomResultsToReduce(String name, int count) {
+        InternalTopMetrics prototype = createTestInstance();
+        return randomList(
+            count,
+            count,
+            () -> new InternalTopMetrics(
+                prototype.getName(),
+                prototype.getSortOrder(),
+                prototype.getMetricNames(),
+                prototype.getSize(),
+                randomTopMetrics(
+                    InternalAggregationTestCase::randomNumericDocValueFormat,
+                    between(0, prototype.getSize()),
+                    prototype.getMetricNames().size()
+                ),
+                prototype.getMetadata()
+            )
+        );
     }
 
     @Override

@@ -21,6 +21,7 @@ package org.elasticsearch.action.admin.cluster.configuration;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -53,7 +54,6 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
@@ -413,24 +413,24 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
         assertThat(rootCause.getMessage(), startsWith("timed out waiting for voting config exclusions [{other1}"));
     }
 
-    private TransportResponseHandler<AddVotingConfigExclusionsResponse> expectSuccess(
-        Consumer<AddVotingConfigExclusionsResponse> onResponse) {
+    private TransportResponseHandler<ActionResponse.Empty> expectSuccess(
+        Consumer<ActionResponse.Empty> onResponse) {
         return responseHandler(onResponse, e -> {
             throw new AssertionError("unexpected", e);
         });
     }
 
-    private TransportResponseHandler<AddVotingConfigExclusionsResponse> expectError(Consumer<TransportException> onException) {
+    private TransportResponseHandler<ActionResponse.Empty> expectError(Consumer<TransportException> onException) {
         return responseHandler(r -> {
             assert false : r;
         }, onException);
     }
 
-    private TransportResponseHandler<AddVotingConfigExclusionsResponse> responseHandler(
-        Consumer<AddVotingConfigExclusionsResponse> onResponse, Consumer<TransportException> onException) {
-        return new TransportResponseHandler<AddVotingConfigExclusionsResponse>() {
+    private TransportResponseHandler<ActionResponse.Empty> responseHandler(
+        Consumer<ActionResponse.Empty> onResponse, Consumer<TransportException> onException) {
+        return new TransportResponseHandler<>() {
             @Override
-            public void handleResponse(AddVotingConfigExclusionsResponse response) {
+            public void handleResponse(ActionResponse.Empty response) {
                 onResponse.accept(response);
             }
 
@@ -440,8 +440,8 @@ public class TransportAddVotingConfigExclusionsActionTests extends ESTestCase {
             }
 
             @Override
-            public AddVotingConfigExclusionsResponse read(StreamInput in) throws IOException {
-                return new AddVotingConfigExclusionsResponse(in);
+            public ActionResponse.Empty read(StreamInput in) {
+                return ActionResponse.Empty.INSTANCE;
             }
         };
     }

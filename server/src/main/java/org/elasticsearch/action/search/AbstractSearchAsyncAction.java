@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,7 +33,6 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -49,10 +49,9 @@ import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -84,7 +83,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
     private final Map<String, Float> concreteIndexBoosts;
-    private final Map<String, Set<String>> indexRoutings;
     private final SetOnce<AtomicArray<ShardSearchFailure>> shardFailures = new SetOnce<>();
     private final Object shardFailuresMutex = new Object();
     private final AtomicBoolean hasShardResponse = new AtomicBoolean(false);
@@ -95,6 +93,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
+    private final Map<SearchShardIterator, Integer> shardItIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
     private final int maxConcurrentRequestsPerNode;
@@ -107,7 +106,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                               Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                              Map<String, Set<String>> indexRoutings,
                               Executor executor, SearchRequest request,
                               ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                               SearchTimeProvider timeProvider, ClusterState clusterState,
@@ -125,6 +123,17 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
         this.shardsIts = new GroupShardsIterator<>(iterators);
+        this.shardItIndexMap = new HashMap<>();
+
+        // we compute the shard index based on the natural order of the shards
+        // that participate in the search request. This means that this number is
+        // consistent between two requests that target the same shards.
+        List<SearchShardIterator> naturalOrder = new ArrayList<>(iterators);
+        CollectionUtil.timSort(naturalOrder);
+        for (int i = 0; i < naturalOrder.size(); i++) {
+            shardItIndexMap.put(naturalOrder.get(i), i);
+        }
+
         // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
         // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
         // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
@@ -144,7 +153,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusterState = clusterState;
         this.concreteIndexBoosts = concreteIndexBoosts;
         this.aliasFilter = aliasFilter;
-        this.indexRoutings = indexRoutings;
         this.results = resultConsumer;
         this.clusters = clusters;
     }
@@ -211,10 +219,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     throw new SearchPhaseExecutionException(getName(), msg, null, ShardSearchFailure.EMPTY_ARRAY);
                 }
             }
-            for (int index = 0; index < shardsIts.size(); index++) {
-                final SearchShardIterator shardRoutings = shardsIts.get(index);
+
+            for (int i = 0; i < shardsIts.size(); i++) {
+                final SearchShardIterator shardRoutings = shardsIts.get(i);
                 assert shardRoutings.skip() == false;
-                performPhaseOnShard(index, shardRoutings, shardRoutings.nextOrNull());
+                assert shardItIndexMap.containsKey(shardRoutings);
+                int shardIndex = shardItIndexMap.get(shardRoutings);
+                performPhaseOnShard(shardIndex, shardRoutings, shardRoutings.nextOrNull());
             }
         }
     }
@@ -226,7 +237,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         successfulShardExecution(iterator);
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         /*
          * We capture the thread that this phase is starting on. When we are called back after executing the phase, we are either on the
          * same thread (because we never went async, or the same thread was selected from the thread pool) or a different thread. If we
@@ -235,7 +246,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
          * we can continue (cf. InitialSearchPhase#maybeFork).
          */
         if (shard == null) {
-            fork(() -> onShardFailure(shardIndex, null, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
+            SearchShardTarget unassignedShard = new SearchShardTarget(null, shardIt.shardId(),
+                shardIt.getClusterAlias(), shardIt.getOriginalIndices());
+            fork(() -> onShardFailure(shardIndex, unassignedShard, shardIt, new NoShardAvailableActionException(shardIt.shardId())));
         } else {
             final PendingExecutions pendingExecutions = throttleConcurrentRequests ?
                 pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
@@ -249,6 +262,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             public void innerOnResponse(Result result) {
                                 try {
                                     onShardResult(result, shardIt);
+                                } catch (Exception exc) {
+                                    onShardFailure(shardIndex, shard, shardIt, exc);
                                 } finally {
                                     executeNext(pendingExecutions, thread);
                                 }
@@ -293,11 +308,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                 SearchShardTarget shard,
                                                 SearchActionListener<Result> listener);
 
-    private void fork(final Runnable runnable) {
+    protected void fork(final Runnable runnable) {
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-
             }
 
             @Override
@@ -313,13 +327,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         });
     }
 
+
     @Override
     public final void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase) {
-        /* This is the main search phase transition where we move to the next phase. At this point we check if there is
-         * at least one successful operation left and if so we move to the next phase. If not we immediately fail the
-         * search phase as "all shards failed"*/
-        if (successfulOps.get() == 0) { // we have 0 successful results that means we shortcut stuff and return a failure
-            final ShardOperationFailedException[] shardSearchFailures = ExceptionsHelper.groupBy(buildShardFailures());
+        /* This is the main search phase transition where we move to the next phase. If all shards
+         * failed or if there was a failure and partial results are not allowed, then we immediately
+         * fail. Otherwise we continue to the next phase.
+         */
+        ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
+        if (shardSearchFailures.length == getNumShards()) {
+            shardSearchFailures = ExceptionsHelper.groupBy(shardSearchFailures);
             Throwable cause = shardSearchFailures.length == 0 ? null :
                 ElasticsearchException.guessRootCauses(shardSearchFailures[0].getCause())[0];
             logger.debug(() -> new ParameterizedMessage("All shards failed for phase: [{}]", getName()), cause);
@@ -330,7 +347,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (allowPartialResults == false && successfulOps.get() != getNumShards()) {
                 // check if there are actual failures in the atomic array since
                 // successful retries can reset the failures to null
-                ShardOperationFailedException[] shardSearchFailures = buildShardFailures();
                 if (shardSearchFailures.length > 0) {
                     if (logger.isDebugEnabled()) {
                         int numShardFailures = shardSearchFailures.length;
@@ -386,14 +402,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
-    private void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
+    private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
         final SearchShardTarget nextShard = shardIt.nextOrNull();
         final boolean lastShard = nextShard == null;
-        logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]",
-            shard != null ? shard : shardIt.shardId(), request, lastShard), e);
+        logger.debug(() -> new ParameterizedMessage("{}: Failed to execute [{}] lastShard [{}]", shard, request, lastShard), e);
         if (lastShard) {
             if (request.allowPartialSearchResults() == false) {
                 if (requestCancelled.compareAndSet(false, true)) {
@@ -437,10 +452,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param e the failure reason
      */
     @Override
-    public final void onShardFailure(final int shardIndex, @Nullable SearchShardTarget shardTarget, Exception e) {
-        // we don't aggregate shard failures on non active shards and failures due to the internal cancellation,
+    public final void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
+        if (TransportActions.isShardNotAvailableException(e)) {
+            // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
+            // temporary error.
+            e  = new NoShardAvailableActionException(shardTarget.getShardId(), e.getMessage());
+        }
+        // we don't aggregate shard on failures due to the internal cancellation,
         // but do keep the header counts right
-        if (TransportActions.isShardNotAvailableException(e) == false && (requestCancelled.get() && isTaskCancelledException(e)) == false) {
+        if ((requestCancelled.get() && isTaskCancelledException(e)) == false) {
             AtomicArray<ShardSearchFailure> shardFailures = this.shardFailures.get();
             // lazily create shard failures, so we can early build the empty shard failure list in most cases (no failures)
             if (shardFailures == null) { // this is double checked locking but it's fine since SetOnce uses a volatile read internally
@@ -510,7 +530,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private void successfulShardExecution(SearchShardIterator shardsIt) {
         final int remainingOpsOnIterator;
         if (shardsIt.skip()) {
-            remainingOpsOnIterator = shardsIt.remaining();
+            // It's possible that we're skipping a shard that's unavailable
+            // but its range was available in the IndexMetadata, in that
+            // case the shardsIt.remaining() would be 0, expectedTotalOps
+            // accounts for unavailable shards too.
+            remainingOpsOnIterator = Math.max(shardsIt.remaining(), 1);
         } else {
             remainingOpsOnIterator = shardsIt.remaining() + 1;
         }
@@ -545,7 +569,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
                                                        String scrollId, String searchContextId) {
-        return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), successfulOps.get(),
+        int numSuccess = successfulOps.get();
+        int numFailures = failures.length;
+        assert numSuccess + numFailures == getNumShards()
+            : "numSuccess(" + numSuccess + ") + numFailures(" + numFailures + ") != totalShards(" + getNumShards() + ")";
+        return new SearchResponse(internalSearchResponse, scrollId, getNumShards(), numSuccess,
             skippedOps.get(), buildTookInMillis(), failures, clusters, searchContextId);
     }
 
@@ -640,15 +668,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     @Override
-    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
+    public final ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         AliasFilter filter = aliasFilter.get(shardIt.shardId().getIndex().getUUID());
         assert filter != null;
         float indexBoost = concreteIndexBoosts.getOrDefault(shardIt.shardId().getIndex().getUUID(), DEFAULT_INDEX_BOOST);
-        String indexName = shardIt.shardId().getIndex().getName();
-        final String[] routings = indexRoutings.getOrDefault(indexName, Collections.emptySet())
-            .toArray(new String[0]);
-        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), getNumShards(),
-            filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(), routings,
+        ShardSearchRequest shardRequest = new ShardSearchRequest(shardIt.getOriginalIndices(), request, shardIt.shardId(), shardIndex,
+            getNumShards(), filter, indexBoost, timeProvider.getAbsoluteStartMillis(), shardIt.getClusterAlias(),
             shardIt.getSearchContextId(), shardIt.getSearchContextKeepAlive());
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather

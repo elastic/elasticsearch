@@ -41,7 +41,6 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -68,7 +67,7 @@ import java.util.Set;
  *  <li>"min_input_length": 50 (default)</li>
  *  <li>"contexts" : CONTEXTS</li>
  * </ul>
- * see {@link ContextMappings#load(Object, Version)} for CONTEXTS<br>
+ * see {@link ContextMappings#load(Object)} for CONTEXTS<br>
  * see {@link #parse(ParseContext)} for acceptable inputs for indexing<br>
  * <p>
  *  This field type constructs completion queries that are run
@@ -129,7 +128,7 @@ public class CompletionFieldMapper extends FieldMapper {
             m -> builder(m).preservePosInc.get(), Defaults.DEFAULT_POSITION_INCREMENTS)
             .alwaysSerialize();
         private final Parameter<ContextMappings> contexts = new Parameter<>("contexts", false, () -> null,
-            (n, c, o) -> ContextMappings.load(o, c.indexVersionCreated()), m -> builder(m).contexts.get())
+            (n, c, o) -> ContextMappings.load(o), m -> builder(m).contexts.get())
             .setSerializer((b, n, c) -> {
                 if (c == null) {
                     return;
@@ -287,7 +286,7 @@ public class CompletionFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

@@ -21,7 +21,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       numberOfNodes = 3
     }
   }
-  testClusters.matching { it.name.startsWith("${baseName}-") }.all {
+  testClusters.matching { it.name.startsWith("${baseName}-") }.configureEach {
     testDistribution = "DEFAULT"
     versions = [bwcVersion.toString(), project.version]
 
@@ -74,7 +74,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
       ext.kindExt = kind
     }
 
-    tasks.create("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
+    tasks.register("${baseName}#${kind}#upgradedClusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'all'
       systemProperty 'tests.rest.cluster_name', kind
       dependsOn "${baseName}#${kind}#twoThirdsUpgradedTest"
@@ -93,4 +93,9 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#leader#upgradedClusterTest"
   }
+}
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
 }

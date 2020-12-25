@@ -132,7 +132,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
     @Override
     protected void masterOperation(Task task, CleanupRepositoryRequest request, ClusterState state,
                                    ActionListener<CleanupRepositoryResponse> listener) {
-        cleanupRepo(request.name(), ActionListener.map(listener, CleanupRepositoryResponse::new));
+        cleanupRepo(request.name(), listener.map(CleanupRepositoryResponse::new));
     }
 
     @Override

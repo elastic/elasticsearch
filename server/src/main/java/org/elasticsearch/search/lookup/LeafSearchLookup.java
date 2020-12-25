@@ -31,10 +31,10 @@ public class LeafSearchLookup {
     private final LeafReaderContext ctx;
     private final LeafDocLookup docMap;
     private final SourceLookup sourceLookup;
-    private final LeafFieldsLookup fieldsLookup;
+    private final LeafStoredFieldsLookup fieldsLookup;
     private final Map<String, Object> asMap;
 
-    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafFieldsLookup fieldsLookup) {
+    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafStoredFieldsLookup fieldsLookup) {
         this.ctx = ctx;
         this.docMap = docMap;
         this.sourceLookup = sourceLookup;
@@ -54,7 +54,7 @@ public class LeafSearchLookup {
         return this.sourceLookup;
     }
 
-    public LeafFieldsLookup fields() {
+    public LeafStoredFieldsLookup fields() {
         return this.fieldsLookup;
     }
 

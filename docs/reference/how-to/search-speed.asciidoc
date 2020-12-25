@@ -303,13 +303,14 @@ may become much worse.
 [discrete]
 === Warm up global ordinals
 
-Global ordinals are a data-structure that is used in order to run
-<<search-aggregations-bucket-terms-aggregation,`terms`>> aggregations on
-<<keyword,`keyword`>> fields. They are loaded lazily in memory because
-Elasticsearch does not know which fields will be used in `terms` aggregations
-and which fields won't. You can tell Elasticsearch to load global ordinals
-eagerly when starting or refreshing a shard by configuring mappings as
-described below:
+<<eager-global-ordinals,Global ordinals>> are a data structure that is used to
+optimize the performance of aggregations. They are calculated lazily and stored in
+the JVM heap as part of the <<modules-fielddata, field data cache>>. For fields
+that are heavily used for bucketing aggregations, you can tell {es} to construct
+and cache the global ordinals before requests are received. This should be done
+carefully because it will increase heap usage and can make <<indices-refresh, refreshes>>
+take longer. The option can be updated dynamically on an existing mapping by
+setting the <<eager-global-ordinals, eager global ordinals>> mapping parameter:
 
 [source,console]
 --------------------------------------------------
@@ -392,19 +393,19 @@ right number of replicas for you is
 
 === Tune your queries with the Profile API
 
-You can also analyse how expensive each component of your queries and 
-aggregations are using the {ref}/search-profile.html[Profile API]. This might 
-allow you to tune your queries to be less expensive, resulting in a positive 
-performance result and reduced load. Also note that Profile API payloads can be 
-easily visualised for better readability in the 
-{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools 
+You can also analyse how expensive each component of your queries and
+aggregations are using the {ref}/search-profile.html[Profile API]. This might
+allow you to tune your queries to be less expensive, resulting in a positive
+performance result and reduced load. Also note that Profile API payloads can be
+easily visualised for better readability in the
+{kibana-ref}/xpack-profiler.html[Search Profiler], which is a Kibana dev tools
 UI available in all X-Pack licenses, including the free X-Pack Basic license.
 
 Some caveats to the Profile API are that:
 
  - the Profile API as a debugging tool adds significant overhead to search execution and can also have a very verbose output
  - given the added overhead, the resulting took times are not reliable indicators of actual took time, but can be used comparatively between clauses for relative timing differences
- - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause 
+ - the Profile API is best for exploring possible reasons behind the most costly clauses of a query but isn't intended for accurately measuring absolute timings of each clause
 
 [[faster-phrase-queries]]
 === Faster phrase queries with `index_phrases`

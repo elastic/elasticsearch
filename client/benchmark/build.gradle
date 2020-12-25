@@ -23,13 +23,13 @@ apply plugin: 'application'
 group = 'org.elasticsearch.client'
 
 // Not published so no need to assemble
-assemble.enabled = true
+tasks.named("assemble").configure {  enabled = true }
 
 archivesBaseName = 'client-benchmarks'
 mainClassName = 'org.elasticsearch.client.benchmark.BenchmarkMain'
 
 // never try to invoke tests on the benchmark project - there aren't any
-test.enabled = false
+tasks.named("test").configure {enabled = false }
 
 dependencies {
   api 'org.apache.commons:commons-math3:3.2'
@@ -41,5 +41,5 @@ dependencies {
 }
 
 // No licenses for our benchmark deps (we don't ship benchmarks)
-tasks.named("dependencyLicenses").configure { it.enabled = false }
-dependenciesInfo.enabled = false
+tasks.named("dependencyLicenses").configure { enabled = false }
+tasks.named("dependenciesInfo").configure{enabled = false }

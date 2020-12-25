@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -59,8 +58,8 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalParent(name, 0, buildEmptySubAggregations(), metadata());
@@ -69,18 +68,16 @@ public class ParentAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator children,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-
+    protected Aggregator doCreateInternal(Aggregator children, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
-        long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        return new ChildrenToParentAggregator(name, factories, searchContext, children, childFilter,
+        long maxOrd = valuesSource.globalMaxOrd(context.searcher());
+        return new ChildrenToParentAggregator(name, factories, context, children, childFilter,
             parentFilter, valuesSource, maxOrd, cardinality, metadata);
     }
 

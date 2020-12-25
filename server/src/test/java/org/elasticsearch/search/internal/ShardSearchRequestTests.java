@@ -82,7 +82,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         } else {
             filteringAliases = new AliasFilter(null, Strings.EMPTY_ARRAY);
         }
-        final String[] routings = generateRandomStringArray(5, 10, false, true);
         ShardSearchContextId shardSearchContextId = null;
         TimeValue keepAlive = null;
         if (randomBoolean()) {
@@ -91,9 +90,10 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
                 keepAlive = TimeValue.timeValueSeconds(randomIntBetween(0, 120));
             }
         }
+        int numberOfShards = randomIntBetween(1, 100);
         ShardSearchRequest req = new ShardSearchRequest(new OriginalIndices(searchRequest), searchRequest, shardId,
-            randomIntBetween(1, 100), filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
-            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), routings, shardSearchContextId, keepAlive);
+            randomIntBetween(1, numberOfShards), numberOfShards, filteringAliases, randomBoolean() ? 1.0f : randomFloat(),
+            Math.abs(randomLong()), randomAlphaOfLengthBetween(3, 10), shardSearchContextId, keepAlive);
         req.canReturnNullResponseIfMatchNoDocs(randomBoolean());
         if (randomBoolean()) {
             req.setBottomSortValues(SearchSortValuesAndFormatsTests.randomInstance());
@@ -157,8 +157,6 @@ public class ShardSearchRequestTests extends AbstractSearchTestCase {
         assertEquals(orig.searchType(), copy.searchType());
         assertEquals(orig.shardId(), copy.shardId());
         assertEquals(orig.numberOfShards(), copy.numberOfShards());
-        assertArrayEquals(orig.indexRoutings(), copy.indexRoutings());
-        assertEquals(orig.preference(), copy.preference());
         assertEquals(orig.cacheKey(), copy.cacheKey());
         assertNotSame(orig, copy);
         assertEquals(orig.getAliasFilter(), copy.getAliasFilter());

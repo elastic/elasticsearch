@@ -49,9 +49,11 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
+import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -65,6 +67,21 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
+
+    private ClusterService clusterService;
+    private AutodetectProcessManager autodetectProcessManager;
+    private DatafeedConfigProvider datafeedConfigProvider;
+    private Client client;
+    private MlMemoryTracker mlMemoryTracker;
+
+    @Before
+    public void setUpMocks() {
+        clusterService = mock(ClusterService.class);
+        autodetectProcessManager = mock(AutodetectProcessManager.class);
+        datafeedConfigProvider = mock(DatafeedConfigProvider.class);
+        client = mock(Client.class);
+        mlMemoryTracker = mock(MlMemoryTracker.class);
+    }
 
     public void testValidate_jobMissing() {
         expectThrows(ResourceNotFoundException.class, () -> validateJobAndId("job_id2", null));
@@ -92,16 +109,18 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testGetAssignment_GivenJobThatRequiresMigration() {
-        ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
-        OpenJobPersistentTasksExecutor executor = new OpenJobPersistentTasksExecutor(
-            Settings.EMPTY, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
         assertEquals(AWAITING_MIGRATION, executor.getAssignment(params, mock(ClusterState.class)));
@@ -110,10 +129,14 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     // An index being unavailable should take precedence over waiting for a lazy node
     public void testGetAssignment_GivenUnavailableIndicesWithLazyNode() {
         Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 1).build();
-        ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -125,9 +148,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
         csBuilder.routingTable(routingTable.build());
 
-        OpenJobPersistentTasksExecutor executor = new OpenJobPersistentTasksExecutor(
-            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        OpenJobPersistentTasksExecutor executor = createExecutor(settings);
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("unavailable_index_with_lazy_node");
         params.setJob(mock(Job.class));
@@ -138,10 +159,14 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
         Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 0).build();
-        ClusterService clusterService = mock(ClusterService.class);
         ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS, MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES, MachineLearning.MAX_OPEN_JOBS_PER_NODE, MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)
+            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
+            )
         );
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
@@ -152,9 +177,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
         csBuilder.routingTable(routingTable.build());
 
-        OpenJobPersistentTasksExecutor executor = new OpenJobPersistentTasksExecutor(
-            settings, clusterService, mock(AutodetectProcessManager.class), mock(MlMemoryTracker.class), mock(Client.class),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+        OpenJobPersistentTasksExecutor executor = createExecutor(settings);
 
         Job job = mock(Job.class);
         when(job.allowLazyOpen()).thenReturn(true);
@@ -224,4 +247,9 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         return job.build(new Date());
     }
 
+    private OpenJobPersistentTasksExecutor createExecutor(Settings settings) {
+        return new OpenJobPersistentTasksExecutor(
+            settings, clusterService, autodetectProcessManager, datafeedConfigProvider, mlMemoryTracker, client,
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+    }
 }

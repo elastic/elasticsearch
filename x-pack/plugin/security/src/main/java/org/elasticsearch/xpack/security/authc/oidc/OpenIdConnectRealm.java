@@ -363,7 +363,7 @@ public class OpenIdConnectRealm extends Realm implements Releasable {
             builder.loginHint(loginHint);
         }
         return new OpenIdConnectPrepareAuthenticationResponse(builder.build().toURI().toString(),
-            state.getValue(), nonce.getValue());
+            state.getValue(), nonce.getValue(), this.name());
     }
 
     public boolean isIssuerValid(String issuer) {

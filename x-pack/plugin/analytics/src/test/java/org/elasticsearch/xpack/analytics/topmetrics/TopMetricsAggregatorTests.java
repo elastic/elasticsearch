@@ -54,12 +54,11 @@ import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.AggregationContext.ProductionAggregationContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
@@ -362,13 +361,16 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
-                SearchContext searchContext = createSearchContext(indexSearcher, createIndexSettings(), new MatchAllDocsQuery(),
-                        new MultiBucketConsumer(Integer.MAX_VALUE, breaker.getBreaker(CircuitBreaker.REQUEST)), breaker, doubleFields());
+                AggregationContext context = createAggregationContext(
+                    indexSearcher,
+                    createIndexSettings(),
+                    new MatchAllDocsQuery(),
+                    breaker,
+                    MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
+                    doubleFields()
+                );
                 TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
-                Aggregator aggregator = builder.build(
-                    new ProductionAggregationContext(searchContext.getQueryShardContext(), searchContext.query()),
-                    null
-                ).create(searchContext, null, CardinalityUpperBound.ONE);
+                Aggregator aggregator = builder.build(context, null).create(null, CardinalityUpperBound.ONE);
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));
                 LeafBucketCollector leaf = aggregator.getLeafCollector(indexReader.leaves().get(0));

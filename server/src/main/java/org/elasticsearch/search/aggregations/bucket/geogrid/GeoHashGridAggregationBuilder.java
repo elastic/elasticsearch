@@ -70,12 +70,15 @@ public class GeoHashGridAggregationBuilder extends GeoGridAggregationBuilder {
 
     @Override
     protected ValuesSourceAggregatorFactory createFactory(
-        String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
+            String name, ValuesSourceConfig config, int precision, int requiredSize, int shardSize,
             GeoBoundingBox geoBoundingBox, AggregationContext context,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder,
             Map<String, Object> metadata) throws IOException {
+
+        GeoGridAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new GeoHashGridAggregatorFactory(name, config, precision, requiredSize, shardSize, geoBoundingBox,
-            context, parent, subFactoriesBuilder, metadata);
+            context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     private GeoHashGridAggregationBuilder(GeoHashGridAggregationBuilder clone, AggregatorFactories.Builder factoriesBuilder,

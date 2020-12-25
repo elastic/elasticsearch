@@ -556,7 +556,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
                         QueryShardContext context =
-                            indexService.newQueryShardContext(0, searcher, () -> absoluteStartMillis, null, emptyMap());
+                            indexService.newQueryShardContext(0, 0, searcher, () -> absoluteStartMillis, null, emptyMap());
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }

@@ -62,7 +62,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -466,18 +465,12 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             docs.add(context.parseDocument(new SourceToParse(context.index().getName(), "_temp_id", document, documentXContentType)));
         }
 
-        FieldNameAnalyzer fieldNameAnalyzer = context.getFieldNameIndexAnalyzer();
-        // We need this custom analyzer because FieldNameAnalyzer is strict and the percolator sometimes isn't when
+        // We need this custom analyzer because the default index analyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                Analyzer analyzer = fieldNameAnalyzer.analyzers().get(fieldName);
-                if (analyzer != null) {
-                    return analyzer;
-                } else {
-                    return context.getIndexAnalyzers().getDefaultIndexAnalyzer();
-                }
+                return context.getIndexAnalyzer(f -> context.getIndexAnalyzers().getDefaultIndexAnalyzer());
             }
         };
         final IndexSearcher docSearcher;

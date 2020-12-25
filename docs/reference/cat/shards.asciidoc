@@ -273,11 +273,6 @@ Reason the shard is unassigned. Returned values are:
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
-`local`::
-(Optional, boolean)
-+
-deprecated::[7.11.0,"This parameter does not affect the request. It will be removed in a future release."]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]

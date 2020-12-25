@@ -26,4 +26,9 @@ public class Add extends DateTimeArithmeticOperation {
     protected Add replaceChildren(Expression left, Expression right) {
         return new Add(source(), left, right);
     }
+
+    @Override
+    public Add swapLeftAndRight() {
+        return new Add(source(), right(), left());
+    }
 }

@@ -36,7 +36,9 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
@@ -49,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -469,6 +472,58 @@ public class CloseIndexIT extends ESIntegTestCase {
             IndexShard shard = internalCluster().getInstance(IndicesService.class, nodeName)
                 .indexService(resolveIndex(indexName)).getShard(0);
             assertThat(shard.routingEntry().toString(), shard.getOperationPrimaryTerm(), equalTo(primaryTerm));
+        }
+    }
+
+    public void testSearcherId() throws Exception {
+        final String indexName = "test_commit_id";
+        final int numberOfShards = randomIntBetween(1, 5);
+        createIndex(indexName, Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .build());
+        indexRandom(randomBoolean(), randomBoolean(), randomBoolean(), IntStream.range(0, randomIntBetween(0, 50))
+            .mapToObj(n -> client().prepareIndex(indexName).setSource("num", n)).collect(toList()));
+        ensureGreen(indexName);
+        assertAcked(client().admin().indices().prepareClose(indexName));
+        assertIndexIsClosed(indexName);
+        ensureGreen(indexName);
+        if (randomBoolean()) {
+            assertAcked(client().admin().indices().prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)));
+            internalCluster().ensureAtLeastNumDataNodes(2);
+            ensureGreen(indexName);
+        }
+        String[] searcherIds = new String[numberOfShards];
+        Set<String> allocatedNodes = internalCluster().nodesInclude(indexName);
+        for (String node : allocatedNodes) {
+            IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
+            for (IndexShard shard : indexService) {
+                try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
+                    assertNotNull(searcher.getSearcherId());
+                    if (searcherIds[shard.shardId().id()] != null) {
+                        assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
+                    } else {
+                        searcherIds[shard.shardId().id()] = searcher.getSearcherId();
+                    }
+                }
+            }
+        }
+        for (String node : allocatedNodes) {
+            if (randomBoolean()) {
+                internalCluster().restartNode(node);
+            }
+        }
+        ensureGreen(indexName);
+        allocatedNodes = internalCluster().nodesInclude(indexName);
+        for (String node : allocatedNodes) {
+            IndexService indexService = internalCluster().getInstance(IndicesService.class, node).indexServiceSafe(resolveIndex(indexName));
+            for (IndexShard shard : indexService) {
+                try (Engine.SearcherSupplier searcher = shard.acquireSearcherSupplier()) {
+                    assertNotNull(searcher.getSearcherId());
+                    assertThat(searcher.getSearcherId(), equalTo(searcherIds[shard.shardId().id()]));
+                }
+            }
         }
     }
 

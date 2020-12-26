@@ -100,17 +100,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
 
     @Override
     public final Query toQuery(QueryShardContext context) throws IOException {
-        Query query = doToQuery(context, 0);
-        return addDefaultQuery(context, query);
-    }
-
-    @Override
-    public final Query toQuery(QueryShardContext context, int nestedDepth) throws IOException {
         Query query = doToQuery(context);
-        return addDefaultQuery(context, query);
-    }
-
-    private Query addDefaultQuery(QueryShardContext context, Query query) {
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
                 if (query instanceof SpanQuery) {
@@ -127,11 +117,6 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected abstract Query doToQuery(QueryShardContext context) throws IOException;
-
-    protected Query doToQuery(QueryShardContext context, int nestedDepth) throws IOException {
-        return doToQuery(context);
-    }
-
 
     /**
      * Sets the query name for the query.
@@ -313,6 +298,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Parses a query excluding the query element that wraps it
      */
     public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+        return parseInnerQueryBuilder(parser, Integer.valueOf(0));
+    }
+
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser, Integer nestedDepth) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
@@ -332,7 +321,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         QueryBuilder result;
         try {
-            result = parser.namedObject(QueryBuilder.class, queryName, null);
+            result = parser.namedObject(QueryBuilder.class, queryName, nestedDepth);
         } catch (NamedObjectNotFoundException e) {
             String message = String.format(Locale.ROOT, "unknown query [%s]%s", queryName,
                     SuggestingErrorOnUnknown.suggest(queryName, e.getCandidates()));

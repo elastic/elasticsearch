@@ -123,11 +123,6 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         }
 
         @Override
-        public Query toQuery(QueryShardContext context, int nestedDepth) throws IOException {
-            return toQuery(context);
-        }
-
-        @Override
         public QueryBuilder queryName(String queryName) {
             return this;
         }

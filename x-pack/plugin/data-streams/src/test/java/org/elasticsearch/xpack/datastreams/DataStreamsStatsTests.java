@@ -129,7 +129,7 @@ public class DataStreamsStatsTests extends ESSingleNodeTestCase {
         createDocument(dataStreamName);
         assertTrue(client().admin().indices().rolloverIndex(new RolloverRequest(dataStreamName, null)).get().isAcknowledged());
         assertTrue(
-            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-000001")).actionGet().isAcknowledged()
+            client().admin().indices().close(new CloseIndexRequest(".ds-" + dataStreamName + "-*-000001")).actionGet().isAcknowledged()
         );
 
         assertBusy(

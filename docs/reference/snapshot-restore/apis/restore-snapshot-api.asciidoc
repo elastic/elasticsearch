@@ -80,7 +80,7 @@ If a data stream is restored, its backing indices are also restored.
 Alternatively, you can restore individual backing indices without restoring an
 entire data stream. If you restore individual backing indices, they are not
 automatically added to any existing data stream. For example, if only the
-`.ds-logs-00003` backing index is restored from a snapshot, it is not
+`.ds-logs-2099.03.08-00003` backing index is restored from a snapshot, it is not
 automatically added to the existing `logs` data stream.
 
 include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=index-settings-data-stream-warning]

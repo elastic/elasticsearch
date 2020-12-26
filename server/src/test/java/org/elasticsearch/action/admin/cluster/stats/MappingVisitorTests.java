@@ -32,7 +32,7 @@ public class MappingVisitorTests extends ESTestCase {
 
     private static void collectTypes(Map<String, ?> mapping, Set<String> types) {
         MappingVisitor.visitMapping(mapping,
-                m -> {
+            (f, m) -> {
                     if (m.containsKey("type")) {
                         types.add(m.get("type").toString());
                     } else {

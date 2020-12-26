@@ -7,7 +7,9 @@ teardown:
           {"licenses":[{"uid":"3aa62ffe-36e1-4fad-bfdc-9dff8301eb22","type":"trial","issue_date_in_millis":1523456691721,"expiry_date_in_millis":1838816691721,"max_nodes":5,"issued_to":"customer","issuer":"elasticsearch","signature":"AAAABAAAAA2kWNcuc+DT0lrlmYZKAAAAIAo5/x6hrsGh1GqqrJmy4qgmEC7gK0U4zQ6q5ZEMhm4jAAABAEn6fG9y2VxKBu2T3D5hffh56kzOQODCOdhr0y2d17ZSIJMZRqO7ZywPCWNS1aR33GhfIHkTER0ysML0xMH/gXavhyRvMBndJj0UBKzuwpTawSlnxYtcqN8mSBIvJC7Ki+uJ1SpAILC2ZP9fnkRlqwXqBlTwfYn7xnZgu9DKrOWru/ipTPObo7jcePl8VTK6nWFen7/hCFDQTUFZ0jQvd+nq7A1PAcHGNxGfdbMVmAXCXgGWkRfT3clo9/vadgo+isNyh1sPq9mN7gwsvBAKtA1FrpH2EXYYbfOsSpBvUmhYMgErLg1k3/CbS0pCWLKOaX1xTMayosdZOjagU3auZXY=","start_date_in_millis":-1}]}
 ---
 "Installing and getting license works":
-
+  - skip:
+      features: fips_140
+      reason: "Cannot install a GOLD license in a cluster in FIPS 140 mode"
   ## current license version
   - do:
       license.post:
@@ -86,7 +88,9 @@ teardown:
 
 ---
 "Should install a feature type license":
-
+  - skip:
+      features: fips_140
+      reason: "Cannot install a GOLD license in a cluster in FIPS 140 mode"
     # VERSION_NO_FEATURE_TYPE license version
   - do:
       license.post:

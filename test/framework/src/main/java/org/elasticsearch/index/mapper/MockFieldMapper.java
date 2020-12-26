@@ -19,10 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.QueryShardContext;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 // this sucks how much must be overridden just do get a dummy field mapper...
 public class MockFieldMapper extends FieldMapper {
@@ -32,7 +34,11 @@ public class MockFieldMapper extends FieldMapper {
     }
 
     public MockFieldMapper(MappedFieldType fieldType) {
-        super(findSimpleName(fieldType.name()), fieldType,
+        this(fieldType, Map.of());
+    }
+
+    public MockFieldMapper(MappedFieldType fieldType, Map<String, NamedAnalyzer> indexAnalyzers) {
+        super(findSimpleName(fieldType.name()), fieldType, indexAnalyzers,
             MultiFields.empty(), new CopyTo.Builder().build());
     }
 

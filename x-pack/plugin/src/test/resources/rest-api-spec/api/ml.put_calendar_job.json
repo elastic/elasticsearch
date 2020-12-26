@@ -5,6 +5,7 @@
       "description":"Adds an anomaly detection job to a calendar."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

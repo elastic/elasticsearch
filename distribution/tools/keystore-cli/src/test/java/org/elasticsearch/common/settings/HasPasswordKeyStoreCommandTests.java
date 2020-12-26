@@ -55,13 +55,13 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testSucceedsWhenKeystoreHasPassword() throws Exception {
-        createKeystore("password");
+        createKeystore("keystore-password");
         String output = execute();
         assertThat(output, containsString("Keystore is password-protected"));
     }
 
     public void testSilentSucceedsWhenKeystoreHasPassword() throws Exception {
-        createKeystore("password");
+        createKeystore("keystre-password");
         String output = execute("--silent");
         assertThat(output, is(emptyString()));
     }

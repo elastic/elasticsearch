@@ -33,7 +33,6 @@ import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -89,14 +88,6 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
-    }
-
-    @Override
-    protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(super.createTestIndexSettings())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
     }
 
     @Override

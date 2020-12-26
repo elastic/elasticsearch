@@ -1,5 +1,6 @@
 package org.elasticsearch.xpack.transform.integration.continuous;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -26,8 +27,15 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
+@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/66410")
 public class HistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-histogram-pivot-test";
+
+    private final String metricField;
+
+    public HistogramGroupByIT() {
+        metricField = randomFrom(METRIC_FIELDS);
+    }
 
     @Override
     public String getName() {
@@ -43,7 +51,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
         transformConfigBuilder.setId(NAME);
         PivotConfig.Builder pivotConfigBuilder = new PivotConfig.Builder();
         pivotConfigBuilder.setGroups(
-            new GroupConfig.Builder().groupBy("metric", new HistogramGroupSource.Builder().setField("metric").setInterval(50.0).build())
+            new GroupConfig.Builder().groupBy("metric", new HistogramGroupSource.Builder().setField(metricField).setInterval(50.0).build())
                 .build()
         );
         AggregatorFactories.Builder aggregations = new AggregatorFactories.Builder();
@@ -59,7 +67,7 @@ public class HistogramGroupByIT extends ContinuousTestCase {
         SearchRequest searchRequestSource = new SearchRequest(CONTINUOUS_EVENTS_SOURCE_INDEX).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
         SearchSourceBuilder sourceBuilderSource = new SearchSourceBuilder().size(0);
-        HistogramAggregationBuilder metricBuckets = new HistogramAggregationBuilder("metric").field("metric")
+        HistogramAggregationBuilder metricBuckets = new HistogramAggregationBuilder("metric").field(metricField)
             .interval(50.0)
             .order(BucketOrder.key(true));
         sourceBuilderSource.aggregation(metricBuckets);

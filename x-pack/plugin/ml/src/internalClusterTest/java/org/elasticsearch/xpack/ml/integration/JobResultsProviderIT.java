@@ -37,6 +37,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.action.util.PageParams;
@@ -647,16 +648,30 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         Job.Builder job = createJob(jobId);
         indexModelSnapshot(new ModelSnapshot.Builder(jobId).setSnapshotId("snap_2")
             .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
+            .setMinVersion(Version.V_7_4_0)
             .build());
         indexModelSnapshot(new ModelSnapshot.Builder(jobId).setSnapshotId("snap_1")
             .setTimestamp(Date.from(Instant.ofEpochMilli(11)))
+            .setMinVersion(Version.V_7_2_0)
             .build());
         indexModelSnapshot(new ModelSnapshot.Builder(jobId).setSnapshotId("other_snap")
             .setTimestamp(Date.from(Instant.ofEpochMilli(12)))
+            .setMinVersion(Version.V_7_3_0)
             .build());
+        createJob("other_job");
+        indexModelSnapshot(new ModelSnapshot.Builder("other_job").setSnapshotId("other_snap")
+            .setTimestamp(Date.from(Instant.ofEpochMilli(10)))
+            .setMinVersion(Version.CURRENT)
+            .build());
+        // Add a snapshot WITHOUT a min version.
+        client().prepareIndex(AnomalyDetectorsIndex.jobResultsAliasedName("other_job"))
+            .setId(ModelSnapshot.documentId("other_job", "11"))
+            .setSource("{\"job_id\":\"other_job\"," +
+                "\"snapshot_id\":\"11\", \"snapshot_doc_count\":1,\"retain\":false}", XContentType.JSON)
+            .get();
 
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(),
-            AnomalyDetectorsIndex.jobResultsAliasedName(jobId)).get();
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
         jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", future::onResponse, future::onFailure);
@@ -683,6 +698,24 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
         assertThat(snapshots.get(0).getSnapshotId(), equalTo("snap_2"));
         assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
         assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
+
+        future = new PlainActionFuture<>();
+        jobProvider.modelSnapshots("*",
+            0,
+            5,
+            null,
+            null,
+            "min_version",
+            false,
+            null,
+            future::onResponse,
+            future::onFailure);
+        snapshots = future.actionGet().results();
+        assertThat(snapshots.get(0).getSnapshotId(), equalTo("11"));
+        assertThat(snapshots.get(1).getSnapshotId(), equalTo("snap_1"));
+        assertThat(snapshots.get(2).getSnapshotId(), equalTo("other_snap"));
+        assertThat(snapshots.get(3).getSnapshotId(), equalTo("snap_2"));
+        assertThat(snapshots.get(4).getSnapshotId(), equalTo("other_snap"));
     }
 
     public void testGetAutodetectParams() throws Exception {

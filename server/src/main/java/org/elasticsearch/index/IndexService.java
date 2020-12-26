@@ -118,6 +118,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -180,8 +181,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             IndexNameExpressionResolver expressionResolver,
             ValuesSourceRegistry valuesSourceRegistry,
             IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
-            IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener
-            ) {
+            IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -191,11 +192,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry =  valuesSourceRegistry;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null, emptyMap()), idFieldDataEnabled, scriptService);
+                () -> newQueryShardContext(0, 0, null, System::currentTimeMillis, null, emptyMap()), idFieldDataEnabled, scriptService);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -484,7 +486,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
-                    circuitBreakerService);
+                    circuitBreakerService,
+                    snapshotCommitSupplier);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
@@ -593,6 +596,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      */
     public QueryShardContext newQueryShardContext(
         int shardId,
+        int shardRequestIndex,
         IndexSearcher searcher,
         LongSupplier nowInMillis,
         String clusterAlias,
@@ -601,9 +605,27 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
-            shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
-            similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry, runtimeMappings);
+            shardId,
+            shardRequestIndex,
+            indexSettings,
+            bigArrays,
+            indexCache.bitsetFilterCache(),
+            indexFieldData::getForField,
+            mapperService(),
+            mapperService().mappingLookup(),
+            similarityService(),
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings
+        );
     }
 
     /**

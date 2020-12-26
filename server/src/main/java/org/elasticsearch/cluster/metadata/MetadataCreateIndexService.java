@@ -487,7 +487,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
@@ -520,7 +520,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -566,7 +566,7 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap())),
+                indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
             List.of(), metadataTransformer);
     }
 

@@ -69,3 +69,15 @@ Discontinue use of the `local` query parameter.
 {ref}/indices-get-field-mapping.html[get field mapping API] requests that
 include this parameter will return an error.
 ====
+
+.Post data to jobs API is deprecated.
+[%collapsible]
+====
+*Details* +
+The {ml} <<ml-post-data,post data to jobs API>> is deprecated starting in 7.11.0
+and will be removed in a future major version.
+
+*Impact* +
+Use <<ml-api-datafeed-endpoint,{dfeeds}>> instead.
+
+====

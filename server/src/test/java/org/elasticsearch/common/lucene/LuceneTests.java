@@ -68,6 +68,7 @@ import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorS
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
 import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -716,7 +717,7 @@ public class LuceneTests extends ESTestCase {
 
     private static Tuple<SortField, SortField> randomCustomSortField() {
         String field = randomAlphaOfLengthBetween(3, 10);
-        switch(randomIntBetween(0, 2)) {
+        switch(randomIntBetween(0, 3)) {
             case 0: {
                 SortField sortField = LatLonDocValuesField.newDistanceSort(field, 0, 0);
                 SortField expected = new SortField(field, SortField.Type.DOUBLE);
@@ -740,6 +741,11 @@ public class LuceneTests extends ESTestCase {
                     sortField.setMissingValue(missingValue);
                     expected.setMissingValue(missingValue);
                 }
+                return Tuple.tuple(sortField, expected);
+            }
+            case 3: {
+                ShardDocSortField sortField = new ShardDocSortField(randomIntBetween(0, 100), randomBoolean());
+                SortField expected = new SortField(ShardDocSortField.NAME, SortField.Type.LONG, sortField.getReverse());
                 return Tuple.tuple(sortField, expected);
             }
             default:

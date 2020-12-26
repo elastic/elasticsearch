@@ -31,9 +31,9 @@ public class TransformFeatureSetUsage extends Usage {
         this.accumulatedStats = new TransformIndexerStats(in);
     }
 
-    public TransformFeatureSetUsage(boolean available, Map<String, Long> transformCountByState,
+    public TransformFeatureSetUsage(Map<String, Long> transformCountByState,
             TransformIndexerStats accumulatedStats) {
-        super(XPackField.TRANSFORM, available, true);
+        super(XPackField.TRANSFORM, true, true);
         this.transformCountByState = Objects.requireNonNull(transformCountByState);
         this.accumulatedStats = Objects.requireNonNull(accumulatedStats);
     }

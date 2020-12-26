@@ -101,7 +101,9 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
@@ -215,6 +217,7 @@ public class IndicesService extends AbstractLifecycleComponent
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final MapperRegistry mapperRegistry;
     private final NamedWriteableRegistry namedWriteableRegistry;
+    private final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers;
     private final IndexingMemoryController indexingMemoryController;
     private final TimeValue cleanInterval;
     final IndicesRequestCache indicesRequestCache; // pkg-private for testing
@@ -253,7 +256,8 @@ public class IndicesService extends AbstractLifecycleComponent
                           Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders,
                           Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories, ValuesSourceRegistry valuesSourceRegistry,
                           Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
-                          List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners) {
+                          List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners,
+                          Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers) {
         this.settings = settings;
         this.threadPool = threadPool;
         this.pluginsService = pluginsService;
@@ -301,6 +305,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.directoryFactories = directoryFactories;
         this.recoveryStateFactories = recoveryStateFactories;
         this.indexFoldersDeletionListeners = new CompositeIndexFoldersDeletionListener(indexFoldersDeletionListeners);
+        this.snapshotCommitSuppliers = snapshotCommitSuppliers;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -679,7 +684,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 namedWriteableRegistry,
                 this::isIdFieldDataEnabled,
                 valuesSourceRegistry,
-                indexFoldersDeletionListeners
+                indexFoldersDeletionListeners,
+                snapshotCommitSuppliers
         );
     }
 
@@ -1403,12 +1409,18 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+        BytesReference cacheKey = request.cacheKey();
+        BytesReference bytesReference = cacheShardLevelResult(
+            context.indexShard(),
+            context.getQueryShardContext().mappingCacheKey(),
+            directoryReader,
+            cacheKey,
             out -> {
-            queryPhase.execute(context);
-            context.queryResult().writeToNoId(out);
-            loadedFromCache[0] = false;
-        });
+                queryPhase.execute(context);
+                context.queryResult().writeToNoId(out);
+                loadedFromCache[0] = false;
+            }
+        );
 
         if (loadedFromCache[0]) {
             // restore the cached query result into the context
@@ -1424,7 +1436,12 @@ public class IndicesService extends AbstractLifecycleComponent
             // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
-            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
+            indicesRequestCache.invalidate(
+                new IndexShardCacheEntity(context.indexShard()),
+                context.getQueryShardContext().mappingCacheKey(),
+                directoryReader,
+                cacheKey
+            );
             if (logger.isTraceEnabled()) {
                 logger.trace("Query timed out, invalidating cache entry for request on shard [{}]:\n {}", request.shardId(),
                         request.source());
@@ -1444,8 +1461,13 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey,
-            CheckedConsumer<StreamOutput, IOException> loader) throws Exception {
+    private BytesReference cacheShardLevelResult(
+        IndexShard shard,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey,
+        CheckedConsumer<StreamOutput, IOException> loader
+    ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
@@ -1463,7 +1485,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
@@ -1526,6 +1548,15 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return new QueryRewriteContext(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+    }
+
+    public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
+        return new CoordinatorRewriteContextProvider(xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            nowInMillis,
+            clusterService::state,
+            this::getTimestampFieldType);
     }
 
     /**

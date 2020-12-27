@@ -44,6 +44,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
 public class TransportClusterUpdateSettingsAction extends
@@ -65,49 +68,73 @@ public class TransportClusterUpdateSettingsAction extends
         this.clusterSettings = clusterSettings;
     }
 
-    @Override
-    protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
-        if (checkNeedToSkipBlock(request.transientSettings()) && checkNeedToSkipBlock(request.persistentSettings())) {
-            logger.debug("Skip checking cluster block.");
-            return null;
-        }
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
-    }
-
-    /**skip check block if:
+    /**
+     skip check block if:
      * Only at least one of cluster.blocks.read_only or cluster.blocks.read_only_allow_delete is being cleared (set to null or false).
      * Or all of the following are true:
      * 1. At least one of cluster.blocks.read_only or cluster.blocks.read_only_allow_delete is being cleared (set to null or false).
      * 2. Neither cluster.blocks.read_only nor cluster.blocks.read_only_allow_delete is being set to true.
      * 3. The only other settings in this update are archived ones being set to null.
-     * @param settings persistent or transient settings
-     * @return true skip block
      */
-    private boolean checkNeedToSkipBlock(final Settings settings) {
-        boolean clearReadOnly = false;
-        boolean clearArchived = false;
-        for (String settingsKey : settings.keySet()) {
-            if ((Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(settingsKey)
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(settingsKey))) {
-                if (settings.get(settingsKey) == null || settings.get(settingsKey).equals("false")) {
-                    clearReadOnly = true;
-                } else {
-                    // set to "true" need to check block
+    @Override
+    protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
+        Map<String, String> clearedBlockAndArchivedSettings = new HashMap<>();
+        if (checkClearedBlockAndArchivedSettings(request.transientSettings(), clearedBlockAndArchivedSettings)
+            && checkClearedBlockAndArchivedSettings(request.persistentSettings(), clearedBlockAndArchivedSettings)) {
+            boolean clearBlockSettings = false;
+            boolean clearArchivedSettings = false;
+            for (String key : clearedBlockAndArchivedSettings.keySet()) {
+                if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)
+                    || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(key)) {
+                    clearBlockSettings = true;
+                }
+                if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
+                    clearArchivedSettings = true;
+                }
+                if (clearArchivedSettings && clearBlockSettings) {
+                    logger.debug("clear archived settings and cluster blocks together, skip checking current blocks.");
+                    return null;
+                }
+            }
+            if (clearBlockSettings) {
+                logger.debug("clear cluster blocks[{}][{}], skip checking current blocks.",
+                    request.transientSettings(), request.persistentSettings());
+                return null;
+            }
+        }
+
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    /**
+     * Check settings that only contains block and archived settings.
+     * @param settings target settings to be checked.
+     * @param clearedBlockAndArchivedSettings block settings that have been set to null or false,
+     *                                        archived settings that have been set to null.
+     * @return true if all settings are clear blocks or archived settings.
+     */
+    private boolean checkClearedBlockAndArchivedSettings(final Settings settings,
+                                                         final Map<String, String> clearedBlockAndArchivedSettings) {
+        for (String key : settings.keySet()) {
+            String value = settings.get(key);
+            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)
+                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(key)) {
+                if ("true".equals(value)) {
+                    // set block as true
                     return false;
                 }
-            } else if (settingsKey.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
-                if (settings.get(settingsKey) == null) {
-                    clearArchived = true;
-                } else {
-                    // other archived setting values need to check block
+            } else if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
+                if (value != null) {
+                    // archived setting value is not null
                     return false;
                 }
             } else {
-                // need to check block other settings
+                // other settings
                 return false;
             }
+            clearedBlockAndArchivedSettings.put(key, value);
         }
-        return clearArchived && clearReadOnly || clearReadOnly;
+        return true;
     }
 
     @Override

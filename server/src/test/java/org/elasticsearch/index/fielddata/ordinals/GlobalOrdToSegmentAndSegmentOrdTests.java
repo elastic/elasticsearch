@@ -19,7 +19,7 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
     public void testEmpty() throws IOException {
         try (OrdinalSequence.GroupWriter segmentOut = neverWrites(); OrdinalSequence.GroupWriter segmentOrdOut = neverWrites()) {
             Writer writer = new Writer(segmentOut, segmentOrdOut, 0, 0, 0);
-            assertIdentity(segmentOut, segmentOrdOut, writer.readerProvider());
+            assertIdentity(writer.readerProvider());
         }
     }
 
@@ -30,13 +30,12 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
             for (int i = 0; i < count; i++) {
                 writer.write(i, 0, i);
             }
-            assertIdentity(segmentOut, segmentOrdOut, writer.readerProvider());
+            assertIdentity(writer.readerProvider());
         }
     }
 
-    private void assertIdentity(OrdinalSequence.GroupWriter segmentOut, OrdinalSequence.GroupWriter segmentOrdOut, ReaderProvider provider)
-        throws IOException {
-        try (OrdinalSequence.InHelper segmentIn = segmentOut.finish(); OrdinalSequence.InHelper segmentOrdIn = segmentOrdOut.finish()) {
+    private void assertIdentity(ReaderProvider provider) throws IOException {
+        try (provider) {
             assertThat(provider.ramBytesUsed(), lessThan(100L));
             Reader reader = provider.get();
             long l = randomLong();
@@ -60,7 +59,7 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
                 expectedSegment[i] = i;
                 expectedSegmentOrd[i] = 0;
             }
-            assertExpected(segmentOut, segmentOrdOut, expectedSegment, expectedSegmentOrd, writer.readerProvider());
+            assertExpected(expectedSegment, expectedSegmentOrd, writer.readerProvider());
         }
     }
 
@@ -92,29 +91,23 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
                     }
                     long time = System.nanoTime() - start;
                     ReaderProvider provider = writer.readerProvider();
-                    long diskUsed = assertExpected(segmentOut, segmentOrdOut, expectedSegment, expectedSegmentOrd, provider);
                     System.out.printf(
                         Locale.ROOT,
                         "adsfdsaf count: %09d segments: %04d disk: %09d ram: %03d took: %010d\n",
                         count,
                         segmentCount,
-                        diskUsed,
+                        provider.diskBytesUsed(),
                         provider.ramBytesUsed(),
                         time
                     );
+                    assertExpected(expectedSegment, expectedSegmentOrd, provider);
                 }
             }
         }
     }
 
-    private long assertExpected(
-        OrdinalSequence.GroupWriter segmentOut,
-        OrdinalSequence.GroupWriter segmentOrdOut,
-        int[] expectedSegment,
-        long[] expectedSegmentOrd,
-        ReaderProvider provider
-    ) throws IOException {
-        try (OrdinalSequence.InHelper segmentIn = segmentOut.finish(); OrdinalSequence.InHelper segmentOrdIn = segmentOrdOut.finish()) {
+    private void assertExpected(int[] expectedSegment, long[] expectedSegmentOrd, ReaderProvider provider) throws IOException {
+        try (provider) {
             assertThat(expectedSegmentOrd.length, equalTo(expectedSegment.length));
             assertThat(provider.ramBytesUsed(), greaterThan(100L));
             assertThat(provider.ramBytesUsed(), lessThan(1000L));
@@ -129,7 +122,6 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
                 assertThat(reader.containingSegment(i), equalTo(expectedSegment[i]));
                 assertThat(reader.containingSegmentOrd(i), equalTo(expectedSegmentOrd[i]));
             }
-            return segmentIn.diskBytesUsed() + segmentOrdIn.diskBytesUsed();
         }
     }
 }

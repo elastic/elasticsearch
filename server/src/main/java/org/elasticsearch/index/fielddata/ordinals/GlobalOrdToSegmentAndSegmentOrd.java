@@ -5,23 +5,31 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.DirectWriter;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.function.LongUnaryOperator;
 
 class GlobalOrdToSegmentAndSegmentOrd {
     static class Writer {
+        private final OrdinalSequence.GroupWriter globalOrdToContainingSegmentGroupWriter;
+        private final OrdinalSequence.GroupWriter globalOrdToContainingSegmentOrdGroupWriter;
         private final OrdinalSequence.Writer globalOrdToContainingSegment;
         private final OrdinalSequence.Writer globalOrdToContainingSegmentOrd;
 
         Writer(
-            OrdinalSequence.GroupWriter segmentGWriter,
-            OrdinalSequence.GroupWriter segmentOrdGWriter, // NOCOMMIT use just one file
+            OrdinalSequence.GroupWriter globalOrdToContainingSegmentGroupWriter,
+            OrdinalSequence.GroupWriter globalOrdToContainingSegmentOrdGroupWriter, // NOCOMMIT use just one file
             long maxGlobalOrd,
             int maxSegment,
             long maxEncodedSegmentOrd
         ) throws IOException {
-            globalOrdToContainingSegment = segmentGWriter.directWriter(maxGlobalOrd, DirectWriter.bitsRequired(maxSegment));
-            globalOrdToContainingSegmentOrd = segmentOrdGWriter.negativeDeltaWriter(maxGlobalOrd, maxEncodedSegmentOrd);
+            this.globalOrdToContainingSegmentGroupWriter = globalOrdToContainingSegmentGroupWriter;
+            this.globalOrdToContainingSegmentOrdGroupWriter = globalOrdToContainingSegmentOrdGroupWriter;
+            globalOrdToContainingSegment = globalOrdToContainingSegmentGroupWriter.directWriter(maxGlobalOrd, maxSegment);
+            globalOrdToContainingSegmentOrd = globalOrdToContainingSegmentOrdGroupWriter.negativeDeltaWriter(
+                maxGlobalOrd,
+                maxEncodedSegmentOrd
+            );
         }
 
         void write(long globalOrd, int containingSegment, long containingSegmentOrd) throws IOException {
@@ -30,11 +38,11 @@ class GlobalOrdToSegmentAndSegmentOrd {
         }
 
         ReaderProvider readerProvider() throws IOException {
-            OrdinalSequence.InHelper globalOrdToContainingSegmentGroupReader;
-            OrdinalSequence.InHelper globalOrdToContainingSegmentOrdGroupReader;
+            OrdinalSequence.GroupReader globalOrdToContainingSegmentGroupReader = null;
+            OrdinalSequence.GroupReader globalOrdToContainingSegmentOrdGroupReader = null;
             try {
-                globalOrdToContainingSegmentGroupReader = segmentGWriter.finish();
-                globalOrdToContainingSegmentOrdGroupReader = segmentOrdGWriter.finish();
+                globalOrdToContainingSegmentGroupReader = globalOrdToContainingSegmentGroupWriter.finish();
+                globalOrdToContainingSegmentOrdGroupReader = globalOrdToContainingSegmentOrdGroupWriter.finish();
             } finally {
                 if (globalOrdToContainingSegmentGroupReader == null || globalOrdToContainingSegmentOrdGroupReader == null) {
                     IOUtils.close(globalOrdToContainingSegmentGroupReader, globalOrdToContainingSegmentOrdGroupReader);
@@ -49,17 +57,17 @@ class GlobalOrdToSegmentAndSegmentOrd {
         }
     }
 
-    static class ReaderProvider implements Accountable {
+    static class ReaderProvider implements Accountable, Closeable {
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ReaderProvider.class);
 
-        private final OrdinalSequence.InHelper globalOrdToContainingSegmentGroupReader;
-        private final OrdinalSequence.InHelper globalOrdToContainingSegmentOrdGroupReader;
+        private final OrdinalSequence.GroupReader globalOrdToContainingSegmentGroupReader;
+        private final OrdinalSequence.GroupReader globalOrdToContainingSegmentOrdGroupReader;
         private final OrdinalSequence.ReaderProvider globalOrdToContainingSegment;
         private final OrdinalSequence.ReaderProvider globalOrdToContainingSegmentOrd;
 
         ReaderProvider(
-            OrdinalSequence.InHelper globalOrdToContainingSegmentGroupReader,
-            OrdinalSequence.InHelper globalOrdToContainingSegmentOrdGroupReader,
+            OrdinalSequence.GroupReader globalOrdToContainingSegmentGroupReader,
+            OrdinalSequence.GroupReader globalOrdToContainingSegmentOrdGroupReader,
             OrdinalSequence.ReaderProvider globalOrdToContainingSegment,
             OrdinalSequence.ReaderProvider globalOrdToContainingSegmentOrd
         ) {
@@ -81,6 +89,15 @@ class GlobalOrdToSegmentAndSegmentOrd {
             return RamUsageEstimator.alignObjectSize(
                 BASE_RAM_BYTES_USED + globalOrdToContainingSegment.ramBytesUsed() + globalOrdToContainingSegmentOrd.ramBytesUsed()
             );
+        }
+
+        public long diskBytesUsed() throws IOException {
+            return globalOrdToContainingSegmentGroupReader.diskBytesUsed() + globalOrdToContainingSegmentOrdGroupReader.diskBytesUsed();
+        }
+
+        @Override
+        public void close() throws IOException {
+            IOUtils.close(globalOrdToContainingSegmentGroupReader, globalOrdToContainingSegmentOrdGroupReader);
         }
     }
 

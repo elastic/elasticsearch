@@ -56,7 +56,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
     private final LeafOrdinalsFieldData[] segmentFieldData;
     private final long maxGlobalOrd;
-    private final OrdinalSequence.InHelper segmentOrdsGroupReader;
+    private final OrdinalSequence.GroupReader segmentOrdsGroupReader;
     private final OrdinalSequence.ReaderProvider[] segmentOrdsToGlobalOrds;
     private final GlobalOrdToSegmentAndSegmentOrd.ReaderProvider globalOrdsToSegments;
 
@@ -85,8 +85,8 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             SegmentOrdsToGlobalOrds segmentOrdsToGlobalOrds;
             try (OrdinalSequence.GroupWriter segmentOrdsGroupWriter = createGroupWriter("s2g")) {
                 segmentOrdsToGlobalOrds = new SegmentOrdsToGlobalOrds(segmentOrdsGroupWriter, sortedSegments, values);
-                segmentOrdsGroupReader = segmentOrdsGroupWriter.finish();
             }
+            segmentOrdsGroupReader = segmentOrdsToGlobalOrds.groupReader;
             this.segmentOrdsToGlobalOrds = segmentOrdsToGlobalOrds.segmentOrdsToGlobalOrds;
             maxGlobalOrd = segmentOrdsToGlobalOrds.maxGlobalOrd;
             globalOrdsToSegments = this.globalOrdToSegmentAndSegmentOrd(sortedSegments, values, segmentOrdsToGlobalOrds);
@@ -116,6 +116,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
     }
 
     private static class SegmentOrdsToGlobalOrds {
+        private final OrdinalSequence.GroupReader groupReader;
         private final OrdinalSequence.ReaderProvider[] segmentOrdsToGlobalOrds;
         private final long maxGlobalOrd;
         /**
@@ -131,7 +132,6 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
          */
         private final long maxMinContainingSegmentEncodedSegmentOrd;
 
-        @SuppressWarnings("resource")
         SegmentOrdsToGlobalOrds(OrdinalSequence.GroupWriter groupWriter, SortedSegments sortedSegments, SortedSetDocValues[] values)
             throws IOException {
             SegmentState[] states = new SegmentState[values.length];
@@ -179,11 +179,12 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
                 maxMinContainingSegment = Math.max(maxMinContainingSegment, minContainingSegment);
             }
 
+            groupReader = groupWriter.finish();
             segmentOrdsToGlobalOrds = new OrdinalSequence.ReaderProvider[values.length];
             for (int segmentOrd = 0; segmentOrd < values.length; segmentOrd++) {
                 segmentOrdsToGlobalOrds[segmentOrd] = states[segmentOrd].writer.readerProvider();
             }
-            maxGlobalOrd = globalOrd;  // NOCOMMIT I think this is the count of global ords on the max global ord.
+            maxGlobalOrd = globalOrd;  // NOCOMMIT I think this is the count of global ords not the max global ord.
             this.maxMinContainingSegment = maxMinContainingSegment;
             this.maxMinContainingSegmentEncodedSegmentOrd = maxMinContainingSegmentEncodedSegmentOrd;
         }
@@ -537,7 +538,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
     }
 
     public long diskBytesUsed() throws IOException {
-        return segmentOrdsGroupReader.diskBytesUsed();
+        return segmentOrdsGroupReader.diskBytesUsed() + globalOrdsToSegments.diskBytesUsed();
     }
 
     @Override
@@ -553,7 +554,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
         }
         List<Closeable> all = new ArrayList<>();
         Collections.addAll(all, segmentFieldData);
-        Collections.addAll(all, segmentOrdsToGlobalOrds);
+        all.add(segmentOrdsGroupReader);
         all.add(globalOrdsToSegments);
         IOUtils.close(all);
     }

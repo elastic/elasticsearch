@@ -20,6 +20,8 @@
 package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.OrdinalMap;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -29,7 +31,9 @@ import org.elasticsearch.index.fielddata.ordinals.OnDiskOrdinalMap;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
+import java.io.IOException;
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetOrdinalsIndexFieldData {
 
@@ -69,7 +73,17 @@ public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetO
 
     @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
-        return ((OnDiskOrdinalMap) super.loadGlobal(indexReader)).fork();
+        IndexOrdinalsFieldData loaded = super.loadGlobal(indexReader);
+        if (loaded instanceof OnDiskOrdinalMap) {
+            try {
+                return ((OnDiskOrdinalMap) loaded).fork();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        // If there is only a single segment we'll get ourselves back.
+        assert loaded == this;
+        return loaded;
     }
 
     @Override
@@ -78,7 +92,12 @@ public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetO
     }
 
     @Override
+    public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
+        return LongUnaryOperator.identity();
+    }
+
+    @Override
     public boolean supportsGlobalOrdinalsMapping() {
-        return false;
+        return true;
     }
 }

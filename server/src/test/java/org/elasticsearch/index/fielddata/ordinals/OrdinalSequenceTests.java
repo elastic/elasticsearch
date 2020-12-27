@@ -7,7 +7,7 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.GroupWriter;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.InHelper;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.GroupReader;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.ReaderProvider;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.Writer;
 import org.elasticsearch.test.ESTestCase;
@@ -69,23 +69,23 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     private void assertAllZeros(GroupWriter gWriter, Writer writer) throws IOException {
-        try (InHelper in = gWriter.finish()) {
+        try (GroupReader gReader = gWriter.finish()) {
             gWriter.close();  // It's safe to close as soon as we've called `finish`
             ReaderProvider provider = writer.readerProvider();
             assertThat(provider.ramBytesUsed(), lessThan(100L));
-            LongUnaryOperator reader = provider.get(in.input());
+            LongUnaryOperator reader = provider.get(gReader.input());
             long l = randomLong();
             assertThat(reader.applyAsLong(l), equalTo(0L));
         }
     }
 
     private void assertDeltaIdentity(GroupWriter gWriter, Writer writer) throws IOException {
-        try (InHelper in = gWriter.finish()) {
+        try (GroupReader gReader = gWriter.finish()) {
             gWriter.close();  // It's safe to close as soon as we've called `finish`
             ReaderProvider provider = writer.readerProvider();
             gWriter.close();
             assertThat(provider.ramBytesUsed(), lessThan(100L));
-            LongUnaryOperator reader = provider.get(in.input());
+            LongUnaryOperator reader = provider.get(gReader.input());
             long l = randomLong();
             assertThat(reader.applyAsLong(l), equalTo(l));
         }
@@ -101,26 +101,11 @@ public class OrdinalSequenceTests extends ESTestCase {
     public void testRandomDirect() throws IOException {
         int count = between(1, 10000);
         long max = PackedInts.maxValue(between(1, 63));
-        int bitsPerValue = DirectWriter.bitsRequired(max);
         long[] expected = new long[count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.directWriter(count, bitsPerValue);
+            Writer writer = gWriter.directWriter(count, max);
             for (int i = 0; i < count; i++) {
                 long v = randomLongBetween(0, max);
-                expected[i] = v;
-                writer.add(i, v);
-            }
-            assertExpected(gWriter, expected, writer);
-        }
-    }
-
-    public void testRandomDirectNegativeOk() throws IOException {
-        int count = between(1, 10000);
-        long[] expected = new long[count];
-        try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.directWriter(count, 64);
-            for (int i = 0; i < count; i++) {
-                long v = randomLongBetween(Long.MIN_VALUE, Long.MAX_VALUE);
                 expected[i] = v;
                 writer.add(i, v);
             }
@@ -147,7 +132,7 @@ public class OrdinalSequenceTests extends ESTestCase {
         int count = between(1, 10000);
         long[][] expected = new long[10][count];
         try (Directory directory = noFilesLeftBehindDir()) {
-            InHelper in; // NOCOMMIT rename me to GroupReader
+            GroupReader gReader;
             Writer[] writers = new Writer[10];
             try (GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
                 for (int w = 0; w < writers.length; w++) {
@@ -161,15 +146,15 @@ public class OrdinalSequenceTests extends ESTestCase {
                         writers[w].add(i, v[w]);
                     }
                 }
-                in = gWriter.finish();
+                gReader = gWriter.finish();
             }
             try {
-                RandomAccessInput input = in.input();
+                RandomAccessInput input = gReader.input();
                 for (int w = 0; w < writers.length; w++) {
                     assertExpected(input, expected[w], writers[w].readerProvider());
                 }
             } finally {
-                in.close();
+                gReader.close();
             }
         }
     }
@@ -227,7 +212,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     public void testDirectFailure() throws IOException {
         int count = between(1, 10000);
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.directWriter(count, 64);
+            Writer writer = gWriter.directWriter(count, Long.MAX_VALUE);
             for (int i = 0; i < count; i++) {
                 writer.add(i, randomLong());
             }
@@ -295,12 +280,12 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     private void assertExpected(GroupWriter gWriter, long[] expected, Writer writer) throws IOException {
-        try (InHelper in = gWriter.finish()) {
+        try (GroupReader gReader = gWriter.finish()) {
             ReaderProvider provider = writer.readerProvider();
             gWriter.close();
             // NOCOMMIT in.ramBytesUsed assertion too
-            assertThat(in.diskBytesUsed(), greaterThan(0L));
-            assertExpected(in.input(), expected, provider);
+            assertThat(gReader.diskBytesUsed(), greaterThan(0L));
+            assertExpected(gReader.input(), expected, provider);
         }
     }
 
@@ -331,7 +316,7 @@ public class OrdinalSequenceTests extends ESTestCase {
             }
 
             @Override
-            protected InHelper buildInput(String name) throws IOException {
+            protected GroupReader buildReader(IndexOutput out) throws IOException {
                 throw new AssertionError();
             }
         };

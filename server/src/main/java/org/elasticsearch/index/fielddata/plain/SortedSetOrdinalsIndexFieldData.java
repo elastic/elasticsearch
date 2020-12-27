@@ -41,6 +41,7 @@ import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
 
 import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldData {
 
@@ -114,8 +115,8 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     }
 
     @Override
-    public OrdinalMap getOrdinalMap() {
-        return null;
+    public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
+        return LongUnaryOperator.identity();
     }
 
     @Override

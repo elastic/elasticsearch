@@ -38,18 +38,17 @@ public class OrdinalSequence {
     static abstract class GroupWriter implements Closeable {
         private final List<Writer> unfinished = new ArrayList<>();
         private IndexOutput output;
-        private InHelper input;
+        private GroupReader reader;
 
         protected abstract IndexOutput buildOutput() throws IOException;
 
-        protected abstract InHelper buildInput(String name) throws IOException;
+        protected abstract GroupReader buildReader(IndexOutput output) throws IOException;
 
-        Writer directWriter(long valueCount, int bitsPerValue) {
-            // NOCOMMIT should bitsPerValue be maxValue?
+        Writer directWriter(long valueCount, long maxValue) {
             return track(new Writer(
                 (index, value) -> value,
                 (index, enc) -> enc,
-                vc -> new DirectDelegateWriter(output(), vc, bitsPerValue),
+                vc -> new DirectDelegateWriter(output(), vc, DirectWriter.bitsRequired(maxValue)),
                 valueCount
             ));
         }
@@ -95,21 +94,21 @@ public class OrdinalSequence {
             return output;
         }
 
-        InHelper finish() throws IOException {
-            if (input == null) {
+        GroupReader finish() throws IOException {
+            if (reader == null) {
                 for (Writer w : unfinished) {
                     w.finish();
                 }
                 if (output == null) {
-                    input = InHelper.EMPTY;
+                    reader = GroupReader.EMPTY;
                 } else {
                     output.close();
-                    input = buildInput(output.getName());
+                    reader = buildReader(output);
                 }
             } else {
                 throw new IllegalStateException("can only finish one time");
             }
-            return input;
+            return reader;
         }
 
         @Override
@@ -121,7 +120,7 @@ public class OrdinalSequence {
             try {
                 output.close();
             } finally {
-                if (input != null) {
+                if (reader != null) {
                     // Finishing up the input has transferred ownership of all resources to the input.
                     return;
                 }
@@ -130,7 +129,7 @@ public class OrdinalSequence {
                  * something has very likely gone wrong. Delete the file we were
                  * working on.  
                  */
-                buildInput(output.getName()).close();
+                buildReader(output).close();
             }
         }
 
@@ -142,19 +141,19 @@ public class OrdinalSequence {
                 }
 
                 @Override
-                protected InHelper buildInput(String name) throws IOException {
-                    return InHelper.directory(directory, name);
+                protected GroupReader buildReader(IndexOutput out) throws IOException {
+                    return GroupReader.directory(directory, out.getName());
                 }
             };
         }
     }
 
-    interface InHelper extends Closeable {
+    interface GroupReader extends Closeable {
         RandomAccessInput input() throws IOException;
 
         long diskBytesUsed() throws IOException;
 
-        static InHelper EMPTY = new InHelper() {
+        static GroupReader EMPTY = new GroupReader() {
             @Override
             public RandomAccessInput input() throws IOException {
                 return null;
@@ -169,9 +168,9 @@ public class OrdinalSequence {
             public void close() throws IOException {}
         };
 
-        static InHelper directory(Directory directory, String name) throws IOException {
+        static GroupReader directory(Directory directory, String name) throws IOException {
             IndexInput input = directory.openInput(name, IOContext.READ);
-            return new InHelper() {
+            return new GroupReader() {
                 @Override
                 public RandomAccessInput input() throws IOException {
                     /*

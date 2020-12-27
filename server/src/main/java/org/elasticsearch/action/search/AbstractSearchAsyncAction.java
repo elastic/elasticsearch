@@ -262,6 +262,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             public void innerOnResponse(Result result) {
                                 try {
                                     onShardResult(result, shardIt);
+                                } catch (Exception exc) {
+                                    onShardFailure(shardIndex, shard, shardIt, exc);
                                 } finally {
                                     executeNext(pendingExecutions, thread);
                                 }
@@ -310,7 +312,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         executor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
-                assert false : new AssertionError(e);
             }
 
             @Override

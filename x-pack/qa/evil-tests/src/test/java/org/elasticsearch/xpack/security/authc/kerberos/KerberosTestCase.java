@@ -124,7 +124,7 @@ public abstract class KerberosTestCase extends ESTestCase {
             String clientUserName = "client-" + randomAlphaOfLength(8);
             clientUserNames.add(clientUserName);
             try {
-                createPrincipal(clientUserName, "pwd".toCharArray());
+                createPrincipal(clientUserName, "spnego-test-password".toCharArray());
             } catch (Exception e) {
                 throw ExceptionsHelper.convertToRuntime(e);
             }

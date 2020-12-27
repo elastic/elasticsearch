@@ -1188,8 +1188,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             try (canMatchSearcher) {
-                QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
+                QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), 0,
+                    canMatchSearcher, request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
                 final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
                 final MinAndMax<?> minMax;
                 if (canMatch || hasRefreshPending) {

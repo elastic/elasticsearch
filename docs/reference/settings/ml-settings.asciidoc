@@ -22,15 +22,19 @@ hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
 
 `node.roles: [ ml ]`::
 (<<static-cluster-setting,Static>>) Set `node.roles` to contain `ml` to identify
-the node as a _{ml} node_ that is capable of running jobs. Every node is a {ml}
-node by default.
+the node as a _{ml} node_. If you want to run {ml} jobs, there must be at least
+one {ml} node in your cluster. 
 +
-If you use the `node.roles` setting, then all required roles must be explicitly
-set. Consult <<modules-node>> to learn more.
+By default, every node is a {ml} node. If you set `node.roles`, however,
+you must explicitly specify all the required roles for the node. To learn more, 
+refer to <<modules-node>>.
 +
-IMPORTANT: On dedicated coordinating nodes or dedicated master nodes, do not set
+[IMPORTANT]
+====
+* On dedicated coordinating nodes or dedicated master nodes, do not set
 the `ml` role.
-
+* It is strongly recommended that dedicated {ml} nodes also have the `remote_cluster_client` role; otherwise, {ccs} fails when used in {ml} jobs or {dfeeds}. See <<remote-node>>.
+====
 
 `xpack.ml.enabled`::
 (<<static-cluster-setting,Static>>) Set to `true` (default) to enable {ml} APIs
@@ -144,6 +148,14 @@ IMPORTANT: This setting assumes some external process is capable of adding {ml}
 nodes to the cluster. This setting is only useful when used in conjunction with
 such an external process.
 
+`xpack.ml.max_ml_node_size`::
+(<<cluster-update-settings,Dynamic>>)
+The maximum node size for {ml} nodes in a deployment that supports automatic
+cluster scaling. Defaults to `0b`, which means this value is ignored. If you set
+it to the maximum possible size of future {ml} nodes, when a {ml} job is
+assigned to a lazy node it can check (and fail quickly) when scaling cannot 
+support the size of the job. 
+
 `xpack.ml.process_connect_timeout`::
 (<<cluster-update-settings,Dynamic>>) The connection timeout for {ml} processes
 that run separately from the {es} JVM. Defaults to `10s`. Some {ml} processing
@@ -154,7 +166,7 @@ assumed to have failed. Defaults to `10s`. The minimum value for this setting is
 `5s`.
 
 xpack.ml.use_auto_machine_memory_percent::
-(<<static-cluster-setting,Static>>) If this setting is `true`, the
+(<<cluster-update-settings,Dynamic>>) If this setting is `true`, the
 `xpack.ml.max_machine_memory_percent` setting is ignored. Instead, the maximum
 percentage of the machine's memory that can be used for running {ml} analytics
 processes is calculated automatically and takes into account the total node size

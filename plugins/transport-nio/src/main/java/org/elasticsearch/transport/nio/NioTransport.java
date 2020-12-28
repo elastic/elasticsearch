@@ -106,7 +106,6 @@ public class NioTransport extends TcpTransport {
                 }
             }
 
-            super.doStart();
             success = true;
         } catch (IOException e) {
             throw new ElasticsearchException(e);

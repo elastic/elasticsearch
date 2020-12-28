@@ -1,6 +1,23 @@
-package org.elasticsearch.index.fielddata.ordinals;
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
+package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
@@ -21,10 +38,8 @@ import java.util.function.LongUnaryOperator;
 import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
-@Repeat(iterations=100)
 public class OrdinalSequenceTests extends ESTestCase {
     private static final int MAX = 100000;
 
@@ -84,6 +99,7 @@ public class OrdinalSequenceTests extends ESTestCase {
             LongUnaryOperator reader = provider.get(gReader.input());
             long l = randomLong();
             assertThat(reader.applyAsLong(l), equalTo(0L));
+            assertThat(gReader.diskBytesUsed(), equalTo(0L));
         }
     }
 
@@ -91,11 +107,11 @@ public class OrdinalSequenceTests extends ESTestCase {
         try (GroupReader gReader = gWriter.finish()) {
             gWriter.close();  // It's safe to close as soon as we've called `finish`
             ReaderProvider provider = writer.readerProvider();
-            gWriter.close();
             assertThat(provider.ramBytesUsed(), lessThan(100L));
             LongUnaryOperator reader = provider.get(gReader.input());
             long l = randomLong();
             assertThat(reader.applyAsLong(l), equalTo(l));
+            assertThat(gReader.diskBytesUsed(), equalTo(0L));
         }
     }
 
@@ -400,7 +416,24 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
-    // NOCOMMIT gaps in direct and negative deltas?
+    public void testGapsInNonNegative() throws IOException {
+        int count = between(1, MAX);
+        long[] expected = new long[count];
+        try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+            Writer writer = nonNegativeWriter(gWriter, count);
+            for (int i = 0; i < count; i++) {
+                if (randomBoolean()) {
+                    long v = randomLongBetween(0, Long.MAX_VALUE);
+                    expected[i] = v;
+                    writer.add(i, v);
+                } else {
+                    // Gap
+                    expected[i] = -1;
+                }
+            }
+            assertExpected(gWriter, expected, writer);
+        }
+    }
 
     public void testGapsInPositiveDeltas() throws IOException {
         int count = between(1, MAX);
@@ -422,18 +455,34 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
+    public void testGapsInNegativeDelta() throws IOException {
+        int count = between(1, MAX);
+        long[] expected = new long[count];
+        try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+            Writer writer = negativeDeltaWriter(gWriter, count);
+            for (int i = 0; i < count; i++) {
+                if (randomBoolean()) {
+                    long v = between(0, i);
+                    expected[i] = v;
+                    writer.add(i, v);
+                } else {
+                    // Gap
+                    expected[i] = -1;
+                }
+            }
+            assertExpected(gWriter, expected, writer);
+        }
+    }
+
     private void assertExpected(GroupWriter gWriter, long[] expected, Writer writer) throws IOException {
         try (GroupReader gReader = gWriter.finish()) {
             ReaderProvider provider = writer.readerProvider();
             gWriter.close();
-            // NOCOMMIT in.ramBytesUsed assertion too
-            assertThat(gReader.diskBytesUsed(), greaterThan(0L));
             assertExpected(gReader.input(), expected, provider);
         }
     }
 
     private void assertExpected(RandomAccessInput input, long[] expected, ReaderProvider provider) throws IOException {
-        assertThat(provider.ramBytesUsed(), greaterThan(32L));
         LongUnaryOperator reader = provider.get(input);
         for (int i = 0; i < expected.length; i++) {
             if (expected[i] != -1) {

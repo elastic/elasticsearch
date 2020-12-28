@@ -51,7 +51,6 @@ import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
-import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -60,7 +59,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
@@ -466,7 +464,7 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         assertThat(topLevelReader.leaves().size(), equalTo(3));
 
         // First segment
-//        assertThat(globalOrdinals, instanceOf(GlobalOrdinalsIndexFieldData.Consumer.class));
+        assertThat(globalOrdinals, not(sameInstance(ifd)));
         LeafReaderContext leaf = topLevelReader.leaves().get(0);
         LeafOrdinalsFieldData afd = globalOrdinals.load(leaf);
         SortedSetDocValues values = afd.getOrdinalsValues();
@@ -592,12 +590,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
         IndexOrdinalsFieldData globalOrdinals = ifd.loadGlobal(topLevelReader);
         assertTrue(globalOrdinals.supportsGlobalOrdinalsMapping());
         assertNotNull(globalOrdinals.getOrdinalMapping(readerContexts.get(0)));
-        // These are the same instance for in memory ords but they are different for on disk ords
-        // NOCOMMIT should they share?
-//        assertThat(
-//            ifd.loadGlobal(topLevelReader).getOrdinalMapping(readerContexts.get(0)),
-//            sameInstance(globalOrdinals.getOrdinalMapping(readerContexts.get(0)))
-//        );
         // 3 b/c 1 segment level caches and 1 top level cache
         // in case of doc values, we don't cache atomic FD, so only the top-level cache is there
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 1L : 4L));
@@ -610,12 +602,6 @@ public abstract class AbstractStringFieldDataTestCase extends AbstractFieldDataI
             }
         }
         assertNotSame(cachedInstance, globalOrdinals);
-        // These are the same instance for in memory ords but they are different for on disk ords
-        // NOCOMMIT should they share?
-//        assertThat(
-//            cachedInstance.getOrdinalMapping(readerContexts.get(0)),
-//            sameInstance(globalOrdinals.getOrdinalMapping(readerContexts.get(0)))
-//        );
         topLevelReader.close();
         // Now only 3 segment level entries, only the toplevel reader has been closed, but the segment readers are still used by IW
         assertThat(indicesFieldDataCache.getCache().weight(), equalTo(hasDocValues() ? 0L : 3L));

@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.lucene.store.ByteBuffersDataInput;
@@ -11,13 +30,13 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.ArrayUtil;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.DirectReader;
 import org.apache.lucene.util.packed.DirectWriter;
+import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -73,7 +92,7 @@ public class OrdinalSequence {
      * {@link Writer}s that interleave their output into the single
      * {@link IndexOutput} managed by this {@link GroupWriter}.
      */
-    static abstract class GroupWriter implements Closeable {
+    abstract static class GroupWriter implements Closeable {
         private final List<Writer> unfinished = new ArrayList<>();
         private IndexOutput output;
         private GroupReader reader;
@@ -207,7 +226,7 @@ public class OrdinalSequence {
          */
         long diskBytesUsed() throws IOException;
 
-        static GroupReader EMPTY = new GroupReader() {
+        GroupReader EMPTY = new GroupReader() {
             @Override
             public RandomAccessInput input() throws IOException {
                 return null;
@@ -319,7 +338,7 @@ public class OrdinalSequence {
     private interface DelegateReaderProvider extends Accountable {
         LongUnaryOperator get(RandomAccessInput in) throws IOException;
 
-        static final DelegateReaderProvider ZEROS = new DelegateReaderProvider() {
+        DelegateReaderProvider ZEROS = new DelegateReaderProvider() {
             @Override
             public LongUnaryOperator get(RandomAccessInput in) throws IOException {
                 return index -> 0;

@@ -26,7 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.index.fielddata.ordinals.OnDiskOrdinalMap;
+import org.elasticsearch.index.fielddata.ordinals.OnDiskGlobalOrdinalMap;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
@@ -73,25 +73,30 @@ public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetO
     @Override
     public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         IndexOrdinalsFieldData loaded = super.loadGlobal(indexReader);
-        if (loaded instanceof OnDiskOrdinalMap) {
-            try {
-                return ((OnDiskOrdinalMap) loaded).fork();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        if (loaded == this) {
+            // If there is only a single segment we'll get ourselves back.
+            return loaded;
         }
-        // If there is only a single segment we'll get ourselves back.
-        assert loaded == this;
-        return loaded;
+        try {
+            return ((OnDiskGlobalOrdinalMap) loaded).fork();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     @Override
     public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
-        return new OnDiskOrdinalMap(indexReader.directory(), this, indexReader, breakerService);
+        return new OnDiskGlobalOrdinalMap(indexReader.directory(), this, indexReader, breakerService);
     }
 
     @Override
     public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
+        /*
+         * This will only be called if this is a single segment index. If this
+         * *isn't* a single segment index then the caller should have ended up
+         * getting back a forked OnDiskOrdinalMap. 
+         */
+        assert context.ordInParent == 0; 
         return LongUnaryOperator.identity();
     }
 

@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTestCase {
 
-    // NOCOMMIT keep test for old way too
     @Override
     protected String getFieldDataType() {
         return "string";

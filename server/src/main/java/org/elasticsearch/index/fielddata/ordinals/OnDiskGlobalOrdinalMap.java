@@ -1,3 +1,22 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
 package org.elasticsearch.index.fielddata.ordinals;
 
 import org.apache.logging.log4j.LogManager;
@@ -14,7 +33,6 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.PriorityQueue;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -22,6 +40,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
@@ -43,12 +62,16 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.LongUnaryOperator;
 
-public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFieldData {
+/**
+ * Builds a mapping from segment ordinals to global ordinals and stores it on
+ * disk.
+ */
+public class OnDiskGlobalOrdinalMap implements Closeable, Accountable, IndexOrdinalsFieldData {
     public static final String FILE_PREFIX = "global_ords";
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(OnDiskOrdinalMap.class);
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(OnDiskGlobalOrdinalMap.class);
 
-    private static final Logger logger = LogManager.getLogger(OnDiskOrdinalMap.class);
+    private static final Logger logger = LogManager.getLogger(OnDiskGlobalOrdinalMap.class);
 
     /**
      * The field data built at index time.
@@ -85,8 +108,12 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
      */
     private final GlobalOrdToSegmentAndSegmentOrd.ReaderProvider globalOrdsToSegments;
 
-    public OnDiskOrdinalMap(Directory directory, IndexOrdinalsFieldData indexed, IndexReader reader, CircuitBreakerService breakerService)
-        throws IOException {
+    public OnDiskGlobalOrdinalMap(
+        Directory directory,
+        IndexOrdinalsFieldData indexed,
+        IndexReader reader,
+        CircuitBreakerService breakerService
+    ) throws IOException {
         logger.trace("loading global ords for [{}]", indexed.getFieldName());
 
         this.indexed = indexed;

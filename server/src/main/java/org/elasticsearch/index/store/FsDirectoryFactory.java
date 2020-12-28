@@ -36,7 +36,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.ordinals.OnDiskOrdinalMap;
+import org.elasticsearch.index.fielddata.ordinals.OnDiskGlobalOrdinalMap;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.plugins.IndexStorePlugin;
 
@@ -180,9 +180,11 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
                 // tends to be less a bottleneck.
                 case "doc":
                     return true;
-                // Global ords are fairly small and this speeds them up a *******ton*******.
+                // Global ords get a *ton* faster if we memory map them and it costs a file handle per field per index.
+                // They do have a random access pattern but tend to be quite small so we don't expect the page cache
+                // thrashing to be too bad.
                 case "tmp":
-                    return name.startsWith(OnDiskOrdinalMap.FILE_PREFIX);
+                    return name.startsWith(OnDiskGlobalOrdinalMap.FILE_PREFIX);
                 // Other files are either less performance-sensitive (e.g. stored field index, norms metadata)
                 // or are large and have a random access pattern and mmap leads to page cache trashing
                 // (e.g. stored fields and term vectors).

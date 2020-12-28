@@ -24,6 +24,8 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readAllBytes;
+import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readNBytes;
 import static org.mockito.Matchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -135,7 +137,7 @@ public class ChainingInputStreamTests extends ESTestCase {
             }
         };
         int prefix = randomIntBetween(0, b1.length - 2);
-        test.readNBytes(prefix);
+        readNBytes(test, prefix);
         // skip less bytes than the component has
         int nSkip1 = randomInt(b1.length - prefix);
         long nSkip = test.skip(nSkip1);
@@ -150,7 +152,8 @@ public class ChainingInputStreamTests extends ESTestCase {
         byte[] b1 = randomByteArrayOfLength(randomIntBetween(1, 16));
         byte[] b2 = randomByteArrayOfLength(randomIntBetween(1, 16));
         ChainingInputStream test = new ChainingInputStream() {
-            final Iterator<ByteArrayInputStream> iter = List.of(new ByteArrayInputStream(b1), new ByteArrayInputStream(b2)).iterator();
+            final Iterator<ByteArrayInputStream> iter = Arrays.asList(new ByteArrayInputStream(b1), new ByteArrayInputStream(b2))
+                .iterator();
 
             @Override
             InputStream nextComponent(InputStream currentComponentIn) throws IOException {
@@ -164,7 +167,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         long skipArg = b1.length + randomIntBetween(1, b2.length);
         long nSkip = test.skip(skipArg);
         assertThat(nSkip, Matchers.is(skipArg));
-        byte[] rest = test.readAllBytes();
+        byte[] rest = readAllBytes(test);
         assertThat((long) rest.length, Matchers.is(b1.length + b2.length - nSkip));
         for (int i = rest.length - 1; i >= 0; i--) {
             assertThat(rest[i], Matchers.is(b2[i + (int) nSkip - b1.length]));
@@ -280,7 +283,7 @@ public class ChainingInputStreamTests extends ESTestCase {
                 return false;
             }
         };
-        byte[] testArr = test.readAllBytes();
+        byte[] testArr = readAllBytes(test);
         byte[] ref = testSource.array();
         // testArr and ref should be equal, but ref might have trailing zeroes
         for (int i = 0; i < testArr.length; i++) {
@@ -291,49 +294,49 @@ public class ChainingInputStreamTests extends ESTestCase {
     public void testEmptyInputStreamComponents() throws Exception {
         // leading single empty stream
         Tuple<ChainingInputStream, byte[]> test = testEmptyComponentsInChain(3, Arrays.asList(0));
-        byte[] result = test.v1().readAllBytes();
+        byte[] result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // leading double empty streams
         test = testEmptyComponentsInChain(3, Arrays.asList(0, 1));
-        result = test.v1().readAllBytes();
+        result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // trailing single empty stream
         test = testEmptyComponentsInChain(3, Arrays.asList(2));
-        result = test.v1().readAllBytes();
+        result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // trailing double empty stream
         test = testEmptyComponentsInChain(3, Arrays.asList(1, 2));
-        result = test.v1().readAllBytes();
+        result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // middle single empty stream
         test = testEmptyComponentsInChain(3, Arrays.asList(1));
-        result = test.v1().readAllBytes();
+        result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // leading and trailing empty streams
         test = testEmptyComponentsInChain(3, Arrays.asList(0, 2));
-        result = test.v1().readAllBytes();
+        result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(test.v2().length));
         for (int i = 0; i < result.length; i++) {
             assertThat(result[i], Matchers.is(test.v2()[i]));
         }
         // all streams are empty
         test = testEmptyComponentsInChain(3, Arrays.asList(0, 1, 2));
-        result = test.v1().readAllBytes();
+        result = readAllBytes(test.v1());
         assertThat(result.length, Matchers.is(0));
     }
 
@@ -364,7 +367,7 @@ public class ChainingInputStreamTests extends ESTestCase {
                 return false;
             }
         };
-        assertThat(test.readAllBytes(), Matchers.equalTo(b1));
+        assertThat(readAllBytes(test), Matchers.equalTo(b1));
         assertThat(chainComponents[0], Matchers.nullValue());
         assertThat(chainComponents[1], Matchers.is(sourceComponents[0]));
         assertThat(chainComponents[1].closed.get(), Matchers.is(true));
@@ -424,12 +427,12 @@ public class ChainingInputStreamTests extends ESTestCase {
                 return mockCurrentIn;
             }
         };
-        test.currentIn = InputStream.nullInputStream();
+        test.currentIn = new ByteArrayInputStream(new byte[0]);
         when(mockCurrentIn.read()).thenReturn(randomInt(255));
         test.read();
         verify(mockCurrentIn).read();
         // test "array read"
-        test.currentIn = InputStream.nullInputStream();
+        test.currentIn = new ByteArrayInputStream(new byte[0]);
         when(mockCurrentIn.read(org.mockito.Matchers.<byte[]>any(), org.mockito.Matchers.anyInt(), org.mockito.Matchers.anyInt()))
             .thenAnswer(invocationOnMock -> {
                 final int len = (int) invocationOnMock.getArguments()[2];
@@ -466,7 +469,7 @@ public class ChainingInputStreamTests extends ESTestCase {
                 }
             }
         };
-        byte[] result = test.readAllBytes();
+        byte[] result = readAllBytes(test);
         assertThat(result, Matchers.equalTo(b));
     }
 
@@ -571,7 +574,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         };
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(4, 16); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         InputStream currentIn = test.currentIn;
         int readLimit = randomInt(63);
@@ -590,12 +593,12 @@ public class ChainingInputStreamTests extends ESTestCase {
             verify(currentIn, times(2)).mark(Mockito.eq(readLimit));
         }
         // read more (possibly moving on to a new component)
-        test.readNBytes(randomInt(63));
+        readNBytes(test, randomInt(63));
         // mark does not budge
         assertThat(test.markIn, Matchers.is(currentIn));
         // read until the end
         chainingInputStreamEOF.set(true);
-        test.readAllBytes();
+        readAllBytes(test);
         // current component is at the end
         assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
         // mark is still put
@@ -645,7 +648,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         };
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(4, 16); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         InputStream currentIn = test.currentIn;
         int readLimit = randomInt(63);
@@ -671,7 +674,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
         // read more while switching the component
         for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         // mark does not budge
         assertThat(test.markIn, Matchers.is(currentIn));
@@ -685,7 +688,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         InputStream markIn = test.markIn;
         // read until the end
         chainingInputStreamEOF.set(true);
-        test.readAllBytes();
+        readAllBytes(test);
         // current component is at the end
         assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
         // mark is still put
@@ -818,7 +821,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         };
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(4, 16); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         InputStream currentIn = test.currentIn;
         int readLimit = randomInt(63);
@@ -838,7 +841,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         verify(test.currentIn).reset();
         // read more, moving on to a new component
         for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         // mark does not budge
         assertThat(test.markIn, Matchers.is(currentIn));
@@ -854,11 +857,11 @@ public class ChainingInputStreamTests extends ESTestCase {
         nextComponentArg.set(currentIn);
         // read more, moving on to a new component
         for (int i = 0; i < randomIntBetween(4, 16) || test.currentIn == currentIn; i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         // read until the end
         chainingInputStreamEOF.set(true);
-        test.readAllBytes();
+        readAllBytes(test);
         // current component is at the end
         assertThat(test.currentIn, Matchers.is(ChainingInputStream.EXHAUSTED_MARKER));
         // mark is still put
@@ -872,7 +875,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         // assert the "nextComponent" argument
         nextComponentArg.set(currentIn);
         // read more to verify that current component is passed as nextComponent argument
-        test.readAllBytes();
+        readAllBytes(test);
     }
 
     public void testResetForDoubleMarkAnywhere() throws Exception {
@@ -919,7 +922,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         };
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(4, 16); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         InputStream currentIn = test.currentIn;
         int readLimit = randomInt(63);
@@ -930,7 +933,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         verify(currentIn).mark(Mockito.eq(readLimit));
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(1, 2); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         InputStream lastCurrentIn = test.currentIn;
         // second mark
@@ -945,7 +948,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         currentIn = lastCurrentIn;
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(1, 2); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         lastCurrentIn = test.currentIn;
         // reset
@@ -960,7 +963,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         nextComponentArg.set(currentIn);
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(4, 16); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         lastCurrentIn = test.currentIn;
         // third mark after reset
@@ -976,7 +979,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         currentIn = lastCurrentIn;
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(1, 2); i++) {
-            test.readNBytes(randomInt(63));
+            readNBytes(test, randomInt(63));
         }
         lastCurrentIn = test.currentIn;
         // reset after mark after reset
@@ -1013,34 +1016,34 @@ public class ChainingInputStreamTests extends ESTestCase {
                                 }
                             };
                             // read "mark1" bytes
-                            byte[] pre = test.readNBytes(mark1);
+                            byte[] pre = readNBytes(test, mark1);
                             for (int i = 0; i < pre.length; i++) {
                                 assertThat(pre[i], Matchers.is(b[i]));
                             }
                             // first mark
                             test.mark(len);
                             // read "offset" bytes
-                            byte[] span1 = test.readNBytes(offset1);
+                            byte[] span1 = readNBytes(test, offset1);
                             for (int i = 0; i < span1.length; i++) {
                                 assertThat(span1[i], Matchers.is(b[mark1 + i]));
                             }
                             // reset back to "mark1" offset
                             test.reset();
                             // read/replay "mark2" bytes
-                            byte[] span2 = test.readNBytes(mark2);
+                            byte[] span2 = readNBytes(test, mark2);
                             for (int i = 0; i < span2.length; i++) {
                                 assertThat(span2[i], Matchers.is(b[mark1 + i]));
                             }
                             // second mark
                             test.mark(len);
-                            byte[] span3 = test.readNBytes(offset2);
+                            byte[] span3 = readNBytes(test, offset2);
                             for (int i = 0; i < span3.length; i++) {
                                 assertThat(span3[i], Matchers.is(b[mark1 + mark2 + i]));
                             }
                             // reset to second mark
                             test.reset();
                             // read rest of bytes
-                            byte[] span4 = test.readAllBytes();
+                            byte[] span4 = readAllBytes(test);
                             for (int i = 0; i < span4.length; i++) {
                                 assertThat(span4[i], Matchers.is(b[mark1 + mark2 + i]));
                             }
@@ -1064,7 +1067,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         InputStream[] sourceComponents = new InputStream[componentCount];
         for (int i = 0; i < componentCount; i++) {
             if (emptyComponentIndices.contains(i)) {
-                sourceComponents[i] = InputStream.nullInputStream();
+                sourceComponents[i] = new ByteArrayInputStream(new byte[0]);
             } else {
                 byte[] b = randomByteArrayOfLength(randomIntBetween(1, 8));
                 sourceComponents[i] = new ByteArrayInputStream(b);

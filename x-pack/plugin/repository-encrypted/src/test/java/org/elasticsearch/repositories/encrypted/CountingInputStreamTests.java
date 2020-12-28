@@ -17,6 +17,8 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readAllBytes;
+import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readNBytes;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -57,10 +59,10 @@ public class CountingInputStreamTests extends ESTestCase {
         CountingInputStream test = new CountingInputStream(new ByteArrayInputStream(testArray), randomBoolean());
         assertThat(test.getCount(), Matchers.is(0L));
         int readLen = Randomness.get().nextInt(testArray.length);
-        test.readNBytes(readLen);
+        readNBytes(test, readLen);
         assertThat(test.getCount(), Matchers.is((long) readLen));
         readLen = testArray.length - readLen;
-        test.readNBytes(readLen);
+        readNBytes(test, readLen);
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
@@ -73,7 +75,7 @@ public class CountingInputStreamTests extends ESTestCase {
         test.skip(skipLen);
         assertThat(test.getCount(), Matchers.is((long) skipLen));
         skipLen = testArray.length - skipLen;
-        test.readNBytes(skipLen);
+        readNBytes(test, skipLen);
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
@@ -109,7 +111,7 @@ public class CountingInputStreamTests extends ESTestCase {
         assertThat(test.getCount(), Matchers.is((long) offset1 + offset3));
         test.reset();
         assertThat(test.getCount(), Matchers.is((long) offset1));
-        test.readAllBytes();
+        readAllBytes(test);
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
@@ -153,7 +155,7 @@ public class CountingInputStreamTests extends ESTestCase {
         assertThat(test.getCount(), Matchers.is((long) offset1 + offset3 + offset4));
         test.reset();
         assertThat(test.getCount(), Matchers.is((long) offset1 + offset3));
-        test.readAllBytes();
+        readAllBytes(test);
         assertThat(test.getCount(), Matchers.is((long) testArray.length));
         test.close();
         assertThat(test.getCount(), Matchers.is((long) testArray.length));

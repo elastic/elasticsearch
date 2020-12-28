@@ -8,7 +8,7 @@ package org.elasticsearch.repositories.encrypted;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Objects;
+import java.util.Locale;
 
 /**
  * A {@code PrefixInputStream} wraps another input stream and exposes
@@ -76,7 +76,12 @@ public final class PrefixInputStream extends InputStream {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         ensureOpen();
-        Objects.checkFromIndexSize(off, len, b.length);
+        // this is `Objects#checkFromIndexSize(off, len, b.length)` from Java 9
+        if ((b.length | off | len) < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException(
+                String.format(Locale.ROOT, "Range [%d, %<d + %d) out of bounds for length %d", off, len, b.length)
+            );
+        }
         if (len == 0) {
             return 0;
         }

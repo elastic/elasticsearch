@@ -50,10 +50,10 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -288,9 +288,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         logger.info("-->  create random index {} with {} records", indexName, 3);
         indexRandom(
             true,
-            client().prepareIndex(indexName).setId("1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex(indexName).setId("2").setSource("field1", "quick brown"),
-            client().prepareIndex(indexName).setId("3").setSource("field1", "quick")
+            client().prepareIndex(indexName, "_doc", "1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex(indexName, "_doc", "2").setSource("field1", "quick brown"),
+            client().prepareIndex(indexName, "_doc", "3").setSource("field1", "quick")
         );
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 3);
 
@@ -372,9 +372,9 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         createIndex(indexName, indexSettings);
         indexRandom(
             true,
-            client().prepareIndex(indexName).setId("1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex(indexName).setId("2").setSource("field1", "quick brown"),
-            client().prepareIndex(indexName).setId("3").setSource("field1", "quick")
+            client().prepareIndex(indexName, "_doc", "1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex(indexName, "_doc", "2").setSource("field1", "quick brown"),
+            client().prepareIndex(indexName, "_doc", "3").setSource("field1", "quick")
         );
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 3);
 
@@ -470,11 +470,11 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         createIndex(indexName, indexSettings);
         indexRandom(
             true,
-            client().prepareIndex(indexName).setId("1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex(indexName).setId("2").setSource("field1", "quick brown"),
-            client().prepareIndex(indexName).setId("3").setSource("field1", "quick"),
-            client().prepareIndex(indexName).setId("4").setSource("field1", "lazy"),
-            client().prepareIndex(indexName).setId("5").setSource("field1", "dog")
+            client().prepareIndex(indexName, "_doc", "1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex(indexName, "_doc", "2").setSource("field1", "quick brown"),
+            client().prepareIndex(indexName, "_doc", "3").setSource("field1", "quick"),
+            client().prepareIndex(indexName, "_doc", "4").setSource("field1", "lazy"),
+            client().prepareIndex(indexName, "_doc", "5").setSource("field1", "dog")
         );
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 5);
 
@@ -596,13 +596,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             () -> client().admin().cluster().prepareCreateSnapshot(repositoryName, snapshotName + "2").setWaitForCompletion(true).get()
         );
         assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
-        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), contains(repositoryName));
-        assertThat(
-            getSnapshotResponse.getFailedResponses().get(repositoryName).getCause().getMessage(),
-            containsString("repository password is incorrect")
-        );
+        e = expectThrows(RepositoryException.class, () -> client().admin().cluster().prepareGetSnapshots(repositoryName).get());
+        assertThat(e.getCause().getMessage(), containsString("repository password is incorrect"));
         e = expectThrows(
             RepositoryException.class,
             () -> client().admin().cluster().prepareRestoreSnapshot(repositoryName, snapshotName).setWaitForCompletion(true).get()
@@ -626,9 +621,8 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
             ensureStableCluster(2);
         } while (nodesWithWrongPassword.contains(internalCluster().getMasterName()));
         // ensure get snapshot works
-        getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
-        assertThat(getSnapshotResponse.getFailedResponses().keySet(), empty());
-        assertThat(getSnapshotResponse.getSuccessfulResponses().keySet(), contains(repositoryName));
+        GetSnapshotsResponse getSnapshotResponse = client().admin().cluster().prepareGetSnapshots(repositoryName).get();
+        assertThat(getSnapshotResponse.getSnapshots(), hasSize(1));
     }
 
     public void testSnapshotFailsForMasterFailoverWithWrongPassword() throws Exception {
@@ -675,11 +669,11 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
         createIndex(indexName, indexSettings);
         indexRandom(
             true,
-            client().prepareIndex(indexName).setId("1").setSource("field1", "the quick brown fox jumps"),
-            client().prepareIndex(indexName).setId("2").setSource("field1", "quick brown"),
-            client().prepareIndex(indexName).setId("3").setSource("field1", "quick"),
-            client().prepareIndex(indexName).setId("4").setSource("field1", "lazy"),
-            client().prepareIndex(indexName).setId("5").setSource("field1", "dog")
+            client().prepareIndex(indexName, "_doc", "1").setSource("field1", "the quick brown fox jumps"),
+            client().prepareIndex(indexName, "_doc", "2").setSource("field1", "quick brown"),
+            client().prepareIndex(indexName, "_doc", "3").setSource("field1", "quick"),
+            client().prepareIndex(indexName, "_doc", "4").setSource("field1", "lazy"),
+            client().prepareIndex(indexName, "_doc", "5").setSource("field1", "dog")
         );
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), 5);
 
@@ -776,7 +770,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .prepareGetSnapshots(repository)
                 .setSnapshots(snapshotName)
                 .get()
-                .getSnapshots(repository);
+                .getSnapshots();
             assertThat(snapshotInfos.size(), equalTo(1));
             if (snapshotInfos.get(0).state().completed()) {
                 // Make sure that snapshot clean up operations are finished

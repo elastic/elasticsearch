@@ -19,6 +19,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -54,7 +55,7 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(
                 EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
-                repositoryName + " ".repeat(14 - repositoryName.length()) // pad to the minimum pass length of 112 bits (14)
+                String.format(Locale.ROOT, "%14s", repositoryName) // pad to the minimum pass length of 112 bits (14)
             );
         }
         return secureSettings;

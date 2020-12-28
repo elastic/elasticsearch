@@ -10,7 +10,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-
 import java.security.InvalidKeyException;
 
 import static org.hamcrest.Matchers.equalTo;

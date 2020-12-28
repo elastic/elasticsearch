@@ -77,7 +77,7 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(ENCRYPTION_PASSWORD_SETTING);
+        return Collections.singletonList(ENCRYPTION_PASSWORD_SETTING);
     }
 
     @Override
@@ -95,11 +95,11 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             repositoryPasswordsMapBuilder.put(passwordName, passwordSetting.get(env.settings()));
             logger.debug("Loaded repository password [{}] from the node keystore", passwordName);
         }
-        final Map<String, SecureString> repositoryPasswordsMap = Map.copyOf(repositoryPasswordsMapBuilder);
+        final Map<String, SecureString> repositoryPasswordsMap = repositoryPasswordsMapBuilder;
 
         if (false == Build.CURRENT.isSnapshot()
             && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false)) {
-            return Map.of();
+            return Collections.emptyMap();
         }
 
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {

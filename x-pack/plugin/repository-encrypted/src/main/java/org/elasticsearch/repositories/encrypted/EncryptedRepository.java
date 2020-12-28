@@ -32,6 +32,7 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -108,6 +109,12 @@ public class EncryptedRepository extends BlobStoreRepository {
     private final Cache<String, SecretKey> dekCache;
 
     /**
+     * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
+     * files that are already compressed by default. Defaults to false.
+     */
+    static final Setting<Boolean> COMPRESS_SETTING = Setting.boolSetting("compress", false);
+
+    /**
      * Returns the byte length (i.e. the storage size) of an encrypted blob, given the length of the blob's plaintext contents.
      *
      * @see EncryptionPacketsInputStream#getEncryptionLength(long, int)
@@ -127,15 +134,7 @@ public class EncryptedRepository extends BlobStoreRepository {
         Supplier<XPackLicenseState> licenseStateSupplier,
         SecureString repositoryPassword
     ) throws GeneralSecurityException {
-        super(
-            metadata,
-            namedXContentRegistry,
-            clusterService,
-            bigArrays,
-            recoverySettings,
-            BlobPath.cleanPath() /* the encrypted repository uses a hardcoded empty
-                                 base blob path but the base path setting is honored for the delegated repository */
-        );
+        super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService, bigArrays, recoverySettings);
         this.delegatedRepository = delegatedRepository;
         this.dekGenerator = createDEKGenerator();
         this.licenseStateSupplier = licenseStateSupplier;
@@ -292,6 +291,13 @@ public class EncryptedRepository extends BlobStoreRepository {
             blobStoreDEKGenerator,
             dekCache
         );
+    }
+
+    @Override
+    public BlobPath basePath() {
+        // the encrypted repository uses a hardcoded empty base blob path,
+        // but the base path setting is honored for the delegated repository
+        return BlobPath.cleanPath();
     }
 
     @Override
@@ -691,7 +697,7 @@ public class EncryptedRepository extends BlobStoreRepository {
                     )
                 );
             }
-            return Map.copyOf(resultBuilder);
+            return resultBuilder;
         }
     }
 }

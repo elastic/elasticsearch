@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.getEncryptedBlobByteLength;
@@ -76,7 +77,7 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
         for (String repositoryName : repositoryNames) {
             secureSettings.setString(
                 EncryptedRepositoryPlugin.ENCRYPTION_PASSWORD_SETTING.getConcreteSettingForNamespace(repositoryName).getKey(),
-                repositoryName + " ".repeat(14 - repositoryName.length()) // pad to the minimum pass length of 112 bits (14)
+                String.format(Locale.ROOT, "%14s", repositoryName) // pad to the minimum pass length of 112 bits (14)
             );
         }
         return secureSettings;

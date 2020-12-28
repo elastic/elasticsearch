@@ -21,6 +21,7 @@ import java.io.InputStream;
 import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
@@ -130,7 +131,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
 
     private int decrypt(PrefixInputStream packetInputStream) throws IOException {
         // read only the IV prefix into the packet buffer
-        int ivLength = packetInputStream.readNBytes(packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES);
+        int ivLength = readNBytes(packetInputStream, packetBuffer, 0, GCM_IV_LENGTH_IN_BYTES);
         if (ivLength != GCM_IV_LENGTH_IN_BYTES) {
             throw new IOException("Packet heading IV error. Unexpected length [" + ivLength + "].");
         }
@@ -151,7 +152,7 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         // cipher used to decrypt only the current packetInputStream
         Cipher packetCipher = getPacketDecryptionCipher(packetBuffer);
         // read the rest of the packet, reusing the packetBuffer
-        int packetLength = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
+        int packetLength = readNBytes(packetInputStream, packetBuffer, 0, packetBuffer.length);
         if (packetLength < GCM_TAG_LENGTH_IN_BYTES) {
             throw new IOException("Encrypted packet is too short");
         }
@@ -173,4 +174,22 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
             throw new IOException("Exception during packet cipher initialisation", e);
         }
     }
+
+    // this is `InputStream#readNBytes` from Java 9
+    private static int readNBytes(InputStream inputStream, byte[] b, int off, int len) throws IOException {
+        if ((b.length | off | len) < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException(
+                String.format(Locale.ROOT, "Range [%d, %<d + %d) out of bounds for length %d", off, len, b.length)
+            );
+        }
+
+        int n = 0;
+        while (n < len) {
+            int count = inputStream.read(b, off + n, len - n);
+            if (count < 0) break;
+            n += count;
+        }
+        return n;
+    }
+
 }

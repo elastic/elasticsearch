@@ -5,16 +5,18 @@
  */
 package org.elasticsearch.repositories.encrypted;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.SequenceInputStream;
-import java.util.Objects;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.internal.io.IOUtils;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.SequenceInputStream;
+import java.util.Locale;
+import java.util.Objects;
 
 /**
  * A {@code ChainingInputStream} concatenates multiple component input streams into a
@@ -57,8 +59,9 @@ public abstract class ChainingInputStream extends InputStream {
     /**
      * value for the current input stream when there are no subsequent streams remaining, i.e. when
      * {@link #nextComponent(InputStream)} returns {@code null}
+     * (this is `InputStream#nullInputStream` from Java9
      */
-    protected static final InputStream EXHAUSTED_MARKER = InputStream.nullInputStream(); // protected for tests
+    protected static final InputStream EXHAUSTED_MARKER = new ByteArrayInputStream(new byte[0]); // protected for tests
 
     /**
      * The instance of the currently in use component input stream,
@@ -207,7 +210,12 @@ public abstract class ChainingInputStream extends InputStream {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         ensureOpen();
-        Objects.checkFromIndexSize(off, len, b.length);
+        // this is `Objects#checkFromIndexSize(off, len, b.length)` from Java 9
+        if ((b.length | off | len) < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException(
+                String.format(Locale.ROOT, "Range [%d, %<d + %d) out of bounds for length %d", off, len, b.length)
+            );
+        }
         if (len == 0) {
             return 0;
         }

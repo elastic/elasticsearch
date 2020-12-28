@@ -19,6 +19,7 @@ import java.io.InputStream;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.repositories.encrypted.EncryptionPacketsInputStreamTests.readAllBytes;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -88,7 +89,7 @@ public class PrefixInputStreamTests extends ESTestCase {
         int prefixLength = Randomness.get().nextInt(boundedLength);
         PrefixInputStream test = new PrefixInputStream(mockTuple.v2(), prefixLength, randomBoolean());
         int byteCountBefore = mockTuple.v1().get();
-        byte[] b = test.readAllBytes();
+        byte[] b = readAllBytes(test);
         int byteCountAfter = mockTuple.v1().get();
         assertThat(b.length, Matchers.is(prefixLength));
         assertThat(byteCountBefore - byteCountAfter, Matchers.is(prefixLength));
@@ -120,7 +121,7 @@ public class PrefixInputStreamTests extends ESTestCase {
         }
         PrefixInputStream test = new PrefixInputStream(mockTuple.v2(), prefixLength, randomBoolean());
         int byteCountBefore = mockTuple.v1().get();
-        byte[] b = test.readAllBytes();
+        byte[] b = readAllBytes(test);
         int byteCountAfter = mockTuple.v1().get();
         assertThat(b.length, Matchers.is(boundedLength));
         assertThat(byteCountBefore - byteCountAfter, Matchers.is(boundedLength));

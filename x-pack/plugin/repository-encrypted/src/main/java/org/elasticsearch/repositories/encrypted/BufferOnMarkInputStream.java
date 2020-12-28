@@ -8,6 +8,7 @@ package org.elasticsearch.repositories.encrypted;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Locale;
 import java.util.Objects;
 
 /**
@@ -101,7 +102,12 @@ public final class BufferOnMarkInputStream extends InputStream {
     @Override
     public int read(byte[] b, int off, int len) throws IOException {
         ensureOpen();
-        Objects.checkFromIndexSize(off, len, b.length);
+        // this is `Objects#checkFromIndexSize(off, len, b.length)` from Java 9
+        if ((b.length | off | len) < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException(
+                String.format(Locale.ROOT, "Range [%d, %<d + %d) out of bounds for length %d", off, len, b.length)
+            );
+        }
         if (len == 0) {
             return 0;
         }
@@ -431,7 +437,12 @@ public final class BufferOnMarkInputStream extends InputStream {
          */
         int read(byte[] b, int off, int len) {
             Objects.requireNonNull(b);
-            Objects.checkFromIndexSize(off, len, b.length);
+            // this is `Objects#checkFromIndexSize(off, len, b.length)` from Java 9
+            if ((b.length | off | len) < 0 || len > b.length - off) {
+                throw new IndexOutOfBoundsException(
+                    String.format(Locale.ROOT, "Range [%d, %<d + %d) out of bounds for length %d", off, len, b.length)
+                );
+            }
             if (position == tail || len == 0) {
                 return 0;
             }
@@ -468,7 +479,12 @@ public final class BufferOnMarkInputStream extends InputStream {
          */
         void write(byte[] b, int off, int len) {
             Objects.requireNonNull(b);
-            Objects.checkFromIndexSize(off, len, b.length);
+            // this is `Objects#checkFromIndexSize(off, len, b.length)` from Java 9
+            if ((b.length | off | len) < 0 || len > b.length - off) {
+                throw new IndexOutOfBoundsException(
+                    String.format(Locale.ROOT, "Range [%d, %<d + %d) out of bounds for length %d", off, len, b.length)
+                );
+            }
             // allocate internal buffer lazily
             if (buffer == null && len > 0) {
                 // "+ 1" for the full-buffer sentinel element

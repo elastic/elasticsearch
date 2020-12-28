@@ -8,7 +8,11 @@
 [[auditing-settings-description]]
 You can use <<enable-audit-logging,audit logging>> to record security-related
 events, such as authentication failures, refused connections, and data-access
-events.
+events. In addition, changes via the APIs to the security configuration, such
+as creating, updating and removing <<native-realm, native>> and
+<<built-in-users, built-in>> users, <<security-api-put-role, roles>>,
+<<security-api-put-role-mapping, role mappings>> and
+<<security-api-create-api-key, API keys>> are also recorded.
 
 If configured, auditing settings must be set on every node in the cluster.
 Static settings, such as `xpack.security.audit.enabled`, must be configured in
@@ -42,7 +46,8 @@ by using the following settings:
 (<<dynamic-cluster-setting,Dynamic>>)
 Specifies which events to include in the auditing output. The default value is:
 `access_denied, access_granted, anonymous_access_denied, authentication_failed,
-connection_denied, tampered_request, run_as_denied, run_as_granted`.
+connection_denied, tampered_request, run_as_denied, run_as_granted,
+security_config_change`.
 // end::xpack-sa-lf-events-include-tag[]
 
 [[xpack-sa-lf-events-exclude]]
@@ -114,7 +119,9 @@ These settings affect the <<audit-log-ignore-policy,ignore policies>>
 that enable fine-grained control over which audit events are printed to the log file.
 All of the settings with the same policy name combine to form a single policy.
 If an event matches all of the conditions for a specific policy, it is ignored
-and not printed.
+and not printed. All events of any type are subject to the ignore policies, with the
+sole exception of `security_config_change` events, which if not
+<<xpack-sa-lf-events-exclude, excluded>> altogether, are never filtered out.
 
 [[xpack-sa-lf-events-ignore-users]]
 // tag::xpack-sa-lf-events-ignore-users-tag[]

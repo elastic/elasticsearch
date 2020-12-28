@@ -45,20 +45,22 @@ The following is a list of the events that can be generated:
 [[audit-event-attributes]]
 === Audit event attributes
 
-In 6.5.0, there is a new <<audit-log-output, `logfile` audit output>> format.
-This format also brings in a few changes for audit event attributes.
+The audit events are formatted as JSON documents, and each event is printed on a separate
+line in the audit log (the entries themselves do not contain the end-of-line delimiter).
+The audit event JSON format is somewhat particular, as *most* fields follow a dotted
+name syntax, are ordered, and contain non-null string values. This format creates a
+structured columnar aspect, similar to a CSV, that can be more easily inspected visually
+(compared to an equivalent nested JSON document).
+There are however a few attributes that are exceptions to the above format. The `put`,
+`delete`, `change`, `create` and `invalidate` attributes, which are only present for
+events with the `event.type: "security_config_change"` attribute, contain the *nested JSON*
+representation of the security change taking effect. The contents of security config change
+are hence not splayed as top-level dot-named fields in the audit event document. That's because
+the fields are specific to the particular kind of the security change and do not show up in
+any other audit events, and so the columnar format benefits are much more limited; the
+space-saving benefits of the nested structure is the favoured trade-off in this case.
 
-The new format is output to the `<clustername>_audit.json` file.
-The audit entries are formatted as flat JSON documents (that is to say, no
-nested objects), one per line. Hence, the attribute names are JSON keys and they
-follow a dotted name syntax. Any attributes that lack a value (`null`) are not
-output.
-
-The following list shows attributes that are common to all audit events.
-Their names and values are analogous to those in the deprecated `logfile` or
-`index` output formats. However, it is expected that the formats will evolve
-independently during the 6.x releases, so it is advisable to follow the attribute
-descriptions for the format that you are using.
+The following list shows attributes that are common to all audit event types:
 
 `@timestamp`      ::    The time, in ISO9601 format, when the event occurred.
 `node.name`       ::    The name of the node. This can be changed

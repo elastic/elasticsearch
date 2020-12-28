@@ -300,7 +300,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertTrue(state.getMetadata().transientSettings().getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false)
             || state.getMetadata().transientSettings().getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
 
-        // create archived setting randomly in transient or persistent
+        // create archived setting
         final Metadata metadata = state.getMetadata();
         final Metadata brokenMeta = Metadata.builder(metadata).persistentSettings(Settings.builder()
             .put(metadata.persistentSettings()).put("this.is.unknown", true).build()).build();
@@ -338,7 +338,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertTrue(ex.getMessage().contains("cluster read-only"));
         }
 
-        // fail to clear archived settings with set cluster block to true
+        // fail to clear archived settings with adding cluster block
         try {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder()
@@ -349,7 +349,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
             assertTrue(ex.getMessage().contains("cluster read-only"));
         }
 
-        // fail to set archived settings to non-null value even with clear blocks together
+        // fail to set archived settings to non-null value even with clearing blocks together
         try {
             assertAcked(client().admin().cluster().prepareUpdateSettings()
                 .setPersistentSettings(Settings.builder()

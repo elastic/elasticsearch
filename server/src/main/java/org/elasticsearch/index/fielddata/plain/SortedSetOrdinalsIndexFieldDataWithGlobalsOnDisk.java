@@ -26,6 +26,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.ordinals.GlobalOrdinalsIndexFieldData;
 import org.elasticsearch.index.fielddata.ordinals.OnDiskGlobalOrdinalMap;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -75,6 +76,10 @@ public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetO
         IndexOrdinalsFieldData loaded = super.loadGlobal(indexReader);
         if (loaded == this) {
             // If there is only a single segment we'll get ourselves back.
+            return loaded;
+        }
+        if (loaded instanceof GlobalOrdinalsIndexFieldData.Consumer) {
+            // loadGlobal probably loaded the "empty" implementation
             return loaded;
         }
         try {

@@ -129,20 +129,13 @@ public class InboundHandler {
                         assertRemoteVersion(streamInput, header.getVersion());
                         if (header.isError()) {
                             handlerResponseError(streamInput, handler);
+                            ensureFullyConsumed(header, handler, requestId, streamInput);
                         } else {
-                            handleResponse(remoteAddress, streamInput, handler);
-                        }
-                        // Check the entire message has been read
-                        final int nextByte = streamInput.read();
-                        // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
-                        if (nextByte != -1) {
-                            throw new IllegalStateException("Message not fully read (response) for requestId ["
-                                + requestId + "], handler [" + handler + "], error [" + header.isError()
-                                + "]; resetting");
+                            handleResponse(remoteAddress, streamInput, message, handler);
                         }
                     } else {
                         assert header.isError() == false;
-                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, handler);
+                        handleResponse(remoteAddress, EMPTY_STREAM_INPUT, message, handler);
                     }
                 }
             }
@@ -153,6 +146,18 @@ public class InboundHandler {
                 logger.warn("handling inbound transport message [{}] took [{}ms] which is above the warn threshold of [{}ms]",
                         message, took, logThreshold);
             }
+        }
+    }
+
+    private void ensureFullyConsumed(Header header, TransportResponseHandler<?> handler, long requestId,
+                                     StreamInput streamInput) throws IOException {
+        // Check the entire message has been read
+        final int nextByte = streamInput.read();
+        // calling read() is useful to make sure the message is fully read, even if there is an EOS marker
+        if (nextByte != -1) {
+            throw new IllegalStateException("Message not fully read (response) for requestId ["
+                + requestId + "], handler [" + handler + "], error [" + header.isError()
+                + "]; resetting");
         }
     }
 
@@ -191,31 +196,65 @@ public class InboundHandler {
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
-                    assert reg != null;
-                    final T request = reg.newRequest(stream);
-                    request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-                    // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-                    final int nextByte = stream.read();
-                    // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-                    if (nextByte != -1) {
-                        throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
-                            + action + "], available [" + stream.available() + "]; resetting");
-                    }
                     final String executor = reg.getExecutor();
                     if (ThreadPool.Names.SAME.equals(executor)) {
                         try {
-                            reg.processMessageReceived(request, transportChannel);
+                            reg.processMessageReceived(readRequest(channel, action, requestId, stream, reg), transportChannel);
                         } catch (Exception e) {
                             sendErrorResponse(reg.getAction(), transportChannel, e);
                         }
                     } else {
-                        threadPool.executor(executor).execute(new RequestHandler<>(reg, request, transportChannel));
+                        boolean success = false;
+                        message.incRef();
+                        try {
+                            threadPool.executor(executor).execute(new AbstractRunnable() {
+                                @Override
+                                protected void doRun() throws Exception {
+                                    reg.processMessageReceived(readRequest(channel, action, requestId, stream, reg), transportChannel);
+                                }
+
+                                @Override
+                                public boolean isForceExecution() {
+                                    return reg.isForceExecution();
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    sendErrorResponse(reg.getAction(), transportChannel, e);
+                                }
+
+                                @Override
+                                public void onAfter() {
+                                    message.decRef();
+                                }
+                            });
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                message.decRef();
+                            }
+                        }
                     }
                 }
             } catch (Exception e) {
                 sendErrorResponse(action, transportChannel, e);
             }
         }
+    }
+
+    private <T extends TransportRequest> T readRequest(TcpChannel channel, String action, long requestId, StreamInput stream,
+                                                       RequestHandlerRegistry<T> reg) throws IOException {
+        assert reg != null;
+        final T request = reg.newRequest(stream);
+        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+        // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
+        final int nextByte = stream.read();
+        // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+        if (nextByte != -1) {
+            throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
+                + action + "], available [" + stream.available() + "]; resetting");
+        }
+        return request;
     }
 
     private static void sendErrorResponse(String actionName, TransportChannel transportChannel, Exception e) {
@@ -227,8 +266,25 @@ public class InboundHandler {
         }
     }
 
-    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, final StreamInput stream,
-                                                              final TransportResponseHandler<T> handler) {
+    private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, StreamInput stream,
+                                                              InboundMessage inboundMessage, TransportResponseHandler<T> handler) {
+        final String executor = handler.executor();
+        if (ThreadPool.Names.SAME.equals(executor)) {
+            doHandleResponse(remoteAddress, stream, handler, inboundMessage);
+        } else {
+            inboundMessage.incRef();
+            threadPool.executor(executor).execute(() -> {
+                try {
+                    doHandleResponse(remoteAddress, stream, handler, inboundMessage);
+                } finally {
+                    inboundMessage.decRef();
+                }
+            });
+        }
+    }
+
+    private <T extends TransportResponse> void doHandleResponse(InetSocketAddress remoteAddress, StreamInput stream,
+                                                              TransportResponseHandler<T> handler, InboundMessage message) {
         final T response;
         try {
             response = handler.read(stream);
@@ -240,17 +296,10 @@ public class InboundHandler {
             handleException(handler, serializationException);
             return;
         }
-        final String executor = handler.executor();
-        if (ThreadPool.Names.SAME.equals(executor)) {
-            doHandleResponse(handler, response);
-        } else {
-            threadPool.executor(executor).execute(() -> doHandleResponse(handler, response));
-        }
-    }
-
-    private <T extends TransportResponse> void doHandleResponse(TransportResponseHandler<T> handler, T response) {
         try {
             handler.handleResponse(response);
+            final Header header = message.getHeader();
+            ensureFullyConsumed(header, handler, header.getRequestId(), stream);
         } catch (Exception e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
         }
@@ -287,32 +336,5 @@ public class InboundHandler {
 
     static void assertRemoteVersion(StreamInput in, Version version) {
         assert version.equals(in.getVersion()) : "Stream version [" + in.getVersion() + "] does not match version [" + version + "]";
-    }
-
-    private static class RequestHandler<T extends TransportRequest> extends AbstractRunnable {
-        private final RequestHandlerRegistry<T> reg;
-        private final T request;
-        private final TransportChannel transportChannel;
-
-        RequestHandler(RequestHandlerRegistry<T> reg, T request, TransportChannel transportChannel) {
-            this.reg = reg;
-            this.request = request;
-            this.transportChannel = transportChannel;
-        }
-
-        @Override
-        protected void doRun() throws Exception {
-            reg.processMessageReceived(request, transportChannel);
-        }
-
-        @Override
-        public boolean isForceExecution() {
-            return reg.isForceExecution();
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-            sendErrorResponse(reg.getAction(), transportChannel, e);
-        }
     }
 }

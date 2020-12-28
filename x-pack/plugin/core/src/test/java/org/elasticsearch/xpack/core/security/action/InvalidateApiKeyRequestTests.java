@@ -30,20 +30,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class InvalidateApiKeyRequestTests extends ESTestCase {
 
-    public void testCannotSpecifyBothIdAndIds() {
-        final IllegalArgumentException e =
-            expectThrows(IllegalArgumentException.class, () -> new InvalidateApiKeyRequest(
-                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-                randomAlphaOfLength(12),
-                randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
-                false,
-                new String[]{randomAlphaOfLength(12)}));
-        assertThat(e.getMessage(), containsString("Must use either [id] or [ids], not both at the same time"));
-    }
-
     public void testNonNullIdsCannotBeEmptyNorContainBlankId() {
-
         ActionRequestValidationException validationException =
             expectThrows(ActionRequestValidationException.class, () -> new InvalidateApiKeyRequest(
                 randomFrom(randomNullOrEmptyString(), randomAlphaOfLength(8)),
@@ -69,9 +56,9 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
         final InvalidateApiKeyRequest request = new InvalidateApiKeyRequest(
             randomBlankString.get(), // realm name
             randomBlankString.get(), // user name
-            randomBlankString.get(), // key id
             randomBlankString.get(), // key name
-            randomBoolean() // owned by user
+            randomBoolean(), // owned by user
+            null
         );
         assertThat(request.getRealmName(), nullValue());
         assertThat(request.getUserName(), nullValue());

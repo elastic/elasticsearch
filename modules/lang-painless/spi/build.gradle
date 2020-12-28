@@ -28,4 +28,4 @@ dependencies {
 }
 
 // no tests...yet?
-test.enabled = false
+tasks.named("test").configure { enabled = false }

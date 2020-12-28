@@ -414,7 +414,7 @@ final class StoreRecovery {
                 }
                 index.setFileDetailsComplete();
             } else {
-                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                store.createEmpty();
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId,
                     indexShard.getPendingPrimaryTerm());

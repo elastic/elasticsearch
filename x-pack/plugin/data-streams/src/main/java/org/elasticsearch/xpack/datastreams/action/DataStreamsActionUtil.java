@@ -27,9 +27,14 @@ public class DataStreamsActionUtil {
         String[] names,
         IndicesOptions indicesOptions
     ) {
+        indicesOptions = updateIndicesOptions(indicesOptions);
+        return indexNameExpressionResolver.dataStreamNames(currentState, indicesOptions, names);
+    }
+
+    public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
         EnumSet<IndicesOptions.WildcardStates> expandWildcards = indicesOptions.getExpandWildcards();
         expandWildcards.add(IndicesOptions.WildcardStates.OPEN);
         indicesOptions = new IndicesOptions(indicesOptions.getOptions(), expandWildcards);
-        return indexNameExpressionResolver.dataStreamNames(currentState, indicesOptions, names);
+        return indicesOptions;
     }
 }

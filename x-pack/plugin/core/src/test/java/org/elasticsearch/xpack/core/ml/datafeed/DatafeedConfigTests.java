@@ -152,6 +152,14 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
             Boolean.toString(randomBoolean()),
             Boolean.toString(randomBoolean()),
             SearchRequest.DEFAULT_INDICES_OPTIONS));
+        if (randomBoolean()) {
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("type", "keyword");
+            settings.put("script", "");
+            Map<String, Object> field = new HashMap<>();
+            field.put("runtime_field_foo", settings);
+            builder.setRuntimeMappings(field);
+        }
         return builder;
     }
 
@@ -526,6 +534,29 @@ public class DatafeedConfigTests extends AbstractSerializingTestCase<DatafeedCon
         ElasticsearchException e = expectThrows(ElasticsearchException.class, datafeed::build);
 
         assertThat(e.getMessage(), equalTo("script_fields cannot be used in combination with aggregations"));
+    }
+
+    public void testBuild_GivenRuntimeMappingMissingType() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("my_index"));
+        Map<String, Object> properties = new HashMap<>();
+        properties.put("type_field_is_missing", "");
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("runtime_field_foo", properties);
+        builder.setRuntimeMappings(fields);
+
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
+        assertThat(e.getMessage(), equalTo("No type specified for runtime field [runtime_field_foo]"));
+    }
+
+    public void testBuild_GivenInvalidRuntimeMapping() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(Collections.singletonList("my_index"));
+        Map<String, Object> fields = new HashMap<>();
+        fields.put("field_is_not_an_object", "");
+        builder.setRuntimeMappings(fields);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, builder::build);
+        assertThat(e.getMessage(), equalTo("Expected map for runtime field [field_is_not_an_object] definition but got a String"));
     }
 
     public void testHasAggregations_GivenNull() {

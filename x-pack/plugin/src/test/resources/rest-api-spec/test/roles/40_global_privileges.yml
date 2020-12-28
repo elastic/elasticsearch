@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "with_global" ]
             }
 

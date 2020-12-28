@@ -173,7 +173,7 @@ public class GeoLineBucketedSort extends BucketedSort.ForDoubles {
                         "single document. Use a script to combine multiple geo_point-values-per-doc into a single value.");
                 }
 
-                if (index > values.size()) {
+                if (index >= values.size()) {
                     values = bigArrays.grow(values, index + 1);
                 }
 

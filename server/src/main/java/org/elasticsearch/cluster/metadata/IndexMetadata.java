@@ -55,6 +55,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -341,6 +342,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
+    static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
@@ -391,6 +393,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
 
+    private final IndexLongFieldRange timestampMillisRange;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -416,7 +420,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int routingPartitionSize,
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
-            final boolean isSystem) {
+            final boolean isSystem,
+            final IndexLongFieldRange timestampMillisRange) {
 
         this.index = index;
         this.version = version;
@@ -449,6 +454,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
+        this.timestampMillisRange = timestampMillisRange;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -621,6 +627,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return excludeFilters;
     }
 
+    public IndexLongFieldRange getTimestampMillisRange() {
+        return timestampMillisRange;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -730,6 +740,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
+        private final IndexLongFieldRange timestampMillisRange;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -748,6 +759,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
+            timestampMillisRange = after.timestampMillisRange;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -785,6 +797,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 isSystem = false;
             }
+            timestampMillisRange = IndexLongFieldRange.readFrom(in);
         }
 
         @Override
@@ -808,6 +821,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
+            timestampMillisRange.writeTo(out);
         }
 
         @Override
@@ -827,6 +841,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(part.isSystem);
+            builder.timestampMillisRange(timestampMillisRange);
             return builder.build();
         }
     }
@@ -872,6 +887,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
+        builder.timestampMillisRange(IndexLongFieldRange.readFrom(in));
         return builder.build();
     }
 
@@ -913,6 +929,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
+        timestampMillisRange.writeTo(out);
     }
 
     public boolean isSystem() {
@@ -944,6 +961,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
+        private IndexLongFieldRange timestampMillisRange = IndexLongFieldRange.NO_SHARDS;
 
         public Builder(String index) {
             this.index = index;
@@ -971,6 +989,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
+            this.timestampMillisRange = indexMetadata.timestampMillisRange;
         }
 
         public Builder index(String index) {
@@ -1183,6 +1202,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return isSystem;
         }
 
+        public Builder timestampMillisRange(IndexLongFieldRange timestampMillisRange) {
+            this.timestampMillisRange = timestampMillisRange;
+            return this;
+        }
+
+        public IndexLongFieldRange getTimestampMillisRange() {
+            return timestampMillisRange;
+        }
+
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1288,7 +1316,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     routingPartitionSize,
                     waitForActiveShards,
                     rolloverInfos.build(),
-                    isSystem);
+                    isSystem,
+                    timestampMillisRange);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1390,6 +1419,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
+            builder.startObject(KEY_TIMESTAMP_RANGE);
+            indexMetadata.timestampMillisRange.toXContent(builder, params);
+            builder.endObject();
+
             builder.endObject();
         }
 
@@ -1470,6 +1503,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         // simply ignored when upgrading from 2.x
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
+                    } else if (KEY_TIMESTAMP_RANGE.equals(currentFieldName)) {
+                        builder.timestampMillisRange(IndexLongFieldRange.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());

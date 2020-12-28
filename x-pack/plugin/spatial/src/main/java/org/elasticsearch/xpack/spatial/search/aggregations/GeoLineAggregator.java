@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
@@ -27,8 +29,10 @@ final class GeoLineAggregator extends MetricsAggregator {
     /** Multiple ValuesSource with field names */
     private final GeoLineMultiValuesSource valuesSources;
 
+    private final BigArrays bigArrays;
     private final GeoLineBucketedSort sort;
     private final GeoLineBucketedSort.Extra extra;
+    private LongArray counts;
     private final boolean includeSorts;
     private final SortOrder sortOrder;
     private final int size;
@@ -38,9 +42,11 @@ final class GeoLineAggregator extends MetricsAggregator {
                       int size) throws IOException {
         super(name, context, parent, metaData);
         this.valuesSources = valuesSources;
+        this.bigArrays = context.bigArrays();
         if (valuesSources != null) {
-            this.extra = new GeoLineBucketedSort.Extra(context.bigArrays(), valuesSources);
-            this.sort = new GeoLineBucketedSort(context.bigArrays(), sortOrder, null, size, valuesSources, extra);
+            this.extra = new GeoLineBucketedSort.Extra(bigArrays, valuesSources);
+            this.sort = new GeoLineBucketedSort(bigArrays, sortOrder, null, size, valuesSources, extra);
+            this.counts = bigArrays.newLongArray(1, true);
         } else {
             this.extra = null;
             this.sort = null;
@@ -70,6 +76,8 @@ final class GeoLineAggregator extends MetricsAggregator {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 leafSort.collect(doc, bucket);
+                counts = bigArrays.grow(counts, bucket + 1);
+                counts.increment(bucket, 1);
             }
         };
     }
@@ -79,7 +87,7 @@ final class GeoLineAggregator extends MetricsAggregator {
         if (valuesSources == null) {
             return buildEmptyAggregation();
         }
-        boolean complete = sort.inHeapMode(bucket) == false;
+        boolean complete = counts.get(bucket) <= size;
         addRequestCircuitBreakerBytes((Double.SIZE + Long.SIZE) * sort.sizeOf(bucket));
         double[] sortVals = sort.getSortValues(bucket);
         long[] bucketLine = sort.getPoints(bucket);
@@ -94,6 +102,6 @@ final class GeoLineAggregator extends MetricsAggregator {
 
     @Override
     public void doClose() {
-        Releasables.close(sort, extra);
+        Releasables.close(sort, extra, counts);
     }
 }

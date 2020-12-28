@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -50,6 +51,7 @@ import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.Store;
@@ -271,7 +273,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     public interface RecoveryListener {
-        void onRecoveryDone(RecoveryState state);
+        void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange);
 
         void onRecoveryFailure(RecoveryState state, RecoveryFailedException e, boolean sendShardFailure);
     }
@@ -431,7 +433,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 }
 
                 recoveryRef.target().cleanFiles(request.totalTranslogOps(), request.getGlobalCheckpoint(), request.sourceMetaSnapshot(),
-                    listener);
+                        ActionListener.delegateFailure(listener, (r, l) -> {
+                            Releasable reenableMonitor = recoveryRef.target().disableRecoveryMonitor();
+                            recoveryRef.target().indexShard().afterCleanFiles(() -> {
+                                reenableMonitor.close();
+                                listener.onResponse(null);
+                            });
+                        }));
             }
         }
     }

@@ -397,6 +397,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     public void testClusterUpdateSettingsWithBlocks() throws Exception {
         String key1 = "cluster.routing.allocation.enable";
         Settings transientSettings = Settings.builder().put(key1, EnableAllocationDecider.Allocation.NONE.name()).build();
+
         String key2 = "cluster.routing.allocation.node_concurrent_recoveries";
         Settings persistentSettings = Settings.builder().put(key2, "5").build();
 

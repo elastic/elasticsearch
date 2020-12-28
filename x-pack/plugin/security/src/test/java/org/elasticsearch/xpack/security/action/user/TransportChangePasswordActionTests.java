@@ -169,7 +169,7 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
         Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
-            randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt")).build();
+            randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt4")).build();
         TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
             mock(ActionFilters.class), usersStore);
         action.doExecute(mock(Task.class), request, new ActionListener<>() {

@@ -174,9 +174,11 @@ Array of metrics to collect. Each value corresponds to a
 specify at least one value. If you specify a `metrics` object, this property is
 required.
 +
-NOTE: The `avg` metric stores both the `sum` and `value_count` values. This lets
-you accurately average rollups over larger time intervals. For example, you can
-accurately roll up hourly averages into daily averages.
+NOTE: The rollup index stores these metrics in an
+<<aggregate-metric-double,`aggregate_metric_double`>> field. The `avg` metric
+stores both the `sum` and `value_count` values. This lets you accurately average
+rollups over larger time intervals. For example, you can accurately roll up
+hourly averages into daily averages.
 =====
 
 `page_size`::

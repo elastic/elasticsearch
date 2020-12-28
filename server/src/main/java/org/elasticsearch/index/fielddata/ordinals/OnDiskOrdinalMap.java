@@ -46,25 +46,49 @@ import java.util.function.LongUnaryOperator;
 public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFieldData {
     public static final String FILE_PREFIX = "global_ords";
 
-    private static final Logger logger = LogManager.getLogger(OnDiskOrdinalMap.class);
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(OnDiskOrdinalMap.class);
 
-    private final Directory directory;
+    private static final Logger logger = LogManager.getLogger(OnDiskOrdinalMap.class);
+
+    /**
+     * The field data built at index time.
+     */
     private final IndexOrdinalsFieldData indexed;
 
+    /**
+     * Map from segment's ordinal in the reader to an ordinal sorted by the
+     * number of unique fields in the segment. We sort so that when we build
+     * the global ord to segment ord map we tend to link back to the same
+     * segment more frequently. *That* gives us better compression storing
+     * the map and better disk locality looking up the actual bytes.
+     */
     private final SortedSegments sortedSegments;
 
+    /**
+     * The number of global ordinals.
+     */
+    private final long globalOrdCount;
+    /**
+     * {@link #indexed}'s field data per segment.
+     */
     private final LeafOrdinalsFieldData[] segmentFieldData;
-    private final long maxGlobalOrd;
-    private final OrdinalSequence.GroupReader segmentOrdsGroupReader;
+    /**
+     * Handle for the file containing the ordinal mappings.
+     */
+    private final OrdinalSequence.GroupReader groupReader;
+    /**
+     * Map from segment ordinal to global ordinal.
+     */
     private final OrdinalSequence.ReaderProvider[] segmentOrdsToGlobalOrds;
+    /**
+     * "Reverse" global ordinal mapping.
+     */
     private final GlobalOrdToSegmentAndSegmentOrd.ReaderProvider globalOrdsToSegments;
 
     public OnDiskOrdinalMap(Directory directory, IndexOrdinalsFieldData indexed, IndexReader reader, CircuitBreakerService breakerService)
         throws IOException {
         logger.trace("loading global ords for [{}]", indexed.getFieldName());
 
-        this.directory = directory;
         this.indexed = indexed;
 
         long start = 0;
@@ -72,24 +96,78 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             start = System.nanoTime();
         }
 
+        long minGlobalOrd = Integer.MAX_VALUE;
+        long maxGlobalOrd = 0;
         segmentFieldData = new LeafOrdinalsFieldData[reader.leaves().size()];
         SortedSetDocValues[] values = new SortedSetDocValues[segmentFieldData.length];
         for (int segmentOrd = 0; segmentOrd < segmentFieldData.length; segmentOrd++) {
             segmentFieldData[segmentOrd] = indexed.load(reader.leaves().get(segmentOrd));
             values[segmentOrd] = segmentFieldData[segmentOrd].getOrdinalsValues();
+            minGlobalOrd = Math.min(minGlobalOrd, values[segmentOrd].getValueCount());
+            maxGlobalOrd += values[segmentOrd].getValueCount();
         }
         this.sortedSegments = new SortedSegments(values);
         boolean success = false;
 
         try {
-            SegmentOrdsToGlobalOrds segmentOrdsToGlobalOrds;
-            try (OrdinalSequence.GroupWriter segmentOrdsGroupWriter = createGroupWriter("s2g")) {
-                segmentOrdsToGlobalOrds = new SegmentOrdsToGlobalOrds(segmentOrdsGroupWriter, sortedSegments, values);
+            try (OrdinalSequence.GroupWriter groupWriter = OrdinalSequence.GroupWriter.tmpFile(FILE_PREFIX, "map", directory)) {
+                SegmentState[] states = new SegmentState[values.length];
+                PriorityQueue<SegmentState> queue = new PriorityQueue<SegmentState>(values.length) {
+                    @Override
+                    protected boolean lessThan(SegmentState a, SegmentState b) {
+                        return a.currentTerm.compareTo(b.currentTerm) < 0;
+                    }
+                };
+                for (int segmentOrd = 0; segmentOrd < values.length; segmentOrd++) {
+                    SegmentState state = new SegmentState(groupWriter, sortedSegments.ordToSorted[segmentOrd], values[segmentOrd]);
+                    states[segmentOrd] = state;
+                    if (state.next() != null) {
+                        queue.add(state);
+                    }
+                }
+                GlobalOrdToSegmentAndSegmentOrd.Writer globalOrdsToSegmentsWriter = new GlobalOrdToSegmentAndSegmentOrd.Writer(
+                    groupWriter,
+                    minGlobalOrd,
+                    maxGlobalOrd
+                );
+
+                BytesRefBuilder scratch = new BytesRefBuilder();
+                long globalOrd = 0;
+
+                while (queue.size() != 0) {
+                    scratch.copyBytes(queue.top().currentTerm);
+                    int minContainingSegment = Integer.MAX_VALUE;
+                    long minContainingSegmentOrd = Integer.MAX_VALUE;
+                    do {
+                        SegmentState top = queue.top();
+                        long segmentOrd = top.termsEnum.ord();
+                        top.writer.add(segmentOrd, globalOrd);
+                        if (top.sortedSegmentOrd < minContainingSegment) {
+                            minContainingSegment = top.sortedSegmentOrd;
+                            minContainingSegmentOrd = segmentOrd;
+                        }
+
+                        if (top.next() == null) {
+                            queue.pop();
+                            if (queue.size() == 0) {
+                                break;
+                            }
+                        } else {
+                            queue.updateTop();
+                        }
+                    } while (queue.top().currentTerm.equals(scratch.get()));
+                    globalOrdsToSegmentsWriter.write(globalOrd, minContainingSegment, minContainingSegmentOrd);
+                    globalOrd++;
+                }
+
+                groupReader = groupWriter.finish();
+                globalOrdCount = globalOrd;
+                segmentOrdsToGlobalOrds = new OrdinalSequence.ReaderProvider[states.length];
+                for (int segmentOrd = 0; segmentOrd < values.length; segmentOrd++) {
+                    segmentOrdsToGlobalOrds[segmentOrd] = states[segmentOrd].writer.readerProvider();
+                }
+                globalOrdsToSegments = globalOrdsToSegmentsWriter.readerProvider();
             }
-            segmentOrdsGroupReader = segmentOrdsToGlobalOrds.groupReader;
-            this.segmentOrdsToGlobalOrds = segmentOrdsToGlobalOrds.segmentOrdsToGlobalOrds;
-            maxGlobalOrd = segmentOrdsToGlobalOrds.maxGlobalOrd;
-            globalOrdsToSegments = this.globalOrdToSegmentAndSegmentOrd(sortedSegments, values, segmentOrdsToGlobalOrds);
 
             breakerService.getBreaker(CircuitBreaker.FIELDDATA).addWithoutBreaking(ramBytesUsed());
             if (logger.isDebugEnabled()) {
@@ -105,183 +183,27 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             success = true;
         } finally {
             if (false == success) {
-                // Failure! Close ourselves to clean up all the files we made.
+                logger.debug("failed to load global ords for [{}]", indexed.getFieldName());
                 close();
             }
         }
     }
 
-    private OrdinalSequence.GroupWriter createGroupWriter(String suffix) throws IOException {
-        return OrdinalSequence.GroupWriter.tmpFile(FILE_PREFIX, suffix, directory);
-    }
+    private static class SegmentState {
+        private final int sortedSegmentOrd;
+        private final TermsEnum termsEnum;
+        private final OrdinalSequence.Writer writer;
+        private BytesRef currentTerm;
 
-    private static class SegmentOrdsToGlobalOrds {
-        private final OrdinalSequence.GroupReader groupReader;
-        private final OrdinalSequence.ReaderProvider[] segmentOrdsToGlobalOrds;
-        private final long maxGlobalOrd;
-        /**
-         * For each global ord we work out the minimum sorted ordinal of
-         * readers containing the term. This is the global maximum of the
-         * per-term minimum.
-         */
-        private final int maxMinContainingSegment;
-        /**
-         * For each global ord we work out the minimum sorted ordinal of
-         * readers containing the term. This is the maximum of encoded
-         * values of the ord in that minimum reader.
-         */
-        private final long maxMinContainingSegmentEncodedSegmentOrd;
-
-        SegmentOrdsToGlobalOrds(OrdinalSequence.GroupWriter groupWriter, SortedSegments sortedSegments, SortedSetDocValues[] values)
-            throws IOException {
-            SegmentState[] states = new SegmentState[values.length];
-            PriorityQueue<SegmentState> queue = new PriorityQueue<SegmentState>(values.length) {
-                @Override
-                protected boolean lessThan(SegmentState a, SegmentState b) {
-                    return a.currentTerm.compareTo(b.currentTerm) < 0;
-                }
-            };
-            for (int segmentOrd = 0; segmentOrd < values.length; segmentOrd++) {
-                SegmentState state = new SegmentState(groupWriter, sortedSegments.ordToSorted[segmentOrd], values[segmentOrd]);
-                states[segmentOrd] = state;
-                if (state.next() != null) {
-                    queue.add(state);
-                }
-            }
-
-            BytesRefBuilder scratch = new BytesRefBuilder();
-            long globalOrd = 0;
-            int maxMinContainingSegment = -1;
-            long maxMinContainingSegmentEncodedSegmentOrd = -1;
-
-            while (queue.size() != 0) {
-                scratch.copyBytes(queue.top().currentTerm);
-                int minContainingSegment = Integer.MAX_VALUE;
-                do {
-                    SegmentState top = queue.top();
-                    long segmentOrd = top.termsEnum.ord();
-                    long encoded = top.writer.add(segmentOrd, globalOrd);
-                    if (top.sortedSegmentOrd < minContainingSegment) {
-                        minContainingSegment = top.sortedSegmentOrd;
-                        maxMinContainingSegmentEncodedSegmentOrd = Math.max(maxMinContainingSegmentEncodedSegmentOrd, encoded);
-                    }
-
-                    if (top.next() == null) {
-                        queue.pop();
-                        if (queue.size() == 0) {
-                            break;
-                        }
-                    } else {
-                        queue.updateTop();
-                    }
-                } while (queue.top().currentTerm.equals(scratch.get()));
-                globalOrd++;
-                maxMinContainingSegment = Math.max(maxMinContainingSegment, minContainingSegment);
-            }
-
-            groupReader = groupWriter.finish();
-            segmentOrdsToGlobalOrds = new OrdinalSequence.ReaderProvider[values.length];
-            for (int segmentOrd = 0; segmentOrd < values.length; segmentOrd++) {
-                segmentOrdsToGlobalOrds[segmentOrd] = states[segmentOrd].writer.readerProvider();
-            }
-            maxGlobalOrd = globalOrd;  // NOCOMMIT I think this is the count of global ords not the max global ord.
-            this.maxMinContainingSegment = maxMinContainingSegment;
-            this.maxMinContainingSegmentEncodedSegmentOrd = maxMinContainingSegmentEncodedSegmentOrd;
+        SegmentState(OrdinalSequence.GroupWriter groupWriter, int sortedSegmentOrd, SortedSetDocValues values) throws IOException {
+            this.sortedSegmentOrd = sortedSegmentOrd;
+            termsEnum = values.termsEnum();
+            writer = groupWriter.positiveDeltaWriter(values.getValueCount());
         }
 
-        private static class SegmentState {
-            private final int sortedSegmentOrd;
-            private final TermsEnum termsEnum;
-            private final OrdinalSequence.Writer writer;
-            private BytesRef currentTerm;
-
-            SegmentState(OrdinalSequence.GroupWriter groupWriter, int sortedSegmentOrd, SortedSetDocValues values) throws IOException {
-                this.sortedSegmentOrd = sortedSegmentOrd;
-                termsEnum = values.termsEnum();
-                writer = groupWriter.positiveDeltaWriter(values.getValueCount());
-            }
-
-            BytesRef next() throws IOException {
-                currentTerm = termsEnum.next();
-                return currentTerm;
-            }
-        }
-    }
-
-    private GlobalOrdToSegmentAndSegmentOrd.ReaderProvider globalOrdToSegmentAndSegmentOrd(
-        SortedSegments sortedSegments,
-        SortedSetDocValues[] values,
-        SegmentOrdsToGlobalOrds segmentOrdsToGlobalOrds
-    ) throws IOException {
-        class SegmentState {
-            private final int sortedSegmentOrd;
-            private final LongUnaryOperator segmentOrdToGlobalOrd;
-            private final long maxSegmentTermOrd;
-            private long currentSegmentTermOrd;
-            private long currentGlobalOrd;
-
-            SegmentState(int sortedSegmentOrd, LongUnaryOperator segmentOrdToGlobalOrd, long maxSegmentTermOrd) {
-                this.sortedSegmentOrd = sortedSegmentOrd;
-                this.segmentOrdToGlobalOrd = segmentOrdToGlobalOrd;
-                this.maxSegmentTermOrd = maxSegmentTermOrd;
-                currentGlobalOrd = segmentOrdToGlobalOrd.applyAsLong(0);
-            }
-        }
-
-        try (
-            OrdinalSequence.GroupWriter g2s = createGroupWriter("g2s");
-            OrdinalSequence.GroupWriter g2sord = createGroupWriter("g2sord");
-        ) {
-            RandomAccessInput segmentOrdsReader = segmentOrdsGroupReader.input();
-            GlobalOrdToSegmentAndSegmentOrd.Writer writer = new GlobalOrdToSegmentAndSegmentOrd.Writer(
-                g2s,
-                g2sord,
-                maxGlobalOrd + 1,
-                segmentOrdsToGlobalOrds.maxMinContainingSegment,
-                segmentOrdsToGlobalOrds.maxMinContainingSegmentEncodedSegmentOrd
-            );
-            PriorityQueue<SegmentState> queue = new PriorityQueue<SegmentState>(values.length) {
-                @Override
-                protected boolean lessThan(SegmentState a, SegmentState b) {
-                    return a.currentGlobalOrd < b.currentGlobalOrd;
-                }
-            };
-            for (int segmentOrd = 0; segmentOrd < values.length; segmentOrd++) {
-                queue.add(
-                    new SegmentState(
-                        sortedSegments.ordToSorted[segmentOrd],
-                        segmentOrdsToGlobalOrds.segmentOrdsToGlobalOrds[segmentOrd].get(segmentOrdsReader),
-                        values[segmentOrd].getValueCount() - 1
-                    )
-                );
-            }
-            assert queue.top().currentGlobalOrd == 0;
-            while (queue.size() != 0) {
-                long globalOrd = queue.top().currentGlobalOrd;
-                int minContainingSegment = Integer.MAX_VALUE;
-                long segmentTermOrdInMinContainingSegment = Long.MAX_VALUE;
-                do {
-                    SegmentState top = queue.top();
-                    if (top.sortedSegmentOrd < minContainingSegment) {
-                        minContainingSegment = top.sortedSegmentOrd;
-                        segmentTermOrdInMinContainingSegment = top.currentSegmentTermOrd;
-                    }
-                    top.currentSegmentTermOrd++;
-                    if (top.currentSegmentTermOrd > top.maxSegmentTermOrd) {
-                        queue.pop();
-                        if (queue.size() == 0) {
-                            break;
-                        }
-                    } else {
-                        top.currentGlobalOrd = top.segmentOrdToGlobalOrd.applyAsLong(top.currentSegmentTermOrd);
-                        queue.updateTop();
-                    }
-                } while (queue.top().currentGlobalOrd == globalOrd);
-                assert minContainingSegment < values.length;
-                logger.trace("global [{}] maps to [{},{}]", globalOrd, minContainingSegment, segmentTermOrdInMinContainingSegment);
-                writer.write(globalOrd, minContainingSegment, segmentTermOrdInMinContainingSegment);
-            }
-            return writer.readerProvider();
+        BytesRef next() throws IOException {
+            currentTerm = termsEnum.next();
+            return currentTerm;
         }
     }
 
@@ -302,7 +224,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
     public IndexOrdinalsFieldData fork() throws IOException {
         return new IndexOrdinalsFieldData() {
-            private final RandomAccessInput segmentOrdsReader = segmentOrdsGroupReader.input();
+            private final RandomAccessInput input = groupReader.input();
             private final TermsEnum[] lookups = new TermsEnum[segmentOrdsToGlobalOrds.length];
             private GlobalOrdToSegmentAndSegmentOrd.Reader globalOrdToContainingSegment;
 
@@ -316,7 +238,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
             private GlobalOrdToSegmentAndSegmentOrd.Reader globalOrdToContainingSegment() throws IOException {
                 if (globalOrdToContainingSegment == null) {
-                    globalOrdToContainingSegment = globalOrdsToSegments.get();
+                    globalOrdToContainingSegment = globalOrdsToSegments.get(input);
                 }
                 return globalOrdToContainingSegment;
             }
@@ -356,17 +278,12 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             public LeafOrdinalsFieldData load(LeafReaderContext context) {
                 LongUnaryOperator segmentToGlobal;
                 try {
-                    segmentToGlobal = segmentOrdsToGlobalOrds[context.ord].get(segmentOrdsReader);
+                    segmentToGlobal = segmentOrdsToGlobalOrds[context.ord].get(input);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
                 LeafOrdinalsFieldData segmentOrdsFieldData = indexed.load(context);
                 return new LeafOrdinalsFieldData() {
-                    @Override
-                    public void close() {
-                        // NOCOMMIT more stuff?
-                    }
-
                     @Override
                     public long ramBytesUsed() {
                         long size = RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
@@ -383,6 +300,9 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
                     public SortedBinaryDocValues getBytesValues() {
                         return segmentOrdsFieldData.getBytesValues();
                     }
+
+                    @Override
+                    public void close() {}
 
                     @Override
                     public SortedSetDocValues getOrdinalsValues() {
@@ -430,7 +350,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
 
                             @Override
                             public long getValueCount() {
-                                return maxGlobalOrd + 1;
+                                return globalOrdCount;
                             }
                         };
                     }
@@ -455,7 +375,7 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             @Override
             public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
                 try {
-                    return segmentOrdsToGlobalOrds[context.ord].get(segmentOrdsReader);
+                    return segmentOrdsToGlobalOrds[context.ord].get(input);
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
@@ -532,13 +452,22 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
         long size = BASE_RAM_BYTES_USED;
         size += sortedSegments.ramBytesUsed();
         size += RamUsageEstimator.sizeOf(segmentFieldData);
-        size += RamUsageEstimator.sizeOf(segmentOrdsToGlobalOrds);
-        size += globalOrdsToSegments.ramBytesUsed();
+        /*
+         * These things can't be null unless the ctor failed part way through.
+         * But we have to handle when it *does* fail part way through so we
+         * can call `close`. 
+         */
+        size += segmentOrdsToGlobalOrds == null ? 0 : RamUsageEstimator.sizeOf(segmentOrdsToGlobalOrds);
+        size += globalOrdsToSegments == null ? 0 : globalOrdsToSegments.ramBytesUsed();
         return RamUsageEstimator.alignObjectSize(size);
     }
 
     public long diskBytesUsed() throws IOException {
-        return segmentOrdsGroupReader.diskBytesUsed() + globalOrdsToSegments.diskBytesUsed();
+        /*
+         * groupReader can only be null if the ctor fails part of the way
+         * through. But we have to handle that case.
+         */
+        return groupReader == null ? 0 : groupReader.diskBytesUsed();
     }
 
     @Override
@@ -547,15 +476,14 @@ public class OnDiskOrdinalMap implements Closeable, Accountable, IndexOrdinalsFi
             logger.debug(
                 "closing global ords for [{}] with [{}] values releasing [{}] on heap and [{}] on disk",
                 indexed.getFieldName(),
-                maxGlobalOrd + 1,
+                globalOrdCount,
                 ByteSizeValue.ofBytes(ramBytesUsed()),
                 ByteSizeValue.ofBytes(diskBytesUsed())
             );
         }
         List<Closeable> all = new ArrayList<>();
         Collections.addAll(all, segmentFieldData);
-        all.add(segmentOrdsGroupReader);
-        all.add(globalOrdsToSegments);
+        all.add(groupReader);
         IOUtils.close(all);
     }
 

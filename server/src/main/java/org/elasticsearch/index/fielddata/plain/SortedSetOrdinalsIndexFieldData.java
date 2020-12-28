@@ -115,6 +115,11 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     }
 
     @Override
+    public OrdinalMap getOrdinalMap() {
+        return null;
+    }
+
+    @Override
     public LongUnaryOperator getOrdinalMapping(LeafReaderContext context) {
         return LongUnaryOperator.identity();
     }

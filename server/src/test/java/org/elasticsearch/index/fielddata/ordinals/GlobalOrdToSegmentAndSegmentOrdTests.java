@@ -7,7 +7,6 @@ import org.elasticsearch.index.fielddata.ordinals.GlobalOrdToSegmentAndSegmentOr
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Locale;
 
 import static org.elasticsearch.index.fielddata.ordinals.OrdinalSequenceTests.neverWrites;
 import static org.elasticsearch.index.fielddata.ordinals.OrdinalSequenceTests.noFilesLeftBehindDir;
@@ -16,28 +15,31 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
 public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
+    private static final int MAX = 100000;
+
     public void testEmpty() throws IOException {
-        try (OrdinalSequence.GroupWriter segmentOut = neverWrites(); OrdinalSequence.GroupWriter segmentOrdOut = neverWrites()) {
-            Writer writer = new Writer(segmentOut, segmentOrdOut, 0, 0, 0);
-            assertIdentity(writer.readerProvider());
+        try (OrdinalSequence.GroupWriter groupWriter = neverWrites()) {
+            Writer writer = new Writer(groupWriter, 0, 0);
+            assertIdentity(groupWriter, writer);
         }
     }
 
     public void testAllInFirstSegment() throws IOException {
-        try (OrdinalSequence.GroupWriter segmentOut = neverWrites(); OrdinalSequence.GroupWriter segmentOrdOut = neverWrites()) {
-            Writer writer = new Writer(segmentOut, segmentOrdOut, 0, 0, 0);
-            int count = randomInt(1000);
+        try (OrdinalSequence.GroupWriter groupWriter = neverWrites()) {
+            Writer writer = new Writer(groupWriter, 0, 0);
+            int count = randomInt(MAX);
             for (int i = 0; i < count; i++) {
                 writer.write(i, 0, i);
             }
-            assertIdentity(writer.readerProvider());
+            assertIdentity(groupWriter, writer);
         }
     }
 
-    private void assertIdentity(ReaderProvider provider) throws IOException {
-        try (provider) {
+    private void assertIdentity(OrdinalSequence.GroupWriter groupWriter, Writer writer) throws IOException {
+        try (OrdinalSequence.GroupReader groupReader = groupWriter.finish()) {
+            ReaderProvider provider = writer.readerProvider();
             assertThat(provider.ramBytesUsed(), lessThan(100L));
-            Reader reader = provider.get();
+            Reader reader = provider.get(groupReader.input());
             long l = randomLong();
             assertThat(reader.containingSegment(l), equalTo(0));
             assertThat(reader.containingSegmentOrd(l), equalTo(l));
@@ -48,10 +50,9 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
         int count = randomInt(1000);
         try (
             Directory directory = noFilesLeftBehindDir();
-            OrdinalSequence.GroupWriter segmentOut = OrdinalSequence.GroupWriter.tmpFile("tmp", "s2g", directory);
-            OrdinalSequence.GroupWriter segmentOrdOut = OrdinalSequence.GroupWriter.tmpFile("tmp", "s2gord", directory);
+            OrdinalSequence.GroupWriter groupWriter = OrdinalSequence.GroupWriter.tmpFile("test", "test", directory);
         ) {
-            Writer writer = new Writer(segmentOut, segmentOrdOut, count, count, count);
+            Writer writer = new Writer(groupWriter, count, count + (randomBoolean() ? 0 : between(1, MAX)));
             int[] expectedSegment = new int[count];
             long[] expectedSegmentOrd = new long[count];
             for (int i = 0; i < count; i++) {
@@ -59,59 +60,45 @@ public class GlobalOrdToSegmentAndSegmentOrdTests extends ESTestCase {
                 expectedSegment[i] = i;
                 expectedSegmentOrd[i] = 0;
             }
-            assertExpected(expectedSegment, expectedSegmentOrd, writer.readerProvider());
+            assertExpected(groupWriter, expectedSegment, expectedSegmentOrd, writer);
         }
     }
 
     public void testAllInFewSegments() throws IOException {
-        for (int count = 10; count < 100_000_000; count *= 10) {
-            for (int segmentCount : new int[] { 2, 10, 50, 100, 1000 }) {
-                long[] segmentOrds = new long[segmentCount];
+        int count = between(1, MAX);
+        for (int segmentCount : new int[] { 2, 10, 50, 100, 1000 }) {
+            long[] segmentOrds = new long[segmentCount];
 
-                int[] expectedSegment = new int[count];
-                long[] expectedSegmentOrd = new long[count];
-                long maxDelta = 0;
+            int[] expectedSegment = new int[count];
+            long[] expectedSegmentOrd = new long[count];
+            for (int i = 0; i < count; i++) {
+                int segment = randomInt(segmentCount - 1);
+                expectedSegment[i] = segment;
+                expectedSegmentOrd[i] = segmentOrds[segment];
+                segmentOrds[segment]++;
+            }
+
+            try (
+                Directory directory = noFilesLeftBehindDir();
+                OrdinalSequence.GroupWriter groupWriter = OrdinalSequence.GroupWriter.tmpFile("test", "test", directory);
+            ) {
+                Writer writer = new Writer(groupWriter, count, count + (randomBoolean() ? 0 : between(1, count)));
                 for (int i = 0; i < count; i++) {
-                    int segment = randomInt(segmentCount - 1);
-                    expectedSegment[i] = segment;
-                    expectedSegmentOrd[i] = segmentOrds[segment];
-                    maxDelta = Math.max(maxDelta, i - segmentOrds[segment]);
-                    segmentOrds[segment]++;
+                    writer.write(i, expectedSegment[i], expectedSegmentOrd[i]);
                 }
-
-                try (
-                    Directory directory = noFilesLeftBehindDir();
-                    OrdinalSequence.GroupWriter segmentOut = OrdinalSequence.GroupWriter.tmpFile("tmp", "s2g", directory);
-                    OrdinalSequence.GroupWriter segmentOrdOut = OrdinalSequence.GroupWriter.tmpFile("tmp", "s2gord", directory);
-                ) {
-                    Writer writer = new Writer(segmentOut, segmentOrdOut, count, segmentCount, maxDelta);
-                    long start = System.nanoTime();
-                    for (int i = 0; i < count; i++) {
-                        writer.write(i, expectedSegment[i], expectedSegmentOrd[i]);
-                    }
-                    long time = System.nanoTime() - start;
-                    ReaderProvider provider = writer.readerProvider();
-                    System.out.printf(
-                        Locale.ROOT,
-                        "adsfdsaf count: %09d segments: %04d disk: %09d ram: %03d took: %010d\n",
-                        count,
-                        segmentCount,
-                        provider.diskBytesUsed(),
-                        provider.ramBytesUsed(),
-                        time
-                    );
-                    assertExpected(expectedSegment, expectedSegmentOrd, provider);
-                }
+                assertExpected(groupWriter, expectedSegment, expectedSegmentOrd, writer);
             }
         }
     }
 
-    private void assertExpected(int[] expectedSegment, long[] expectedSegmentOrd, ReaderProvider provider) throws IOException {
-        try (provider) {
+    private void assertExpected(OrdinalSequence.GroupWriter groupWriter, int[] expectedSegment, long[] expectedSegmentOrd, Writer writer)
+        throws IOException {
+        try (OrdinalSequence.GroupReader groupReader = groupWriter.finish()) {
+            ReaderProvider provider = writer.readerProvider();
             assertThat(expectedSegmentOrd.length, equalTo(expectedSegment.length));
             assertThat(provider.ramBytesUsed(), greaterThan(100L));
             assertThat(provider.ramBytesUsed(), lessThan(1000L));
-            Reader reader = provider.get();
+            Reader reader = provider.get(groupReader.input());
             for (int i = 0; i < expectedSegment.length; i++) {
                 assertThat(reader.containingSegment(i), equalTo(expectedSegment[i]));
                 assertThat(reader.containingSegmentOrd(i), equalTo(expectedSegmentOrd[i]));

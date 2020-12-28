@@ -1,28 +1,36 @@
 package org.elasticsearch.index.fielddata.ordinals;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
 import org.apache.lucene.store.BaseDirectoryWrapper;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RandomAccessInput;
-import org.apache.lucene.util.packed.DirectWriter;
 import org.apache.lucene.util.packed.PackedInts;
-import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.GroupWriter;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.GroupReader;
+import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.GroupWriter;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.ReaderProvider;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalSequence.Writer;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.LongUnaryOperator;
 
+import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 
+@Repeat(iterations=100)
 public class OrdinalSequenceTests extends ESTestCase {
-    public void testEmptyDirect() throws IOException {
+    private static final int MAX = 100000;
+
+    public void testEmptyNonNegative() throws IOException {
         try (GroupWriter gWriter = neverWrites()) {
-            Writer writer = gWriter.directWriter(0, 0);
+            Writer writer = gWriter.nonNegativeWriter(0, 0);
             assertAllZeros(gWriter, writer);
         }
     }
@@ -41,10 +49,10 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
-    public void testAllZeroDirect() throws IOException {
+    public void testAllZeroNonNegative() throws IOException {
         try (GroupWriter gWriter = neverWrites()) {
-            Writer writer = gWriter.directWriter(0, 0);
-            int count = randomInt(10000);
+            Writer writer = gWriter.nonNegativeWriter(0, 0);
+            int count = randomInt(MAX);
             for (int i = 0; i < count; i++) {
                 writer.add(i, 0);
             }
@@ -92,20 +100,19 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     private void writeIdentity(Writer writer) throws IOException {
-        int count = randomInt(10000);
+        int count = randomInt(MAX);
         for (int i = 0; i < count; i++) {
             writer.add(i, i);
         }
     }
 
-    public void testRandomDirect() throws IOException {
-        int count = between(1, 10000);
-        long max = PackedInts.maxValue(between(1, 63));
+    public void testRandomNonNegative() throws IOException {
+        int count = between(1, MAX);
         long[] expected = new long[count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.directWriter(count, max);
+            Writer writer = nonNegativeWriter(gWriter, count);
             for (int i = 0; i < count; i++) {
-                long v = randomLongBetween(0, max);
+                long v = randomLongBetween(0, Long.MAX_VALUE);
                 expected[i] = v;
                 writer.add(i, v);
             }
@@ -113,8 +120,38 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
+    public void testSharedNonNegative() throws IOException {
+        int count = between(1, MAX);
+        long[][] expected = new long[10][count];
+        try (Directory directory = noFilesLeftBehindDir()) {
+            GroupReader gReader;
+            Writer[] writers = new Writer[10];
+            try (GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+                for (int w = 0; w < writers.length; w++) {
+                    writers[w] = nonNegativeWriter(gWriter, count);
+                }
+                for (int i = 0; i < count; i++) {
+                    for (int w = 0; w < writers.length; w++) {
+                        long v = randomLongBetween(0, Long.MAX_VALUE);
+                        expected[w][i] = v;
+                        writers[w].add(i, v);
+                    }
+                }
+                gReader = gWriter.finish();
+            }
+            try {
+                RandomAccessInput input = gReader.input();
+                for (int w = 0; w < writers.length; w++) {
+                    assertExpected(input, expected[w], writers[w].readerProvider());
+                }
+            } finally {
+                gReader.close();
+            }
+        }
+    }
+
     public void testRandomPositiveDeltas() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         long[] expected = new long[count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
             Writer writer = gWriter.positiveDeltaWriter(count);
@@ -129,7 +166,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     public void testSharedPositiveDeltas() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         long[][] expected = new long[10][count];
         try (Directory directory = noFilesLeftBehindDir()) {
             GroupReader gReader;
@@ -160,10 +197,10 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     public void testRandomNegativeDeltas() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         long[] expected = new long[count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.negativeDeltaWriter(count, count);
+            Writer writer = negativeDeltaWriter(gWriter, count);
             for (int i = 0; i < count; i++) {
                 int v = between(0, i);
                 expected[i] = v;
@@ -174,11 +211,11 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     public void testRandomNegativeSmallDeltas() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         int maxDelta = (int) PackedInts.maxValue(between(1, 5));
         long[] expected = new long[count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.negativeDeltaWriter(count, maxDelta);
+            Writer writer = negativeDeltaWriter(gWriter, count);
             for (int i = 0; i < count; i++) {
                 int v = between(Math.max(0, i - maxDelta), i);
                 expected[i] = v;
@@ -188,9 +225,96 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
-    public void testLeadingIdentity() throws IOException {
-        int leadingIdentity = between(1, 10000);
-        int count = between(1, 10000);
+    public void testSharedNegtiveDeltas() throws IOException {
+        int count = between(1, MAX);
+        long[][] expected = new long[10][count];
+        try (Directory directory = noFilesLeftBehindDir()) {
+            GroupReader gReader;
+            Writer[] writers = new Writer[10];
+            try (GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+                for (int w = 0; w < writers.length; w++) {
+                    writers[w] = negativeDeltaWriter(gWriter, count);
+                }
+                for (int i = 0; i < count; i++) {
+                    for (int w = 0; w < writers.length; w++) {
+                        int v = between(0, i);
+                        expected[w][i] = v;
+                        writers[w].add(i, v);
+                    }
+                }
+                gReader = gWriter.finish();
+            }
+            try {
+                RandomAccessInput input = gReader.input();
+                for (int w = 0; w < writers.length; w++) {
+                    assertExpected(input, expected[w], writers[w].readerProvider());
+                }
+            } finally {
+                gReader.close();
+            }
+        }
+    }
+
+    /**
+     * Writes all three supported sequences to the same output.
+     */
+    public void testSharedMix() throws IOException {
+        int count = between(1, MAX);
+        long[] nonNegativeExpected = new long[count];
+        long[] positiveDeltaExpected = new long[count];
+        long[] negativeDeltaExpected = new long[count];
+        try (Directory directory = noFilesLeftBehindDir()) {
+            GroupReader gReader;
+            Writer nonNegativeWriter, positiveDeltaWriter, negativeDeltaWriter;
+            try (GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+                nonNegativeWriter = nonNegativeWriter(gWriter, count);
+                positiveDeltaWriter = gWriter.positiveDeltaWriter(count);
+                negativeDeltaWriter = negativeDeltaWriter(gWriter, count);
+                long positiveDeltaValue = 0;
+                for (int i = 0; i < count; i++) {
+                    nonNegativeExpected[i] = randomLongBetween(0, Long.MAX_VALUE);
+                    nonNegativeWriter.add(i, nonNegativeExpected[i]);
+                    positiveDeltaValue += between(1, 100);
+                    positiveDeltaExpected[i] = positiveDeltaValue;
+                    positiveDeltaWriter.add(i, positiveDeltaValue);
+                    negativeDeltaExpected[i] = between(0, i);
+                    negativeDeltaWriter.add(i, negativeDeltaExpected[i]);
+                }
+                gReader = gWriter.finish();
+            }
+            try {
+                RandomAccessInput input = gReader.input();
+                assertExpected(input, nonNegativeExpected, nonNegativeWriter.readerProvider());
+                assertExpected(input, positiveDeltaExpected, positiveDeltaWriter.readerProvider());
+                assertExpected(input, negativeDeltaExpected, negativeDeltaWriter.readerProvider());
+            } finally {
+                gReader.close();
+            }
+        }
+    }
+
+    public void testNonNegativeLeadingZeros() throws IOException {
+        int leadingZeros = between(1, MAX);
+        int count = between(1, MAX);
+        long[] expected = new long[leadingZeros + count];
+        try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+            Writer writer = nonNegativeWriter(gWriter, leadingZeros + count);
+            for (int i = 0; i < leadingZeros; i++) {
+                expected[i] = 0;
+                writer.add(i, 0);
+            }
+            for (int i = 0; i < count; i++) {
+                long v = randomLongBetween(0, Long.MAX_VALUE);
+                expected[leadingZeros + i] = v;
+                writer.add(leadingZeros + i, v);
+            }
+            assertExpected(gWriter, expected, writer);
+        }
+    }
+
+    public void testPositiveDeltaLeadingIdentity() throws IOException {
+        int leadingIdentity = between(1, MAX);
+        int count = between(1, MAX);
         long[] expected = new long[leadingIdentity + count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
             Writer writer = gWriter.positiveDeltaWriter(leadingIdentity + count);
@@ -209,12 +333,31 @@ public class OrdinalSequenceTests extends ESTestCase {
         }
     }
 
-    public void testDirectFailure() throws IOException {
-        int count = between(1, 10000);
+    public void testNegativeDeltaLeadingIdentity() throws IOException {
+        int leadingIdentity = between(1, MAX);
+        int count = between(1, MAX);
+        long[] expected = new long[leadingIdentity + count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.directWriter(count, Long.MAX_VALUE);
+            Writer writer = negativeDeltaWriter(gWriter, leadingIdentity + count);
+            for (int i = 0; i < leadingIdentity; i++) {
+                expected[i] = i;
+                writer.add(i, i);
+            }
             for (int i = 0; i < count; i++) {
-                writer.add(i, randomLong());
+                int v = between(0, leadingIdentity + i);
+                expected[leadingIdentity + i] = v;
+                writer.add(leadingIdentity + i, v);
+            }
+            assertExpected(gWriter, expected, writer);
+        }
+    }
+
+    public void testNonNegativeFailure() throws IOException {
+        int count = between(1, MAX);
+        try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
+            Writer writer = nonNegativeWriter(gWriter, count);
+            for (int i = 0; i < count; i++) {
+                writer.add(i, randomLongBetween(0, Long.MAX_VALUE));
             }
             /*
              * Closing the OutHelper without calling finish should delete
@@ -225,7 +368,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     public void testPositiveDeltaFailure() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
             Writer writer = gWriter.positiveDeltaWriter(count);
             long v = 0;
@@ -242,9 +385,9 @@ public class OrdinalSequenceTests extends ESTestCase {
     }
 
     public void testNegativeDeltaFailure() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
-            Writer writer = gWriter.negativeDeltaWriter(count, count);
+            Writer writer = gWriter.negativeDeltaWriter(count, count + (randomBoolean() ? 0 : between(0, MAX)));
             for (int i = 0; i < count; i++) {
                 int v = between(0, i);
                 writer.add(i, v);
@@ -260,7 +403,7 @@ public class OrdinalSequenceTests extends ESTestCase {
     // NOCOMMIT gaps in direct and negative deltas?
 
     public void testGapsInPositiveDeltas() throws IOException {
-        int count = between(1, 10000);
+        int count = between(1, MAX);
         long[] expected = new long[count];
         try (Directory directory = noFilesLeftBehindDir(); GroupWriter gWriter = GroupWriter.tmpFile("test", "test", directory)) {
             Writer writer = gWriter.positiveDeltaWriter(count);
@@ -326,9 +469,36 @@ public class OrdinalSequenceTests extends ESTestCase {
         return new BaseDirectoryWrapper(newDirectory(random())) {
             @Override
             public void close() throws IOException {
-                assertThat("deleted all files", listAll(), equalTo(new String[] {}));
+                List<String> files = Arrays.stream(listAll())
+                    // Strip any "extra" files added by the test randomization. We only care about our files.
+                    .filter(name -> false == name.startsWith("extra"))
+                    .collect(toList());
+                assertThat("deleted all files", files, empty());
                 super.close();
             }
         };
     }
+
+    /**
+     * Build a non-negative writer that underestimates the minimum count half
+     * the time and overestimates the maximum count half the time.
+     */
+    private Writer nonNegativeWriter(GroupWriter gWriter, int count) {
+        return gWriter.nonNegativeWriter(
+            randomBoolean() ? count : between(0, count - 1),
+            randomBoolean() ? count : between(count + 1, 10 * count)
+        );
+    }
+
+    /**
+     * Build a positive delta writer that underestimates the minimum count half
+     * the time and overestimates the maximum count half the time.
+     */
+    private Writer negativeDeltaWriter(GroupWriter gWriter, int count) {
+        return gWriter.negativeDeltaWriter(
+            randomBoolean() ? count : between(0, count - 1),
+            randomBoolean() ? count : between(count + 1, 10 * count)
+        );
+    }
+    
 }

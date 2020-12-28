@@ -95,7 +95,7 @@ public class OrdinalSequence {
     abstract static class GroupWriter implements Closeable {
         private final List<Writer> unfinished = new ArrayList<>();
         private IndexOutput output;
-        private GroupReader reader;
+        private boolean finished;
 
         protected abstract IndexOutput buildOutput() throws IOException;
 
@@ -156,20 +156,18 @@ public class OrdinalSequence {
         }
 
         GroupReader finish() throws IOException {
-            if (reader == null) {
-                for (Writer w : unfinished) {
-                    w.finish();
-                }
-                if (output == null) {
-                    reader = GroupReader.EMPTY;
-                } else {
-                    output.close();
-                    reader = buildReader(output);
-                }
-            } else {
+            if (finished) {
                 throw new IllegalStateException("can only finish one time");
             }
-            return reader;
+            finished = true;
+            for (Writer w : unfinished) {
+                w.finish();
+            }
+            if (output == null) {
+                return GroupReader.EMPTY;
+            }
+            output.close();
+            return buildReader(output);
         }
 
         @Override
@@ -181,8 +179,8 @@ public class OrdinalSequence {
             try {
                 output.close();
             } finally {
-                if (reader != null) {
-                    // Finishing up the input has transferred ownership of all resources to the input.
+                if (finished) {
+                    // Finishing fetches a reader which now has owner ship of the files 
                     return;
                 }
                 /*

@@ -37,7 +37,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -103,7 +102,7 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
         }
         if (value instanceof Closeable) {
             try {
-                IOUtils.closeWhileHandlingException((Closeable) value);
+                ((Closeable) value).close();
             } catch (Exception e) {
                 logger.error("Failed to close value", e);
             }

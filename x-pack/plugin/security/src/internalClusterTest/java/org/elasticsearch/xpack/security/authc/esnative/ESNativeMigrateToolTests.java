@@ -35,6 +35,8 @@ import static org.hamcrest.Matchers.is;
  */
 public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
 
+    private static final int MIN_PASSWORD_LENGTH = inFipsJvm() ? 14 : 6;
+
     // Randomly use SSL (or not)
     private static boolean useSSL;
 
@@ -81,8 +83,9 @@ public class ESNativeMigrateToolTests extends NativeRealmIntegTestCase {
         int numToAdd = randomIntBetween(1,10);
         Set<String> addedUsers = new HashSet<>(numToAdd);
         for (int i = 0; i < numToAdd; i++) {
-            String uname = randomAlphaOfLength(5);
-            c.preparePutUser(uname, "s3kirt".toCharArray(), getFastStoredHashAlgoForTests(), "role1", "user").get();
+            final String uname = randomAlphaOfLength(5);
+            final char[] password = randomAlphaOfLengthBetween(MIN_PASSWORD_LENGTH, MIN_PASSWORD_LENGTH * 2).toCharArray();
+            c.preparePutUser(uname, password, getFastStoredHashAlgoForTests(), "role1", "user").get();
             addedUsers.add(uname);
         }
         logger.error("--> waiting for .security index");

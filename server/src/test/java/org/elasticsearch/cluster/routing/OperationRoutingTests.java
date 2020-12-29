@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -634,7 +633,8 @@ public class OperationRoutingTests extends ESTestCase{
             .routingTable(routingTableBuilder.build()).build();
         Set<String> routingValues = IntStream.range(0, 5).mapToObj(i -> randomAlphaOfLength(5)).collect(Collectors.toSet());;
         assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, null), empty());
-        assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, Map.of("test", routingValues)), empty());
+        assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, Map.of("test", routingValues)),
+            empty());
         assertThat(OperationRouting.computeTargetedShards(stateWithUnassigned, new String[]{"test"}, Map.of("not_test", routingValues)),
             empty());
 

@@ -51,7 +51,7 @@ import static org.hamcrest.Matchers.instanceOf;
  *     <li>testSearchDuringCreate: just tries to create an index and search, has low likelihood for provoking issue (but it does happen)
  *     </li>
  *     <li>testDelayIsolatedPrimary: delays network messages from all nodes except search coordinator to primary, ensuring that every test
- *     run hits the case where a primary is initializing a newly created shard</i>
+ *     run hits the case where a primary is initializing a newly created shard</li>
  * </ul>
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
@@ -81,7 +81,8 @@ public class SearchWhileInitializingEmptyIT extends ESIntegTestCase {
         String coordinatorNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         NetworkDisruption.Bridge bridge = new NetworkDisruption.Bridge(coordinatorNode, Set.of(dataNode), Set.of(originalNodes));
-        NetworkDisruption scheme = new NetworkDisruption(bridge, new NetworkDisruption.NetworkDelay(NetworkDisruption.NetworkDelay.DEFAULT_DELAY_MIN));
+        NetworkDisruption scheme =
+            new NetworkDisruption(bridge, new NetworkDisruption.NetworkDelay(NetworkDisruption.NetworkDelay.DEFAULT_DELAY_MIN));
         setDisruptionScheme(scheme);
         scheme.startDisrupting();
 
@@ -91,7 +92,8 @@ public class SearchWhileInitializingEmptyIT extends ESIntegTestCase {
                 .put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", dataNode);
 
             createFuture =
-                internalCluster().masterClient().admin().indices().create(new CreateIndexRequest("test", builder.build()).timeout(TimeValue.ZERO));
+                internalCluster().masterClient().admin().indices()
+                    .create(new CreateIndexRequest("test", builder.build()).timeout(TimeValue.ZERO));
 
             // wait for available on coordinator
             assertBusy(() -> {

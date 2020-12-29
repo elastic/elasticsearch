@@ -118,7 +118,8 @@ public class OperationRouting {
                 for (String r : effectiveRouting) {
                     final int routingPartitionSize = indexMetadata.getRoutingPartitionSize();
                     for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                        IndexShardRoutingTable indexShard = RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset));
+                        IndexShardRoutingTable indexShard =
+                            RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset));
                         if (indexShard.primary.active()
                             || indexShard.primary.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
                             set.add(indexShard);

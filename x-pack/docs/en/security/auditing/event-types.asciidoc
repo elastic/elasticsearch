@@ -2,43 +2,48 @@
 [[audit-event-types]]
 === Audit event types
 
-When you are <<enable-audit-logging,auditing security events>>, each client request can generate
-multiple audit events.
+When you are <<enable-audit-logging,auditing security events>>, a single client request
+might generate multiple audit events, across multiple cluster nodes. The common
+`request.id` attribute can be used to correlate the associated events.
 
-The following is a list of the events that can be generated:
+
+The following is an exhaustive list of the events that can be generated:
 
 |======
-| `anonymous_access_denied`         | | | Logged when a request is denied due to a missing
+| `anonymous_access_denied`         | | | Logged when a request is denied due to a missing | | | example
                                           authentication token.
-| `authentication_success`          | | | Logged when a user successfully authenticates.
-| `authentication_failed`           | | | Logged when the authentication token cannot be
+| `authentication_success`          | | | Logged when a user successfully authenticates. | | | example2
+| `authentication_failed`           | | | Logged when the authentication token cannot be | | | example 3
                                           matched to a known user.
-| `realm_authentication_failed`     | | | Logged for every realm that fails to present a valid
+| `realm_authentication_failed`     | | | Logged for every realm that fails to present a valid | | | example 4
                                           authentication token. `<realm>` represents the
                                           realm type.
-| `access_denied`                   | | | Logged when an authenticated user attempts to execute
+| `access_denied`                   | | | Logged when an authenticated user attempts to execute | | | example 5
                                           an action they do not have the necessary
                                           <<security-privileges,privilege>> to perform.
-| `access_granted`                  | | | Logged when an authenticated user attempts to execute
+| `access_granted`                  | | | Logged when an authenticated user attempts to execute | | | example6
                                           an action they have the necessary privilege to perform.
                                           When the `system_access_granted` event is included, all system
                                           (internal) actions are also logged. The default setting does
                                           not log system actions to avoid cluttering the logs.
-| `run_as_granted`                  | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
+| `run_as_granted`                  | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>> | | | example7
                                           another user that they have the necessary privileges to do.
-| `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>>
+| `run_as_denied`                   | | | Logged when an authenticated user attempts to <<run-as-privilege, run as>> | | | example8
                                           another user action they do not have the necessary
                                           <<security-privileges,privilege>> to do so.
-| `tampered_request`                | | | Logged when the {security-features} detect that the request has
+| `tampered_request`                | | | Logged when the {security-features} detect that the request has | | | example9
                                           been tampered with. Typically relates to `search/scroll`
                                           requests when the scroll ID is believed to have been
                                           tampered with.
-| `connection_granted`              | | | Logged when an incoming TCP connection passes the
+| `connection_granted`              | | | Logged when an incoming TCP connection passes the | | | example10
                                           <<ip-filtering, IP Filter>> for a specific
                                           profile.
-| `connection_denied`               | | | Logged when an incoming TCP connection does not pass the
+| `connection_denied`               | | | Logged when an incoming TCP connection does not pass the | | | example11
                                           <<ip-filtering, IP Filter>> for a specific
                                           profile.
+| `put_user`                        | | | Logged when the put user API has been used to create or | | | example12
+                                          update a user (including changing the password) in the native realm,
+                                          as well as chaning any of the built-in users.
 |======
 
 [discrete]
@@ -243,319 +248,3 @@ that have been previously described:
   `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
 
-
-[discrete]
-[[audit-event-attributes-deprecated-formats]]
-=== Audit event attributes for the deprecated formats
-
-The following table shows the common attributes that can be associated with
-every event, when it is output to the `<clustername>_access.log` file.
-
-.Common attributes
-[cols="2,7",options="header"]
-|======
-| Attribute           | Description
-| `@timestamp`        | When the event occurred.
-| `node_name`         | The name of the node.
-| `node_host_name`    | The hostname of the node.
-| `node_host_address` | The IP address of the node.
-| `layer`             | The layer from which this event originated: `rest`, `transport` or `ip_filter`
-| `event_type`        | The type of event that occurred: `anonymous_access_denied`,
-                        `authentication_failed`, `authentication_success`,
-                        `realm_authentication_failed`, `access_denied`, `access_granted`,
-                        `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied`, `run_as_granted`.
-|======
-
-These are positional attributes, which are printed at the beginning of each log line and
-are not adjoined by the attribute name.
-
-The attribute `origin_address` is also common to every audit event. It is always
-named, that is, it is not positional. It denotes the source IP address of the
-request associated with this event. This might be the address of the client, the
-address of another cluster node, or the local node's bound address (if the request
-originated locally). Unless the client connects directly to the cluster, the
-_client  address_ is the address of the first OSI layer 3 proxy in front of the
-cluster.
-
-In addition, every event might have the `opaque_id` attribute, with the value as
-it has been passed in by the `X-Opaque-Id` HTTP request header. This header can
-be used freely by the client to mark API calls, as it has no semantics in
-Elasticsearch. Every audit event, generated as part of handling a request thus
-marked, contains the `opaque_id` attribute.
-
-The following tables show the attributes that can are associated with each type
-of event, in addition to the common ones previously described:
-
-.REST anonymous_access_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST authentication_success attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ user is the same as the
-                         _authenticated_ one, which is indicated by the `principal`
-                         attribute.
-| `realm`              | The realm that authenticated the user.
-| `uri`                | The REST endpoint URI.
-| `params`             | The REST URI query parameters.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `principal`          | The principal (username) that failed authentication.
-                         If the request's authentication token is invalid, this
-                         information might be missing.
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST realm_authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `realm`              | The realm that failed to authenticate the user.
-                         **A separate entry is logged for each consulted realm.**
-| `principal`          | The principal (username) that failed authentication.
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.REST tampered_request attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `uri`                | The REST endpoint URI.
-| `request_body`       | The body of the request, if enabled.
-|======
-
-.Transport anonymous_access_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport authentication_success attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         users are equivalent and are indicated by the
-                         `principal` attribute.
-| `realm`              | The realm that authenticated the user.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username. Usually this is
-                         the same as the _authenticated_ username. If the
-                         request's authentication token is invalid, this
-                         information might be missing.  
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         users are equivalent and are indicated by the
-                         `principal` attribute.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport realm_authentication_failed attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `realm`              | The realm that failed to authenticate the user.
-                         **A separate entry is logged for each consulted realm.**
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The principal (username) that failed authentication.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport access_granted attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username for which
-                         authorization succeeded. Unless the request is using
-                         the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and _authenticated_ usernames are equivalent.
-| `realm`              | The realm name that `principal` belongs to.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         usernames are equivalent and are indicated by the
-                         `principal` attribute.
-| `run_by_realm`       | The realm name that `run_by_principal` belongs to
-                         (when applicable).
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport access_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username for which
-                         authorization failed. Unless the request is using
-                         the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and the _authenticated_ usernames are
-                         equivalent.
-| `realm`              | The realm name that `principal` belongs to.
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_
-                         usernames are equivalent and are indicated by the
-                         `principal` attribute.
-| `run_by_realm`       | The realm name that `run_by_principal` belongs to
-                         (when applicable).
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         relates to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport run_as_granted attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _authenticated_ (_impersonator_) username for which
-                         the impersonation operation was granted.
-| `realm`              | The realm name that the _authenticated_ user belongs to.
-| `run_as_principal`   | The _impersonated_ username.
-| `run_as_realm`       | The realm name that the _impersonated_ username belongs to.
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         relates to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport run_as_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _authenticated_ (_impersonator_) username for which
-                         the impersonation operation was denied.
-| `realm`              | The realm name that the _authenticated_ user belongs to.
-| `run_as_principal`   | The _impersonated_ username.
-| `run_as_realm`       | The realm name that the _impersonated_ username belongs to.
-| `roles`              | The set of roles granting permissions.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         relates to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.Transport tampered_request attributes
-[cols="2,7",options="header"]
-|======
-| Attribute            | Description
-| `origin_type`        | Where the request originated: `rest` (request
-                         originated from a REST API request), `transport`
-                         (request was received on the transport channel), or
-                         `local_node` (the local node issued the request).
-| `principal`          | The _effective_ (impersonated) username. Unless the request
-                         is using the <<run-as-privilege, run as authorization functionality>>,
-                         the _effective_ and the _authenticated_ usernames are 
-                         equivalent. If the requests's authentication token is
-                         invalid, this information might be missing. 
-| `run_by_principal`   | The _authenticated_ (impersonator) username.
-                         This attribute is present only if the request is
-                         using the <<run-as-privilege, run as authorization functionality>>.
-                         Otherwise, the _effective_ and the _authenticated_ usernames
-                         are equivalent and are indicated by the `principal` attribute.
-| `action`             | The name of the action that was executed.
-| `indices`            | A comma-separated list of indices this request
-                         pertains to (when applicable).
-| `request`            | The type of request that was executed.
-|======
-
-.IP filter connection_granted attributes
-[cols="2,7",options="header"]
-|======
-| Attribute           | Description
-| `transport_profile` | The transport profile the request targeted.
-| `rule`              | The <<ip-filtering, IP filtering>> rule that granted
-                        the request.
-|======
-
-.IP filter connection_denied attributes
-[cols="2,7",options="header"]
-|======
-| Attribute           | Description
-| `transport_profile` | The transport profile the request targeted.
-| `rule`              | The <<ip-filtering, IP filtering>> rule that denied
-                        the request.
-|======

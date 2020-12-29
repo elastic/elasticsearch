@@ -113,8 +113,10 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
 
   declare -a es_arg_array
 
-  while IFS='=' read -r envvar_key envvar_value
+  for line in $(env)
   do
+    envvar_key=$(echo $line | cut -f1 -d'=')
+    envvar_value=$(echo $line | cut -f2 -d'=')
     # Elasticsearch settings need to have at least two dot separated lowercase
     # words, e.g. `cluster.name`
     if [[ "$envvar_key" =~ ^[a-z0-9_]+\.[a-z0-9_]+ ]]; then
@@ -123,7 +125,7 @@ if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
         es_arg_array+=("${es_opt}")
       fi
     fi
-  done < <(env)
+  done
 
   # Reset the positional parameters to the es_arg_array values and any existing positional params
   set -- "$@" "${es_arg_array[@]}"

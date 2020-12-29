@@ -105,7 +105,7 @@ public class OperationRouting {
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices,
+    static Set<IndexShardRoutingTable> computeTargetedShards(ClusterState clusterState, String[] concreteIndices,
                                                               @Nullable Map<String, Set<String>> routing) {
         routing = routing == null ? EMPTY_ROUTING : routing; // just use an empty map
         final Set<IndexShardRoutingTable> set = new HashSet<>();
@@ -118,12 +118,19 @@ public class OperationRouting {
                 for (String r : effectiveRouting) {
                     final int routingPartitionSize = indexMetadata.getRoutingPartitionSize();
                     for (int partitionOffset = 0; partitionOffset < routingPartitionSize; partitionOffset++) {
-                        set.add(RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset)));
+                        IndexShardRoutingTable indexShard = RoutingTable.shardRoutingTable(indexRouting, calculateScaledShardId(indexMetadata, r, partitionOffset));
+                        if (indexShard.primary.active()
+                            || indexShard.primary.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
+                            set.add(indexShard);
+                        }
                     }
                 }
             } else {
                 for (IndexShardRoutingTable indexShard : indexRouting) {
-                    set.add(indexShard);
+                    if (indexShard.primary.active()
+                        || indexShard.primary.unassignedInfo().getReason() != UnassignedInfo.Reason.INDEX_CREATED) {
+                        set.add(indexShard);
+                    }
                 }
             }
         }
@@ -201,7 +208,7 @@ public class OperationRouting {
         }
     }
 
-    protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
+    protected static IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
         IndexRoutingTable indexRouting = clusterState.routingTable().index(index);
         if (indexRouting == null) {
             throw new IndexNotFoundException(index);
@@ -209,7 +216,7 @@ public class OperationRouting {
         return indexRouting;
     }
 
-    protected IndexMetadata indexMetadata(ClusterState clusterState, String index) {
+    protected static IndexMetadata indexMetadata(ClusterState clusterState, String index) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);

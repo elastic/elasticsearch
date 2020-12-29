@@ -274,6 +274,7 @@ public class RolloverIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66874")
     public void testRolloverWithDateMath() {
         ZonedDateTime now = ZonedDateTime.now(ZoneOffset.UTC);
         assumeTrue("only works on the same day", now.plusMinutes(5).getDayOfYear() == now.getDayOfYear());

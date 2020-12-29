@@ -73,8 +73,9 @@ and `anonymous_access_denied` that are printed on the coordinating node only
 The default value is `false`, so request bodies are not printed.
 +
 --
-IMPORTANT: No filtering is performed when auditing, so sensitive data may be
-audited in plain text when including the request body in audit events.
+IMPORTANT: Be advised that sensitive data may be audited in plain text when including
+the request body in audit events, even though all the security APIs, such as those that
+change the user's password, have the credentials filtered out when audited.
 --
 
 // end::xpack-sa-lf-events-emit-request-tag[]

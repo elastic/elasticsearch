@@ -51,13 +51,14 @@ The audit event JSON format is somewhat particular, as *most* fields follow a do
 name syntax, are ordered, and contain non-null string values. This format creates a
 structured columnar aspect, similar to a CSV, that can be more easily inspected visually
 (compared to an equivalent nested JSON document).
+
 There are however a few attributes that are exceptions to the above format. The `put`,
 `delete`, `change`, `create` and `invalidate` attributes, which are only present for
 events with the `event.type: "security_config_change"` attribute, contain the *nested JSON*
 representation of the security change taking effect. The contents of security config change
 are hence not splayed as top-level dot-named fields in the audit event document. That's because
 the fields are specific to the particular kind of the security change and do not show up in
-any other audit events, and so the columnar format benefits are much more limited; the
+any other audit events, and so the benefits of a columnar format are much more limited; the
 space-saving benefits of the nested structure is the favoured trade-off in this case.
 
 The following list shows attributes that are common to all audit event types:
@@ -82,7 +83,7 @@ The following list shows attributes that are common to all audit event types:
                         `transport` (request was received on the transport channel),
                         or `local_node` (the local node issued the request).
 `event.type`      ::    The internal processing layer that generated the event:
-                        `rest`, `transport` or `ip_filter`.
+                        `rest`, `transport`, `ip_filter` or `security_config_change`.
                         This is different from `origin.type` because a request
                         originating from the REST API is translated to a number
                         of transport messages, generating audit events with
@@ -91,7 +92,13 @@ The following list shows attributes that are common to all audit event types:
                         `authentication_failed`, `authentication_success`,
                         `realm_authentication_failed`, `access_denied`, `access_granted`,
                         `connection_denied`, `connection_granted`, `tampered_request`,
-                        `run_as_denied`, or `run_as_granted`.
+                        `run_as_denied`, or `run_as_granted`. In addition, if
+                        `event.type` equals `security_config_change`, the
+                        `event.action` attribute takes one of the following values:
+                        `put_user`, `change_password`, `put_role`, `put_role_mapping`,
+                        `change_enable_user`, `change_disable_user`, `put_privileges`,
+                        `create_apikey`, `delete_user`, `delete_role`,
+                        `delete_role_mapping`, `invalidate_apikeys` or `delete_privileges`.
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has

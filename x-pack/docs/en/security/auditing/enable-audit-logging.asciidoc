@@ -3,7 +3,9 @@
 == Enabling audit logging
 
 You can log security-related events such as authentication failures and refused connections
-to monitor your cluster for suspicious activity. 
+to monitor your cluster for suspicious activity (including data access and user
+security configuration changes).
+
 Audit logging also provides forensic evidence in the event of an attack.
 
 [IMPORTANT]
@@ -22,7 +24,11 @@ To enable enable audit logging:
 . Restart {es}.
 
 When audit logging is enabled, <<audit-event-types, security events>> are persisted to 
-a dedicated `<clustername>_audit.json` file on the host's file system (on each node).
+a dedicated `<clustername>_audit.json` file on the host's file system, on every cluster node.
+The file is rotated and arhivated daily and upon reaching the 1GB file size limit.
+For more details, check out the
+https://github.com/elastic/elasticsearch/blob/{branch}/x-pack/plugin/core/src/main/config/log4j2.properties[log4j2.properties]
+for the security audit logger.
 
 You can configure additional options to control what events are logged and 
 what information is included in the audit log. 

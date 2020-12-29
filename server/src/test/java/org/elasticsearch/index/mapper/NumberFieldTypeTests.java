@@ -474,7 +474,7 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         IndexSearcher searcher = newSearcher(reader);
 
         QueryShardContext context = new QueryShardContext(0, 0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         final int iters = 10;

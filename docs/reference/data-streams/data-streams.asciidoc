@@ -74,10 +74,8 @@ such as:
 [[data-streams-rollover]]
 == Rollover
 
-When you create a data stream, {es} automatically creates a backing index for
-the stream. This index also acts as the stream's first write index. A
-<<indices-rollover-index,rollover>> creates a new backing index that becomes the
-stream's new write index.
+A <<indices-rollover-index,rollover>> creates a new backing index that becomes
+the stream's new write index.
 
 We recommend using <<index-lifecycle-management,{ilm-init}>> to automatically
 roll over data streams when the write index reaches a specified age or size.

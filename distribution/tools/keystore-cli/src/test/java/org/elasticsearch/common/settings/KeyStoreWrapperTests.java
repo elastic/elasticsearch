@@ -111,9 +111,13 @@ public class KeyStoreWrapperTests extends ESTestCase {
 
     public void testDecryptKeyStoreWithWrongPassword() throws Exception {
         final char[] realPassword = getPossibleKeystorePassword();
-        final char[] invalidPassword = realPassword.length < 1
-            ? new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' }
-            : Arrays.copyOf(realPassword, realPassword.length - 1);
+        final char[] invalidPassword;
+        if (realPassword.length < 1) {
+            invalidPassword = new char[] { 'i', 'n', 'v', 'a', 'l', 'i', 'd' };
+        } else {
+            invalidPassword = Arrays.copyOf(realPassword, realPassword.length + 1);
+            invalidPassword[realPassword.length] = '#';
+        }
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.save(env.configFile(), realPassword);
         final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());

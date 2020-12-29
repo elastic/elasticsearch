@@ -30,10 +30,12 @@ import com.github.mustachejava.TemplateContext;
 import com.github.mustachejava.codes.DefaultMustache;
 import com.github.mustachejava.codes.IterableCode;
 import com.github.mustachejava.codes.WriteCode;
-import org.apache.lucene.search.highlight.DefaultEncoder;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.xcontent.MediaType;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.MustacheMediaType;
 
 import java.io.IOException;
 import java.io.StringWriter;
@@ -51,26 +53,30 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
+    private static final MediaType DEFAULT_MIME_TYPE = XContentType.JSON;
 
-    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
-    static final String JSON_MIME_TYPE = "application/json";
-    static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
-    static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";
-
-    private static final String DEFAULT_MIME_TYPE = JSON_MIME_TYPE;
-
-    private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
-            JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
-            JSON_MIME_TYPE, JsonEscapeEncoder::new,
-            PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new,
-            X_WWW_FORM_URLENCODED_MIME_TYPE, UrlEncoder::new);
+    private static final Map<MediaType, Supplier<Encoder>> ENCODERS = Map.of(
+        XContentType.JSON, JsonEscapeEncoder::new,
+        MustacheMediaType.PLAIN_TEXT, DefaultEncoder::new,
+        MustacheMediaType.X_WWW_FORM_URLENCODED, UrlEncoder::new);
 
     private final Encoder encoder;
 
-    public CustomMustacheFactory(String mimeType) {
-        super();
+    public CustomMustacheFactory(MediaType mimeType) {
         setObjectHandler(new CustomReflectionObjectHandler());
         this.encoder = createEncoder(mimeType);
+    }
+
+    public CustomMustacheFactory(String mimeType) {
+        this(parseMediaType(mimeType));
+    }
+
+    private static MediaType parseMediaType(String mimeType) {
+        MediaType mustacheMediaType = ParsedMediaType.parseMediaType(mimeType).toMediaType(MustacheMediaType.REGISTRY);
+        if (mustacheMediaType == null) {
+            throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
+        }
+        return mustacheMediaType;
     }
 
     public CustomMustacheFactory() {
@@ -86,12 +92,17 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
         }
     }
 
-    static Encoder createEncoder(String mimeType) {
-        final Supplier<Encoder> supplier = ENCODERS.get(mimeType);
+    private static Encoder createEncoder(MediaType mustacheMediaType) {
+        final Supplier<Encoder> supplier = ENCODERS.get(mustacheMediaType);
         if (supplier == null) {
-            throw new IllegalArgumentException("No encoder found for MIME type [" + mimeType + "]");
+            throw new IllegalArgumentException("No encoder found for MIME type [" + mustacheMediaType + "]");
         }
         return supplier.get();
+    }
+
+    // package scope for testing
+    Encoder getEncoder() {
+        return encoder;
     }
 
     @Override

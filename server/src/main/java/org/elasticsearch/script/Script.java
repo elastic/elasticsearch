@@ -30,9 +30,11 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
+import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -631,9 +633,10 @@ public final class Script implements ToXContentObject, Writeable {
         builder.startObject();
 
         String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
-
-        if (type == ScriptType.INLINE) {
-            if (contentType != null && builder.contentType().mediaType().equals(contentType)) {
+        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(contentType);
+        MediaType type = parsedMediaType != null ? parsedMediaType.toMediaType(MustacheMediaType.REGISTRY) : null;
+        if (this.type == ScriptType.INLINE) {
+            if (contentType != null && builder.contentType().equals(type)) {
                 try (InputStream stream = new BytesArray(idOrCode).streamInput()) {
                     builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), stream);
                 }

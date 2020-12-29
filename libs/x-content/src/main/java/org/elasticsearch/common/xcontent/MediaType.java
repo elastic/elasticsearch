@@ -22,8 +22,8 @@ package org.elasticsearch.common.xcontent;
 import org.elasticsearch.common.collect.Tuple;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Abstracts a <a href="http://en.wikipedia.org/wiki/Internet_media_type">Media Type</a> and a query parameter <code>format</code>.
@@ -44,7 +44,7 @@ public interface MediaType {
      * Returns a set of HeaderValues - allowed media type values on Accept or Content-Type headers
      * Also defines media type parameters for validation.
      */
-    Set<HeaderValue> headerValues();
+    List<HeaderValue> headerValues();
 
     /**
      * A class to represent supported mediaType values i.e. application/json and parameters to be validated.

@@ -106,8 +106,8 @@ public class ParsedMediaType {
         return null;
     }
 
-    public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
-        ParsedMediaType parsedMediaType = parseMediaType(requestContentType.mediaTypeWithoutParameters());
+    public static ParsedMediaType parseMediaType(MediaType requestContentType, Map<String, String> parameters) {
+        ParsedMediaType parsedMediaType = parseMediaType(requestContentType.headerValues().get(0).v1());
         parsedMediaType.parameters.putAll(parameters);
         return parsedMediaType;
     }
@@ -157,6 +157,10 @@ public class ParsedMediaType {
     @Override
     public String toString() {
         return originalHeaderValue;
+    }
+
+    public String responseContentTypeHeader() {
+        return responseContentTypeHeader(this.parameters);
     }
 
     public String responseContentTypeHeader(Map<String,String> parameters) {

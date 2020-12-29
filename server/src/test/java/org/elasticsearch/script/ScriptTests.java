@@ -44,7 +44,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class ScriptTests extends ESTestCase {
 
     public void testScriptParsing() throws IOException {
-        Script expectedScript = createScript();
+        Script expectedScript = createScript(XContentType.JSON.mediaType());
         try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser parser = createParser(builder)) {
@@ -55,7 +55,17 @@ public class ScriptTests extends ESTestCase {
     }
 
     public void testScriptSerialization() throws IOException {
-        Script expectedScript = createScript();
+        Script expectedScript = createScript(XContentType.JSON.mediaType());
+        testSerialisation(expectedScript);
+
+        expectedScript = createScript("application/json;charset=utf-8");
+        testSerialisation(expectedScript);
+
+        expectedScript = createScript("application/json; charset=UTF-8");
+        testSerialisation(expectedScript);
+    }
+
+    private void testSerialisation(Script expectedScript) throws IOException {
         try (ByteArrayOutputStream out = new ByteArrayOutputStream()) {
             expectedScript.writeTo(new OutputStreamStreamOutput(out));
             try (ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray())) {
@@ -65,7 +75,7 @@ public class ScriptTests extends ESTestCase {
         }
     }
 
-    private Script createScript() throws IOException {
+    private Script createScript(String contentType) throws IOException {
         final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
@@ -84,12 +94,12 @@ public class ScriptTests extends ESTestCase {
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
             scriptType == ScriptType.INLINE ?
-                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()) : null, params
+                    Collections.singletonMap(Script.CONTENT_TYPE_OPTION, contentType) : null, params
         );
     }
 
     public void testParse() throws IOException {
-        Script expectedScript = createScript();
+        Script expectedScript = createScript(XContentType.JSON.mediaType());
         try (XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()))) {
             expectedScript.toXContent(builder, ToXContent.EMPTY_PARAMS);
             try (XContentParser xParser = createParser(builder)) {

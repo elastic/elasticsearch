@@ -24,8 +24,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.common.xcontent.smile.SmileXContent;
 import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 
+import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * The content type of {@link org.elasticsearch.common.xcontent.XContent}.
@@ -57,8 +57,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue("application/json"),
                 new HeaderValue("application/x-ndjson"),
                 new HeaderValue("application/*"));
@@ -84,8 +84,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue("application/smile"));
         }
     },
@@ -109,8 +109,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue("application/yaml"));
         }
     },
@@ -134,8 +134,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue("application/cbor"));
         }
     },
@@ -159,8 +159,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "json",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson",
@@ -192,8 +192,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
@@ -223,8 +223,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
@@ -254,8 +254,8 @@ public enum XContentType implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }

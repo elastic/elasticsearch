@@ -19,54 +19,74 @@
 
 package org.elasticsearch.script.mustache;
 
+import org.elasticsearch.common.xcontent.ParsedMediaType;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.MustacheMediaType;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Collections;
 import java.util.Map;
 
-import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.JSON_MIME_TYPE;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CustomMustacheFactoryTests extends ESTestCase {
+    String JSON_MIME_TYPE_WITH_CHARSET = ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "utf-8"))
+        .responseContentTypeHeader();
+    String JSON_MIME_TYPE = ParsedMediaType.parseMediaType(XContentType.JSON, Collections.emptyMap())
+        .responseContentTypeHeader();
+    String PLAIN_TEXT_MIME_TYPE = ParsedMediaType.parseMediaType(MustacheMediaType.PLAIN_TEXT, Collections.emptyMap())
+        .responseContentTypeHeader();
+    String X_WWW_FORM_URLENCODED_MIME_TYPE = ParsedMediaType.parseMediaType(MustacheMediaType.X_WWW_FORM_URLENCODED, Collections.emptyMap())
+        .responseContentTypeHeader();
 
     public void testCreateEncoder() {
         {
             final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("non-existent"));
-            assertThat(e.getMessage(), equalTo("No encoder found for MIME type [non-existent]"));
+                expectThrows(IllegalArgumentException.class, () -> new CustomMustacheFactory("non-existent"));
+            assertThat(e.getMessage(), equalTo("invalid media-type [non-existent]"));
         }
 
         {
-            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(""));
-            assertThat(e.getMessage(), equalTo("No encoder found for MIME type []"));
+            final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new CustomMustacheFactory(""));
+            assertThat(e.getMessage(), equalTo("invalid media-type []"));
         }
 
         {
             final IllegalArgumentException e =
-                    expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("test"));
-            assertThat(e.getMessage(), equalTo("No encoder found for MIME type [test]"));
+                expectThrows(IllegalArgumentException.class, () -> new CustomMustacheFactory("test"));
+            assertThat(e.getMessage(), equalTo("invalid media-type [test]"));
         }
 
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE_WITH_CHARSET),
+        String contentType = ParsedMediaType.parseMediaType("application/json ; charset=UTF-8")
+            .responseContentTypeHeader();
+        assertThat(new CustomMustacheFactory(contentType).getEncoder(),
             instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE),
-                instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE),
-                instanceOf(CustomMustacheFactory.DefaultEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE),
-                instanceOf(CustomMustacheFactory.UrlEncoder.class));
+        assertThat(new CustomMustacheFactory(JSON_MIME_TYPE_WITH_CHARSET).getEncoder(),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
+        assertThat(new CustomMustacheFactory(JSON_MIME_TYPE).getEncoder(),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
+
+        assertThat(new CustomMustacheFactory(PLAIN_TEXT_MIME_TYPE).getEncoder(),
+            instanceOf(CustomMustacheFactory.DefaultEncoder.class));
+        assertThat(new CustomMustacheFactory(X_WWW_FORM_URLENCODED_MIME_TYPE).getEncoder(),
+            instanceOf(CustomMustacheFactory.UrlEncoder.class));
+
+        //TODO PG should this be rejected?
+        contentType = ParsedMediaType.parseMediaType("application/json ; unknown=UTF-8")
+            .responseContentTypeHeader();
+        assertThat(new CustomMustacheFactory(contentType).getEncoder(),
+            instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
     }
 
     public void testJsonEscapeEncoder() {
         final ScriptEngine engine = new MustacheScriptEngine();
-        final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) : emptyMap();
+        final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) :
+            Collections.emptyMap();
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 

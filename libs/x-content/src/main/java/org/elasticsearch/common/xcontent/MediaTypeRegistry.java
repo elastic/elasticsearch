@@ -22,7 +22,6 @@ package org.elasticsearch.common.xcontent;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.regex.Pattern;
 
 /**
@@ -63,12 +62,16 @@ public class MediaTypeRegistry<T extends MediaType> {
 
     public MediaTypeRegistry<T> register(T[] mediaTypes ) {
         for (T mediaType : mediaTypes) {
-            Set<MediaType.HeaderValue> tuples = mediaType.headerValues();
-            for (MediaType.HeaderValue headerValue : tuples) {
-                queryParamToMediaType.put(mediaType.queryParameter(), mediaType);
-                typeWithSubtypeToMediaType.put(headerValue.v1(), mediaType);
-                parametersMap.put(headerValue.v1(), convertPatterns(headerValue.v2()));
-            }
+            register(mediaType);
+        }
+        return this;
+    }
+
+    public MediaTypeRegistry<T> register(T mediaType) {
+        for (MediaType.HeaderValue headerValue : mediaType.headerValues()) {
+            queryParamToMediaType.put(mediaType.queryParameter(), mediaType);
+            typeWithSubtypeToMediaType.put(headerValue.v1(), mediaType);
+            parametersMap.put(headerValue.v1(), convertPatterns(headerValue.v2()));
         }
         return this;
     }

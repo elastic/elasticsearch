@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.action.BasicFormatter.FormatOption.TEXT;
@@ -105,8 +104,8 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(CONTENT_TYPE_TXT,
                     Map.of("header", "present|absent")),
                 new HeaderValue(VENDOR_CONTENT_TYPE_TXT,
@@ -229,8 +228,8 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(CONTENT_TYPE_CSV,
                     Map.of("header", "present|absent","delimiter", ".+")),// more detailed parsing is in TextFormat.CSV#delimiter
                 new HeaderValue(VENDOR_CONTENT_TYPE_CSV,
@@ -288,8 +287,8 @@ enum TextFormat implements MediaType {
         }
 
         @Override
-        public Set<HeaderValue> headerValues() {
-            return Set.of(
+        public List<HeaderValue> headerValues() {
+            return List.of(
                 new HeaderValue(CONTENT_TYPE_TSV, Map.of("header", "present|absent")),
                 new HeaderValue(VENDOR_CONTENT_TYPE_TSV,
                     Map.of("header", "present|absent", COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));

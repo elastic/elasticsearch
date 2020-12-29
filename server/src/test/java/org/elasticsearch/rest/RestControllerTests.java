@@ -732,8 +732,8 @@ public class RestControllerTests extends ESTestCase {
 
     private String randomCompatibleMimeType(byte version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
-        return ParsedMediaType.parseMediaType(type.mediaType())
-            .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
+        return ParsedMediaType.parseMediaType(type, Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)))
+            .responseContentTypeHeader();
     }
 
     private static final class TestHttpServerTransport extends AbstractLifecycleComponent implements

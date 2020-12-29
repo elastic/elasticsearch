@@ -208,9 +208,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public String getResponseContentTypeString() {
-        Map<String, String> parameters = responseContentType != null ?
-            responseContentType.getParameters() : Collections.emptyMap();
-        return responseContentType.responseContentTypeHeader(parameters);
+        return responseContentType.responseContentTypeHeader();
     }
 
     public XContentType contentType() {

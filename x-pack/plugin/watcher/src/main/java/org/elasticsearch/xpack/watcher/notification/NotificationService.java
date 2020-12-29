@@ -157,7 +157,8 @@ public abstract class NotificationService<Account> {
         } else {
             final LazyInitializable<Account, SettingsException> account = accounts.get(defaultAccountName);
             if (account == null) {
-                throw new SettingsException("could not find default account [" + defaultAccountName + "]");
+                logger.warn("could not find default account [" + defaultAccountName + "]");
+                return null;
             }
             return account;
         }

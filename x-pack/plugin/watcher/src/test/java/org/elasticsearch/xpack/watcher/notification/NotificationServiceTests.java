@@ -78,8 +78,8 @@ public class NotificationServiceTests extends ESTestCase {
                 .put("xpack.notification.test.default_account", "non-existing")
                 .build();
 
-        SettingsException e = expectThrows(SettingsException.class, () -> new TestNotificationService(settings));
-        assertThat(e.getMessage(), is("could not find default account [non-existing]"));
+        TestNotificationService service = new TestNotificationService(settings);
+        expectThrows(IllegalArgumentException.class, () -> service.getAccount("non-existing"));
     }
 
     public void testNoSpecifiedDefaultAccount() {

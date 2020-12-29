@@ -90,9 +90,8 @@ public class AccountsTests extends ESTestCase {
         addAccountSettings("account1", builder);
         addAccountSettings("account2", builder);
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
-        SettingsException e = expectThrows(SettingsException.class,
-            () -> new EmailService(builder.build(), null, mock(SSLService.class), clusterSettings));
-        assertThat(e.getMessage(), is("could not find default account [unknown]"));
+        EmailService service = new EmailService(builder.build(), null, mock(SSLService.class), clusterSettings);
+        expectThrows(IllegalArgumentException.class, () -> service.getAccount("unknown"));
     }
 
     public void testNoAccount() throws Exception {
@@ -105,9 +104,8 @@ public class AccountsTests extends ESTestCase {
     public void testNoAccountWithDefaultAccount() throws Exception {
         Settings settings = Settings.builder().put("xpack.notification.email.default_account", "unknown").build();
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
-        SettingsException e = expectThrows(SettingsException.class,
-            () -> new EmailService(settings, null, mock(SSLService.class), clusterSettings));
-        assertThat(e.getMessage(), is("could not find default account [unknown]"));
+        EmailService service = new EmailService(settings, null, mock(SSLService.class), clusterSettings);
+        expectThrows(IllegalArgumentException.class, () -> service.getAccount("unknown"));
     }
 
     private void addAccountSettings(String name, Settings.Builder builder) {

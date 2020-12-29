@@ -111,8 +111,7 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
                         return mergeMappings(new String[] { "*" });
                     }
                     String[] patterns = Arrays.stream(index.split(",")).map(m -> m.equals("_all") ? "*" : m).toArray(String[]::new);
-                    // TODO this is always false?
-                    if (patterns.length == 0 && Regex.isSimpleMatchPattern(patterns[0])) {
+                    if (patterns.length == 1 && Regex.isSimpleMatchPattern(patterns[0])) {
                         return runtimeMappings.get(patterns[0]);
                     }
                     return mergeMappings(patterns);

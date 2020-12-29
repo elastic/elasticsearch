@@ -41,9 +41,13 @@ The following is an exhaustive list of the events that can be generated:
 | `connection_denied`               | | | Logged when an incoming TCP connection does not pass the | | | example11
                                           <<ip-filtering, IP Filter>> for a specific
                                           profile.
-| `put_user`                        | | | Logged when the put user API has been used to create or | | | example12
-                                          update a user (including changing the password) in the native realm,
-                                          as well as chaning any of the built-in users.
+| `put_user`                        | | | Logged when the put user API has been invoked to create or | | | example12
+                                          update a native or built-in user. Note that updates can
+                                          also change the password.
+| `change_password`                 | | | Logged when the change password API has been used to | | | example13
+                                          change the password of native or built-in users.
+| `put_role`                        | | | Logged when the put role API has been invoked to create | | | example14
+                                          or update a role.
 |======
 
 [discrete]

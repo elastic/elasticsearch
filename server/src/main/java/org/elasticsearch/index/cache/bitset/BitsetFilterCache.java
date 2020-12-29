@@ -238,9 +238,9 @@ public final class BitsetFilterCache extends AbstractIndexComponent
             final MapperService mapperService = indexShard.mapperService();
             DocumentMapper docMapper = mapperService.documentMapper();
             if (docMapper != null) {
-                if (docMapper.hasNestedObjects()) {
+                if (docMapper.mappers().hasNested()) {
                     warmUp.add(Queries.newNonNestedFilter());
-                    docMapper.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
+                    docMapper.mappers().getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
                 }
             }
 

@@ -188,8 +188,8 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     @Override
     protected String configUsers() {
         StringBuilder builder = new StringBuilder(SecuritySettingsSource.CONFIG_STANDARD_USER);
-        final String usersPasswdHashed = new String(getFastStoredHashAlgoForTests().hash(new SecureString
-            ("passwd".toCharArray())));
+        final String usersPasswdHashed =
+            new String(getFastStoredHashAlgoForTests().hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         for (String username : usernames) {
             builder.append(username).append(":").append(usersPasswdHashed).append("\n");
         }
@@ -221,7 +221,7 @@ public class ClearRealmsCacheTests extends SecurityIntegTestCase {
     private void testScenario(Scenario scenario) throws Exception {
         Map<String, UsernamePasswordToken> tokens = new HashMap<>();
         for (String user : usernames) {
-            tokens.put(user, new UsernamePasswordToken(user, new SecureString("passwd")));
+            tokens.put(user, new UsernamePasswordToken(user, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
         }
 
         List<Realm> realms = new ArrayList<>();

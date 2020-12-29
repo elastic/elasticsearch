@@ -125,7 +125,7 @@ hourly (`60m`) intervals are configured, <<rollup-search,rollup search>>
 can execute aggregations with 60m or greater (weekly, monthly, etc) intervals.
 So define the interval as the smallest unit that you wish to later query. For
 more information about the difference between calendar and fixed time
-intervals, see <<rollup-understanding-group-intervals>>.
+intervals, see <<calendar_and_fixed_intervals>>.
 +
 --
 NOTE: Smaller, more granular intervals take up proportionally more space.

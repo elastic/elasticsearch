@@ -112,8 +112,8 @@ boolean s3DisableChunkedEncoding = (new Random(Long.parseUnsignedLong(BuildParam
 // credentials hard-coded in.
 
 if (!s3PermanentAccessKey && !s3PermanentSecretKey && !s3PermanentBucket && !s3PermanentBasePath) {
-  s3PermanentAccessKey = 'access_key'
-  s3PermanentSecretKey = 'secret_key'
+  s3PermanentAccessKey = 's3_test_access_key'
+  s3PermanentSecretKey = 's3_test_secret_key'
   s3PermanentBucket = 'bucket'
   s3PermanentBasePath = 'base_path'
 
@@ -311,4 +311,21 @@ tasks.named("thirdPartyAudit").configure {
           'com.amazonaws.services.kms.model.GenerateDataKeyResult',
           'javax.activation.DataHandler'
   )
+}
+
+// test jar is exported by the integTestArtifacts configuration to be used in the encrypted S3 repository test
+configurations {
+  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
+}
+
+def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
+  appendix 'internalClusterTest'
+  from sourceSets.internalClusterTest.output
+  // for the plugin-security.policy resource
+  from sourceSets.test.output
+}
+
+artifacts {
+  internalClusterTestArtifacts internalClusterTestJar
 }

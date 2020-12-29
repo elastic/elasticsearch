@@ -72,6 +72,7 @@ if (BuildParams.inFipsJvm) {
           systemProperty 'org.bouncycastle.fips.approved_only', 'true'
           setting 'xpack.security.fips_mode.enabled', 'true'
           setting 'xpack.license.self_generated.type', 'trial'
+          setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
           keystorePassword 'keystore-password'
         }
       }

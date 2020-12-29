@@ -44,7 +44,8 @@ by using the following settings:
 // tag::xpack-sa-lf-events-include-tag[]
 `xpack.security.audit.logfile.events.include`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Specifies which events to include in the auditing output. The default value is:
+Specifies the kind of events to print in the auditing output. The default list value
+contains:
 `access_denied, access_granted, anonymous_access_denied, authentication_failed,
 connection_denied, tampered_request, run_as_denied, run_as_granted,
 security_config_change`.
@@ -54,16 +55,22 @@ security_config_change`.
 // tag::xpack-sa-lf-events-exclude-tag[]
 `xpack.security.audit.logfile.events.exclude`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Excludes the specified events from the output. By default, no events are
-excluded.
+Excludes the specified kind of events from the include list. The default is the empty list.
 // end::xpack-sa-lf-events-exclude-tag[]
 
 [[xpack-sa-lf-events-emit-request]]
 // tag::xpack-sa-lf-events-emit-request-tag[]
 `xpack.security.audit.logfile.events.emit_request_body`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Specifies whether to include the request body from REST requests on certain
-event types such as `authentication_failed`. The default value is `false`.
+Specifies whether to include the full request body from REST requests as an
+attribute of certain kinds of audit events. The request body is printed as an
+escaped JSON string value to the `request.body` attribute.
+These events that contain the `request.body` attribute are `authentication_success`,
+`authentication_failed`, `realm_authentication_failed`, `tampered_request`, `run_as_denied`,
+and `anonymous_access_denied` that are printed on the coordinating node only
+(the node that handles the REST request).
+
+The default value is `false` so request bodies are not printed.
 +
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be

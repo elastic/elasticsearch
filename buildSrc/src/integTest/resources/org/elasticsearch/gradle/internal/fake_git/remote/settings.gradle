@@ -21,5 +21,7 @@ rootProject.name = "root"
 
 include ":distribution:bwc:bugfix"
 include ":distribution:bwc:minor"
+include ":distribution:bwc:major"
+include ":distribution:bwc:staged"
 include ":distribution:archives:darwin-tar"
 include ":distribution:archives:oss-darwin-tar"

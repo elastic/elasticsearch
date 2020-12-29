@@ -12,12 +12,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.Autoscaling;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.action.PolicyValidator;
@@ -35,6 +37,8 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService.EMPTY_ROLES;
+
 public class AutoscalingCalculateCapacityService implements PolicyValidator {
     private final Map<String, AutoscalingDeciderService> deciderByName;
 
@@ -44,18 +48,22 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
     }
 
     public void validate(AutoscalingPolicy policy) {
-        policy.deciders().forEach(this::validate);
+        policy.deciders().forEach((name, configuration) -> validate(name, configuration, policy.roles()));
     }
 
-    private void validate(final String deciderName, final Settings configuration) {
+    private void validate(final String deciderName, final Settings configuration, SortedSet<String> roles) {
         AutoscalingDeciderService deciderService = deciderByName.get(deciderName);
         if (deciderService == null) {
             throw new IllegalArgumentException("unknown decider [" + deciderName + "]");
         }
 
+        if (appliesToPolicy(deciderService, roles) == false) {
+            throw new IllegalArgumentException("decider [" + deciderName + "] not applicable to policy with roles [ " + roles + "]");
+        }
+
         Map<String, Setting<?>> deciderSettings = deciderService.deciderSettings()
             .stream()
-            .collect(Collectors.toMap(s -> s.getKey(), Function.identity()));
+            .collect(Collectors.toMap(Setting::getKey, Function.identity()));
 
         configuration.keySet().forEach(key -> validateSetting(key, configuration, deciderSettings, deciderName));
     }
@@ -78,26 +86,31 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
             this.autoscaling = autoscaling;
         }
 
-        public AutoscalingCalculateCapacityService get() {
+        public AutoscalingCalculateCapacityService get(AllocationDeciders allocationDeciders) {
             // defer constructing services until transport action creation time.
             AutoscalingCalculateCapacityService autoscalingCalculateCapacityService = servicesSetOnce.get();
             if (autoscalingCalculateCapacityService == null) {
-                autoscalingCalculateCapacityService = new AutoscalingCalculateCapacityService(autoscaling.createDeciderServices());
+                autoscalingCalculateCapacityService = new AutoscalingCalculateCapacityService(
+                    autoscaling.createDeciderServices(allocationDeciders)
+                );
                 servicesSetOnce.set(autoscalingCalculateCapacityService);
             }
-
             return autoscalingCalculateCapacityService;
         }
     }
 
-    public SortedMap<String, AutoscalingDeciderResults> calculate(ClusterState state, ClusterInfo clusterInfo) {
+    public SortedMap<String, AutoscalingDeciderResults> calculate(
+        ClusterState state,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo
+    ) {
         AutoscalingMetadata autoscalingMetadata = state.metadata().custom(AutoscalingMetadata.NAME);
         if (autoscalingMetadata != null) {
             return new TreeMap<>(
                 autoscalingMetadata.policies()
                     .entrySet()
                     .stream()
-                    .map(e -> Tuple.tuple(e.getKey(), calculateForPolicy(e.getValue().policy(), state, clusterInfo)))
+                    .map(e -> Tuple.tuple(e.getKey(), calculateForPolicy(e.getValue().policy(), state, clusterInfo, shardSizeInfo)))
                     .collect(Collectors.toMap(Tuple::v1, Tuple::v2))
             );
         } else {
@@ -105,7 +118,12 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
     }
 
-    private AutoscalingDeciderResults calculateForPolicy(AutoscalingPolicy policy, ClusterState state, ClusterInfo clusterInfo) {
+    private AutoscalingDeciderResults calculateForPolicy(
+        AutoscalingPolicy policy,
+        ClusterState state,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo
+    ) {
         if (hasUnknownRoles(policy)) {
             return new AutoscalingDeciderResults(
                 AutoscalingCapacity.ZERO,
@@ -113,13 +131,48 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 new TreeMap<>(Map.of("_unknown_role", new AutoscalingDeciderResult(null, null)))
             );
         }
-        DefaultAutoscalingDeciderContext context = new DefaultAutoscalingDeciderContext(policy.roles(), state, clusterInfo);
-        SortedMap<String, AutoscalingDeciderResult> results = policy.deciders()
-            .entrySet()
+        SortedMap<String, Settings> deciders = addDefaultDeciders(policy);
+        DefaultAutoscalingDeciderContext context = createContext(policy.roles(), state, clusterInfo, shardSizeInfo);
+        SortedMap<String, AutoscalingDeciderResult> results = deciders.entrySet()
             .stream()
             .map(entry -> Tuple.tuple(entry.getKey(), calculateForDecider(entry.getKey(), entry.getValue(), context)))
             .collect(Collectors.toMap(Tuple::v1, Tuple::v2, (a, b) -> { throw new UnsupportedOperationException(); }, TreeMap::new));
         return new AutoscalingDeciderResults(context.currentCapacity, context.currentNodes, results);
+    }
+
+    private SortedMap<String, Settings> addDefaultDeciders(AutoscalingPolicy policy) {
+        SortedMap<String, Settings> deciders = new TreeMap<>(policy.deciders());
+        deciderByName.entrySet()
+            .stream()
+            .filter(e -> defaultForPolicy(e.getValue(), policy.roles()))
+            .forEach(e -> deciders.putIfAbsent(e.getKey(), Settings.EMPTY));
+        return deciders;
+    }
+
+    private boolean defaultForPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
+        if (deciderService.defaultOn()) {
+            return appliesToPolicy(deciderService, roles);
+        } else {
+            return false;
+        }
+    }
+
+    private boolean appliesToPolicy(AutoscalingDeciderService deciderService, SortedSet<String> roles) {
+        if (roles.isEmpty()) {
+            return deciderService.roles().contains(EMPTY_ROLES);
+        } else {
+            return deciderService.roles().stream().map(DiscoveryNodeRole::roleName).anyMatch(roles::contains);
+        }
+    }
+
+    // visible for tests
+    DefaultAutoscalingDeciderContext createContext(
+        SortedSet<String> roles,
+        ClusterState state,
+        ClusterInfo clusterInfo,
+        SnapshotShardSizeInfo shardSizeInfo
+    ) {
+        return new DefaultAutoscalingDeciderContext(roles, state, clusterInfo, shardSizeInfo);
     }
 
     /**
@@ -141,16 +194,23 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         private final SortedSet<DiscoveryNodeRole> roles;
         private final ClusterState state;
         private final ClusterInfo clusterInfo;
+        private final SnapshotShardSizeInfo snapshotShardSizeInfo;
         private final SortedSet<DiscoveryNode> currentNodes;
         private final AutoscalingCapacity currentCapacity;
         private final boolean currentCapacityAccurate;
 
-        DefaultAutoscalingDeciderContext(SortedSet<String> roles, ClusterState state, ClusterInfo clusterInfo) {
+        DefaultAutoscalingDeciderContext(
+            SortedSet<String> roles,
+            ClusterState state,
+            ClusterInfo clusterInfo,
+            SnapshotShardSizeInfo snapshotShardSizeInfo
+        ) {
             this.roles = roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Sets.toUnmodifiableSortedSet());
             Objects.requireNonNull(state);
             Objects.requireNonNull(clusterInfo);
             this.state = state;
             this.clusterInfo = clusterInfo;
+            this.snapshotShardSizeInfo = snapshotShardSizeInfo;
             this.currentNodes = StreamSupport.stream(state.nodes().spliterator(), false)
                 .filter(this::rolesFilter)
                 .collect(Collectors.toCollection(() -> new TreeSet<>(AutoscalingDeciderResults.DISCOVERY_NODE_COMPARATOR)));
@@ -166,6 +226,8 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         @Override
         public AutoscalingCapacity currentCapacity() {
             if (currentCapacityAccurate) {
+                assert currentCapacity.total().storage() != null;
+                assert currentCapacity.node().storage() != null;
                 return currentCapacity;
             } else {
                 return null;
@@ -182,7 +244,11 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         }
 
         private boolean nodeHasAccurateCapacity(DiscoveryNode node) {
-            return totalStorage(clusterInfo.getNodeLeastAvailableDiskUsages(), node) >= 0
+            // todo: multiple data path support.
+            DiskUsage mostAvailable = clusterInfo.getNodeMostAvailableDiskUsages().get(node.getId());
+            DiskUsage leastAvailable = clusterInfo.getNodeLeastAvailableDiskUsages().get(node.getId());
+            return mostAvailable != null
+                && mostAvailable.getPath().equals(leastAvailable.getPath())
                 && totalStorage(clusterInfo.getNodeMostAvailableDiskUsages(), node) >= 0;
         }
 
@@ -192,7 +258,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
                 .map(c -> new AutoscalingCapacity(c, c))
                 .reduce(
                     (c1, c2) -> new AutoscalingCapacity(
-                        AutoscalingCapacity.AutoscalingResources.sum(c1.tier(), c2.tier()),
+                        AutoscalingCapacity.AutoscalingResources.sum(c1.total(), c2.total()),
                         AutoscalingCapacity.AutoscalingResources.max(c1.node(), c2.node())
                     )
                 )
@@ -219,6 +285,16 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
 
         private boolean rolesFilter(DiscoveryNode discoveryNode) {
             return discoveryNode.getRoles().equals(roles);
+        }
+
+        @Override
+        public ClusterInfo info() {
+            return clusterInfo;
+        }
+
+        @Override
+        public SnapshotShardSizeInfo snapshotShardSizeInfo() {
+            return snapshotShardSizeInfo;
         }
     }
 }

@@ -30,7 +30,7 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   extraConfigFile 'log4j2.properties', file('custom-log4j2.properties')
 }
 
-integTest {
+tasks.named("integTest").configure {
   nonInputProperties.systemProperty 'tests.logfile',
     "${-> testClusters.integTest.singleNode().getServerLog().absolutePath.replaceAll("_server.json", ".log")}"
 
@@ -38,6 +38,6 @@ integTest {
     "${-> testClusters.integTest.singleNode().getServerLog()}"
 }
 
-test {
+tasks.named("test").configure {
   systemProperty 'tests.security.manager', 'false'
 }

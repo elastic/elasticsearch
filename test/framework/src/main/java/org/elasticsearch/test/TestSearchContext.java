@@ -96,15 +96,11 @@ public class TestSearchContext extends SearchContext {
         this.indexService = indexService;
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap());
+        queryShardContext = indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap());
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
-        this(queryShardContext, null);
-    }
-
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
-        this(queryShardContext, indexShard, null);
+        this(queryShardContext, null, null, null);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {

@@ -19,6 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -33,14 +41,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryShardContext;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -81,7 +81,7 @@ final class DocumentParser {
 
         context.postParse();
 
-        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper,
+        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper.mappers(),
             context.getDynamicMappers(), context.getDynamicRuntimeFields()));
     }
 
@@ -205,7 +205,7 @@ final class DocumentParser {
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
     static Mapping createDynamicUpdate(Mapping mapping,
-                                       DocumentMapper docMapper,
+                                       MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
                                        List<RuntimeFieldType> dynamicRuntimeFields) {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
@@ -213,7 +213,7 @@ final class DocumentParser {
         }
         RootObjectMapper root;
         if (dynamicMappers.isEmpty() == false) {
-            root = createDynamicUpdate(mapping.root, docMapper, dynamicMappers);
+            root = createDynamicUpdate(mapping.root, mappingLookup, dynamicMappers);
         } else {
             root = mapping.root.copyAndReset();
         }
@@ -222,7 +222,7 @@ final class DocumentParser {
     }
 
     private static RootObjectMapper createDynamicUpdate(RootObjectMapper root,
-                                                        DocumentMapper docMapper,
+                                                        MappingLookup mappingLookup,
                                                         List<Mapper> dynamicMappers) {
 
         // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
@@ -264,7 +264,7 @@ final class DocumentParser {
             // mappings, and build an update with only the new mapper and its parents. This then becomes our
             // "new mapper", and can be added to the stack.
             if (i < nameParts.length - 1) {
-                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, docMapper, newMapper);
+                newMapper = createExistingMapperUpdate(parentMappers, nameParts, i, mappingLookup, newMapper);
             }
 
             if (newMapper instanceof ObjectMapper) {
@@ -334,14 +334,14 @@ final class DocumentParser {
 
     /** Creates an update for intermediate object mappers that are not on the stack, but parents of newMapper. */
     private static ObjectMapper createExistingMapperUpdate(List<ObjectMapper> parentMappers, String[] nameParts, int i,
-                                                           DocumentMapper docMapper, Mapper newMapper) {
+                                                           MappingLookup mappingLookup, Mapper newMapper) {
         String updateParentName = nameParts[i];
         final ObjectMapper lastParent = parentMappers.get(parentMappers.size() - 1);
         if (parentMappers.size() > 1) {
             // only prefix with parent mapper if the parent mapper isn't the root (which has a fake name)
             updateParentName = lastParent.name() + '.' + nameParts[i];
         }
-        ObjectMapper updateParent = docMapper.mappers().objectMappers().get(updateParentName);
+        ObjectMapper updateParent = mappingLookup.objectMappers().get(updateParentName);
         assert updateParent != null : updateParentName + " doesn't exist";
         return createUpdate(updateParent, nameParts, i + 1, newMapper);
     }
@@ -675,7 +675,7 @@ final class DocumentParser {
 
     /** Creates an copy of the current field with given field name and boost */
     private static void parseCopy(String field, ParseContext context) throws IOException {
-        Mapper mapper = context.docMapper().mappers().getMapper(field);
+        Mapper mapper = context.mappingLookup().getMapper(field);
         if (mapper != null) {
             if (mapper instanceof FieldMapper) {
                 ((FieldMapper) mapper).parse(context);
@@ -707,13 +707,13 @@ final class DocumentParser {
         ObjectMapper parent = mapper;
         for (int i = 0; i < paths.length-1; i++) {
             String currentPath = context.path().pathAsText(paths[i]);
-            Mapper existingFieldMapper = context.docMapper().mappers().getMapper(currentPath);
+            Mapper existingFieldMapper = context.mappingLookup().getMapper(currentPath);
             if (existingFieldMapper != null) {
                 throw new MapperParsingException(
                     "Could not dynamically add mapping for field [{}]. Existing mapping for [{}] must be of type object but found [{}].",
                     null, String.join(".", paths), currentPath, existingFieldMapper.typeName());
             }
-            mapper = context.docMapper().mappers().objectMappers().get(currentPath);
+            mapper = context.mappingLookup().objectMappers().get(currentPath);
             if (mapper == null) {
                 // One mapping is missing, check if we are allowed to create a dynamic one.
                 ObjectMapper.Dynamic dynamic = dynamicOrDefault(parent, context);
@@ -749,7 +749,7 @@ final class DocumentParser {
                 break;
             }
             String parentName = parentMapper.name().substring(0, lastDotNdx);
-            parentMapper = context.docMapper().mappers().objectMappers().get(parentName);
+            parentMapper = context.mappingLookup().objectMappers().get(parentName);
             if (parentMapper == null) {
                 //If parentMapper is null, it means the parent of the current mapper is being dynamically created right now
                 parentMapper = context.getObjectMapper(parentName);
@@ -776,7 +776,7 @@ final class DocumentParser {
                                     String[] subfields) {
         String fieldPath = context.path().pathAsText(fieldName);
         // Check if mapper is a metadata mapper first
-        Mapper mapper = context.docMapper().mapping().getMetadataMapper(fieldPath);
+        Mapper mapper = context.getMetadataMapper(fieldPath);
         if (mapper != null) {
             return mapper;
         }
@@ -812,7 +812,7 @@ final class DocumentParser {
         // if a leaf field is not mapped, and is defined as a runtime field, then we
         // don't create a dynamic mapping for it and don't index it.
         String fieldPath = context.path().pathAsText(fieldName);
-        RuntimeFieldType runtimeFieldType = context.docMapper().mapping().root.getRuntimeFieldType(fieldPath);
+        RuntimeFieldType runtimeFieldType = context.root().getRuntimeFieldType(fieldPath);
         if (runtimeFieldType != null) {
             return new NoOpFieldMapper(subfields[subfields.length - 1], runtimeFieldType);
         }

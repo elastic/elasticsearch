@@ -126,7 +126,7 @@ public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
         autoscalingCapacities.add(larger);
         Randomness.shuffle(autoscalingCapacities);
         AutoscalingCapacity.Builder expectedBuilder = AutoscalingCapacity.builder()
-            .total(expectedStorage.tier().storage(), expectedMemory.tier().memory());
+            .total(expectedStorage.total().storage(), expectedMemory.total().memory());
         if (node) {
             expectedBuilder.node(expectedStorage.node().storage(), expectedMemory.node().memory());
         }

@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
@@ -31,7 +30,6 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
         final boolean securityDefaultEnabled = randomBoolean();
         final AtomicBoolean consumerCalled = new AtomicBoolean(false);
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        when(licenseState.checkFeature(XPackLicenseState.Feature.SECURITY)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(securityDefaultEnabled);
         when(licenseState.getOperationMode()).thenReturn(
             randomFrom(License.OperationMode.BASIC, License.OperationMode.STANDARD, License.OperationMode.GOLD));
@@ -64,7 +62,6 @@ public class SecurityBaseRestHandlerTests extends ESTestCase {
             verifyZeroInteractions(licenseState);
             handler.handleRequest(fakeRestRequest, fakeRestChannel, client);
 
-            verify(licenseState).checkFeature(XPackLicenseState.Feature.SECURITY);
             if (securityDefaultEnabled) {
                 assertTrue(consumerCalled.get());
                 assertEquals(0, fakeRestChannel.responses().get());

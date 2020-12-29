@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,23 +30,21 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 
 public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
-    private final XPackLicenseState licenseState;
+
     private final Client client;
 
     @Inject
     public EqlUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                   XPackLicenseState licenseState, Client client) {
+                                   Client client) {
         super(XPackUsageFeatureAction.EQL.name(), transportService, clusterService, threadPool, actionFilters,
             indexNameExpressionResolver);
-        this.licenseState = licenseState;
         this.client = client;
     }
 
     @Override
     protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
                                    ActionListener<XPackUsageFeatureResponse> listener) {
-        boolean available = licenseState.isAllowed(XPackLicenseState.Feature.EQL);
 
         EqlStatsRequest eqlRequest = new EqlStatsRequest();
         eqlRequest.includeStats(true);
@@ -59,7 +56,7 @@ public class EqlUsageTransportAction extends XPackUsageFeatureTransportAction {
                 .filter(Objects::nonNull)
                 .collect(Collectors.toList());
             Counters mergedCounters = Counters.merge(countersPerNode);
-            EqlFeatureSetUsage usage = new EqlFeatureSetUsage(available, true, mergedCounters.toNestedMap());
+            EqlFeatureSetUsage usage = new EqlFeatureSetUsage(mergedCounters.toNestedMap());
             listener.onResponse(new XPackUsageFeatureResponse(usage));
         }, listener::onFailure));
     }

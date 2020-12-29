@@ -76,6 +76,7 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
         }
 
         SearchRequest searchRequest = searchTemplateService.toSearchRequest(request);
+        ClientHelper.assertNoAuthorizationHeader(ctx.watch().status().getHeaders());
         final SearchResponse response = ClientHelper.executeWithHeaders(ctx.watch().status().getHeaders(), ClientHelper.WATCHER_ORIGIN,
                 client, () -> client.search(searchRequest).actionGet(timeout));
 

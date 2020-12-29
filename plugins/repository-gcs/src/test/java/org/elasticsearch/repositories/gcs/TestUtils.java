@@ -37,7 +37,7 @@ final class TestUtils {
     static byte[] createServiceAccount(final Random random) {
         try {
             final KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(1024);
+            keyPairGenerator.initialize(2048);
             final String privateKey = Base64.getEncoder().encodeToString(keyPairGenerator.generateKeyPair().getPrivate().getEncoded());
 
             final ByteArrayOutputStream out = new ByteArrayOutputStream();

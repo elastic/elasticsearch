@@ -21,6 +21,7 @@ import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyResponse;
+import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
 import java.util.List;
@@ -30,18 +31,17 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 /**
  * Rest action to invalidate one or more API keys
  */
-public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
+public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
-                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3],
-                    (a[4] == null) ? false : (Boolean) a[4],
-                    (a[5] == null) ? null : ((List<String>) a[5]).toArray(new String[0]));
+                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2],
+                    (a[3] == null) ? false : (Boolean) a[3],
+                    (a[4] == null) ? null : ((List<String>) a[4]).toArray(new String[0]));
             });
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ids"));
@@ -76,5 +76,4 @@ public final class RestInvalidateApiKeyAction extends ApiKeyBaseRestHandler {
     public String getName() {
         return "xpack_security_invalidate_api_key";
     }
-
 }

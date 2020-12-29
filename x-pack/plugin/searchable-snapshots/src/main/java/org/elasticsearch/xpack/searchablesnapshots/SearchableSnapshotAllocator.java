@@ -5,17 +5,17 @@
  */
 package org.elasticsearch.xpack.searchablesnapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
-import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
@@ -27,11 +27,13 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.gateway.AsyncShardFetch;
+import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.snapshots.Snapshot;
@@ -60,9 +62,9 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotAllocator.class);
 
-    private static final ActionListener<ClusterRerouteResponse> REROUTE_LISTENER = new ActionListener<>() {
+    private static final ActionListener<ClusterState> REROUTE_LISTENER = new ActionListener<>() {
         @Override
-        public void onResponse(ClusterRerouteResponse clusterRerouteResponse) {
+        public void onResponse(ClusterState clusterRerouteResponse) {
             logger.trace("reroute succeeded after loading snapshot cache information");
         }
 
@@ -78,8 +80,11 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
 
     private final Client client;
 
-    public SearchableSnapshotAllocator(Client client) {
+    private final RerouteService rerouteService;
+
+    public SearchableSnapshotAllocator(Client client, RerouteService rerouteService) {
         this.client = client;
+        this.rerouteService = rerouteService;
     }
 
     @Override
@@ -151,20 +156,15 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
         }
 
-        final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchedCacheData = fetchData(shardRouting, allocation);
-        if (fetchedCacheData.hasData() == false) {
-            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
-        }
-
         final boolean explain = allocation.debugDecision();
-        final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
-        assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
-
         // pre-check if it can be allocated to any node that currently exists, so we won't list the cache sizes for it for nothing
         // TODO: in the following logic, we do not account for existing cache size when handling disk space checks, should and can we
         // reliably do this in a world of concurrent cache evictions or are we ok with the cache size just being a best effort hint
         // here?
-        Tuple<Decision, Map<String, NodeAllocationResult>> result = canBeAllocatedToAtLeastOneNode(shardRouting, allocation);
+        Tuple<Decision, Map<String, NodeAllocationResult>> result = ReplicaShardAllocator.canBeAllocatedToAtLeastOneNode(
+            shardRouting,
+            allocation
+        );
         Decision allocateDecision = result.v1();
         if (allocateDecision.type() != Decision.Type.YES && (explain == false || asyncFetchStore.get(shardRouting.shardId()) == null)) {
             // only return early if we are not in explain mode, or we are in explain mode but we have not
@@ -175,6 +175,14 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 result.v2() != null ? new ArrayList<>(result.v2().values()) : null
             );
         }
+
+        final AsyncShardFetch.FetchResult<NodeCacheFilesMetadata> fetchedCacheData = fetchData(shardRouting, allocation);
+        if (fetchedCacheData.hasData() == false) {
+            return AllocateUnassignedDecision.no(UnassignedInfo.AllocationStatus.FETCHING_SHARD_DATA, null);
+        }
+
+        final MatchingNodes matchingNodes = findMatchingNodes(shardRouting, allocation, fetchedCacheData, explain);
+        assert explain == false || matchingNodes.nodeDecisions != null : "in explain mode, we must have individual node decisions";
 
         List<NodeAllocationResult> nodeDecisions = augmentExplanationsWithStoreInfo(result.v2(), matchingNodes.nodeDecisions);
         if (allocateDecision.type() != Decision.Type.YES) {
@@ -283,7 +291,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                     }
                 }, () -> {
                     if (asyncFetch.data() != null) {
-                        client.admin().cluster().prepareReroute().execute(REROUTE_LISTENER);
+                        rerouteService.reroute("async_shard_cache_fetch", Priority.HIGH, REROUTE_LISTENER);
                     }
                 })
             );
@@ -311,45 +319,6 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
             }
         }
         return augmented;
-    }
-
-    /**
-     * Determines if the shard can be allocated on at least one node based on the allocation deciders.
-     *
-     * Returns the best allocation decision for allocating the shard on any node (i.e. YES if at least one
-     * node decided YES, THROTTLE if at least one node decided THROTTLE, and NO if none of the nodes decided
-     * YES or THROTTLE).  If in explain mode, also returns the node-level explanations as the second element
-     * in the returned tuple.
-     * TODO: dry this method up against ReplicaShardAllocator
-     */
-    private static Tuple<Decision, Map<String, NodeAllocationResult>> canBeAllocatedToAtLeastOneNode(
-        ShardRouting shard,
-        RoutingAllocation allocation
-    ) {
-        Decision madeDecision = Decision.NO;
-        final boolean explain = allocation.debugDecision();
-        Map<String, NodeAllocationResult> nodeDecisions = explain ? new HashMap<>() : null;
-        for (ObjectCursor<DiscoveryNode> cursor : allocation.nodes().getDataNodes().values()) {
-            RoutingNode node = allocation.routingNodes().node(cursor.value.getId());
-            if (node == null) {
-                continue;
-            }
-            // if we can't allocate it on a node, ignore it
-            Decision decision = allocation.deciders().canAllocate(shard, node, allocation);
-            if (decision.type() == Decision.Type.YES && madeDecision.type() != Decision.Type.YES) {
-                if (explain) {
-                    madeDecision = decision;
-                } else {
-                    return Tuple.tuple(decision, null);
-                }
-            } else if (madeDecision.type() == Decision.Type.NO && decision.type() == Decision.Type.THROTTLE) {
-                madeDecision = decision;
-            }
-            if (explain) {
-                nodeDecisions.put(node.nodeId(), new NodeAllocationResult(node.node(), null, decision));
-            }
-        }
-        return Tuple.tuple(madeDecision, nodeDecisions);
     }
 
     private MatchingNodes findMatchingNodes(

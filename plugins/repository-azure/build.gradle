@@ -374,3 +374,18 @@ task azureThirdPartyTest(type: Test) {
   }
 }
 tasks.named("check").configure { dependsOn("azureThirdPartyTest") }
+
+// test jar is exported by the integTestArtifacts configuration to be used in the encrypted Azure repository test
+configurations {
+  internalClusterTestArtifacts.extendsFrom internalClusterTestImplementation
+  internalClusterTestArtifacts.extendsFrom internalClusterTestRuntime
+}
+
+def internalClusterTestJar = tasks.register("internalClusterTestJar", Jar) {
+  appendix 'internalClusterTest'
+  from sourceSets.internalClusterTest.output
+}
+
+artifacts {
+  internalClusterTestArtifacts internalClusterTestJar
+}

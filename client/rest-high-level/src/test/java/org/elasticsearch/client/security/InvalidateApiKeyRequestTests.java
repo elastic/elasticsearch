@@ -39,7 +39,7 @@ public class InvalidateApiKeyRequestTests extends ESTestCase {
             request = InvalidateApiKeyRequest.usingApiKeyId(randomAlphaOfLength(5), randomBoolean());
         } else {
             request = InvalidateApiKeyRequest.usingApiKeyIds(
-                IntStream.range(1, randomIntBetween(1, 5)).mapToObj(ignored -> randomAlphaOfLength(5)).collect(Collectors.toList()),
+                IntStream.range(1, randomIntBetween(2, 5)).mapToObj(ignored -> randomAlphaOfLength(5)).collect(Collectors.toList()),
                 randomBoolean());
         }
         Optional<ValidationException> ve = request.validate();

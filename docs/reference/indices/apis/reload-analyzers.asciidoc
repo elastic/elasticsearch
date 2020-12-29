@@ -13,8 +13,16 @@ stream's backing indices.
 [source,console]
 --------------------------------------------------
 POST /my-index-000001/_reload_search_analyzers
+POST /my-index-000001/_cache/clear?request=true
 --------------------------------------------------
 // TEST[setup:my_index]
+
+IMPORTANT: After reloading the search analyzers you should clear the request
+           cache to make sure it doesn't contain responses derived from the
+           previous versions of the analyzer.
+// the need for this is tracked in https://github.com/elastic/elasticsearch/issues/66722
+
+
 
 [discrete]
 [[indices-reload-analyzers-api-request]]

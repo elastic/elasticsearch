@@ -483,7 +483,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         XContentBuilder user = JsonXContent.contentBuilder().prettyPrint();
         user.startObject();
         {
-            user.field("password", "testpass");
+            user.field("password", "test-user-password");
             user.field("roles", role);
         }
         user.endObject();

@@ -12,7 +12,6 @@ Audit logging also provides forensic evidence in the event of an attack.
 ============================================================================
 Audit logs are **disabled** by default. You must explicitly enable audit logging.
 ============================================================================
-+
 --
 TIP: Audit logs are only available on certain subscription levels.
 For more information, see https://www.elastic.co/subscriptions.

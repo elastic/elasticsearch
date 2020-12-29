@@ -10,29 +10,29 @@ might generate multiple audit events, across multiple cluster nodes. The common
 The following is an exhaustive list of the events that can be generated:
 
 |======
-| `anonymous_access_denied`         | | Logged when a request is denied due to a missing                       | | example
-                                        authentication token.
+| `anonymous_access_denied`         | | Logged when a request is denied due to a missing
+                                        authentication token.                                                  | | example1
 | `authentication_success`          | | Logged when a user successfully authenticates.                         | | example2
-| `authentication_failed`           | | Logged when the authentication token cannot be                         | | example 3
-                                        matched to a known user.
-| `realm_authentication_failed`     | | Logged for every realm that fails to present a valid                   | | example 4
+| `authentication_failed`           | | Logged when the authentication token cannot be
+                                        matched to a known user.                                               | | example3
+| `realm_authentication_failed`     | | Logged for every realm that fails to present a valid
                                         authentication token. `<realm>` represents the
-                                        realm type.
-| `access_denied`                   | | Logged when an authenticated user attempts to execute                  | | example 5
+                                        realm type.                                                            | | example4
+| `access_denied`                   | | Logged when an authenticated user attempts to execute
                                         an action they do not have the necessary
-                                        <<security-privileges,privilege>> to perform.
-| `access_granted`                  | | Logged when an authenticated user attempts to execute                  | | example6
+                                        <<security-privileges,privilege>> to perform.                          | | example5
+| `access_granted`                  | | Logged when an authenticated user attempts to execute
                                         an action they have the necessary privilege to perform.
                                         When the `system_access_granted` event is included, all system
                                         (internal) actions are also logged. The default setting does
-                                        not log system actions to avoid cluttering the logs.
-| `run_as_granted`                  | | Logged when an authenticated user attempts to                          | | example7
+                                        not log system actions to avoid cluttering the logs.                   | | example6
+| `run_as_granted`                  | | Logged when an authenticated user attempts to
                                         <<run-as-privilege, run as>> another user that they have
-                                        the necessary privileges to do.
-| `run_as_denied`                   | | Logged when an authenticated user attempts to                          | | example8
+                                        the necessary privileges to do.                                        | | example7
+| `run_as_denied`                   | | Logged when an authenticated user attempts to
                                         <<run-as-privilege, run as>>
                                         another user action they do not have the necessary
-                                        <<security-privileges,privilege>> to do so.
+                                        <<security-privileges,privilege>> to do so.                            | | example8
 | `tampered_request`                | | Logged when the {security-features} detect that the request has        | | example9
                                         been tampered with. Typically relates to `search/scroll`
                                         requests when the scroll ID is believed to have been
@@ -54,6 +54,16 @@ The following is an exhaustive list of the events that can be generated:
                                         create or update a role mapping.                                       | | example14
 | `put_privileges`                  | | Logged when the <<security-api-put-privileges, put privileges API>>    | | example15
                                         has been invoked to add or update application privileges.
+| `create_apikey`                   | | Logged when the <<security-api-create-api-key, create API key>>        | | example16
+                                        or the <<security-api-grant-api-key, grant API key>> APIs have
+                                        been invoked to create a new API key.
+| `delete_user`                     | | Logged when the <<security-api-delete-user, delete user API>>          | | example17
+                                        has been invoked to delete a specific native user.
+| `delete_role`                     | | Logged when the <<security-api-delete-role, delete role API>>          | | example18
+                                        has been invoked to delete a role.
+| `delete_role_mapping`             | | Logged when the                                                        | | example19
+                                        <<security-api-delete-role-mapping, delete role mapping API>>
+                                        has been invoked to delete a role mapping.
 |======
 
 [discrete]

@@ -69,8 +69,8 @@ These events that contain the `request.body` attribute are `authentication_succe
 `authentication_failed`, `realm_authentication_failed`, `tampered_request`, `run_as_denied`,
 and `anonymous_access_denied` that are printed on the coordinating node only
 (the node that handles the REST request).
-
-The default value is `false` so request bodies are not printed.
++
+The default value is `false`, so request bodies are not printed.
 +
 --
 IMPORTANT: No filtering is performed when auditing, so sensitive data may be
@@ -111,8 +111,6 @@ The default value is `false`.
 `xpack.security.audit.logfile.emit_node_id`::
 (<<dynamic-cluster-setting,Dynamic>>)
 Specifies whether to include the node id as a field in each audit event.
-This is available for the new format only. That is to say, this information
-does not exist in the `<clustername>_access.log` file.
 Unlike <<node-name,node name>>, whose value might change if the administrator
 changes the setting in the config file, the node id will persist across cluster
 restarts and the administrator cannot change it.
@@ -122,13 +120,13 @@ The default value is `true`.
 [[audit-event-ignore-policies]]
 ==== Audit Logfile Event Ignore Policies
 
-These settings affect the <<audit-log-ignore-policy,ignore policies>>
+The following settings affect the <<audit-log-ignore-policy,ignore policies>>
 that enable fine-grained control over which audit events are printed to the log file.
 All of the settings with the same policy name combine to form a single policy.
-If an event matches all of the conditions for a specific policy, it is ignored
-and not printed. All events of any type are subject to the ignore policies, with the
-sole exception of `security_config_change` events, which if not
-<<xpack-sa-lf-events-exclude, excluded>> altogether, are never filtered out.
+If an event matches all the conditions of any policy, it is ignored and not printed.
+Most audit events are subject to the ignore policies. The sole exception are
+events of the `security_config_change` type, which cannot be filtered out, unless
+<<xpack-sa-lf-events-exclude, excluded>> altogether.
 
 [[xpack-sa-lf-events-ignore-users]]
 // tag::xpack-sa-lf-events-ignore-users-tag[]

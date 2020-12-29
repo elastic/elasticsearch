@@ -118,10 +118,16 @@ public final class Automatons {
         final Set<String> misc = new HashSet<>();
 
         for (String p : patterns) {
+            if (p.length() <= 1) {
+                // Single character strings (like "x" or "*"), or stray empty strings
+                misc.add(p);
+                continue;
+            }
+
             final char first = p.charAt(0);
             final char last = p.charAt(p.length() - 1);
-            if (p.length() <= 1 || first == '/') {
-                // Single character strings (like "x" or "*") or regex ("/something/")
+            if (first == '/') {
+                // regex ("/something/")
                 misc.add(p);
             } else if (first == '*') {
                 if (last == '*') {
@@ -134,12 +140,14 @@ public final class Automatons {
             } else if (last == '*' && p.indexOf('*') != p.length() - 1) {
                 // some*thing*
                 // For simple prefix patterns ("something*") it's more efficient to do a single pass
-                // Lucene handles the shared trailing '*' on an accept state well,
-                // and performing 2 minimizes (on for the union of strings, then on again after concatenating MATCH_ANY) is slower.
-                // But, that's not true if the string has an embedded '*' in it - in that case, we should handle them in this special way.
+                // Lucene can efficiently determinize automata that share a trailing MATCH_ANY accept state,
+                // If we were to handle them here, we would run 2 minimize operations (one for the union of strings,
+                // then another after concatenating MATCH_ANY), which is substantially slower.
+                // However, that's not true if the string has an embedded '*' in it - in that case it is more efficient to determinize
+                //   the set of prefixes (with the embedded MATCH_ANY) and then concatenate another MATCH_ANY and minimize.
                 prefix.add(p.substring(0, p.length() - 1));
             } else {
-                // some*thing / some?thing / etc
+                // something* / some*thing / some?thing / etc
                 misc.add(p);
             }
         }

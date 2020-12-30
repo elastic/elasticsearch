@@ -231,22 +231,29 @@ ones); the attributes' value is a nested JSON object (that is not escaped):
 
 The schemas of the security config objects mentioned above are:
 
-`user`                ::     `{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
+`user`                ::     An object like `{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
                              "full_name": <string>, "email": <string>, "has_password": <boolean>,
-                             "metadata": <object>}`
+                             "metadata": <object>}`.
+
                              The `full_name`, `email` and `metadata` fields are omitted if empty.
-`role`                ::     `{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
+`role`                ::     An object like `{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
                              {"application":{"manage":{<string>:<string_list>}}}, "indices": [
                              {"names": <string_list>, "privileges": <string_list>, "field_security":
                              {"grant": <string_list>, "except": <string_list>}, "query": <string>,
                              "allow_restricted_indices": <boolean>}], "applications":[{"application": <string>,
                              "privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
-                             "metadata": <object>}}`
+                             "metadata": <object>}}`.
+
                              The `global`, `field_security`, `except`, `query`, `allow_restricted_indices` and
                              `metadata` fields are omitted if empty.
-`role_mapping`        ::     `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
+`role_mapping`        ::     An object like `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
                              "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`
-                             The 
+
+                             The `roles` and `role_templates` fields are omitted if empty.
+                             The `rules` object has a recursively nested schema, identical to what is passed in
+                             the <<mapping-roles, API request for mapping roles>>.
+`privileges`          ::     An array of objects like `{"application": <string>, "name": <string>, "actions": <string_list>,
+                             "metadata": <object>}`.
 
 ==== Extra audit event attributes for specific events
 

@@ -39,6 +39,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
@@ -200,6 +201,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_RANGE_SIZE_SETTING,
+            CacheService.SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
@@ -392,6 +394,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .put(IndexMetadata.SETTING_PRIORITY, "900")
+            .put(IndexSettings.INDEX_TRANSLOG_DURABILITY_SETTING.getKey(), Translog.Durability.ASYNC)
             .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, DATA_TIERS_PREFERENCE)
             .build();
     }

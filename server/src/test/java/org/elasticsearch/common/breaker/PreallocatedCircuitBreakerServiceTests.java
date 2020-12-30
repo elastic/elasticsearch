@@ -82,7 +82,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
         try (HierarchyCircuitBreakerService real = real()) {
             long limit = real.getBreaker(CircuitBreaker.REQUEST).getLimit();
             Exception e = expectThrows(CircuitBreakingException.class, () -> preallocateRequest(real, limit + 1024));
-            assertThat(e.getMessage(), startsWith("[request] Data too large, data for [preallocate] would be ["));
+            assertThat(e.getMessage(), startsWith("[request] Data too large, data for [preallocate[test]] would be ["));
         }
     }
 

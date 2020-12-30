@@ -139,18 +139,6 @@ public class AggConstructionContentionBenchmark {
     }
 
     @Benchmark
-    public void sixSums() throws IOException {
-        buildFactories(
-            new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("s1").field("int_1"))
-                .addAggregator(new SumAggregationBuilder("s2").field("int_2"))
-                .addAggregator(new SumAggregationBuilder("s3").field("int_3"))
-                .addAggregator(new SumAggregationBuilder("s4").field("int_4"))
-                .addAggregator(new SumAggregationBuilder("s5").field("int_5"))
-                .addAggregator(new SumAggregationBuilder("s6").field("int_6"))
-        );
-    }
-
-    @Benchmark
     public void termsSum() throws IOException {
         buildFactories(
             new AggregatorFactories.Builder().addAggregator(

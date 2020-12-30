@@ -189,11 +189,6 @@ This issue is fixed in {es} 7.7.0 and later versions (issue: {es-issue}50916[#50
 [discrete]
 === Breaking changes
 
-Mapping::
-* Add a cluster setting to disallow loading fielddata on _id field {es-pull}49166[#49166] (issues: {es-issue}26472[#26472], {es-issue}43599[#43599])
-
-
-
 [[breaking-java-7.6.0]]
 [discrete]
 === Breaking Java changes
@@ -228,6 +223,7 @@ Reindex::
 * Deprecate sorting in reindex {es-pull}49458[#49458] (issue: {es-issue}47567[#47567])
 
 Search::
+* Deprecate loading fielddata on _id field {es-pull}49166[#49166] (issues: {es-issue}26472[#26472], {es-issue}43599[#43599])
 * Update the signature of vector script functions. {es-pull}48604[#48604]
 * Deprecate the sparse_vector field type. {es-pull}48315[#48315]
 * Add a deprecation warning regarding allocation awareness in search request {es-pull}48351[#48351] (issue: {es-issue}43453[#43453])

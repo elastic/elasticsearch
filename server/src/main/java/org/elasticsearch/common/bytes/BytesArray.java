@@ -20,6 +20,11 @@
 package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.FutureArrays;
+import org.elasticsearch.common.io.stream.StreamInput;
+
+import java.io.IOException;
+import java.io.OutputStream;
 
 public final class BytesArray extends AbstractBytesReference {
 
@@ -66,6 +71,24 @@ public final class BytesArray extends AbstractBytesReference {
     }
 
     @Override
+    public int hashCode() {
+        // NOOP override to satisfy Checkstyle's EqualsHashCode
+        return super.hashCode();
+    }
+
+    @Override
+    public boolean equals(Object other) {
+        if (this == other) {
+            return true;
+        }
+        if (other instanceof BytesArray) {
+            final BytesArray that = (BytesArray) other;
+            return FutureArrays.equals(bytes, offset, offset + length, that.bytes, that.offset, that.offset + that.length);
+        }
+        return super.equals(other);
+    }
+
+    @Override
     public BytesReference slice(int from, int length) {
         if (from < 0 || (from + length) > this.length) {
             throw new IllegalArgumentException("can't slice a buffer with length [" + this.length +
@@ -92,4 +115,13 @@ public final class BytesArray extends AbstractBytesReference {
         return bytes.length;
     }
 
+    @Override
+    public StreamInput streamInput() {
+        return StreamInput.wrap(bytes, offset, length);
+    }
+
+    @Override
+    public void writeTo(OutputStream os) throws IOException {
+        os.write(bytes, offset, length);
+    }
 }

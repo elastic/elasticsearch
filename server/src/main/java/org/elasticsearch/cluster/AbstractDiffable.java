@@ -27,21 +27,28 @@ import java.io.IOException;
 
 /**
  * Abstract diffable object with simple diffs implementation that sends the entire object if object has changed or
- * nothing is object remained the same.
+ * nothing if object remained the same.
  */
 public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffable<T> {
 
+    private static final Diff<?> EMPTY = new CompleteDiff<>();
+
+    @SuppressWarnings("unchecked")
     @Override
     public Diff<T> diff(T previousState) {
-        if (this.get().equals(previousState)) {
-            return new CompleteDiff<>();
+        if (this.equals(previousState)) {
+            return (Diff<T>) EMPTY;
         } else {
-            return new CompleteDiff<>(get());
+            return new CompleteDiff<>((T) this);
         }
     }
 
+    @SuppressWarnings("unchecked")
     public static <T extends Diffable<T>> Diff<T> readDiffFrom(Reader<T> reader, StreamInput in) throws IOException {
-        return new CompleteDiff<T>(reader, in);
+        if (in.readBoolean()) {
+            return new CompleteDiff<>(reader.read(in));
+        }
+        return (Diff<T>) EMPTY;
     }
 
     private static class CompleteDiff<T extends Diffable<T>> implements Diff<T> {
@@ -63,17 +70,6 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
             this.part = null;
         }
 
-        /**
-         * Read simple diff from the stream
-         */
-        CompleteDiff(Reader<T> reader, StreamInput in) throws IOException {
-            if (in.readBoolean()) {
-                this.part = reader.read(in);
-            } else {
-                this.part = null;
-            }
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (part != null) {
@@ -92,11 +88,6 @@ public abstract class AbstractDiffable<T extends Diffable<T>> implements Diffabl
                 return part;
             }
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    public T get() {
-        return (T) this;
     }
 }
 

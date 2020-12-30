@@ -48,10 +48,12 @@ import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SimpleModel;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -399,6 +401,11 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
+        protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
+            return ValuesSourceRegistry.UNREGISTERED_KEY;
+        }
+
+        @Override
         protected void innerWriteTo(StreamOutput out) throws IOException {
         }
 
@@ -408,7 +415,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+        protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                            ValuesSourceConfig config,
                                                            AggregatorFactory parent,
                                                            Builder subFactoriesBuilder) throws IOException {

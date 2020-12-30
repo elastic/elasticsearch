@@ -20,13 +20,13 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
-import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -61,6 +61,7 @@ import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
@@ -242,6 +243,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
         ContextIndexSearcher searcher = new ContextIndexSearcher(filteredReader, IndexSearcher.getDefaultSimilarity(),
             IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), true);
 
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            assertThat(context.reader(), instanceOf(SequentialStoredFieldsLeafReader.class));
+            SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+            assertNotNull(lf.getSequentialStoredFieldsReader());
+        }
         // Assert wrapping
         assertEquals(ExitableDirectoryReader.class, searcher.getIndexReader().getClass());
         for (LeafReaderContext lrc : searcher.getIndexReader().leaves()) {
@@ -312,7 +318,7 @@ public class ContextIndexSearcherTests extends ESTestCase {
         }
     }
 
-    private static class DocumentSubsetReader extends FilterLeafReader {
+    private static class DocumentSubsetReader extends SequentialStoredFieldsLeafReader {
         private final BitSet roleQueryBits;
         private final int numDocs;
 
@@ -355,6 +361,11 @@ public class ContextIndexSearcherTests extends ESTestCase {
                 // apply deletes when needed:
                 return new CombinedBitSet(roleQueryBits, actualLiveDocs);
             }
+        }
+
+        @Override
+        protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+            return reader;
         }
 
         private static int computeNumDocs(LeafReader reader, BitSet roleQueryBits) {

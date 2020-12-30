@@ -38,9 +38,9 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -79,22 +79,21 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
         String name,
         AggregatorFactories factories,
         Rounding rounding,
-        Rounding.Prepared preparedRounding,
         BucketOrder order,
         boolean keyed,
         long minDocCount,
         @Nullable LongBounds extendedBounds,
         @Nullable LongBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext aggregationContext,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
 
-        super(name, factories, aggregationContext, parent, CardinalityUpperBound.MANY, metadata);
+        super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.rounding = rounding;
-        this.preparedRounding = preparedRounding;
+        this.preparedRounding = valuesSourceConfig.roundingPreparer().apply(rounding);
         this.order = order;
         order.validate(this);
         this.keyed = keyed;
@@ -109,7 +108,7 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
                 + "]");
         }
 
-        bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), cardinality);
+        bucketOrds = LongKeyedBucketOrds.build(bigArrays(), cardinality);
     }
 
     @Override

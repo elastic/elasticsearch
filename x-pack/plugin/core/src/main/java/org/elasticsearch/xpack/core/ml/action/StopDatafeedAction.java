@@ -43,7 +43,9 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
 
         public static final ParseField TIMEOUT = new ParseField("timeout");
         public static final ParseField FORCE = new ParseField("force");
-        public static final ParseField ALLOW_NO_DATAFEEDS = new ParseField("allow_no_datafeeds");
+        @Deprecated
+        public static final String ALLOW_NO_DATAFEEDS = "allow_no_datafeeds";
+        public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match", ALLOW_NO_DATAFEEDS);
 
         public static final ObjectParser<Request, Void> PARSER = new ObjectParser<>(NAME, Request::new);
         static {
@@ -51,7 +53,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             PARSER.declareString((request, val) ->
                     request.setStopTimeout(TimeValue.parseTimeValue(val, TIMEOUT.getPreferredName())), TIMEOUT);
             PARSER.declareBoolean(Request::setForce, FORCE);
-            PARSER.declareBoolean(Request::setAllowNoDatafeeds, ALLOW_NO_DATAFEEDS);
+            PARSER.declareBoolean(Request::setAllowNoMatch, ALLOW_NO_MATCH);
         }
 
         public static Request fromXContent(XContentParser parser) {
@@ -70,7 +72,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
         private String[] resolvedStartedDatafeedIds = new String[] {};
         private TimeValue stopTimeout = DEFAULT_TIMEOUT;
         private boolean force = false;
-        private boolean allowNoDatafeeds = true;
+        private boolean allowNoMatch = true;
 
         public Request(String datafeedId) {
             this.datafeedId = ExceptionsHelper.requireNonNull(datafeedId, DatafeedConfig.ID.getPreferredName());
@@ -86,7 +88,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             stopTimeout = in.readTimeValue();
             force = in.readBoolean();
             if (in.getVersion().onOrAfter(Version.V_6_1_0)) {
-                allowNoDatafeeds = in.readBoolean();
+                allowNoMatch = in.readBoolean();
             }
         }
 
@@ -118,12 +120,12 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             this.force = force;
         }
 
-        public boolean allowNoDatafeeds() {
-            return allowNoDatafeeds;
+        public boolean allowNoMatch() {
+            return allowNoMatch;
         }
 
-        public void setAllowNoDatafeeds(boolean allowNoDatafeeds) {
-            this.allowNoDatafeeds = allowNoDatafeeds;
+        public void setAllowNoMatch(boolean allowNoMatch) {
+            this.allowNoMatch = allowNoMatch;
         }
 
         @Override
@@ -150,13 +152,13 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             out.writeTimeValue(stopTimeout);
             out.writeBoolean(force);
             if (out.getVersion().onOrAfter(Version.V_6_1_0)) {
-                out.writeBoolean(allowNoDatafeeds);
+                out.writeBoolean(allowNoMatch);
             }
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(datafeedId, stopTimeout, force, allowNoDatafeeds);
+            return Objects.hash(datafeedId, stopTimeout, force, allowNoMatch);
         }
 
         @Override
@@ -165,7 +167,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             builder.field(DatafeedConfig.ID.getPreferredName(), datafeedId);
             builder.field(TIMEOUT.getPreferredName(), stopTimeout.getStringRep());
             builder.field(FORCE.getPreferredName(), force);
-            builder.field(ALLOW_NO_DATAFEEDS.getPreferredName(), allowNoDatafeeds);
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
             builder.endObject();
             return builder;
         }
@@ -182,7 +184,7 @@ public class StopDatafeedAction extends ActionType<StopDatafeedAction.Response> 
             return Objects.equals(datafeedId, other.datafeedId) &&
                     Objects.equals(stopTimeout, other.stopTimeout) &&
                     Objects.equals(force, other.force) &&
-                    Objects.equals(allowNoDatafeeds, other.allowNoDatafeeds);
+                    Objects.equals(allowNoMatch, other.allowNoMatch);
         }
     }
 

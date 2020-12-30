@@ -77,10 +77,7 @@ import static org.hamcrest.Matchers.nullValue;
 public class PersistedClusterStateServiceTests extends ESTestCase {
 
     private PersistedClusterStateService newPersistedClusterStateService(NodeEnvironment nodeEnvironment) {
-        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(),
-            usually()
-                ? BigArrays.NON_RECYCLING_INSTANCE
-                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
+        return new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             () -> 0L);
     }
@@ -358,7 +355,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
@@ -396,7 +393,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
@@ -442,7 +439,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
 
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             final PersistedClusterStateService persistedClusterStateService
-                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), BigArrays.NON_RECYCLING_INSTANCE,
+                = new PersistedClusterStateService(nodeEnvironment, xContentRegistry(), getBigArrays(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), () -> 0L) {
                 @Override
                 Directory createDirectory(Path path) throws IOException {
@@ -565,7 +562,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .settings(Settings.builder()
                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                     .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))))
                         .incrementVersion().build(),
                     clusterState);
@@ -613,7 +610,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .settings(Settings.builder()
                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                     .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))))
                         .incrementVersion().build(),
                     clusterState);
@@ -689,14 +686,14 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             .settings(Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.SETTING_INDEX_UUID, updatedIndexUuid)))
                     .put(IndexMetadata.builder("deleted")
                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                         .settings(Settings.builder()
                             .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                             .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                             .put(IndexMetadata.SETTING_INDEX_UUID, deletedIndexUuid))))
                     .incrementVersion().build(),
                     clusterState);
@@ -724,7 +721,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             .settings(Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.SETTING_INDEX_UUID, addedIndexUuid))))
                     .incrementVersion().build(),
                     clusterState);
@@ -760,7 +757,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 .settings(Settings.builder()
                                     .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                     .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID()))))
                         .incrementVersion().build(),
                         clusterState);
@@ -800,12 +797,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         try (NodeEnvironment nodeEnvironment = newNodeEnvironment(createDataPaths())) {
             PersistedClusterStateService persistedClusterStateService = new PersistedClusterStateService(nodeEnvironment,
-                xContentRegistry(),
-                usually()
-                    ? BigArrays.NON_RECYCLING_INSTANCE
-                    : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService()),
-                clusterSettings,
-                () -> currentTime.getAndAdd(writeDurationMillis.get()));
+                    xContentRegistry(), getBigArrays(), clusterSettings, () -> currentTime.getAndAdd(writeDurationMillis.get()));
 
             try (Writer writer = persistedClusterStateService.createWriter()) {
                 assertExpectedLogs(1L, null, clusterState, writer, new MockLogAppender.SeenEventExpectation(
@@ -847,7 +839,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             .settings(Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                                 .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid"))))
                     .incrementVersion().build();
 
@@ -923,5 +915,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         return ClusterState.builder(ClusterName.DEFAULT).version(version).metadata(metadata).build();
     }
 
+    private static BigArrays getBigArrays() {
+        return usually()
+                ? BigArrays.NON_RECYCLING_INSTANCE
+                : new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
 
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.sort;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
@@ -70,7 +69,7 @@ import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
  * A sort builder to sort based on a document field.
  */
 public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(FieldSortBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(FieldSortBuilder.class);
 
     public static final String NAME = "field_sort";
     public static final ParseField MISSING = new ParseField("missing");
@@ -82,6 +81,12 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * special field name to sort by index order
      */
     public static final String DOC_FIELD_NAME = "_doc";
+
+    /**
+     * special field name to sort by index order
+     */
+    public static final String SHARD_DOC_FIELD_NAME = ShardDocSortField.NAME;
+
     private static final SortFieldAndFormat SORT_DOC = new SortFieldAndFormat(
             new SortField(null, SortField.Type.DOC), DocValueFormat.RAW);
     private static final SortFieldAndFormat SORT_DOC_REVERSE = new SortFieldAndFormat(
@@ -387,17 +392,20 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+        final boolean reverse = order == SortOrder.DESC;
+
         if (DOC_FIELD_NAME.equals(fieldName)) {
-            return order == SortOrder.DESC ? SORT_DOC_REVERSE : SORT_DOC;
+            return reverse ? SORT_DOC_REVERSE : SORT_DOC;
+        } else if (SHARD_DOC_FIELD_NAME.equals(fieldName)) {
+            return new SortFieldAndFormat(new ShardDocSortField(context.getShardRequestIndex(), reverse), DocValueFormat.RAW);
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
         }
 
-        boolean reverse = order == SortOrder.DESC;
         IndexFieldData<?> fieldData = context.getForField(fieldType);
         if (fieldData instanceof IndexNumericFieldData == false
                 && (sortMode == SortMode.SUM || sortMode == SortMode.AVG || sortMode == SortMode.MEDIAN)) {
@@ -413,6 +421,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
             field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+            isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
             field = fieldData.sortField(missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
@@ -442,7 +451,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (canRewriteToMatchNone() == false) {
             return false;
         }
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             // unmapped
             return false;
@@ -453,11 +462,6 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
         final DateMathParser dateMathParser;
         if (docValueFormat instanceof DocValueFormat.DateTime) {
-            if (fieldType instanceof DateFieldType && ((DateFieldType) fieldType).resolution() == NANOSECONDS) {
-                // we parse the formatted value with the resolution of the local field because
-                // the provided format can use a different one (date vs date_nanos).
-                docValueFormat = DocValueFormat.withNanosecondResolution(docValueFormat);
-            }
             dateMathParser = ((DocValueFormat.DateTime) docValueFormat).getDateMathParser();
         } else {
             dateMathParser = null;
@@ -481,7 +485,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             throw new IllegalArgumentException("sorting by _doc is not supported");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         Nested nested = nested(context, fieldType);
         if (fieldType == null) {
             fieldType = resolveUnmappedType(context);
@@ -515,7 +519,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
         }
-        return context.getMapperService().unmappedFieldType(unmappedType);
+        return context.buildAnonymousFieldType(unmappedType);
     }
 
     private MultiValueMode localSortMode() {
@@ -573,7 +577,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             return null;
         }
         IndexReader reader = context.getIndexReader();
-        MappedFieldType fieldType = context.fieldMapper(sortField.getField());
+        MappedFieldType fieldType = context.getFieldType(sortField.getField());
         if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
             return null;
         }
@@ -703,7 +707,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     static {
         PARSER.declareField(FieldSortBuilder::missing, XContentParser::objectText,  MISSING, ValueType.VALUE);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecatedAndMaybeLog("field_sort_nested_path",
+            deprecationLogger.deprecate("field_sort_nested_path",
                 "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
@@ -711,7 +715,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)) , ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORT_MODE);
         PARSER.declareObject(FieldSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecatedAndMaybeLog("field_sort_nested_filter",
+            deprecationLogger.deprecate("field_sort_nested_filter",
                 "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);

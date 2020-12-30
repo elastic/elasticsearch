@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
@@ -44,8 +43,7 @@ import static org.elasticsearch.rest.RestStatus.NOT_FOUND;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 public class RestGetAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestGetAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestGetAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document get requests is deprecated, use the /{index}/_doc/{id} endpoint instead.";
 
@@ -68,7 +66,7 @@ public class RestGetAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GetRequest getRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("get_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("get_with_types", TYPES_DEPRECATION_MESSAGE);
             getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
             getRequest = new GetRequest(request.param("index"), request.param("id"));

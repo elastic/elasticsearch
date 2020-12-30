@@ -25,8 +25,12 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
+import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
@@ -45,7 +49,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME);
+        String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
         Rectangle box = RandomShapeGenerator.xRandomRectangle(random(), RandomShapeGenerator.xRandomPoint(random()));
 
@@ -113,7 +117,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
         qb.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> qb.toQuery(context));
-        assertEquals("failed to find geo_point field [" + qb.fieldName() + "]", e.getMessage());
+        assertEquals("failed to find geo field [" + qb.fieldName() + "]", e.getMessage());
     }
 
     public void testBrokenCoordinateCannotBeSet() {
@@ -206,10 +210,11 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context)
         throws IOException {
-        MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
+        final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
-        } else if (query instanceof IndexOrDocValuesQuery) { // TODO: remove the if statement once we always use LatLonPoint
+        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
+            assertEquals(IndexOrDocValuesQuery.class, query.getClass());
             Query indexQuery = ((IndexOrDocValuesQuery) query).getIndexQuery();
             String expectedFieldName = expectedFieldName(queryBuilder.fieldName());
             assertEquals(LatLonPoint.newBoxQuery(expectedFieldName,
@@ -223,6 +228,12 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     queryBuilder.topLeft().lat(),
                     queryBuilder.topLeft().lon(),
                     queryBuilder.bottomRight().lon()), dvQuery);
+        } else {
+            if (context.indexVersionCreated().before(Version.V_6_6_0)) {
+                assertEquals(LegacyGeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
+            } else {
+                assertEquals(GeoShapeFieldMapper.GeoShapeFieldType.class, fieldType.getClass());
+            }
         }
     }
 
@@ -535,6 +546,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         final GeoBoundingBoxQueryBuilder failingQueryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         failingQueryBuilder.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
-        assertThat(e.getMessage(), containsString("failed to find geo_point field [unmapped]"));
+        assertThat(e.getMessage(), containsString("failed to find geo field [unmapped]"));
     }
 }

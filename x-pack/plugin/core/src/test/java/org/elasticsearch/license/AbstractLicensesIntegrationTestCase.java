@@ -26,7 +26,17 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal)).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
+        return customSettings(super.nodeSettings(nodeOrdinal));
+    }
+
+    @Override
+    protected Settings transportClientSettings() {
+        // Plugin should be loaded on the transport client as well
+        return customSettings(super.transportClientSettings());
+    }
+
+    private Settings customSettings(Settings base) {
+        return Settings.builder().put(base).put(XPackSettings.SECURITY_ENABLED.getKey(), false).build();
     }
 
     @Override
@@ -37,12 +47,6 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return Arrays.asList(XPackClientPlugin.class, CommonAnalysisPlugin.class);
-    }
-
-    @Override
-    protected Settings transportClientSettings() {
-        // Plugin should be loaded on the transport client as well
-        return nodeSettings(0);
     }
 
     protected void putLicense(final License license) throws InterruptedException {

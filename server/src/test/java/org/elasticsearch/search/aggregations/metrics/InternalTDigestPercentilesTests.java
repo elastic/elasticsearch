@@ -23,8 +23,11 @@ import org.elasticsearch.search.DocValueFormat;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase<InternalTDigestPercentiles> {
 
@@ -102,5 +105,33 @@ public class InternalTDigestPercentilesTests extends InternalPercentilesTestCase
             throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalTDigestPercentiles(name, percents, state, keyed, formatter, metadata);
+    }
+
+    public void testIterator() {
+        final double[] percents =  randomPercents(false);
+        final double[] values = new double[frequently() ? randomIntBetween(1, 10) : 0];
+        for (int i = 0; i < values.length; ++i) {
+            values[i] = randomDouble();
+        }
+
+        InternalTDigestPercentiles aggregation =
+                createTestInstance("test", emptyMap(), false, randomNumericDocValueFormat(), percents, values);
+
+        Iterator<Percentile> iterator = aggregation.iterator();
+        Iterator<String> nameIterator = aggregation.valueNames().iterator();
+        for (double percent : percents) {
+            assertTrue(iterator.hasNext());
+
+            Percentile percentile = iterator.next();
+            String percentileName = nameIterator.next();
+
+            assertEquals(percent, Double.valueOf(percentileName), 0.0d);
+            assertEquals(percent, percentile.getPercent(), 0.0d);
+
+            assertEquals(aggregation.percentile(percent), percentile.getValue(), 0.0d);
+            assertEquals(aggregation.value(String.valueOf(percent)), percentile.getValue(), 0.0d);
+        }
+        assertFalse(iterator.hasNext());
+        assertFalse(nameIterator.hasNext());
     }
 }

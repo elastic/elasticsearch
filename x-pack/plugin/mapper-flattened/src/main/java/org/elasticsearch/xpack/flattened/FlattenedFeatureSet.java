@@ -10,22 +10,19 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackFeatureSet;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.flattened.FlattenedFeatureSetUsage;
-import org.elasticsearch.xpack.flattened.mapper.FlatObjectFieldMapper;
+import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper;
 
 import java.util.Map;
 
 public class FlattenedFeatureSet implements XPackFeatureSet {
 
-    private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     @Inject
-    public FlattenedFeatureSet(XPackLicenseState licenseState, ClusterService clusterService) {
-        this.licenseState = licenseState;
+    public FlattenedFeatureSet(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
@@ -36,7 +33,7 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.FLATTENED);
+        return true;
     }
 
     @Override
@@ -65,7 +62,7 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
 
                         for (Map<String, Object> fieldMapping : fieldMappings.values()) {
                             String fieldType = (String) fieldMapping.get("type");
-                            if (fieldType != null && fieldType.equals(FlatObjectFieldMapper.CONTENT_TYPE)) {
+                            if (fieldType != null && fieldType.equals(FlattenedFieldMapper.CONTENT_TYPE)) {
                                 fieldCount++;
                             }
                         }
@@ -74,6 +71,6 @@ public class FlattenedFeatureSet implements XPackFeatureSet {
             }
         }
 
-        listener.onResponse(new FlattenedFeatureSetUsage(available(), fieldCount));
+        listener.onResponse(new FlattenedFeatureSetUsage(fieldCount));
     }
 }

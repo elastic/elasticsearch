@@ -154,6 +154,7 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
     public static class TaskParams implements XPackPlugin.XPackPersistentTaskParams {
 
         public static final Version VERSION_INTRODUCED = Version.V_7_3_0;
+        public static final Version VERSION_DESTINATION_INDEX_MAPPINGS_CHANGED = Version.V_7_10_0;
 
         private static final ParseField PROGRESS_ON_START = new ParseField("progress_on_start");
 
@@ -194,19 +195,23 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             this.id = in.readString();
             this.version = Version.readVersion(in);
             if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                progressOnStart = in.readList(PhaseProgress::new);
+                this.progressOnStart = in.readList(PhaseProgress::new);
             } else {
-                progressOnStart = Collections.emptyList();
+                this.progressOnStart = Collections.emptyList();
             }
             if (in.getVersion().onOrAfter(Version.V_7_5_0)) {
-                allowLazyStart = in.readBoolean();
+                this.allowLazyStart = in.readBoolean();
             } else {
-                allowLazyStart = false;
+                this.allowLazyStart = false;
             }
         }
 
         public String getId() {
             return id;
+        }
+
+        public Version getVersion() {
+            return version;
         }
 
         public List<PhaseProgress> getProgressOnStart() {

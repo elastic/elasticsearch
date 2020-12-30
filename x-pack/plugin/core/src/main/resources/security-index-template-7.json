@@ -188,6 +188,13 @@
             "principal" : {
               "type": "keyword"
             },
+            "full_name" : {
+              "type" : "text"
+            },
+            "email" : {
+              "type" : "text",
+              "analyzer" : "email"
+            },
             "metadata" : {
               "type" : "object",
               "dynamic" : false

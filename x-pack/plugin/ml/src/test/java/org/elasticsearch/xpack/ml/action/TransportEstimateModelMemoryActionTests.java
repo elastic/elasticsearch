@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ml.action;
 
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
@@ -113,21 +112,21 @@ public class TransportEstimateModelMemoryActionTests extends ESTestCase {
     public void testRoundUpToNextMb() {
 
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(0),
-            equalTo(new ByteSizeValue(0, ByteSizeUnit.BYTES)));
+            equalTo(ByteSizeValue.ofBytes(0)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(1),
-            equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(1)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(randomIntBetween(1, 1024 * 1024)),
-            equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(1)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(1024 * 1024),
-            equalTo(new ByteSizeValue(1, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(1)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(1024 * 1024 + 1),
-            equalTo(new ByteSizeValue(2, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(2)));
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(2 * 1024 * 1024),
-            equalTo(new ByteSizeValue(2, ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(2)));
         // We don't round up at the extremes, to ensure that the resulting value can be represented as bytes in a long
         // (At such extreme scale it won't be possible to actually run the analysis, so ease of use trumps precision)
         assertThat(TransportEstimateModelMemoryAction.roundUpToNextMb(Long.MAX_VALUE - randomIntBetween(0, 1000000)),
-            equalTo(new ByteSizeValue(Long.MAX_VALUE / new ByteSizeValue(1, ByteSizeUnit.MB).getBytes() , ByteSizeUnit.MB)));
+            equalTo(ByteSizeValue.ofMb(Long.MAX_VALUE / ByteSizeValue.ofMb(1).getBytes() )));
     }
 
     public void testReducedCardinality() {

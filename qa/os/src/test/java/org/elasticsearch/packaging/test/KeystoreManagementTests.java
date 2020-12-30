@@ -41,6 +41,7 @@ import java.util.Map;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.packaging.util.Archives.ARCHIVE_OWNER;
 import static org.elasticsearch.packaging.util.Archives.installArchive;
 import static org.elasticsearch.packaging.util.Archives.verifyArchiveInstallation;
@@ -49,6 +50,7 @@ import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.Docker.waitForPathToExist;
+import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.Fileness.File;
 import static org.elasticsearch.packaging.util.FileMatcher.file;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
@@ -302,17 +304,15 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = new HashMap<>();
-        volumes.put(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("KEYSTORE_PASSWORD", password);
-        runContainer(distribution(), volumes, envVars);
+        Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = singletonMap("KEYSTORE_PASSWORD", password);
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
         waitForElasticsearch(installation);
         ServerUtils.runElasticsearchTests();
     }
@@ -328,7 +328,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         try {
             tempDir = createTempDir(DockerTests.class.getSimpleName());
 
-            String password = "password";
+            String password = "keystore-password";
             String passwordFilename = "password.txt";
             Files.write(tempDir.resolve(passwordFilename), singletonList(password));
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
@@ -345,7 +345,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
             Map<String, String> envVars = new HashMap<>();
             envVars.put("KEYSTORE_PASSWORD_FILE", "/run/secrets/" + passwordFilename);
 
-            runContainer(distribution(), volumes, envVars);
+            runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
             waitForElasticsearch(installation);
             ServerUtils.runElasticsearchTests();
@@ -362,17 +362,15 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
 
         // restart ES with password and mounted keystore
-        Map<Path, Path> volumes = new HashMap<>();
-        volumes.put(localKeystoreFile, dockerKeystore);
-        Map<String, String> envVars = new HashMap<>();
-        envVars.put("KEYSTORE_PASSWORD", "wrong");
-        Shell.Result r = runContainerExpectingFailure(distribution(), volumes, envVars);
+        Map<Path, Path> volumes = singletonMap(localKeystoreFile, dockerKeystore);
+        Map<String, String> envVars = singletonMap("KEYSTORE_PASSWORD", "wrong");
+        Shell.Result r = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
         assertThat(r.stderr, containsString(ERROR_INCORRECT_PASSWORD));
     }
 
@@ -400,7 +398,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
 
         Files.write(tempDirectory.resolve("set-pass.sh"), setPasswordScript);
 
-        runContainer(distribution(), volumes, null);
+        runContainer(distribution(), builder().volumes(volumes));
         try {
             waitForPathToExist(dockerTemp);
             waitForPathToExist(dockerKeystore);
@@ -491,6 +489,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
                 assertThat(keystore, file(File, "root", "elasticsearch", p660));
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 assertPermissionsAndOwnership(keystore, p660);
                 break;
             default:

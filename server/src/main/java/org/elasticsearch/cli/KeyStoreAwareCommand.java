@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 
-import javax.crypto.AEADBadTagException;
 import java.io.IOException;
 import java.security.GeneralSecurityException;
 import java.util.Arrays;
@@ -71,14 +70,12 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
      * Decrypt the {@code keyStore}, prompting the user to enter the password in the {@link Terminal} if it is password protected
      */
     protected static void decryptKeyStore(KeyStoreWrapper keyStore, Terminal terminal)
-        throws UserException, GeneralSecurityException, IOException {
+        throws UserException, IOException {
         try (SecureString keystorePassword = keyStore.hasPassword() ?
             readPassword(terminal, false) : new SecureString(new char[0])) {
             keyStore.decrypt(keystorePassword.getChars());
-        } catch (SecurityException e) {
-            if (e.getCause() instanceof AEADBadTagException) {
-                throw new UserException(ExitCodes.DATA_ERROR, "Wrong password for elasticsearch.keystore");
-            }
+        } catch (SecurityException | GeneralSecurityException e) {
+            throw new UserException(ExitCodes.DATA_ERROR, e.getMessage());
         }
     }
 

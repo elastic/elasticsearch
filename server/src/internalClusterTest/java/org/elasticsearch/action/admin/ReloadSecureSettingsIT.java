@@ -32,6 +32,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.junit.BeforeClass;
 
 import java.io.InputStream;
 import java.nio.file.Files;
@@ -45,14 +47,21 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.containsString;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
+
+    @BeforeClass
+    public static void disableInFips() {
+        // Reload secure settings with a password protected keystore is tested in ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT
+        assumeFalse("Cannot run in FIPS mode since the keystore will be password protected and sending a password in the reload" +
+            "settings api call, require TLS to be configured for the transport layer", inFipsJvm());
+    }
 
     public void testMissingKeystoreFile() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
@@ -149,7 +158,6 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
         assertThat(mockReloadablePlugin.getReloadCount(), equalTo(initialReloadCount));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/51546")
     public void testReloadAllNodesWithPasswordWithoutTLSFails() throws Exception {
         final PluginsService pluginsService = internalCluster().getInstance(PluginsService.class);
         final MockReloadablePlugin mockReloadablePlugin = pluginsService.filterPlugins(MockReloadablePlugin.class)
@@ -175,10 +183,19 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(ElasticsearchException.class));
-                    assertThat(e.getMessage(),
-                        containsString("Secure settings cannot be updated cluster wide when TLS for the transport layer is not enabled"));
-                    latch.countDown();
+                    try {
+                        if (e instanceof RemoteTransportException) {
+                            // transport client was used, so need to unwrap the returned exception
+                            assertThat(e.getCause(), instanceOf(Exception.class));
+                            e = (Exception) e.getCause();
+                        }
+                        assertThat(e, instanceOf(ElasticsearchException.class));
+                        assertThat(e.getMessage(),
+                            containsString("Secure settings cannot be updated cluster wide when TLS for the " +
+                                           "transport layer is not enabled"));
+                    } finally {
+                        latch.countDown();
+                    }
                 }
             });
         latch.await();

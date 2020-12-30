@@ -89,4 +89,8 @@ public abstract class RestResponse {
             return customHeaders;
         }
     }
+
+    public Map<String, List<String>> filterHeaders(Map<String, List<String>> headers) {
+        return headers;
+    }
 }

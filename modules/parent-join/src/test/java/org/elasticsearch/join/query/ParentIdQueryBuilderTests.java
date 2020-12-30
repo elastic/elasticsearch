@@ -26,11 +26,8 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -63,14 +60,6 @@ public class ParentIdQueryBuilderTests extends AbstractQueryTestCase<ParentIdQue
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
         return Arrays.asList(ParentJoinPlugin.class, TestGeoShapeFieldMapperPlugin.class);
-    }
-
-    @Override
-    protected Settings createTestIndexSettings() {
-        return Settings.builder()
-            .put(super.createTestIndexSettings())
-            .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-            .build();
     }
 
     @Override

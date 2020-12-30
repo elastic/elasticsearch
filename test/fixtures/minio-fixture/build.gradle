@@ -16,9 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.test.fixtures'
 
 description = 'Fixture for MinIO Storage service'
-test.enabled = false
 

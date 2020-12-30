@@ -164,7 +164,7 @@ public class BulkResponse extends ActionResponse implements Iterable<BulkItemRes
 
     public static BulkResponse fromXContent(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.nextToken();
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         long took = -1L;
         long ingestTook = NO_INGEST_TOOK;

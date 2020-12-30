@@ -94,9 +94,6 @@ public abstract class AbstractRepository {
                     LoggingDeprecationHandler.INSTANCE, out.bytes(), XContentType.JSON)) {
                 return incompatibleSnapshotsFromXContent(parser);
             }
-        } catch (IOException e) {
-            terminal.println("Failed to read [incompatible-snapshots] blob");
-            throw e;
         } catch (Exception e) {
             if (isBlobNotFoundException(e)) {
                 return Collections.emptyList();

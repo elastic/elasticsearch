@@ -31,6 +31,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -44,6 +45,7 @@ import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 
 import java.io.IOException;
@@ -54,6 +56,7 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 public class ActionModuleTests extends ESTestCase {
     public void testSetupActionsContainsKnownBuiltin() {
@@ -81,7 +84,7 @@ public class ActionModuleTests extends ESTestCase {
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
             protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-                super(actionName, actionFilters, taskManager);
+                super(actionName, actionFilters, mock(Transport.Connection.class), taskManager);
             }
 
             @Override
@@ -107,9 +110,10 @@ public class ActionModuleTests extends ESTestCase {
     public void testSetupRestHandlerContainsKnownBuiltin() {
         SettingsModule settings = new SettingsModule(Settings.EMPTY);
         UsageService usageService = new UsageService();
-        ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(),
-                settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
-                null, usageService);
+        ActionModule actionModule = new ActionModule(false, settings.getSettings(),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), settings.getIndexScopedSettings(),
+            settings.getClusterSettings(), settings.getSettingsFilter(), null, emptyList(), null,
+            null, usageService, null);
         actionModule.initRestHandlers(null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
         Exception e = expectThrows(IllegalArgumentException.class, () ->
@@ -146,9 +150,10 @@ public class ActionModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(),
-                    settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(dupsMainAction), null, null, usageService);
+            ActionModule actionModule = new ActionModule(false, settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
+                settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(dupsMainAction),
+                null, null, usageService, null);
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/] for method: GET"));
         } finally {
@@ -180,9 +185,10 @@ public class ActionModuleTests extends ESTestCase {
         ThreadPool threadPool = new TestThreadPool(getTestName());
         try {
             UsageService usageService = new UsageService();
-            ActionModule actionModule = new ActionModule(false, settings.getSettings(), new IndexNameExpressionResolver(),
-                    settings.getIndexScopedSettings(), settings.getClusterSettings(), settings.getSettingsFilter(), threadPool,
-                    singletonList(registersFakeHandler), null, null, usageService);
+            ActionModule actionModule = new ActionModule(false, settings.getSettings(),
+                new IndexNameExpressionResolver(threadPool.getThreadContext()), settings.getIndexScopedSettings(),
+                settings.getClusterSettings(), settings.getSettingsFilter(), threadPool, singletonList(registersFakeHandler),
+                null, null, usageService, null);
             actionModule.initRestHandlers(null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
             Exception e = expectThrows(IllegalArgumentException.class, () ->

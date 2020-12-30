@@ -40,20 +40,6 @@ public class EqlFoldSpecLoader {
             TomlTable fold = table.getTomlTable("fold");
 
             String description = getTrimmedString(table, "description");
-            Boolean cs = null;
-            Boolean caseSensitive = table.getBoolean("case_sensitive");
-            Boolean caseInsensitive = table.getBoolean("case_insensitive");
-            // if case_sensitive is TRUE and case_insensitive is not TRUE (FALSE or NULL), then the test is case sensitive only
-            if (Boolean.TRUE.equals(caseSensitive)) {
-                if (Boolean.FALSE.equals(caseInsensitive) || caseInsensitive == null) {
-                    cs = true;
-                }
-            }
-            // if case_sensitive is not TRUE (FALSE or NULL) and case_insensitive is TRUE, then the test is case insensitive only
-            else if (Boolean.TRUE.equals(caseInsensitive)) {
-                cs = false;
-            }
-            // in all other cases, the test should run no matter the case sensitivity (should test both scenarios)
 
             if (fold != null) {
                 List<TomlTable> tests = fold.getArrayTable("tests");
@@ -61,7 +47,7 @@ public class EqlFoldSpecLoader {
                 for (TomlTable test : tests) {
                     String expression = getTrimmedString(test, "expression");
                     Object expected = test.get("expected");
-                    EqlFoldSpec spec = new EqlFoldSpec(name, description, cs, expression, expected);
+                    EqlFoldSpec spec = new EqlFoldSpec(name, description, expression, expected);
                     testSpecs.add(spec);
                 }
             }

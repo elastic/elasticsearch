@@ -19,7 +19,7 @@ public class StopSLMAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/slm/stop";
 
     protected StopSLMAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> {

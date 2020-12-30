@@ -31,19 +31,22 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestRequestFilter;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActions;
 import org.elasticsearch.rest.action.RestBuilderListener;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
-public final class RestReloadSecureSettingsAction extends BaseRestHandler {
+public final class RestReloadSecureSettingsAction extends BaseRestHandler implements RestRequestFilter {
 
     static final ObjectParser<NodesReloadSecureSettingsRequest, String> PARSER =
         new ObjectParser<>("reload_secure_settings", NodesReloadSecureSettingsRequest::new);
@@ -101,4 +104,10 @@ public final class RestReloadSecureSettingsAction extends BaseRestHandler {
         return false;
     }
 
+    private static final Set<String> FILTERED_FIELDS = Collections.singleton("secure_settings_password");
+
+    @Override
+    public Set<String> getFilteredFields() {
+        return FILTERED_FIELDS;
+    }
 }

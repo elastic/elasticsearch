@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-percentile-aggregation]]
-=== Percentiles Aggregation
+=== Percentiles aggregation
+++++
+<titleabbrev>Percentiles</titleabbrev>
+++++
 
 A `multi-value` metrics aggregation that calculates one or more percentiles
 over numeric values extracted from the aggregated documents. These values can be
@@ -254,7 +257,7 @@ it. It would not be the case on more skewed distributions.
 [WARNING]
 ====
 Percentile aggregations are also
-https://en.wikipedia.org/wiki/Nondeterministic_algorithm[non-deterministic].
+{wikipedia}/Nondeterministic_algorithm[non-deterministic].
 This means you can get slightly different results using the same data.
 ====
 

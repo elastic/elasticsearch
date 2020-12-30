@@ -182,7 +182,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                     .actionGet();
             fail("Expected MergeMappingException");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), containsString("mapper [body] has different [norms]"));
+            assertThat(e.getMessage(), containsString("Cannot update parameter [norms] from [false] to [true]"));
         }
     }
 

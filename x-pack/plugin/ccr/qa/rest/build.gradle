@@ -1,8 +1,4 @@
-import org.elasticsearch.gradle.test.RestIntegTestTask
-
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-test'
-apply plugin: 'elasticsearch.rest-resources'
+apply plugin: 'elasticsearch.yaml-rest-test'
 
 restResources {
   restApi {
@@ -12,15 +8,10 @@ restResources {
 }
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('ccr'))
+  yamlRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-task restTest(type: RestIntegTestTask) {
-  mustRunAfter(precommit)
-}
-
-testClusters.restTest {
+testClusters.all {
   testDistribution = 'DEFAULT'
   // Disable assertions in FollowingEngineAssertions, otherwise an AssertionError is thrown before
   // indexing a document directly in a follower index. In a rest test we like to test the exception
@@ -33,5 +24,3 @@ testClusters.restTest {
   user username: 'ccr-user', password: 'ccr-user-password', role: 'superuser'
 }
 
-check.dependsOn restTest
-test.enabled = false

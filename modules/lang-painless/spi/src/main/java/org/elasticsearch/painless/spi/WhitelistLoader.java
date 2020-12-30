@@ -460,11 +460,11 @@ public final class WhitelistLoader {
 
         List<Object> annotations;
 
-        line = line.trim();
-
-        if (line.isEmpty()) {
+        if ("".equals(line.replaceAll("\\s+",""))) {
             annotations = Collections.emptyList();
         } else {
+            line = line.trim();
+
             if (line.charAt(0) != '@') {
                 throw new IllegalArgumentException("invalid annotation: expected at symbol [" + line + "]");
             }
@@ -502,20 +502,20 @@ public final class WhitelistLoader {
                         if (argumentKeyValue.length != 2) {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
-                        
+
                         String argumentKey = argumentKeyValue[0].trim();
-                        
+
                         if (argumentKey.isEmpty()) {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
-                        
+
                         String argumentValue = argumentKeyValue[1];
-                        
-                        if (argumentValue.length() < 3 || argumentValue.charAt(0) != '"' || 
+
+                        if (argumentValue.length() < 3 || argumentValue.charAt(0) != '"' ||
                                 argumentValue.charAt(argumentValue.length() - 1) != '"') {
                             throw new IllegalArgumentException("invalid annotation: expected key=\"value\" [" + line + "]");
                         }
-                        
+
                         argumentValue = argumentValue.substring(1, argumentValue.length() - 1);
 
                         arguments.put(argumentKey, argumentValue);

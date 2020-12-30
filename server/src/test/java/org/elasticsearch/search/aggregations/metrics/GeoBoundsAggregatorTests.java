@@ -47,7 +47,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertTrue(Double.isInfinite(bounds.top));
                 assertTrue(Double.isInfinite(bounds.bottom));
                 assertTrue(Double.isInfinite(bounds.posLeft));
@@ -103,7 +103,7 @@ public class GeoBoundsAggregatorTests extends AggregatorTestCase {
             MappedFieldType fieldType = new GeoPointFieldMapper.GeoPointFieldType("field");
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalGeoBounds bounds = search(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
+                InternalGeoBounds bounds = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, fieldType);
                 assertThat(bounds.top, closeTo(top, GEOHASH_TOLERANCE));
                 assertThat(bounds.bottom, closeTo(bottom, GEOHASH_TOLERANCE));
                 assertThat(bounds.posLeft, closeTo(posLeft, GEOHASH_TOLERANCE));

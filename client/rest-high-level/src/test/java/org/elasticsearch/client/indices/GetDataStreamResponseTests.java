@@ -19,43 +19,25 @@
 
 package org.elasticsearch.client.indices;
 
-import org.elasticsearch.xpack.core.action.GetDataStreamAction;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 import org.elasticsearch.client.AbstractResponseTestCase;
+import org.elasticsearch.cluster.DataStreamTestHelper;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction;
+import org.elasticsearch.xpack.core.action.GetDataStreamAction.Response.DataStreamInfo;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 
 public class GetDataStreamResponseTests extends AbstractResponseTestCase<GetDataStreamAction.Response, GetDataStreamResponse> {
 
-    private static List<Index> randomIndexInstances() {
-        int numIndices = randomIntBetween(0, 128);
-        List<Index> indices = new ArrayList<>(numIndices);
-        for (int i = 0; i < numIndices; i++) {
-            indices.add(new Index(randomAlphaOfLength(10).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random())));
-        }
-        return indices;
-    }
-
     private static DataStreamInfo randomInstance() {
-        List<Index> indices = randomIndexInstances();
-        long generation = indices.size() + randomLongBetween(1, 128);
-        String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        indices.add(new Index(getDefaultBackingIndexName(dataStreamName, generation), UUIDs.randomBase64UUID(random())));
-        DataStream dataStream = new DataStream(dataStreamName, createTimestampField("@timestamp"), indices, generation);
+        DataStream dataStream = DataStreamTestHelper.randomInstance();
         return new DataStreamInfo(dataStream, ClusterHealthStatus.YELLOW, randomAlphaOfLengthBetween(2, 10),
             randomAlphaOfLengthBetween(2, 10));
     }

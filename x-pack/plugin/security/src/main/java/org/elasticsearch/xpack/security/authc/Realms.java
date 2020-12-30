@@ -47,7 +47,7 @@ import java.util.stream.StreamSupport;
 public class Realms implements Iterable<Realm> {
 
     private static final Logger logger = LogManager.getLogger(Realms.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     private final Settings settings;
     private final Environment env;
@@ -302,15 +302,15 @@ public class Realms implements Iterable<Realm> {
     private void addNativeRealms(List<Realm> realms) throws Exception {
         Realm.Factory fileRealm = factories.get(FileRealmSettings.TYPE);
         if (fileRealm != null) {
-            realms.add(fileRealm.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, "default_" + FileRealmSettings.TYPE),
-                    settings, env, threadContext)));
+            RealmConfig.RealmIdentifier realmIdentifier =
+                new RealmConfig.RealmIdentifier(FileRealmSettings.TYPE, FileRealmSettings.DEFAULT_NAME);
+            realms.add(fileRealm.create(new RealmConfig(realmIdentifier, settings, env, threadContext)));
         }
         Realm.Factory indexRealmFactory = factories.get(NativeRealmSettings.TYPE);
         if (indexRealmFactory != null) {
-            realms.add(indexRealmFactory.create(new RealmConfig(
-                    new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, "default_" + NativeRealmSettings.TYPE),
-                    settings, env, threadContext)));
+            RealmConfig.RealmIdentifier realmIdentifier =
+                new RealmConfig.RealmIdentifier(NativeRealmSettings.TYPE, NativeRealmSettings.DEFAULT_NAME);
+            realms.add(indexRealmFactory.create(new RealmConfig(realmIdentifier, settings, env, threadContext)));
         }
     }
 
@@ -348,7 +348,7 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
         if (missingOrderRealmSettingKeys.size() > 0) {
-            deprecationLogger.deprecatedAndMaybeLog("unordered_realm_config", "Found realms without order config: [{}]. " +
+            deprecationLogger.deprecate("unordered_realm_config", "Found realms without order config: [{}]. " +
                     "In next major release, node will fail to start with missing realm order.",
                 String.join("; ", missingOrderRealmSettingKeys)
             );
@@ -360,7 +360,7 @@ public class Realms implements Iterable<Realm> {
             .sorted()
             .collect(Collectors.toList());
         if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            deprecationLogger.deprecatedAndMaybeLog("duplicate_realm_order",
+            deprecationLogger.deprecate("duplicate_realm_order",
                     "Found multiple realms configured with the same order: [{}]. " +
                     "In next major release, node will fail to start with duplicated realm order.",
                 String.join("; ", duplicatedRealmOrderSettingKeys));

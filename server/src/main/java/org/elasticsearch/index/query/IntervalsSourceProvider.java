@@ -143,11 +143,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 source = Intervals.fixField(useField, fieldType.intervals(query, maxGaps, ordered, analyzer, false));
             }
@@ -526,11 +526,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) throws IOException {
             NamedAnalyzer analyzer = null;
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 source = Intervals.fixField(useField, fieldType.intervals(prefix, 0, false, analyzer, true));
             }
@@ -641,11 +641,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
             NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {
@@ -778,11 +778,11 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
         public IntervalsSource getSource(QueryShardContext context, MappedFieldType fieldType) {
             NamedAnalyzer analyzer = fieldType.getTextSearchInfo().getSearchAnalyzer();
             if (this.analyzer != null) {
-                analyzer = context.getMapperService().getIndexAnalyzers().get(this.analyzer);
+                analyzer = context.getIndexAnalyzers().get(this.analyzer);
             }
             IntervalsSource source;
             if (useField != null) {
-                fieldType = context.fieldMapper(useField);
+                fieldType = context.getFieldType(useField);
                 assert fieldType != null;
                 checkPositions(fieldType);
                 if (this.analyzer == null) {

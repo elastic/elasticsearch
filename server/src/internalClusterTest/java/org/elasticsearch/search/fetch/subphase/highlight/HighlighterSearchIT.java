@@ -682,19 +682,19 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 .highlighter(
                     new HighlightBuilder().field(new Field("field1").preTags("<xxx>").postTags("</xxx>").forceSource(true))),
             RestStatus.BAD_REQUEST,
-            containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
+            containsString("source is forced for fields [field1] but _source is disabled"));
 
         SearchSourceBuilder searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
             .highlighter(highlight().forceSource(true).field("field1"));
         assertFailures(client().prepareSearch("test").setSource(searchSource),
             RestStatus.BAD_REQUEST,
-            containsString("source is forced for fields [field1] but type [type1] has disabled _source"));
+            containsString("source is forced for fields [field1] but _source is disabled"));
 
         searchSource = SearchSourceBuilder.searchSource().query(termQuery("field1", "quick"))
             .highlighter(highlight().forceSource(true).field("field*"));
         assertFailures(client().prepareSearch("test").setSource(searchSource),
             RestStatus.BAD_REQUEST,
-            matches("source is forced for fields \\[field\\d, field\\d\\] but type \\[type1\\] has disabled _source"));
+            matches("source is forced for fields \\[field\\d, field\\d\\] but _source is disabled"));
     }
 
     public void testPlainHighlighter() throws Exception {
@@ -2775,6 +2775,34 @@ public class HighlighterSearchIT extends ESIntegTestCase {
                 equalTo("<em>some text</em>"));
     }
 
+    public void testCopyToFields() throws Exception {
+        XContentBuilder b = jsonBuilder().startObject().startObject("properties");
+        b.startObject("foo");
+        {
+            b.field("type", "text");
+            b.field("copy_to", "foo_copy");
+        }
+        b.endObject();
+        b.startObject("foo_copy").field("type", "text").endObject();
+        b.endObject().endObject();
+        prepareCreate("test").addMapping("_doc", b).get();
+
+        client().prepareIndex("test", "_doc").setId("1")
+            .setSource(jsonBuilder().startObject().field("foo", "how now brown cow").endObject())
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+
+        SearchResponse response = client().prepareSearch()
+            .setQuery(matchQuery("foo_copy", "brown"))
+            .highlighter(new HighlightBuilder().field(new Field("foo_copy")))
+            .get();
+
+        assertHitCount(response, 1);
+        HighlightField field = response.getHits().getAt(0).getHighlightFields().get("foo_copy");
+        assertThat(field.getFragments().length, equalTo(1));
+        assertThat(field.getFragments()[0].string(), equalTo("how now <em>brown</em> cow"));
+    }
+
     public void testACopyFieldWithNestedQuery() throws Exception {
         String mapping = Strings.toString(jsonBuilder().startObject().startObject("type").startObject("properties")
                     .startObject("foo")
@@ -2986,7 +3014,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             assertHitCount(searchResponse, 1);
             HighlightField field = searchResponse.getHits().getAt(0).getHighlightFields().get("keyword");
             assertThat(field.getFragments().length, equalTo(1));
-            assertThat(field.getFragments()[0].string(), equalTo("<em>Hello World</em>"));
+            assertThat(field.getFragments()[0].string(), equalTo("<em>hello world</em>"));
         }
     }
 

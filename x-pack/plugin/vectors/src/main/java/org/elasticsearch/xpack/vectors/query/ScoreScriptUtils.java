@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.vectors.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -26,7 +25,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.vectors.mapper.VectorEncoderDecoder.sortSparseDimsFloatValues;
 
 public class ScoreScriptUtils {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ScoreScriptUtils.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ScoreScriptUtils.class);
     static final String DEPRECATION_MESSAGE = "The vector functions of the form function(query, doc['field']) are deprecated, and " +
         "the form function(query, 'field') should be used instead. For example, cosineSimilarity(query, doc['field']) is replaced by " +
         "cosineSimilarity(query, 'field').";
@@ -80,7 +79,7 @@ public class ScoreScriptUtils {
                 docValues = (DenseVectorScriptDocValues) scoreScript.getDoc().get(fieldName);
             } else if (field instanceof DenseVectorScriptDocValues) {
                 docValues = (DenseVectorScriptDocValues) field;
-                deprecationLogger.deprecatedAndMaybeLog("vector_function_signature", DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("vector_function_signature", DEPRECATION_MESSAGE);
             } else {
                 throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
                     "VectorScriptDocValues");
@@ -238,13 +237,13 @@ public class ScoreScriptUtils {
                 docValues = (SparseVectorScriptDocValues) scoreScript.getDoc().get(fieldName);
             } else if (field instanceof SparseVectorScriptDocValues) {
                 docValues = (SparseVectorScriptDocValues) field;
-                deprecationLogger.deprecatedAndMaybeLog("vector_function_signature", DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("vector_function_signature", DEPRECATION_MESSAGE);
             } else {
                 throw new IllegalArgumentException("For vector functions, the 'field' argument must be of type String or " +
                     "VectorScriptDocValues");
             }
 
-            deprecationLogger.deprecatedAndMaybeLog("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("sparse_vector_function", SparseVectorFieldMapper.DEPRECATION_MESSAGE);
         }
 
         BytesRef getEncodedVector() {

@@ -26,7 +26,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -188,13 +187,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 

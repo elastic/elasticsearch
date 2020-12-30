@@ -34,7 +34,7 @@ testClusters.integTest {
   setting 'path.repo', repo.absolutePath
 }
 
-integTest.runner {
+integTest {
   doFirst {
     project.delete(repo)
     repo.mkdirs()

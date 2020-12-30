@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
 import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
@@ -357,23 +358,17 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        String field;
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType != null) {
-            field = fieldType.name();
-        } else {
-            field = fieldName;
+
+        MappedFieldType fieldType = context.getFieldType(fieldName);
+        if (fieldType == null) {
+            return new MatchNoDocsQuery("unknown field " + fieldName);
         }
 
         Analyzer analyzerObj;
         if (analyzer == null) {
-            if (fieldType != null) {
-                analyzerObj = context.getSearchAnalyzer(fieldType);
-            } else {
-                analyzerObj = context.getMapperService().searchAnalyzer();
-            }
+            analyzerObj = fieldType.getTextSearchInfo().getSearchAnalyzer();
         } else {
-            analyzerObj = context.getMapperService().getIndexAnalyzers().get(analyzer);
+            analyzerObj = context.getIndexAnalyzers().get(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }
@@ -383,7 +378,7 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
         Occur lowFreqOccur = lowFreqOperator.toBooleanClauseOccur();
 
         ExtendedCommonTermsQuery commonsQuery = new ExtendedCommonTermsQuery(highFreqOccur, lowFreqOccur, cutoffFrequency);
-        return parseQueryString(commonsQuery, text, field, analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
+        return parseQueryString(commonsQuery, text, fieldType.name(), analyzerObj, lowFreqMinimumShouldMatch, highFreqMinimumShouldMatch);
     }
 
     private static Query parseQueryString(ExtendedCommonTermsQuery query, Object queryString, String field, Analyzer analyzer,

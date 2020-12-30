@@ -15,6 +15,6 @@ public class DeleteTransformActionDeprecated extends ActionType<AcknowledgedResp
     public static final String NAME = "cluster:admin/data_frame/delete";
 
     private DeleteTransformActionDeprecated() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 }

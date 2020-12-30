@@ -21,8 +21,6 @@ package org.elasticsearch.gradle.util;
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
-import org.gradle.api.NamedDomainObjectContainer;
-import org.gradle.api.PolymorphicDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.UnknownTaskException;
@@ -34,6 +32,7 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceRegistration;
 import org.gradle.api.services.BuildServiceRegistry;
+import org.gradle.api.specs.Spec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskContainer;
@@ -47,7 +46,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.function.Function;
 
 public abstract class GradleUtils {
@@ -58,28 +56,6 @@ public abstract class GradleUtils {
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
         return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
-    }
-
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name) {
-        return Optional.ofNullable(collection.findByName(name)).orElse(collection.create(name));
-    }
-
-    public static <T> T maybeCreate(NamedDomainObjectContainer<T> collection, String name, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
-            T result = collection.create(name);
-            action.execute(result);
-            return result;
-        });
-
-    }
-
-    public static <T> T maybeCreate(PolymorphicDomainObjectContainer<T> collection, String name, Class<T> type, Action<T> action) {
-        return Optional.ofNullable(collection.findByName(name)).orElseGet(() -> {
-            T result = collection.create(name, type);
-            action.execute(result);
-            return result;
-        });
-
     }
 
     public static <T extends Task> TaskProvider<T> maybeRegister(TaskContainer tasks, String name, Class<T> clazz, Action<T> action) {
@@ -107,11 +83,7 @@ public abstract class GradleUtils {
         Class<? extends T> type,
         Action<? super T> config
     ) {
-        tasks.withType(type).configureEach(task -> {
-            if (task.getName().equals(name)) {
-                config.execute(task);
-            }
-        });
+        tasks.withType(type).matching((Spec<T>) t -> t.getName().equals(name)).configureEach(task -> { config.execute(task); });
     }
 
     public static TaskProvider<?> findByName(TaskContainer tasks, String name) {
@@ -137,7 +109,7 @@ public abstract class GradleUtils {
 
     /**
      * Add a source set and task of the same name that runs tests.
-     *
+     * <p>
      * IDEs are also configured if setup, and the test task is added to check. The new test source
      * set extends from the normal test source set to allow sharing of utilities.
      *
@@ -180,7 +152,7 @@ public abstract class GradleUtils {
         project.getPluginManager().withPlugin("idea", p -> {
             IdeaModel idea = project.getExtensions().getByType(IdeaModel.class);
             idea.getModule().setTestSourceDirs(testSourceSet.getJava().getSrcDirs());
-            idea.getModule().getScopes().put("TEST", Map.of("plus", List.of(runtimeClasspathConfiguration)));
+            idea.getModule().getScopes().put(testSourceSet.getName(), Map.of("plus", List.of(runtimeClasspathConfiguration)));
         });
         project.getPluginManager().withPlugin("eclipse", p -> {
             EclipseModel eclipse = project.getExtensions().getByType(EclipseModel.class);
@@ -221,6 +193,19 @@ public abstract class GradleUtils {
         child.setRuntimeClasspath(project.getObjects().fileCollection().from(child.getRuntimeClasspath(), parent.getOutput()));
     }
 
+    /**
+     * Extends one configuration from another and refreshes the classpath of a provided Test.
+     * The Test parameter is only needed for eagerly defined test tasks.
+     */
+    public static void extendSourceSet(Project project, String parentSourceSetName, String childSourceSetName, Test test) {
+        extendSourceSet(project, parentSourceSetName, childSourceSetName);
+        if (test != null) {
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet child = sourceSets.getByName(childSourceSetName);
+            test.setClasspath(child.getRuntimeClasspath());
+        }
+    }
+
     public static Dependency projectDependency(Project project, String projectPath, String projectConfig) {
         if (project.findProject(projectPath) == null) {
             throw new GradleException("no project [" + projectPath + "], project names: " + project.getRootProject().getAllprojects());
@@ -229,5 +214,14 @@ public abstract class GradleUtils {
         depConfig.put("path", projectPath);
         depConfig.put("configuration", projectConfig);
         return project.getDependencies().project(depConfig);
+    }
+
+    /**
+     * To calculate the project path from a task path without relying on Task#getProject() which is discouraged during
+     * task execution time.
+     */
+    public static String getProjectPathFromTask(String taskPath) {
+        int lastDelimiterIndex = taskPath.lastIndexOf(":");
+        return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
     }
 }

@@ -36,7 +36,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
-import java.io.StringReader;
 import java.util.Set;
 
 /**
@@ -83,7 +82,7 @@ public class SmileXContent implements XContent {
     @Override
     public XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, String content) throws IOException {
-        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(new StringReader(content)));
+        return new SmileXContentParser(xContentRegistry, deprecationHandler, smileFactory.createParser(content));
     }
 
     @Override

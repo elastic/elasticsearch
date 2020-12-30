@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -37,7 +36,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -159,6 +157,9 @@ public abstract class InternalOrder extends BucketOrder {
                 // if all user provided comparators return 0.
                 this.orderElements.add(KEY_ASC);
             }
+            if (this.orderElements.isEmpty()) {
+                throw new IllegalArgumentException("empty compound order not supported");
+            }
         }
 
         @Override
@@ -188,12 +189,13 @@ public abstract class InternalOrder extends BucketOrder {
                     .map(oe -> oe.partiallyBuiltBucketComparator(ordinalReader, aggregator))
                     .collect(toList());
             return (lhs, rhs) -> {
-                Iterator<Comparator<T>> itr = comparators.iterator();
-                int result;
-                do {
-                    result = itr.next().compare(lhs, rhs);
-                } while (result == 0 && itr.hasNext());
-                return result;
+                for (Comparator<T> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
             };
         }
 
@@ -201,12 +203,13 @@ public abstract class InternalOrder extends BucketOrder {
         public Comparator<Bucket> comparator() {
             List<Comparator<Bucket>> comparators = orderElements.stream().map(BucketOrder::comparator).collect(toList());
             return (lhs, rhs) -> {
-                Iterator<Comparator<Bucket>> itr = comparators.iterator();
-                int result;
-                do {
-                    result = itr.next().compare(lhs, rhs);
-                } while (result == 0 && itr.hasNext());
-                return result;
+                for (Comparator<Bucket> c : comparators) {
+                    int result = c.compare(lhs, rhs);
+                    if (result != 0) {
+                        return result;
+                    }
+                }
+                return 0;
             };
         }
 
@@ -537,7 +540,7 @@ public abstract class InternalOrder extends BucketOrder {
     public static class Parser {
 
         private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(Parser.class));
+                DeprecationLogger.getLogger(Parser.class);
 
         /**
          * Parse a {@link BucketOrder} from {@link XContent}.
@@ -574,7 +577,7 @@ public abstract class InternalOrder extends BucketOrder {
             }
             // _term and _time order deprecated in 6.0; replaced by _key
             if ("_term".equals(orderKey) || "_time".equals(orderKey)) {
-                deprecationLogger.deprecatedAndMaybeLog("aggregation_order_key",
+                deprecationLogger.deprecate("aggregation_order_key",
                     "Deprecated aggregation order key [{}] used, replaced by [_key]", orderKey);
             }
             switch (orderKey) {

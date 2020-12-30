@@ -28,7 +28,7 @@ public class DeletePipelineAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ingest/pipeline/delete";
 
     public DeletePipelineAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

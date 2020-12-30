@@ -42,15 +42,19 @@ public class FunctionTable {
         protected final Class<?> returnType;
         protected final List<Class<?>> typeParameters;
         protected final boolean isInternal;
+        protected final boolean isStatic;
 
         protected final MethodType methodType;
         protected final Method asmMethod;
 
-        public LocalFunction(String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal) {
+        public LocalFunction(
+                String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+
             this.functionName = Objects.requireNonNull(functionName);
             this.returnType = Objects.requireNonNull(returnType);
             this.typeParameters = Collections.unmodifiableList(Objects.requireNonNull(typeParameters));
             this.isInternal = isInternal;
+            this.isStatic = isStatic;
 
             Class<?> javaReturnType = PainlessLookupUtility.typeToJavaType(returnType);
             Class<?>[] javaTypeParameters = typeParameters.stream().map(PainlessLookupUtility::typeToJavaType).toArray(Class<?>[]::new);
@@ -76,6 +80,10 @@ public class FunctionTable {
             return isInternal;
         }
 
+        public boolean isStatic() {
+            return isStatic;
+        }
+
         public MethodType getMethodType() {
             return methodType;
         }
@@ -97,9 +105,11 @@ public class FunctionTable {
 
     protected Map<String, LocalFunction> localFunctions = new HashMap<>();
 
-    public LocalFunction addFunction(String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal) {
+    public LocalFunction addFunction(
+            String functionName, Class<?> returnType, List<Class<?>> typeParameters, boolean isInternal, boolean isStatic) {
+
         String functionKey = buildLocalFunctionKey(functionName, typeParameters.size());
-        LocalFunction function = new LocalFunction(functionName, returnType, typeParameters, isInternal);
+        LocalFunction function = new LocalFunction(functionName, returnType, typeParameters, isInternal, isStatic);
         localFunctions.put(functionKey, function);
         return function;
     }

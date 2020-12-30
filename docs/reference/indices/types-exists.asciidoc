@@ -10,16 +10,16 @@ Checks if a <<mapping-type-field,mapping type>> exists.
 
 [source,console]
 ----
-HEAD twitter/_mapping/tweet
+HEAD my-index-000001/_mapping/message
 ----
-// TEST[setup:twitter]
+// TEST[setup:my_index]
 // TEST[warning:Type exists requests are deprecated, as types have been deprecated.]
 
 
 [[indices-types-exists-api-request]]
 ==== {api-request-title}
 
-`HEAD /<index>/mapping/<type>`
+`HEAD /<index>/_mapping/<type>`
 
 
 [[indices-types-exists-api-path-params]]

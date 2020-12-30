@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Fields;
 import org.apache.lucene.search.BooleanClause;
@@ -80,8 +79,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQueryBuilder> {
     public static final String NAME = "more_like_this";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(MoreLikeThisQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MoreLikeThisQueryBuilder.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [more_like_this] " +
         "queries. The type should no longer be specified in the [like] and [unlike] sections.";
 
@@ -969,7 +967,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         }
 
         if (moreLikeThisQueryBuilder.isTypeless() == false) {
-            deprecationLogger.deprecatedAndMaybeLog("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("more_like_this_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         return moreLikeThisQueryBuilder;
     }
@@ -1044,9 +1042,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // set analyzer
         Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.getMapperService().searchAnalyzer();
+            analyzerObj = context.getIndexAnalyzer(f -> {
+                throw new UnsupportedOperationException("No analyzer configured for field " + f);
+            });
         }
-        mltQuery.setAnalyzer(analyzerObj);
+        mltQuery.setAnalyzer(analyzer, analyzerObj);
 
         // set like text fields
         boolean useDefaultField = (fields == null);
@@ -1062,7 +1062,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             }
         } else {
             for (String field : fields) {
-                MappedFieldType fieldType = context.fieldMapper(field);
+                MappedFieldType fieldType = context.getFieldType(field);
                 if (fieldType != null && SUPPORTED_FIELD_TYPES.contains(fieldType.getClass()) == false) {
                     if (failOnUnsupportedField) {
                         throw new IllegalArgumentException("more_like_this only supports text/keyword fields: [" + field + "]");
@@ -1182,7 +1182,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
     }
 
     private static void handleExclude(BooleanQuery.Builder boolQuery, Item[] likeItems, QueryShardContext context) {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             // no mappings, nothing to exclude
             return;

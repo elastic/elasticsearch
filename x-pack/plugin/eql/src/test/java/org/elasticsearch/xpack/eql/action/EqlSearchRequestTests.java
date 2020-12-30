@@ -62,6 +62,7 @@ public class EqlSearchRequestTests extends AbstractSerializingTestCase<EqlSearch
                 .timestampField(randomAlphaOfLength(10))
                 .eventCategoryField(randomAlphaOfLength(10))
                 .fetchSize(randomIntBetween(1, 50))
+                .size(randomInt(50))
                 .query(randomAlphaOfLength(10));
 
             return request;

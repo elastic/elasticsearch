@@ -165,7 +165,7 @@ public class InnerHitsIT extends ESIntegTestCase {
                 .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.Avg).innerHit(
                         new InnerHitBuilder().setHighlightBuilder(new HighlightBuilder().field("comments.message"))
                                 .setExplain(true)
-                                .addDocValueField("comments.mes*")
+                                .addFetchField("comments.mes*")
                                 .addScriptField("script",
                                         new Script(ScriptType.INLINE, MockScriptEngine.NAME, "5", Collections.emptyMap()))
                                 .setSize(1))).get();
@@ -176,8 +176,18 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).getHighlightFields().get("comments.message").getFragments()[0].string(),
                 equalTo("<em>fox</em> eat quick"));
         assertThat(innerHits.getAt(0).getExplanation().toString(), containsString("weight(comments.message:fox in"));
-        assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
+        assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("fox eat quick"));
         assertThat(innerHits.getAt(0).getFields().get("script").getValue().toString(), equalTo("5"));
+
+        response = client().prepareSearch("articles")
+            .setQuery(nestedQuery("comments", matchQuery("comments.message", "fox"), ScoreMode.Avg).innerHit(
+                new InnerHitBuilder()
+                    .addDocValueField("comments.mes*")
+                    .setSize(1))).get();
+        assertNoFailures(response);
+        innerHits = response.getHits().getAt(0).getInnerHits().get("comments");
+        assertThat(innerHits.getHits().length, equalTo(1));
+        assertThat(innerHits.getAt(0).getFields().get("comments.message").getValue().toString(), equalTo("eat"));
     }
 
     public void testRandomNested() throws Exception {

@@ -111,7 +111,7 @@ public class ClientYamlTestSuite {
     private final TeardownSection teardownSection;
     private final List<ClientYamlTestSection> testSections;
 
-    ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
+    public ClientYamlTestSuite(String api, String name, SetupSection setupSection, TeardownSection teardownSection,
                         List<ClientYamlTestSection> testSections) {
         this.api = api;
         this.name = name;

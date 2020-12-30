@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
@@ -136,7 +137,7 @@ public class SecurityContextTests extends ESTestCase {
         assertEquals(original, securityContext.getAuthentication());
     }
 
-    public void testExecuteAfterRewritingAuthenticationShouldRewriteApiKeyMetadataForBwc() throws IOException {
+    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteNewApiKeyMetadata() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = org.elasticsearch.common.collect.Map.of(
@@ -147,6 +148,7 @@ public class SecurityContextTests extends ESTestCase {
             AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 
+        // If target is old node, rewrite new style API key metadata to old format
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertEquals(org.elasticsearch.common.collect.Map.of("a role",
@@ -156,9 +158,15 @@ public class SecurityContextTests extends ESTestCase {
                 org.elasticsearch.common.collect.Map.of("cluster", org.elasticsearch.common.collect.List.of("all"))),
                 authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY));
         }, Version.V_7_8_0);
+
+        // If target is new node, no need to rewrite the new style API key metadata
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertSame(metadata, authentication.getMetadata());
+        }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 
-    public void testExecuteAfterRewritingAuthenticationShouldNotRewriteApiKeyMetadataForOldAuthenticationObject() throws IOException {
+    public void testExecuteAfterRewritingAuthenticationWillConditionallyRewriteOldApiKeyMetadata() throws IOException {
         User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("_es_api_key", "_es_api_key", "node1");
         final Map<String, Object> metadata = org.elasticsearch.common.collect.Map.of(
@@ -170,9 +178,19 @@ public class SecurityContextTests extends ESTestCase {
         final Authentication original = new Authentication(user, authBy, authBy, Version.V_7_8_0, AuthenticationType.API_KEY, metadata);
         original.writeToContext(threadContext);
 
+        // If target is old node, no need to rewrite old style API key metadata
         securityContext.executeAfterRewritingAuthentication(originalCtx -> {
             Authentication authentication = securityContext.getAuthentication();
             assertSame(metadata, authentication.getMetadata());
-        }, randomFrom(VERSION_API_KEY_ROLES_AS_BYTES, Version.V_7_8_0));
+        }, Version.V_7_8_0);
+
+        // If target is new old, ensure old map style API key metadata is rewritten to bytesreference
+        securityContext.executeAfterRewritingAuthentication(originalCtx -> {
+            Authentication authentication = securityContext.getAuthentication();
+            assertEquals("{\"a role\":{\"cluster\":[\"all\"]}}",
+                ((BytesReference)authentication.getMetadata().get(API_KEY_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+            assertEquals("{\"limitedBy role\":{\"cluster\":[\"all\"]}}",
+                ((BytesReference)authentication.getMetadata().get(API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)).utf8ToString());
+        }, VersionUtils.randomVersionBetween(random(), VERSION_API_KEY_ROLES_AS_BYTES, Version.CURRENT));
     }
 }

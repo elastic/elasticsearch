@@ -20,7 +20,7 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.RestTestRunnerTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.testclusters'
 apply plugin: 'elasticsearch.standalone-test'
@@ -36,7 +36,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.indexCompatible) {
     }
   }
 
-  tasks.register("${baseName}#integTest", RestTestRunnerTask) {
+  tasks.register("${baseName}#integTest", StandaloneRestIntegTestTask) {
     useCluster testClusters."${baseName}"
     nonInputProperties.systemProperty('tests.rest.cluster', "${-> testClusters."${baseName}".allHttpSocketURI.join(",")}")
     nonInputProperties.systemProperty('tests.clustername', "${-> testClusters."${baseName}".getName()}")

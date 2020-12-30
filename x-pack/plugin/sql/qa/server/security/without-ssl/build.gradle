@@ -1,4 +1,4 @@
-integTest.runner {
+tasks.named("integTest").configure {
   systemProperty 'tests.ssl.enabled', 'false'
 }
 

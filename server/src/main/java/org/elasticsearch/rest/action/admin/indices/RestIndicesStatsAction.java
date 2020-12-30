@@ -59,6 +59,11 @@ public class RestIndicesStatsAction extends BaseRestHandler {
         return "indices_stats_action";
     }
 
+    @Override
+    public boolean allowSystemIndexAccessByDefault() {
+        return true;
+    }
+
     static final Map<String, Consumer<IndicesStatsRequest>> METRICS;
 
     static {

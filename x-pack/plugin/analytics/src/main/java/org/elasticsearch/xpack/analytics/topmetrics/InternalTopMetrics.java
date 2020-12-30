@@ -173,6 +173,11 @@ public class InternalTopMetrics extends InternalNumericMetricsAggregation.MultiV
         return topMetrics.get(0).metricValues.get(index).numberValue().doubleValue();
     }
 
+    @Override
+    public Iterable<String> valueNames() {
+        return metricNames;
+    }
+
     SortOrder getSortOrder() {
         return sortOrder;
     }

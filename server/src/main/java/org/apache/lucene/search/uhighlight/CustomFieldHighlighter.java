@@ -19,13 +19,15 @@
 
 package org.apache.lucene.search.uhighlight;
 
+import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.util.BytesRef;
+
+import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.Locale;
-import java.util.PriorityQueue;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.io.IOException;
-import org.apache.lucene.util.BytesRef;
+import java.util.Locale;
+import java.util.PriorityQueue;
 
 import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
@@ -38,17 +40,27 @@ class CustomFieldHighlighter extends FieldHighlighter {
 
     private final Locale breakIteratorLocale;
     private final int noMatchSize;
-    private final String fieldValue;
+    private String fieldValue;
 
     CustomFieldHighlighter(String field, FieldOffsetStrategy fieldOffsetStrategy,
                            Locale breakIteratorLocale, BreakIterator breakIterator,
                            PassageScorer passageScorer, int maxPassages, int maxNoHighlightPassages,
-                           PassageFormatter passageFormatter, int noMatchSize, String fieldValue) {
+                           PassageFormatter passageFormatter, int noMatchSize) {
         super(field, fieldOffsetStrategy, breakIterator, passageScorer, maxPassages,
             maxNoHighlightPassages, passageFormatter);
         this.breakIteratorLocale = breakIteratorLocale;
         this.noMatchSize = noMatchSize;
-        this.fieldValue = fieldValue;
+    }
+
+    @Override
+    public Object highlightFieldForDoc(LeafReader reader, int docId, String content) throws IOException {
+        this.fieldValue = content;
+        try {
+            return super.highlightFieldForDoc(reader, docId, content);
+        } finally {
+            // Clear the reference to the field value in case it is large
+            fieldValue = null;
+        }
     }
 
     @Override

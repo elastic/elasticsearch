@@ -10,6 +10,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.eql.execution.search.AsEventListener;
 import org.elasticsearch.xpack.eql.execution.search.BasicQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.ReverseListener;
@@ -61,7 +62,7 @@ public class EsQueryExec extends LeafExec {
         // endpoint - fetch all source
         QueryRequest request = () -> source(session).fetchSource(FetchSourceContext.FETCH_SOURCE);
         listener = shouldReverse(request) ? new ReverseListener(listener) : listener;
-        new BasicQueryClient(session).query(request, listener);
+        new BasicQueryClient(session).query(request, new AsEventListener(listener));
     }
 
     private boolean shouldReverse(QueryRequest query) {

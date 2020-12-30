@@ -101,7 +101,7 @@ public class TransportDeleteCalendarEventAction extends HandledTransportAction<D
                             listener.onFailure(new ResourceNotFoundException("No event with id [" + eventId + "]"));
                         } else {
                             jobManager.updateProcessOnCalendarChanged(calendar.getJobIds(), ActionListener.wrap(
-                                    r -> listener.onResponse(new AcknowledgedResponse(true)),
+                                    r -> listener.onResponse(AcknowledgedResponse.TRUE),
                                     listener::onFailure
                             ));
                         }

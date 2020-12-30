@@ -17,8 +17,8 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramAggregator;
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
@@ -36,15 +36,15 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        double minBound,
-        double maxBound,
+        DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinalityUpperBound,
-        Map<String, Object> metadata) throws IOException {
-        super(name, factories, interval, offset, order, keyed, minDocCount, minBound, maxBound, hardBounds,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, factories, interval, offset, order, keyed, minDocCount, extendedBounds, hardBounds,
             valuesSourceConfig.format(), context, parent, cardinalityUpperBound, metadata);
 
         // TODO: Stop using null here
@@ -77,16 +77,18 @@ public class HistoBackedHistogramAggregator extends AbstractHistogramAggregator 
 
                         double key = Math.floor((value - offset) / interval);
                         assert key >= previousKey;
-                        long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
-                        if (bucketOrd < 0) { // already seen
-                            bucketOrd = -1 - bucketOrd;
-                            collectExistingBucket(sub, doc, bucketOrd);
-                        } else {
-                            collectBucket(sub, doc, bucketOrd);
+                        if (hardBounds == null || hardBounds.contain(key * interval)) {
+                            long bucketOrd = bucketOrds.add(owningBucketOrd, Double.doubleToLongBits(key));
+                            if (bucketOrd < 0) { // already seen
+                                bucketOrd = -1 - bucketOrd;
+                                collectExistingBucket(sub, doc, bucketOrd);
+                            } else {
+                                collectBucket(sub, doc, bucketOrd);
+                            }
+                            // We have added the document already. We should increment doc_count by count - 1
+                            // so that we have added it count times.
+                            incrementBucketDocCount(bucketOrd, count - 1);
                         }
-                        // We have added the document already. We should increment doc_count by count - 1
-                        // so that we have added it count times.
-                        incrementBucketDocCount(bucketOrd, count - 1);
                         previousKey = key;
                     }
                 }

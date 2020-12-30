@@ -9,12 +9,10 @@ import org.apache.lucene.store.BufferedIndexInput;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -101,34 +99,6 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
 
     public abstract void innerClose() throws IOException;
 
-    protected InputStream openInputStream(final long position, final long length) throws IOException {
-        assert assertCurrentThreadMayAccessBlobStore();
-        if (fileInfo.numberOfParts() == 1L) {
-            assert position + length <= fileInfo.partBytes(0) : "cannot read ["
-                + position
-                + "-"
-                + (position + length)
-                + "] from ["
-                + fileInfo
-                + "]";
-            return blobContainer.readBlob(fileInfo.partName(0L), position, length);
-        } else {
-            final long startPart = getPartNumberForPosition(position);
-            final long endPart = getPartNumberForPosition(position + length);
-            return new SlicedInputStream(endPart - startPart + 1L) {
-                @Override
-                protected InputStream openSlice(long slice) throws IOException {
-                    final long currentPart = startPart + slice;
-                    final long startInPart = (currentPart == startPart) ? getRelativePositionInPart(position) : 0L;
-                    final long endInPart = (currentPart == endPart)
-                        ? getRelativePositionInPart(position + length)
-                        : getLengthOfPart(currentPart);
-                    return blobContainer.readBlob(fileInfo.partName(currentPart), startInPart, endInPart - startInPart);
-                }
-            };
-        }
-    }
-
     protected final boolean assertCurrentThreadMayAccessBlobStore() {
         final String threadName = Thread.currentThread().getName();
         assert threadName.contains('[' + ThreadPool.Names.SNAPSHOT + ']')
@@ -149,29 +119,4 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         return true;
     }
 
-    private long getPartNumberForPosition(long position) {
-        ensureValidPosition(position);
-        final long part = position / fileInfo.partSize().getBytes();
-        assert part <= fileInfo.numberOfParts() : "part number [" + part + "] exceeds number of parts: " + fileInfo.numberOfParts();
-        assert part >= 0L : "part number [" + part + "] is negative";
-        return part;
-    }
-
-    private long getRelativePositionInPart(long position) {
-        ensureValidPosition(position);
-        final long pos = position % fileInfo.partSize().getBytes();
-        assert pos < fileInfo.partBytes((int) getPartNumberForPosition(pos)) : "position in part [" + pos + "] exceeds part's length";
-        assert pos >= 0L : "position in part [" + pos + "] is negative";
-        return pos;
-    }
-
-    private long getLengthOfPart(long part) {
-        return fileInfo.partBytes(Math.toIntExact(part));
-    }
-
-    private void ensureValidPosition(long position) {
-        if (position < 0L || position > fileInfo.length()) {
-            throw new IllegalArgumentException("Position [" + position + "] is invalid");
-        }
-    }
 }

@@ -1,6 +1,9 @@
 [role="xpack"]
 [[actions-email]]
-=== Email action
+=== Watcher email action
+++++
+<titleabbrev>Email action</titleabbrev>
+++++
 
 Use the `email` action to send email notifications. To send email, you must
 <<configuring-email, configure at least one email account>> in
@@ -442,7 +445,7 @@ bin/elasticsearch-keystore add xpack.notification.email.account.exchange_account
 ===== Configuring HTML sanitization options
 
 The `email` action supports sending messages with an HTML body. However, for
-security reasons, {watcher} https://en.wikipedia.org/wiki/HTML_sanitization[sanitizes]
+security reasons, {watcher} {wikipedia}/HTML_sanitization[sanitizes]
 the HTML.
 
 You can control which HTML features are allowed or disallowed by configuring the

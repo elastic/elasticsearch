@@ -116,7 +116,8 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
                 TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
                 List<String> offendingFilters = new ArrayList<>();
                 for (TokenFilterFactory tokenFilter : tokenFilters) {
-                    if (tokenFilter.getAnalysisMode() != mode) {
+                    AnalysisMode filterMode = tokenFilter.getAnalysisMode();
+                    if (filterMode != AnalysisMode.ALL && filterMode != mode) {
                         offendingFilters.add(tokenFilter.name());
                     }
                 }
@@ -127,6 +128,18 @@ public class NamedAnalyzer extends DelegatingAnalyzerWrapper {
                         "analyzer [" + name + "] contains components that are not allowed to run in " + mode.getReadableName() + " mode.");
             }
         }
+    }
+
+    public boolean containsBrokenAnalysis() {
+        if (analyzer instanceof AnalyzerComponentsProvider) {
+            final TokenFilterFactory[] tokenFilters = ((AnalyzerComponentsProvider) analyzer).getComponents().getTokenFilters();
+            for (TokenFilterFactory tokenFilterFactory : tokenFilters) {
+                if (tokenFilterFactory.breaksFastVectorHighlighter()) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     @Override

@@ -25,7 +25,7 @@ public class CreateDataStreamAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/data_stream/create";
 
     private CreateDataStreamAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {

@@ -191,6 +191,7 @@
         body:
           settings:
             soft_deletes.enabled: false
+            routing.rebalance.enable: "none" # prevents shard relocations while we are closing an index
       warnings:
         - Creating indices with soft-deletes disabled is deprecated and will be removed in future Elasticsearch versions.
           Please do not specify value for setting [index.soft_deletes.enabled] of index [test].
@@ -248,6 +249,7 @@
         body:
           settings:
             soft_deletes.enabled: true
+            routing.rebalance.enable: "none" # prevents shard relocations while we are closing an index
   - do:
       cluster.health:
         wait_for_no_initializing_shards: true

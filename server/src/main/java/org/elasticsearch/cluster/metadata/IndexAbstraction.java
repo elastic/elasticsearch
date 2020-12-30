@@ -31,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_HIDDEN_SETTING;
 import static org.elasticsearch.common.collect.List.copyOf;
 
@@ -79,6 +78,11 @@ public interface IndexAbstraction {
      * @return whether this index abstraction is hidden or not
      */
     boolean isHidden();
+
+    /**
+     * @return whether this index abstraction should be treated as a system index or not
+     */
+    boolean isSystem();
 
     /**
      * An index abstraction type.
@@ -162,6 +166,11 @@ public interface IndexAbstraction {
         public boolean isHidden() {
             return INDEX_HIDDEN_SETTING.get(concreteIndex.getSettings());
         }
+
+        @Override
+        public boolean isSystem() {
+            return concreteIndex.isSystem();
+        }
     }
 
     /**
@@ -210,6 +219,11 @@ public interface IndexAbstraction {
         @Override
         public boolean isHidden() {
             return isHidden;
+        }
+
+        @Override
+        public boolean isSystem() {
+            return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
         /**
@@ -294,7 +308,6 @@ public interface IndexAbstraction {
             this.dataStream = dataStream;
             this.dataStreamIndices = copyOf(dataStreamIndices);
             this.writeIndex =  dataStreamIndices.get(dataStreamIndices.size() - 1);
-            assert writeIndex.getIndex().getName().equals(getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration()));
         }
 
         @Override
@@ -324,6 +337,12 @@ public interface IndexAbstraction {
 
         @Override
         public boolean isHidden() {
+            return dataStream.isHidden();
+        }
+
+        @Override
+        public boolean isSystem() {
+            // No such thing as system data streams (yet)
             return false;
         }
 

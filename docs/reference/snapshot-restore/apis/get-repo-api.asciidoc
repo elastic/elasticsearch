@@ -48,7 +48,7 @@ cluster, omit this parameter or use `*` or `_all`.
 ==== {api-query-parms-title}
 
 `local`::
-(Optional, boolean) If `true`, the request gets information from the local node
+(Optional, Boolean) If `true`, the request gets information from the local node
 only. If `false`, the request gets information from the master node. Defaults to
 `false`.
 

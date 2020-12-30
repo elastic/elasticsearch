@@ -1,5 +1,5 @@
 [[search-as-you-type]]
-=== Search-as-you-type data type
+=== Search-as-you-type field type
 ++++
 <titleabbrev>Search-as-you-type</titleabbrev>
 ++++

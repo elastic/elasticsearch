@@ -1,14 +1,12 @@
-apply plugin: 'elasticsearch.testclusters'
-apply plugin: 'elasticsearch.standalone-rest-test'
-apply plugin: 'elasticsearch.rest-test'
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
-  testImplementation project(path: xpackModule('core'), configuration: 'default')
-  testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
-  testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'default')
+  javaRestTestImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
+  javaRestTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
 }
 
-testClusters.integTest {
+testClusters.javaRestTest {
   testDistribution = 'DEFAULT'
   numberOfNodes = 2
 
@@ -21,7 +19,7 @@ testClusters.integTest {
   setting 'xpack.security.authc.token.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
 
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
   user username: "admin_user", password: "admin-password"
   user username: "security_test_user", password: "security-test-password", role: "security_test_role"
 }

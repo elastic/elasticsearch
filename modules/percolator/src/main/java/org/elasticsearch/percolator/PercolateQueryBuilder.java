@@ -19,7 +19,6 @@
 
 package org.elasticsearch.percolator;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.BinaryDocValues;
@@ -65,12 +64,9 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -100,7 +96,7 @@ import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBuilder> {
     public static final String NAME = "percolate";
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(ParseField.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ParseField.class);
     static final String DOCUMENT_TYPE_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [percolate] queries. " +
             "The [document_type] should no longer be specified.";
     static final String TYPE_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [percolate] queries. " +
@@ -472,7 +468,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
         GetRequest getRequest;
         if (indexedDocumentType != null) {
-            deprecationLogger.deprecatedAndMaybeLog("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("percolate_with_type", TYPE_DEPRECATION_MESSAGE);
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentType, indexedDocumentId);
         } else {
             getRequest = new GetRequest(indexedDocumentIndex, indexedDocumentId);
@@ -528,7 +524,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             throw new IllegalStateException("no document to percolate");
         }
 
-        MappedFieldType fieldType = context.fieldMapper(field);
+        MappedFieldType fieldType = context.getFieldType(field);
         if (fieldType == null) {
             throw new QueryShardException(context, "field [" + field + "] does not exist");
         }
@@ -539,41 +535,32 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         }
 
         final List<ParsedDocument> docs = new ArrayList<>();
-        final DocumentMapper docMapper;
-        final MapperService mapperService = context.getMapperService();
-        String type = mapperService.documentMapper().type();
+        String type = context.getType();
         if (documentType != null) {
-            deprecationLogger.deprecatedAndMaybeLog("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE);
             if (documentType.equals(type) == false) {
                 throw new IllegalArgumentException("specified document_type [" + documentType +
                     "] is not equal to the actual type [" + type + "]");
             }
         }
-        docMapper = mapperService.documentMapper(type);
         for (BytesReference document : documents) {
-            docs.add(docMapper.parse(new SourceToParse(context.index().getName(), type, "_temp_id", document, documentXContentType)));
+            docs.add(context.parseDocument(new SourceToParse(context.index().getName(), type, "_temp_id", document, documentXContentType)));
         }
 
-        FieldNameAnalyzer fieldNameAnalyzer = (FieldNameAnalyzer) docMapper.mappers().indexAnalyzer();
-        // Need to this custom impl because FieldNameAnalyzer is strict and the percolator sometimes isn't when
+        // We need this custom analyzer because the default index analyzer is strict and the percolator sometimes isn't when
         // 'index.percolator.map_unmapped_fields_as_string' is enabled:
         Analyzer analyzer = new DelegatingAnalyzerWrapper(Analyzer.PER_FIELD_REUSE_STRATEGY) {
             @Override
             protected Analyzer getWrappedAnalyzer(String fieldName) {
-                Analyzer analyzer = fieldNameAnalyzer.analyzers().get(fieldName);
-                if (analyzer != null) {
-                    return analyzer;
-                } else {
-                    return context.getIndexAnalyzers().getDefaultIndexAnalyzer();
-                }
+                return context.getIndexAnalyzer(f -> context.getIndexAnalyzers().getDefaultIndexAnalyzer());
             }
         };
         final IndexSearcher docSearcher;
         final boolean excludeNestedDocuments;
         if (docs.size() > 1 || docs.get(0).docs().size() > 1) {
-            assert docs.size() != 1 || docMapper.hasNestedObjects();
+            assert docs.size() != 1 || context.hasNested();
             docSearcher = createMultiDocumentSearcher(analyzer, docs);
-            excludeNestedDocuments = docMapper.hasNestedObjects() && docs.stream()
+            excludeNestedDocuments = context.hasNested() && docs.stream()
                     .map(ParsedDocument::docs)
                     .mapToInt(List::size)
                     .anyMatch(size -> size > 1);
@@ -726,10 +713,11 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             @SuppressWarnings("unchecked")
             public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndex().getName());
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndex().getName(),
+                    shardContext::lookup);
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
-                return (IFD) builder.build(cache, circuitBreaker, shardContext.getMapperService());
+                return (IFD) builder.build(cache, circuitBreaker);
             }
         };
     }

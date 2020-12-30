@@ -19,7 +19,7 @@
 
 package org.elasticsearch.rest.action.search;
 
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -51,8 +52,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestMultiSearchAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestMultiSearchAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestMultiSearchAction.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal]" +
         " Specifying types in multi search requests is deprecated.";
 
@@ -95,11 +95,14 @@ public class RestMultiSearchAction extends BaseRestHandler {
         // Emit a single deprecation message if any search request contains types.
         for (SearchRequest searchRequest : multiSearchRequest.requests()) {
             if (searchRequest.types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }
-        return channel -> client.multiSearch(multiSearchRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            final RestCancellableNodeClient cancellableClient = new RestCancellableNodeClient(client, request.getHttpChannel());
+            cancellableClient.execute(MultiSearchAction.INSTANCE, multiSearchRequest, new RestToXContentListener<>(channel));
+        };
     }
 
     /**

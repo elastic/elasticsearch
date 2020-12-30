@@ -1,5 +1,5 @@
 [[date]]
-=== Date data type
+=== Date field type
 ++++
 <titleabbrev>Date</titleabbrev>
 ++++
@@ -9,6 +9,9 @@ JSON doesn't have a date data type, so dates in Elasticsearch can either be:
 * strings containing formatted dates, e.g. `"2015-01-01"` or `"2015/01/01 12:10:30"`.
 * a long number representing _milliseconds-since-the-epoch_.
 * an integer representing _seconds-since-the-epoch_.
+
+NOTE: Values for _milliseconds-since-the-epoch_ and _seconds-since-the-epoch_
+must be non-negative. Use a formatted date to represent dates before 1970.
 
 Internally, dates are converted to UTC (if the time-zone is specified) and
 stored as a long number representing milliseconds-since-the-epoch.

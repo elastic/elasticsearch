@@ -1,7 +1,7 @@
 "Action to list contexts":
     - skip:
-        version: "all"
-        reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/51939"
+        features: fips_140
+        reason: "The tests expect to be run with OSS distribution"
     - do:
         scripts_painless_context: {}
     - match: { contexts.0: aggregation_selector}
@@ -10,8 +10,8 @@
 
 "Action to get all API values for score context":
     - skip:
-        version: "all"
-        reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/51939"
+        features: fips_140
+        reason: "The tests expect to be run with OSS distribution"
     - do:
         scripts_painless_context:
             context: score

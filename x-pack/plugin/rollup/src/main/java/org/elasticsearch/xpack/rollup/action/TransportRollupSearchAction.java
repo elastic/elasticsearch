@@ -86,7 +86,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     public TransportRollupSearchAction(TransportService transportService,
                                  ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService, IndexNameExpressionResolver resolver) {
-        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;

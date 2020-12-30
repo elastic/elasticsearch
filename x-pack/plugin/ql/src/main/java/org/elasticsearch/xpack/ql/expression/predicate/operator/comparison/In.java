@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,16 +35,22 @@ public class In extends ScalarFunction {
 
     private final Expression value;
     private final List<Expression> list;
+    private final ZoneId zoneId;
 
     public In(Source source, Expression value, List<Expression> list) {
+        this(source, value, list, null);
+    }
+
+    public In(Source source, Expression value, List<Expression> list, ZoneId zoneId) {
         super(source, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = new ArrayList<>(new LinkedHashSet<>(list));
+        this.zoneId = zoneId;
     }
 
     @Override
     protected NodeInfo<In> info() {
-        return NodeInfo.create(this, In::new, value(), list());
+        return NodeInfo.create(this, In::new, value(), list(), zoneId());
     }
 
     @Override
@@ -51,7 +58,11 @@ public class In extends ScalarFunction {
         if (newChildren.size() < 2) {
             throw new IllegalArgumentException("expected at least [2] children but received [" + newChildren.size() + "]");
         }
-        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1));
+        return new In(source(), newChildren.get(newChildren.size() - 1), newChildren.subList(0, newChildren.size() - 1), zoneId());
+    }
+
+    public ZoneId zoneId() {
+        return zoneId;
     }
 
     public Expression value() {

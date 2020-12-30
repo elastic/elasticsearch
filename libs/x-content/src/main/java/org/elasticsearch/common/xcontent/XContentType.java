@@ -124,6 +124,8 @@ public enum XContentType {
         if (mediaType == null) {
             return null;
         }
+
+        mediaType = removeVersionInMediaType(mediaType);
         for (XContentType type : values()) {
             if (isSameMediaTypeOrFormatAs(mediaType, type)) {
                 return type;
@@ -138,12 +140,32 @@ public enum XContentType {
     }
 
     /**
+     * Clients compatible with ES 7.x might start sending media types with versioned media type
+     * in a form of application/vnd.elasticsearch+json;compatible-with=7.
+     * This has to be removed in order to be used in 7.x server.
+     * The same client connecting using that media type will be able to communicate with ES 8 thanks to compatible API.
+     * @param mediaType - a media type used on Content-Type header, might contain versioned media type.
+     *
+     * @return a media type string without
+     */
+    private static String removeVersionInMediaType(String mediaType) {
+        if (mediaType.contains("vnd.elasticsearch")) {
+            return mediaType.replaceAll("vnd.elasticsearch\\+", "")
+                .replaceAll("\\s*;\\s*compatible-with=\\d+", "")
+                .replaceAll("\\s*;\\s*",";"); // to allow matching using startsWith
+        }
+        return mediaType;
+    }
+
+    /**
      * Attempts to match the given media type with the known {@link XContentType} values. This match is done in a case-insensitive manner.
      * The provided media type should not include any parameters. This method is suitable for parsing part of the {@code Content-Type}
      * HTTP header. This method will return {@code null} if no match is found
      */
     public static XContentType fromMediaType(String mediaType) {
-        final String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
+        String lowercaseMediaType = Objects.requireNonNull(mediaType, "mediaType cannot be null").toLowerCase(Locale.ROOT);
+        lowercaseMediaType = removeVersionInMediaType(lowercaseMediaType);
+
         for (XContentType type : values()) {
             if (type.mediaTypeWithoutParameters().equals(lowercaseMediaType)) {
                 return type;

@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.ObjectPath;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.eql.EqlFeatureSetUsage;
@@ -37,12 +36,10 @@ import static org.mockito.Mockito.when;
 
 public class EqlFeatureSetTests extends ESTestCase {
 
-    private XPackLicenseState licenseState;
     private Client client;
 
     @Before
     public void init() throws Exception {
-        licenseState = mock(XPackLicenseState.class);
         client = mock(Client.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -51,19 +48,13 @@ public class EqlFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        EqlFeatureSet featureSet = new EqlFeatureSet(Settings.EMPTY, licenseState, client);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.EQL)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        EqlFeatureSet featureSet = new EqlFeatureSet(client);
+        assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabled() {
-        boolean enabled = randomBoolean();
-        Settings.Builder settings = Settings.builder();
-        settings.put("xpack.eql.enabled", enabled);
-
-        EqlFeatureSet featureSet = new EqlFeatureSet(settings.build(), licenseState, client);
-        assertThat(featureSet.enabled(), is(enabled));
+        EqlFeatureSet featureSet = new EqlFeatureSet(client);
+        assertThat(featureSet.enabled(), is(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -94,7 +85,7 @@ public class EqlFeatureSetTests extends ESTestCase {
         }).when(client).execute(eq(EqlStatsAction.INSTANCE), any(), any());
 
         PlainActionFuture<EqlFeatureSet.Usage> future = new PlainActionFuture<>();
-        new EqlFeatureSet(Settings.builder().put("xpack.eql.enabled", true).build(), licenseState, client).usage(future);
+        new EqlFeatureSet(client).usage(future);
         EqlFeatureSetUsage eqlUsage = (EqlFeatureSetUsage) future.get();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", eqlUsage.stats());

@@ -82,7 +82,7 @@ public class TransportAnalyticsStatsActionTests extends ESTestCase {
         AnalyticsStatsAction.Response response = new AnalyticsStatsAction.Response(
             new ClusterName("cluster_name"), nodeResponses, emptyList());
 
-        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(true, true, response);
+        AnalyticsFeatureSetUsage usage = new AnalyticsFeatureSetUsage(response);
         try (XContentBuilder builder = jsonBuilder()) {
             usage.toXContent(builder, ToXContent.EMPTY_PARAMS);
             return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));

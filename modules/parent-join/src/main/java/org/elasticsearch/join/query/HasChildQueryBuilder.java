@@ -32,9 +32,8 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
@@ -48,8 +47,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
-import org.elasticsearch.join.mapper.ParentIdFieldMapper;
-import org.elasticsearch.join.mapper.ParentJoinFieldMapper;
+import org.elasticsearch.join.mapper.Joiner;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -86,8 +84,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     private static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
     private static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
     private static final ParseField IGNORE_UNMAPPED_FIELD = new ParseField("ignore_unmapped");
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(HasChildQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(HasChildQueryBuilder.class);
     private final QueryBuilder query;
     private final String type;
     private final ScoreMode scoreMode;
@@ -144,7 +141,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'min_children' field");
         }
         if (minChildren == 0) {
-            deprecationLogger.deprecatedAndMaybeLog("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("min_children", MIN_CHILDREN_0_DEPRECATION_MESSAGE);
         }
         if (maxChildren < 0) {
             throw new IllegalArgumentException("[" + NAME + "] requires non-negative 'max_children' field");
@@ -310,8 +307,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
         }
 
-        ParentJoinFieldMapper joinFieldMapper = ParentJoinFieldMapper.getMapper(context.getMapperService());
-        if (joinFieldMapper == null) {
+        Joiner joiner = Joiner.getJoiner(context);
+        if (joiner == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
@@ -319,30 +316,37 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
             }
         }
 
-        ParentIdFieldMapper parentIdFieldMapper = joinFieldMapper.getParentIdFieldMapper(type, false);
-        if (parentIdFieldMapper != null) {
-            Query parentFilter = parentIdFieldMapper.getParentFilter();
-            Query childFilter = parentIdFieldMapper.getChildFilter(type);
-            Query innerQuery = Queries.filtered(query.toQuery(context), childFilter);
-            MappedFieldType fieldType = parentIdFieldMapper.fieldType();
-            final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(fieldType);
-            return new LateParsingQuery(parentFilter, innerQuery, minChildren(), maxChildren(),
-                fieldType.name(), scoreMode, fieldData, context.getSearchSimilarity());
-        } else {
+        if (joiner.childTypeExists(type) == false) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(context, "[" + NAME + "] join field [" + joinFieldMapper.name() +
+                throw new QueryShardException(context, "[" + NAME + "] join field [" + joiner.getJoinField() +
                     "] doesn't hold [" + type + "] as a child");
             }
         }
+
+        String parentJoinField = joiner.parentJoinField(type);
+        if (context.isFieldMapped(parentJoinField) == false) {
+            if (ignoreUnmapped) {
+                return new MatchNoDocsQuery();
+            }
+            throw new QueryShardException(context, "[" + NAME + "] no parent join field [" + parentJoinField + "] configured");
+        }
+
+        Query parentFilter = joiner.parentFilter(type);
+        Query childFilter = joiner.filter(type);
+        Query filteredQuery = Queries.filtered(query.toQuery(context), childFilter);
+        MappedFieldType ft = context.getFieldType(parentJoinField);
+        final SortedSetOrdinalsIndexFieldData fieldData = context.getForField(ft);
+        return new LateParsingQuery(parentFilter, filteredQuery, minChildren, maxChildren,
+            parentJoinField, scoreMode, fieldData, context.getSearchSimilarity());
     }
 
     /**
      * A query that rewrites into another query using
      * {@link JoinUtil#createJoinQuery(String, Query, Query, IndexSearcher, ScoreMode, OrdinalMap, int, int)}
      * that executes the actual join.
-     *
+     * <p>
      * This query is exclusively used by the {@link HasChildQueryBuilder} and {@link HasParentQueryBuilder} to get access
      * to the {@link DirectoryReader} used by the current search in order to retrieve the {@link OrdinalMap}.
      * The {@link OrdinalMap} is required by {@link JoinUtil} to execute the join.

@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.ml.dataframe.inference;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -84,10 +86,19 @@ public class InferenceRunner {
             TestDocsIterator testDocsIterator = new TestDocsIterator(new OriginSettingClient(client, ClientHelper.ML_ORIGIN), config,
                 extractedFields);
             try (LocalModel localModel = localModelPlainActionFuture.actionGet()) {
+                LOGGER.debug("Loaded inference model [{}]", localModel);
                 inferTestDocs(localModel, testDocsIterator);
             }
         } catch (Exception e) {
-            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]", e, config.getId(), modelId);
+            LOGGER.error(new ParameterizedMessage("[{}] Error running inference on model [{}]", config.getId(), modelId), e);
+
+            if (e instanceof ElasticsearchException) {
+                Throwable rootCause = ((ElasticsearchException) e).getRootCause();
+                throw new ElasticsearchException("[{}] failed running inference on model [{}]; cause was [{}]", rootCause, config.getId(),
+                    modelId, rootCause.getMessage());
+            }
+            throw ExceptionsHelper.serverError("[{}] failed running inference on model [{}]; cause was [{}]", e, config.getId(), modelId,
+                e.getMessage());
         }
     }
 
@@ -156,6 +167,6 @@ public class InferenceRunner {
             bulkRequest,
             config.getId(),
             () -> isCancelled == false,
-            errorMsg -> {});
+            retryMessage -> {});
     }
 }

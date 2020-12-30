@@ -49,7 +49,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -70,7 +69,10 @@ import java.io.UncheckedIOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * This is an internal action, that executes msearch requests for enrich indices in a more efficient manner.
@@ -232,15 +234,24 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
+                /*
+                 * Enrich doesn't support defining runtime fields in its
+                 * configuration. We could add support for that if we'd
+                 * like it but, for now at least, you can't configure any
+                 * runtime fields so it is safe to build the context without
+                 * any.
+                 */
+                Map<String, Object> runtimeFields = emptyMap();
                 final QueryShardContext context = indexService.newQueryShardContext(
                     shardId.id(),
+                    0,
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
-                    null
+                    null,
+                    runtimeFields
                 );
-                final MapperService mapperService = context.getMapperService();
-                final Text typeText = mapperService.documentMapper().typeText();
-
+                final String type = context.getType();
+                final Text typeText = new Text(type);
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
                     final SearchSourceBuilder searchSourceBuilder = request.multiSearchRequest.requests().get(i).source();
@@ -260,7 +271,12 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
 
                         visitor.reset();
                         searcher.doc(scoreDoc.doc, visitor);
-                        visitor.postProcess(mapperService);
+                        visitor.postProcess(field -> {
+                            if (context.isFieldMapped(field) == false) {
+                                throw new IllegalStateException("Field [" + field + "] exists in the index but not in mappings");
+                            }
+                            return context.getFieldType(field);
+                        }, type);
                         final SearchHit hit = new SearchHit(
                             scoreDoc.doc,
                             visitor.uid().id(),

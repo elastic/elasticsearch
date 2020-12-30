@@ -13,6 +13,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.action.PutDataFrameAnalyticsAction.Response;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfigTests;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -25,6 +26,7 @@ public class PutDataFrameAnalyticsActionResponseTests extends AbstractWireSerial
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>();
         namedWriteables.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(new SearchModule(Settings.EMPTY, false, Collections.emptyList()).getNamedWriteables());
+        namedWriteables.addAll(new MlInferenceNamedXContentProvider()   .getNamedWriteables());
         return new NamedWriteableRegistry(namedWriteables);
     }
 

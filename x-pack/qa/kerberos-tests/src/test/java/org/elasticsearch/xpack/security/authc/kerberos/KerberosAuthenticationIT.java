@@ -33,6 +33,7 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.IntStream;
 
 import javax.security.auth.login.LoginContext;
 
@@ -89,9 +90,11 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
-    //  JDK 8u262 shipped with a NPE in Kerberos code, see https://github.com/elastic/elasticsearch/issues/56507
+    //  JDK 8u262 shipped with a NPE in Kerberos code and fixed in 8u271, see https://github.com/elastic/elasticsearch/issues/56507
     public void testSuppressedOnJDK8u262() {
-        assumeFalse("Cannot run on JDK 8u262", "1.8.0_262".equals(System.getProperty("java.version")));
+        final String javaVersion = System.getProperty("java.version");
+        assumeFalse("Cannot run on JDK 8u[262, 271)",
+            IntStream.range(262, 271).mapToObj(i -> "1.8.0_" + i).anyMatch(javaVersion::equals));
     }
 
     public void testLoginByKeytab() throws IOException, PrivilegedActionException {

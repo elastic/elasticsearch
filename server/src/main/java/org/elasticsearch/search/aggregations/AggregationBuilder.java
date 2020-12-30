@@ -25,10 +25,10 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -66,7 +66,7 @@ public abstract class AggregationBuilder
     }
 
     /** Internal: build an {@link AggregatorFactory} based on the configuration of this builder. */
-    protected abstract AggregatorFactory build(QueryShardContext queryShardContext, AggregatorFactory parent) throws IOException;
+    protected abstract AggregatorFactory build(AggregationContext context, AggregatorFactory parent) throws IOException;
 
     /** Associate metadata with this {@link AggregationBuilder}. */
     @Override

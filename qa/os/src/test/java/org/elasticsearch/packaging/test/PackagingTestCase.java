@@ -58,8 +58,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -172,6 +175,9 @@ public abstract class PackagingTestCase extends Assert {
             Platforms.onLinux(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
             Platforms.onWindows(() -> sh.getEnv().put("JAVA_HOME", systemJavaHome));
         }
+        if (installation != null && distribution.isDocker() == false) {
+            setHeap("1g");
+        }
     }
 
     @After
@@ -220,11 +226,17 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.verifyPackageInstallation(installation, distribution, sh);
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 installation = Docker.runContainer(distribution);
                 Docker.verifyContainerInstallation(installation, distribution);
                 break;
             default:
                 throw new IllegalStateException("Unknown Elasticsearch packaging type.");
+        }
+
+        // the purpose of the packaging tests are not to all test auto heap, so we explicitly set heap size to 1g
+        if (distribution.isDocker() == false) {
+            setHeap("1g");
         }
     }
 
@@ -295,6 +307,7 @@ public abstract class PackagingTestCase extends Assert {
             case RPM:
                 return Packages.runElasticsearchStartCommand(sh);
             case DOCKER:
+            case DOCKER_UBI:
                 // nothing, "installing" docker image is running it
                 return Shell.NO_OP;
             default:
@@ -313,6 +326,7 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.stopElasticsearch(sh);
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 // nothing, "installing" docker image is running it
                 break;
             default:
@@ -332,6 +346,7 @@ public abstract class PackagingTestCase extends Assert {
                 Packages.assertElasticsearchStarted(sh, installation);
                 break;
             case DOCKER:
+            case DOCKER_UBI:
                 Docker.waitForElasticsearchToStart();
                 break;
             default:
@@ -431,7 +446,7 @@ public abstract class PackagingTestCase extends Assert {
         Platforms.onLinux(() -> sh.run("chown -R elasticsearch:elasticsearch " + tempDir));
 
         if (distribution.isPackage()) {
-            Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"));// backup
+            Files.copy(installation.envFile, tempDir.resolve("elasticsearch.bk"), StandardCopyOption.COPY_ATTRIBUTES);// backup
             append(installation.envFile, "ES_PATH_CONF=" + tempConf + "\n");
         } else {
             sh.getEnv().put("ES_PATH_CONF", tempConf.toString());
@@ -440,10 +455,31 @@ public abstract class PackagingTestCase extends Assert {
         action.accept(tempConf);
         if (distribution.isPackage()) {
             IOUtils.rm(installation.envFile);
-            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile);
+            Files.copy(tempDir.resolve("elasticsearch.bk"), installation.envFile, StandardCopyOption.COPY_ATTRIBUTES);
         } else {
             sh.getEnv().remove("ES_PATH_CONF");
         }
         IOUtils.rm(tempDir);
+    }
+
+    /**
+     * Manually set the heap size with a jvm.options.d file. This will be reset before each test.
+     */
+    public static void setHeap(String heapSize) throws IOException {
+        setHeap(heapSize, installation.config);
+    }
+
+    public static void setHeap(String heapSize, Path config) throws IOException {
+        Path heapOptions = config.resolve("jvm.options.d").resolve("heap.options");
+        if (heapSize == null) {
+            FileUtils.rm(heapOptions);
+        } else {
+            Files.write(
+                heapOptions,
+                Arrays.asList("-Xmx" + heapSize, "-Xms" + heapSize),
+                StandardOpenOption.CREATE,
+                StandardOpenOption.TRUNCATE_EXISTING
+            );
+        }
     }
 }

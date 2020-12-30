@@ -164,6 +164,11 @@ teardown:
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_read.min: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_read.max: 0 }
 
+  - gte:     { indices.docs.shards.0.0.files.0.index_cache_bytes_read.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.index_cache_bytes_read.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.index_cache_bytes_read.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.index_cache_bytes_read.max: 0 }
+
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.count: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.sum: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.cached_bytes_written.min: 0 }
@@ -202,6 +207,13 @@ teardown:
   - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.sum: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.min: 0 }
   - gte:     { indices.docs.shards.0.0.files.0.backward_seeks.large.max: 0 }
+
+  - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.count: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.sum: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.min: 0 }
+  - gte:     { indices.docs.shards.0.0.files.0.blob_store_bytes_requested.max: 0 }
+
+  - gte:     { indices.docs.shards.0.0.files.0.current_index_cache_fills: 0 }
 
   - do:
       searchable_snapshots.stats:

@@ -98,28 +98,30 @@ to the document ID.
 //////////////////////////
 [source,console]
 -----------------------
-PUT _template/mylogs_template
+PUT _index_template/mylogs_template
 {
   "index_patterns": [
     "mylogs-*"
   ],
-  "settings": {
-    "number_of_shards": 1,
-    "number_of_replicas": 1,
-    "index": {
-      "lifecycle": {
-        "name": "mylogs_condensed_policy", <2>
-        "rollover_alias": "mylogs" <3>
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 1,
+      "index": {
+        "lifecycle": {
+          "name": "mylogs_condensed_policy", <2>
+          "rollover_alias": "mylogs" <3>
+        }
       }
-    }
-  },
-  "mappings": {
-    "properties": {
-      "message": {
-        "type": "text"
-      },
-      "@timestamp": {
-        "type": "date"
+    },
+    "mappings": {
+      "properties": {
+        "message": {
+          "type": "text"
+        },
+        "@timestamp": {
+          "type": "date"
+        }
       }
     }
   }
@@ -148,7 +150,7 @@ POST mylogs-pre-ilm-2019.06.25/_doc
 
 [source,console]
 --------------------------------------------------
-DELETE _template/mylogs_template
+DELETE _index_template/mylogs_template
 --------------------------------------------------
 // TEST[continued]
 

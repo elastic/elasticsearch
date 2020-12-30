@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -45,8 +44,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestDeleteAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestDeleteAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document " +
         "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, " +
         "or /{index}/_create/{id}).";
@@ -131,7 +129,7 @@ public class RestIndexAction extends BaseRestHandler {
         IndexRequest indexRequest;
         final String type = request.param("type");
         if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-            deprecationLogger.deprecatedAndMaybeLog("index_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);
             indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         } else {
             indexRequest = new IndexRequest(request.param("index"));

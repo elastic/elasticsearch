@@ -40,6 +40,7 @@ import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TY
 import static org.elasticsearch.client.RequestConverters.createEntity;
 import static org.elasticsearch.client.transform.DeleteTransformRequest.FORCE;
 import static org.elasticsearch.client.transform.GetTransformRequest.ALLOW_NO_MATCH;
+import static org.elasticsearch.client.transform.GetTransformRequest.EXCLUDE_GENERATED;
 import static org.elasticsearch.client.transform.PutTransformRequest.DEFER_VALIDATION;
 import static org.elasticsearch.client.transform.StopTransformRequest.WAIT_FOR_CHECKPOINT;
 
@@ -88,6 +89,9 @@ final class TransformRequestConverters {
         }
         if (getRequest.getAllowNoMatch() != null) {
             request.addParameter(ALLOW_NO_MATCH, getRequest.getAllowNoMatch().toString());
+        }
+        if (getRequest.getExcludeGenerated() != null) {
+            request.addParameter(EXCLUDE_GENERATED, getRequest.getExcludeGenerated().toString());
         }
         return request;
     }

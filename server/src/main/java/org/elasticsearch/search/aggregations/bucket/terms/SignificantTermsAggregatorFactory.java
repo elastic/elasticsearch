@@ -19,13 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -36,30 +33,28 @@ import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.BucketUtils;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
-import org.elasticsearch.search.aggregations.support.AggregatorSupplier;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
 public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-            LogManager.getLogger(SignificantTermsAggregatorFactory.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SignificantTermsAggregatorFactory.class);
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
-            SignificantTermsAggregatorFactory.bytesSupplier());
+            SignificantTermsAggregatorFactory.bytesSupplier(), true);
 
-        builder.register(SignificantTermsAggregationBuilder.NAME,
+        builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
             Arrays.asList(CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.NUMERIC),
-            SignificantTermsAggregatorFactory.numericSupplier());
+            SignificantTermsAggregatorFactory.numericSupplier(), true);
     }
 
     /**
@@ -76,7 +71,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
@@ -120,7 +115,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                     TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                     IncludeExclude includeExclude,
                                     String executionHint,
-                                    SearchContext context,
+                                    AggregationContext context,
                                     Aggregator parent,
                                     SignificanceHeuristic significanceHeuristic,
                                     SignificanceLookup lookup,
@@ -151,6 +146,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         };
     }
 
+    private final SignificantTermsAggregatorSupplier aggregatorSupplier;
     private final IncludeExclude includeExclude;
     private final String executionHint;
     private final QueryBuilder backgroundFilter;
@@ -164,11 +160,12 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                       QueryBuilder backgroundFilter,
                                       TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                       SignificanceHeuristic significanceHeuristic,
-                                      QueryShardContext queryShardContext,
+                                      AggregationContext context,
                                       AggregatorFactory parent,
                                       AggregatorFactories.Builder subFactoriesBuilder,
-                                      Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                      Map<String, Object> metadata,
+                                      SignificantTermsAggregatorSupplier aggregatorSupplier) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         if (config.hasValues()) {
             if (config.fieldContext().fieldType().isSearchable() == false) {
@@ -177,6 +174,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             }
         }
 
+        this.aggregatorSupplier = aggregatorSupplier;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;
         this.backgroundFilter = backgroundFilter;
@@ -185,12 +183,10 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final InternalAggregation aggregation = new UnmappedSignificantTerms(name, bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(), metadata);
-        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;
@@ -199,18 +195,11 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-        AggregatorSupplier aggregatorSupplier = queryShardContext.getValuesSourceRegistry().getAggregator(config,
-            SignificantTermsAggregationBuilder.NAME);
-        if (aggregatorSupplier instanceof SignificantTermsAggregatorSupplier == false) {
-            throw new AggregationExecutionException("Registry miss-match - expected SignificantTermsAggregatorSupplier, found [" +
-                aggregatorSupplier.getClass().toString() + "]");
-        }
-        SignificantTermsAggregatorSupplier sigTermsAggregatorSupplier = (SignificantTermsAggregatorSupplier) aggregatorSupplier;
-
+    protected Aggregator doCreateInternal(
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         BucketCountThresholds bucketCountThresholds = new BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == SignificantTermsAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection .
@@ -229,15 +218,27 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
         }
 
         SignificanceLookup lookup = new SignificanceLookup(
-            queryShardContext,
+            context,
             config.fieldContext().fieldType(),
             config.format(),
             backgroundFilter
         );
 
-        return sigTermsAggregatorSupplier.build(name, factories, config.getValuesSource(), config.format(),
-            bucketCountThresholds, includeExclude, executionHint, searchContext, parent,
-            significanceHeuristic, lookup, cardinality, metadata);
+        return aggregatorSupplier.build(
+            name,
+            factories,
+            config.getValuesSource(),
+            config.format(),
+            bucketCountThresholds,
+            includeExclude,
+            executionHint,
+            context,
+            parent,
+            significanceHeuristic,
+            lookup,
+            cardinality,
+            metadata
+        );
     }
 
     public enum ExecutionMode {
@@ -251,7 +252,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
-                              SearchContext aggregationContext,
+                              AggregationContext context,
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
@@ -268,7 +269,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     format,
                     bucketCountThresholds,
                     filter,
-                    aggregationContext,
+                    context,
                     parent,
                     SubAggCollectionMode.BREADTH_FIRST,
                     false,
@@ -288,7 +289,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                               DocValueFormat format,
                               TermsAggregator.BucketCountThresholds bucketCountThresholds,
                               IncludeExclude includeExclude,
-                              SearchContext aggregationContext,
+                              AggregationContext context,
                               Aggregator parent,
                               SignificanceHeuristic significanceHeuristic,
                               SignificanceLookup lookup,
@@ -316,7 +317,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                     format,
                     bucketCountThresholds,
                     filter,
-                    aggregationContext,
+                    context,
                     parent,
                     remapGlobalOrd,
                     SubAggCollectionMode.BREADTH_FIRST,
@@ -331,7 +332,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             if ("global_ordinals".equals(value)) {
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
-                deprecationLogger.deprecatedAndMaybeLog("global_ordinals_hash",
+                deprecationLogger.deprecate("global_ordinals_hash",
                     "global_ordinals_hash is deprecated. Please use [global_ordinals] instead.");
                 return GLOBAL_ORDINALS;
             } else if ("map".equals(value)) {
@@ -352,7 +353,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                                    DocValueFormat format,
                                    TermsAggregator.BucketCountThresholds bucketCountThresholds,
                                    IncludeExclude includeExclude,
-                                   SearchContext aggregationContext,
+                                   AggregationContext context,
                                    Aggregator parent,
                                    SignificanceHeuristic significanceHeuristic,
                                    SignificanceLookup lookup,

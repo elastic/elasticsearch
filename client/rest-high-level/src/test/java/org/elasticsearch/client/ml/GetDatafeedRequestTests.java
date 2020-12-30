@@ -52,7 +52,7 @@ public class GetDatafeedRequestTests extends AbstractXContentTestCase<GetDatafee
         GetDatafeedRequest request = new GetDatafeedRequest(datafeedIds);
 
         if (randomBoolean()) {
-            request.setAllowNoDatafeeds(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
 
         return request;

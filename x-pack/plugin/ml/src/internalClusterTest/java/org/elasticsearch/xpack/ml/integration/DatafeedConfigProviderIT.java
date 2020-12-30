@@ -208,7 +208,7 @@ public class DatafeedConfigProviderIT extends MlSingleNodeTestCase {
 
     }
 
-    public void testAllowNoDatafeeds() throws InterruptedException {
+    public void testAllowNoMatch() throws InterruptedException {
         AtomicReference<SortedSet<String>> datafeedIdsHolder = new AtomicReference<>();
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 

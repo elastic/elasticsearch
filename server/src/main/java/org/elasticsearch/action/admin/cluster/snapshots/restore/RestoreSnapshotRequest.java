@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
-import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -33,7 +31,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 
 import java.io.IOException;
@@ -54,7 +51,7 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
  */
 public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotRequest> implements ToXContentObject {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER = new DeprecationLogger(LogManager.getLogger(RestoreSnapshotRequest.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RestoreSnapshotRequest.class);
 
     private String snapshot;
     private String repository;
@@ -435,13 +432,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
      * Sets settings that should be added/changed in all restored indices
      */
     public RestoreSnapshotRequest indexSettings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            indexSettings(Strings.toString(builder), builder.contentType());
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.indexSettings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -498,7 +489,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
                 if (!(entry.getValue() instanceof Map)) {
                     throw new IllegalArgumentException("malformed settings section");
                 }
-                DEPRECATION_LOGGER.deprecatedAndMaybeLog("RestoreSnapshotRequest#settings",
+                DEPRECATION_LOGGER.deprecate("RestoreSnapshotRequest#settings",
                     "specifying [settings] when restoring a snapshot has no effect and will not be supported in a future version");
             } else if (name.equals("include_global_state")) {
                 includeGlobalState = nodeBooleanValue(entry.getValue(), "include_global_state");

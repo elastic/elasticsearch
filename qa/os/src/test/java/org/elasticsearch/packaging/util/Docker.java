@@ -41,6 +41,7 @@ import java.util.stream.Stream;
 import static java.nio.file.attribute.PosixFilePermissions.fromString;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
+import static org.elasticsearch.packaging.util.FileMatcher.p664;
 import static org.elasticsearch.packaging.util.FileMatcher.p755;
 import static org.elasticsearch.packaging.util.FileMatcher.p770;
 import static org.elasticsearch.packaging.util.FileMatcher.p775;
@@ -59,7 +60,7 @@ import static org.junit.Assert.fail;
 public class Docker {
     private static final Log logger = LogFactory.getLog(Docker.class);
 
-    private static final Shell sh = new Shell();
+    static final Shell sh = new Shell();
     private static final DockerShell dockerShell = new DockerShell();
     public static final int STARTUP_SLEEP_INTERVAL_MILLISECONDS = 1000;
     public static final int STARTUP_ATTEMPTS_MAX = 10;
@@ -77,7 +78,7 @@ public class Docker {
      * @param distribution details about the docker image to potentially load.
      */
     public static void ensureImageIsLoaded(Distribution distribution) {
-        Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + distribution.flavor.name);
+        Shell.Result result = sh.run("docker image ls --format '{{.Repository}}' " + getImageName(distribution));
 
         final long count = Arrays.stream(result.stdout.split("\n")).map(String::trim).filter(s -> s.isEmpty() == false).count();
 
@@ -90,23 +91,24 @@ public class Docker {
     }
 
     /**
-     * Runs an Elasticsearch Docker container.
-     * @param distribution details about the docker image being tested.
+     * Runs an Elasticsearch Docker container, and checks that it has started up
+     * successfully.
+     *
+     * @param distribution details about the docker image being tested
      */
     public static Installation runContainer(Distribution distribution) {
-        return runContainer(distribution, null, null);
+        return runContainer(distribution, DockerRun.builder());
     }
 
     /**
-     * Runs an Elasticsearch Docker container, with options for overriding the config directory
-     * through a bind mount, and passing additional environment variables.
+     * Runs an Elasticsearch Docker container, and checks that it has started up
+     * successfully.
      *
-     * @param distribution details about the docker image being tested.
-     * @param volumes a map that declares any volume mappings to apply, or null
-     * @param envVars environment variables to set when running the container, or null
+     * @param distribution details about the docker image being tested
+     * @param builder the command to run
      */
-    public static Installation runContainer(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
-        executeDockerRun(distribution, volumes, envVars);
+    public static Installation runContainer(Distribution distribution, DockerRun builder) {
+        executeDockerRun(distribution, builder);
 
         waitForElasticsearchToStart();
 
@@ -114,55 +116,26 @@ public class Docker {
     }
 
     /**
-     * Similar to {@link #runContainer(Distribution, Map, Map)} in that it runs an Elasticsearch Docker
+     * Similar to {@link #runContainer(Distribution, DockerRun)} in that it runs an Elasticsearch Docker
      * container, expect that the container expecting it to exit e.g. due to configuration problem.
      *
      * @param distribution details about the docker image being tested.
-     * @param volumes a map that declares any volume mappings to apply, or null
-     * @param envVars environment variables to set when running the container, or null
+     * @param builder the command to run
      * @return the docker logs of the container
      */
-    public static Shell.Result runContainerExpectingFailure(
-        Distribution distribution,
-        Map<Path, Path> volumes,
-        Map<String, String> envVars
-    ) {
-        executeDockerRun(distribution, volumes, envVars);
+    public static Shell.Result runContainerExpectingFailure(Distribution distribution, DockerRun builder) {
+        executeDockerRun(distribution, builder);
 
         waitForElasticsearchToExit();
 
         return getContainerLogs();
     }
 
-    private static void executeDockerRun(Distribution distribution, Map<Path, Path> volumes, Map<String, String> envVars) {
+    private static void executeDockerRun(Distribution distribution, DockerRun builder) {
         removeContainer();
 
-        final List<String> args = new ArrayList<>();
+        final String command = builder.distribution(distribution).build();
 
-        args.add("docker run");
-
-        // Run the container in the background
-        args.add("--detach");
-
-        if (envVars != null) {
-            envVars.forEach((key, value) -> args.add("--env " + key + "=\"" + value + "\""));
-        }
-
-        // The container won't run without configuring discovery
-        args.add("--env discovery.type=single-node");
-
-        // Map ports in the container to the host, so that we can send requests
-        args.add("--publish 9200:9200");
-        args.add("--publish 9300:9300");
-
-        // Bind-mount any volumes
-        if (volumes != null) {
-            volumes.forEach((localPath, containerPath) -> args.add("--volume \"" + localPath + ":" + containerPath + "\""));
-        }
-
-        args.add(distribution.flavor.name + ":test");
-
-        final String command = String.join(" ", args);
         logger.info("Running command: " + command);
         containerId = sh.run(command).stdout.trim();
     }
@@ -229,7 +202,7 @@ public class Docker {
 
         if (isElasticsearchRunning) {
             final Shell.Result dockerLogs = getContainerLogs();
-            fail("Elasticsearch container did exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
+            fail("Elasticsearch container didn't exit.\n\nStdout:\n" + dockerLogs.stdout + "\n\nStderr:\n" + dockerLogs.stderr);
         }
     }
 
@@ -362,12 +335,30 @@ public class Docker {
      */
     public static void rmDirWithPrivilegeEscalation(Path localPath) {
         final Path containerBasePath = Paths.get("/mount");
-        final Path containerPath = containerBasePath.resolve(Paths.get("/").relativize(localPath));
+        final Path containerPath = containerBasePath.resolve(localPath.getParent().getFileName());
         final List<String> args = new ArrayList<>();
 
         args.add("cd " + containerBasePath.toAbsolutePath());
         args.add("&&");
         args.add("rm -rf " + localPath.getFileName());
+        final String command = String.join(" ", args);
+        executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
+    }
+
+    /**
+     * Change the ownership of a path using Docker backed privilege escalation.
+     * @param localPath The path to the file or directory to change.
+     * @param ownership the ownership to apply. Can either be just the user, or the user and group, separated by a colon (":"),
+     *                  or just the group if prefixed with a colon.
+     */
+    public static void chownWithPrivilegeEscalation(Path localPath, String ownership) {
+        final Path containerBasePath = Paths.get("/mount");
+        final Path containerPath = containerBasePath.resolve(localPath.getParent().getFileName());
+        final List<String> args = new ArrayList<>();
+
+        args.add("cd " + containerBasePath.toAbsolutePath());
+        args.add("&&");
+        args.add("chown -R " + ownership + " " + localPath.getFileName());
         final String command = String.join(" ", args);
         executePrivilegeEscalatedShellCmd(command, localPath, containerPath);
     }
@@ -388,7 +379,7 @@ public class Docker {
         // also don't want any SELinux security context indicator.
         Set<PosixFilePermission> actualPermissions = fromString(permissions.substring(1, 10));
 
-        assertEquals("Permissions of " + path + " are wrong", actualPermissions, expectedPermissions);
+        assertEquals("Permissions of " + path + " are wrong", expectedPermissions, actualPermissions);
         assertThat("File owner of " + path + " is wrong", username, equalTo("elasticsearch"));
         assertThat("File group of " + path + " is wrong", group, equalTo("root"));
     }
@@ -428,12 +419,14 @@ public class Docker {
         final String homeDir = passwdResult.stdout.trim().split(":")[5];
         assertThat(homeDir, equalTo("/usr/share/elasticsearch"));
 
-        Stream.of(es.home, es.data, es.logs, es.config).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
+        Stream.of(es.home, es.data, es.logs, es.config, es.plugins).forEach(dir -> assertPermissionsAndOwnership(dir, p775));
 
-        Stream.of(es.plugins, es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
+        Stream.of(es.modules).forEach(dir -> assertPermissionsAndOwnership(dir, p755));
 
-        Stream.of("elasticsearch.keystore", "elasticsearch.yml", "jvm.options", "log4j2.properties")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+        assertPermissionsAndOwnership(es.config("elasticsearch.keystore"), p660);
+
+        Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties")
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
 
         assertThat(dockerShell.run(es.bin("elasticsearch-keystore") + " list").stdout, containsString("keystore.seed"));
 
@@ -480,7 +473,7 @@ public class Docker {
         assertPermissionsAndOwnership(es.bin("elasticsearch-sql-cli-" + getCurrentVersion() + ".jar"), p755);
 
         Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p660));
+            .forEach(configFile -> assertPermissionsAndOwnership(es.config(configFile), p664));
     }
 
     public static void waitForElasticsearch(Installation installation) throws Exception {
@@ -525,7 +518,7 @@ public class Docker {
     public static Map<String, String> getImageLabels(Distribution distribution) throws Exception {
         // The format below extracts the .Config.Labels value, and prints it as json. Without the json
         // modifier, a stringified Go map is printed instead, which isn't helpful.
-        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + distribution.flavor.name + ":test").stdout;
+        String labelsJson = sh.run("docker inspect -f '{{json .Config.Labels}}' " + getImageName(distribution)).stdout;
 
         ObjectMapper mapper = new ObjectMapper();
 
@@ -540,5 +533,9 @@ public class Docker {
 
     public static Shell.Result getContainerLogs() {
         return sh.run("docker logs " + containerId);
+    }
+
+    public static String getImageName(Distribution distribution) {
+        return distribution.flavor.name + (distribution.packaging == Distribution.Packaging.DOCKER_UBI ? "-ubi8" : "") + ":test";
     }
 }

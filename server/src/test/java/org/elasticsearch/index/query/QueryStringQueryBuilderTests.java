@@ -529,6 +529,20 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             equalTo(new Term(KEYWORD_FIELD_NAME, "test")));
     }
 
+    /**
+     * Test that dissalowing leading wildcards causes exception
+     */
+    public void testAllowLeadingWildcard() throws Exception {
+        Query query = queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(true).toQuery(createShardContext());
+        assertThat(query, instanceOf(WildcardQuery.class));
+        QueryShardException ex = expectThrows(
+            QueryShardException.class,
+            () -> queryStringQuery("*test").field("mapped_string").allowLeadingWildcard(false).toQuery(createShardContext())
+        );
+        assertEquals("Failed to parse query [*test]", ex.getMessage());
+        assertEquals("Cannot parse '*test': '*' or '?' not allowed as first character in WildcardQuery", ex.getCause().getMessage());
+    }
+
     public void testToQueryDisMaxQuery() throws Exception {
         Query query = queryStringQuery("test").field(TEXT_FIELD_NAME, 2.2f)
             .field(KEYWORD_FIELD_NAME)
@@ -831,7 +845,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());
         query.lenient(true);
-        query.toQuery(context); // no exception
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testPrefixNumeric() throws Exception {
@@ -842,18 +856,25 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertEquals("Can only use prefix queries on keyword, text and wildcard fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());
         query.lenient(true);
-        query.toQuery(context); // no exception
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testExactGeo() throws Exception {
         QueryStringQueryBuilder query = queryStringQuery("2,3").defaultField(GEO_POINT_FIELD_NAME);
         QueryShardContext context = createShardContext();
-        QueryShardException e = expectThrows(QueryShardException.class,
-                () -> query.toQuery(context));
-        assertEquals("Geometry fields do not support exact searching, use dedicated geometry queries instead: "
-                + "[mapped_geo_point]", e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_geo_point] of type [geo_point] does not support match queries", e.getMessage());
         query.lenient(true);
-        query.toQuery(context); // no exception
+        assertThat(query.toQuery(context), Matchers.instanceOf(MatchNoDocsQuery.class));
+    }
+
+    public void testLenientFlag() throws Exception {
+        QueryStringQueryBuilder query = queryStringQuery("test").defaultField(BINARY_FIELD_NAME);
+        QueryShardContext context = createShardContext();
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
+        assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
+        query.lenient(true);
+        assertThat(query.toQuery(context), instanceOf(MatchNoDocsQuery.class));
     }
 
     public void testTimezone() throws Exception {
@@ -1046,7 +1067,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder(TEXT_FIELD_NAME + ":*");
         Query query = queryBuilder.toQuery(context);
         if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                && (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
+                && (context.getFieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
             assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
         } else {
             assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
@@ -1057,7 +1078,7 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             queryBuilder = new QueryStringQueryBuilder("_exists_:" + value);
             query = queryBuilder.toQuery(context);
             if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(Version.V_6_1_0)
-                && (context.getMapperService().fieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
+                && (context.getFieldType(TEXT_FIELD_NAME).getTextSearchInfo().hasNorms())) {
                 assertThat(query, equalTo(new ConstantScoreQuery(new NormsFieldExistsQuery(TEXT_FIELD_NAME))));
             } else {
                 assertThat(query, equalTo(new ConstantScoreQuery(new TermQuery(new Term("_field_names", TEXT_FIELD_NAME)))));
@@ -1079,15 +1100,15 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
     }
 
     public void testDisabledFieldNamesField() throws Exception {
+        getMapperService().merge("_doc",
+            new CompressedXContent(Strings
+                .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
+                    "foo",
+                    "type=text",
+                    "_field_names",
+                    "enabled=false"))),
+            MapperService.MergeReason.MAPPING_UPDATE);
         QueryShardContext context = createShardContext();
-        context.getMapperService().merge("_doc",
-                new CompressedXContent(Strings
-                        .toString(PutMappingRequest.buildFromSimplifiedDef("_doc",
-                                "foo",
-                                "type=text",
-                                "_field_names",
-                                "enabled=false"))),
-                MapperService.MergeReason.MAPPING_UPDATE);
 
         try {
             QueryStringQueryBuilder queryBuilder = new QueryStringQueryBuilder("foo:*");
@@ -1096,16 +1117,16 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
             assertThat(query, equalTo(expected));
         } finally {
             // restore mappings as they were before
-            context.getMapperService().merge("_doc",
-                    new CompressedXContent(Strings.toString(
-                            PutMappingRequest.buildFromSimplifiedDef("_doc",
-                                    "foo",
-                                    "type=text",
-                                    "_field_names",
-                                    "enabled=true"))),
-                    MapperService.MergeReason.MAPPING_UPDATE);
+            getMapperService().merge("_doc",
+                new CompressedXContent(Strings.toString(
+                    PutMappingRequest.buildFromSimplifiedDef("_doc",
+                        "foo",
+                        "type=text",
+                        "_field_names",
+                        "enabled=true"))),
+                MapperService.MergeReason.MAPPING_UPDATE);
         }
-        assertWarnings(FieldNamesFieldMapper.TypeParser.ENABLED_DEPRECATION_MESSAGE.replace("{}",  context.index().getName()));
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
     }
 
     public void testFromJson() throws IOException {

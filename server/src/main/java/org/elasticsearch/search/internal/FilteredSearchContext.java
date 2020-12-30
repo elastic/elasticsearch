@@ -25,16 +25,11 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -70,16 +65,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public boolean hasStoredFieldsContext() {
-        return in.hasStoredFieldsContext();
-    }
-
-    @Override
-    public boolean storedFieldsRequested() {
-        return in.storedFieldsRequested();
-    }
-
-    @Override
     public StoredFieldsContext storedFieldsContext() {
         return in.storedFieldsContext();
     }
@@ -87,11 +72,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public SearchContext storedFieldsContext(StoredFieldsContext storedFieldsContext) {
         return in.storedFieldsContext(storedFieldsContext);
-    }
-
-    @Override
-    protected void doClose() {
-        in.doClose();
     }
 
     @Override
@@ -105,7 +85,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public SearchContextId id() {
+    public ShardSearchContextId id() {
         return in.id();
     }
 
@@ -135,23 +115,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public float queryBoost() {
-        return in.queryBoost();
-    }
-
-    @Override
-    public long getOriginNanoTime() {
-        return in.getOriginNanoTime();
-    }
-
-    @Override
     public ScrollContext scrollContext() {
         return in.scrollContext();
-    }
-
-    @Override
-    public SearchContext scrollContext(ScrollContext scroll) {
-        return in.scrollContext(scroll);
     }
 
     @Override
@@ -195,11 +160,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void addRescore(RescoreContext rescore) {
-        in.addRescore(rescore);
-    }
-
-    @Override
     public boolean hasScriptFields() {
         return in.hasScriptFields();
     }
@@ -240,28 +200,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public MapperService mapperService() {
-        return in.mapperService();
-    }
-
-    @Override
-    public SimilarityService similarityService() {
-        return in.similarityService();
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return in.bigArrays();
-    }
-
-    @Override
     public BitsetFilterCache bitsetFilterCache() {
         return in.bitsetFilterCache();
-    }
-
-    @Override
-    public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return in.getForField(fieldType);
     }
 
     @Override
@@ -350,11 +290,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Query aliasFilter() {
-        return in.aliasFilter();
-    }
-
-    @Override
     public SearchContext parsedQuery(ParsedQuery query) {
         return in.parsedQuery(query);
     }
@@ -436,38 +371,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public int docIdsToLoadFrom() {
-        return in.docIdsToLoadFrom();
-    }
-
-    @Override
-    public int docIdsToLoadSize() {
-        return in.docIdsToLoadSize();
-    }
-
-    @Override
-    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadFrom, int docsIdsToLoadSize) {
-        return in.docIdsToLoad(docIdsToLoad, docsIdsToLoadFrom, docsIdsToLoadSize);
-    }
-
-    @Override
-    public void accessed(long accessTime) {
-        in.accessed(accessTime);
-    }
-
-    @Override
-    public long lastAccessTime() {
-        return in.lastAccessTime();
-    }
-
-    @Override
-    public long keepAlive() {
-        return in.keepAlive();
-    }
-
-    @Override
-    public void keepAlive(long keepAlive) {
-        in.keepAlive(keepAlive);
+    public SearchContext docIdsToLoad(int[] docIdsToLoad, int docsIdsToLoadSize) {
+        return in.docIdsToLoad(docIdsToLoad, docsIdsToLoadSize);
     }
 
     @Override
@@ -486,18 +391,13 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
+    public NestedDocuments getNestedDocuments() {
+        return in.getNestedDocuments();
+    }
+
+    @Override
     public FetchPhase fetchPhase() {
         return in.fetchPhase();
-    }
-
-    @Override
-    public MappedFieldType fieldType(String name) {
-        return in.fieldType(name);
-    }
-
-    @Override
-    public ObjectMapper getObjectMapper(String name) {
-        return in.getObjectMapper(name);
     }
 
     @Override
@@ -551,5 +451,15 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public CollapseContext collapse() {
         return in.collapse();
+    }
+
+    @Override
+    public void addRescore(RescoreContext rescore) {
+        in.addRescore(rescore);
+    }
+
+    @Override
+    public ReaderContext readerContext() {
+        return in.readerContext();
     }
 }

@@ -10,6 +10,7 @@ import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -34,7 +35,7 @@ import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -58,6 +59,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItems;
@@ -122,7 +124,19 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             createRole(true);
         } else {
             waitForYellow(".security");
-            Response settingsResponse = client().performRequest(new Request("GET", "/.security/_settings/index.format"));
+            final Request getSettingsRequest = new Request("GET", "/.security/_settings/index.format");
+            RequestOptions.Builder systemIndexWarningOptions = RequestOptions.DEFAULT.toBuilder();
+            systemIndexWarningOptions.setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                } else {
+                    return warnings.get(0).contains("this request accesses system indices:") == false;
+                }
+            });
+            getSettingsRequest.setOptions(systemIndexWarningOptions);
+            Response settingsResponse = client().performRequest(getSettingsRequest);
             Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
             logger.info("settings response map {}", settingsResponseMap);
             final String concreteSecurityIndex;
@@ -193,32 +207,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
 
             logger.info("checking that the Watches index is the correct version");
 
-            Response settingsResponse = client().performRequest(new Request("GET", "/.watches/_settings/index.format"));
-            Map<String, Object> settingsResponseMap = entityAsMap(settingsResponse);
-            logger.info("settings response map {}", settingsResponseMap);
-            final String concreteWatchesIndex;
-            if (settingsResponseMap.isEmpty()) {
-                fail("The security index does not have the expected setting [index.format]");
-            } else {
-                concreteWatchesIndex = settingsResponseMap.keySet().iterator().next();
-                Map<?, ?> indexSettingsMap = (Map<?, ?>) settingsResponseMap.get(concreteWatchesIndex);
-                Map<?, ?> settingsMap = (Map<?, ?>) indexSettingsMap.get("settings");
-                logger.info("settings map {}", settingsMap);
-                if (settingsMap.containsKey("index")) {
-                    int format = Integer.parseInt(String.valueOf(((Map<?, ?>)settingsMap.get("index")).get("format")));
-                    assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, format);
-                }
-            }
+            // Verify .watches index format:
+            Map<?, ?> getClusterStateResponse =
+                entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata/.watches")));
+            Map<?, ?> indices = ObjectPath.eval("metadata.indices", getClusterStateResponse);
+            Map<?, ?> dotWatchesIndex = (Map<?, ?>) indices.get(".watches"); // ObjectPath.eval(...) doesn't handle keys containing .
+            int indexFormat = Integer.parseInt(ObjectPath.eval("settings.index.format", dotWatchesIndex));
+            assertEquals("The watches index needs to be upgraded", UPGRADE_FIELD_EXPECTED_INDEX_FORMAT_VERSION, indexFormat);
 
             // Wait for watcher to actually start....
-            Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
-            assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
-            assertBusy(() -> {
-                Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
-                List<?> states = ((List<?>) statsWatchResponse.get("stats"))
-                    .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
-                assertThat(states, everyItem(is("started")));
-            });
+            startWatcher();
 
             try {
                 assertOldTemplatesAreDeleted();
@@ -228,15 +226,73 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                 /* Shut down watcher after every test because watcher can be a bit finicky about shutting down when the node shuts
                  * down. This makes super sure it shuts down *and* causes the test to fail in a sensible spot if it doesn't shut down.
                  */
-                Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
-                assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+                stopWatcher();
+            }
+        }
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63088")
+    @SuppressWarnings("unchecked")
+    public void testWatcherWithApiKey() throws Exception {
+        assumeTrue("API key is available since 6.7.0", getOldClusterVersion().onOrAfter(Version.V_6_7_0));
+        if (isRunningAgainstOldCluster()) {
+            final Request createApiKeyRequest = new Request("PUT", "/_security/api_key");
+            createApiKeyRequest.setJsonEntity("{\"name\":\"key-1\",\"role_descriptors\":" +
+                "{\"r\":{\"cluster\":[\"all\"],\"indices\":[{\"names\":[\"*\"],\"privileges\":[\"all\"]}]}}}");
+            final Response response = client().performRequest(createApiKeyRequest);
+            final Map<String, Object> createApiKeyResponse = entityAsMap(response);
+
+            Request createWatchWithApiKeyRequest = new Request("PUT", getWatcherEndpoint() + "/watch/watch_with_api_key");
+            createWatchWithApiKeyRequest.setJsonEntity(loadWatch("logging-watch.json"));
+            final byte[] keyBytes =
+                (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(StandardCharsets.UTF_8);
+            final String authHeader = "ApiKey " + Base64.getEncoder().encodeToString(keyBytes);
+            createWatchWithApiKeyRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", authHeader));
+            client().performRequest(createWatchWithApiKeyRequest);
+
+            assertBusy(() -> {
+                final Request getRequest = new Request("GET", getWatcherEndpoint() + "/watch/watch_with_api_key");
+                getRequest.addParameter("filter_path", "status");
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                assertEquals("executed", status.get("execution_state"));
+            });
+
+        } else {
+            logger.info("testing against {}", getOldClusterVersion());
+            try {
+                waitForYellow(".watches,.watcher-history*");
+            } catch (ResponseException e) {
+                String rsp = toStr(client().performRequest(new Request("GET", "/_cluster/state")));
+                logger.info("cluster_state_response=\n{}", rsp);
+                throw e;
+            }
+
+            // Wait for watcher to actually start....
+            startWatcher();
+
+            try {
+                final Request getWatchStatusRequest = new Request("GET", "_watcher/watch/watch_with_api_key");
+                getWatchStatusRequest.addParameter("filter_path", "status");
+                if (getOldClusterVersion().before(Version.V_7_0_0)) {
+                    getWatchStatusRequest.setOptions(
+                        expectWarnings(
+                            SEARCH_INPUT_TYPES_DEPRECATION_MESSAGE
+                        )
+                    );
+                }
+                final Map<String, Object> getWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                final Map<String, Object> status = (Map<String, Object>) getWatchStatusResponse.get("status");
+                final int version = (int) status.get("version");
+
                 assertBusy(() -> {
-                    Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
-                        new Request("GET", "_watcher/stats")));
-                    List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
-                        .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
-                    assertThat(states, everyItem(is("stopped")));
+                    final Map<String, Object> newGetWatchStatusResponse = entityAsMap(client().performRequest(getWatchStatusRequest));
+                    final Map<String, Object> newStatus = (Map<String, Object>) newGetWatchStatusResponse.get("status");
+                    assertThat((int) newStatus.get("version"), greaterThan(version + 2));
+                    assertEquals("executed", newStatus.get("execution_state"));
                 });
+            } finally {
+                stopWatcher();
             }
         }
     }
@@ -651,6 +707,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    private void startWatcher() throws Exception {
+        Map<String, Object> startWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_start")));
+        assertThat(startWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertBusy(() -> {
+            Map<String, Object> statsWatchResponse = entityAsMap(client().performRequest(new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsWatchResponse.get("stats"))
+                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            assertThat(states, everyItem(is("started")));
+        });
+    }
+
+    private void stopWatcher() throws Exception {
+        Map<String, Object> stopWatchResponse = entityAsMap(client().performRequest(new Request("POST", "_watcher/_stop")));
+        assertThat(stopWatchResponse.get("acknowledged"), equalTo(Boolean.TRUE));
+        assertBusy(() -> {
+            Map<String, Object> statsStoppedWatchResponse = entityAsMap(client().performRequest(
+                new Request("GET", "_watcher/stats")));
+            List<?> states = ((List<?>) statsStoppedWatchResponse.get("stats"))
+                .stream().map(o -> ((Map<?, ?>) o).get("watcher_state")).collect(Collectors.toList());
+            assertThat(states, everyItem(is("stopped")));
+        });
+    }
+
     static String toStr(Response response) throws IOException {
         return EntityUtils.toString(response.getEntity());
     }
@@ -660,7 +739,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request request = new Request("PUT", getSecurityEndpoint() + "/user/" + id);
         request.setJsonEntity(
             "{\n" +
-            "   \"password\" : \"j@rV1s\",\n" +
+            "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n" +
             "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
             "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
             "   \"email\" : \"" + id + "@example.com\",\n" +
@@ -893,7 +972,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
+        assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
+            ? DataStream.getDefaultBackingIndexName("ds", 1)
+            : DataStream.getLegacyDefaultBackingIndexName("ds", 1),
+            indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }
 

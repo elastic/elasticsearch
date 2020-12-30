@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.inference.aggs;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -16,10 +17,11 @@ import org.elasticsearch.search.aggregations.InvalidAggregationPathException;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.results.ClassificationFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResultsTests;
-import org.elasticsearch.xpack.core.ml.inference.results.FeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
+import org.elasticsearch.xpack.core.ml.inference.results.RegressionFeatureImportance;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResultsTests;
 import org.elasticsearch.xpack.core.ml.inference.results.TopClassEntry;
@@ -52,11 +54,8 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> entries = new ArrayList<>(super.getNamedXContents());
-        entries.add(new NamedXContentRegistry.Entry(Aggregation.class,
-            new ParseField(InferencePipelineAggregationBuilder.NAME), (p, c) -> ParsedInference.fromXContent(p, (String)c)));
-
-        return entries;
+        return CollectionUtils.appendToCopy(super.getNamedXContents(), new NamedXContentRegistry.Entry(Aggregation.class,
+                new ParseField(InferencePipelineAggregationBuilder.NAME), (p, c) -> ParsedInference.fromXContent(p, (String) c)));
     }
 
     @Override
@@ -115,7 +114,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
         } else if (result instanceof RegressionInferenceResults) {
             RegressionInferenceResults regression = (RegressionInferenceResults) result;
             assertEquals(regression.value(), parsed.getValue());
-            List<FeatureImportance> featureImportance = regression.getFeatureImportance();
+            List<RegressionFeatureImportance> featureImportance = regression.getFeatureImportance();
             if (featureImportance.isEmpty()) {
                 featureImportance = null;
             }
@@ -124,7 +123,7 @@ public class InternalInferenceAggregationTests extends InternalAggregationTestCa
             ClassificationInferenceResults classification = (ClassificationInferenceResults) result;
             assertEquals(classification.predictedValue(), parsed.getValue());
 
-            List<FeatureImportance> featureImportance = classification.getFeatureImportance();
+            List<ClassificationFeatureImportance> featureImportance = classification.getFeatureImportance();
             if (featureImportance.isEmpty()) {
                 featureImportance = null;
             }

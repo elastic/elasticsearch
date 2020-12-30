@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -32,7 +31,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
@@ -52,8 +50,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.fromList;
  */
 public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     public static final String NAME = "ids";
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(IdsQueryBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IdsQueryBuilder.class);
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Types are deprecated in [ids] queries.";
 
     private static final ParseField TYPE_FIELD = new ParseField("type");
@@ -154,7 +151,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
         try {
             IdsQueryBuilder builder = PARSER.apply(parser, null);
             if (builder.types().length > 0) {
-                deprecationLogger.deprecatedAndMaybeLog("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate("ids_query_with_types", TYPES_DEPRECATION_MESSAGE);
             }
             return builder;
         } catch (IllegalArgumentException e) {
@@ -174,7 +171,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             return new MatchNoneQueryBuilder();
         }
         QueryShardContext context = queryRewriteContext.convertToShardContext();
-        if (context != null && context.fieldMapper(IdFieldMapper.NAME) == null) {
+        if (context != null && context.getFieldType(IdFieldMapper.NAME) == null) {
             // no mappings yet
             return new MatchNoneQueryBuilder();
         }
@@ -183,21 +180,20 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null || ids.isEmpty()) {
             throw new IllegalStateException("Rewrite first");
         }
-        final DocumentMapper mapper = context.getMapperService().documentMapper();
         Collection<String> typesForQuery;
         if (types.length == 0) {
             typesForQuery = context.queryTypes();
         } else if (types.length == 1 && Metadata.ALL.equals(types[0])) {
-            typesForQuery = Collections.singleton(mapper.type());
+            typesForQuery = Collections.singleton(context.getType());
         } else {
             typesForQuery = new HashSet<>(Arrays.asList(types));
         }
 
-        if (typesForQuery.contains(mapper.type())) {
+        if (typesForQuery.contains(context.getType())) {
             return idField.termsQuery(new ArrayList<>(ids), context);
         } else {
             return new MatchNoDocsQuery("Type mismatch");

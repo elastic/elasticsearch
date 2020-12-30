@@ -64,6 +64,8 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsActi
 import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsAction;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.TransportCloneSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotAction;
@@ -103,7 +105,6 @@ import org.elasticsearch.action.admin.indices.cache.clear.ClearIndicesCacheActio
 import org.elasticsearch.action.admin.indices.cache.clear.TransportClearIndicesCacheAction;
 import org.elasticsearch.action.admin.indices.close.CloseIndexAction;
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
-import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.admin.indices.create.CreateIndexAction;
 import org.elasticsearch.action.admin.indices.create.TransportCreateIndexAction;
@@ -250,6 +251,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
@@ -266,6 +268,7 @@ import org.elasticsearch.rest.action.admin.cluster.RestAddVotingConfigExclusionA
 import org.elasticsearch.rest.action.admin.cluster.RestCancelTasksAction;
 import org.elasticsearch.rest.action.admin.cluster.RestCleanupRepositoryAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClearVotingConfigExclusionsAction;
+import org.elasticsearch.rest.action.admin.cluster.RestCloneSnapshotAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterAllocationExplainAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterGetSettingsAction;
 import org.elasticsearch.rest.action.admin.cluster.RestClusterHealthAction;
@@ -307,14 +310,12 @@ import org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestCreateIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComponentTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestDeleteComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestDeleteIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestForceMergeAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetAliasesAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetComponentTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetComposableIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetFieldMappingAction;
 import org.elasticsearch.rest.action.admin.indices.RestGetIndexTemplateAction;
@@ -341,8 +342,8 @@ import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateActi
 import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusAction;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
+import org.elasticsearch.rest.action.admin.indices.RestUpgradeStatusActionDeprecated;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -422,11 +423,12 @@ public class ActionModule extends AbstractModule {
     private final RestController restController;
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
+    private final ThreadPool threadPool;
 
     public ActionModule(boolean transportClient, Settings settings, IndexNameExpressionResolver indexNameExpressionResolver,
                         IndexScopedSettings indexScopedSettings, ClusterSettings clusterSettings, SettingsFilter settingsFilter,
                         ThreadPool threadPool, List<ActionPlugin> actionPlugins, NodeClient nodeClient,
-                        CircuitBreakerService circuitBreakerService, UsageService usageService) {
+                        CircuitBreakerService circuitBreakerService, UsageService usageService, SystemIndices systemIndices) {
         this.transportClient = transportClient;
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -434,9 +436,12 @@ public class ActionModule extends AbstractModule {
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
+        this.threadPool = threadPool;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
-        autoCreateIndex = transportClient ? null : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver);
+        autoCreateIndex = transportClient
+            ? null
+            : new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
             actionPlugins.stream().flatMap(p -> p.getRestHeaders().stream()),
@@ -517,6 +522,7 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSnapshotsAction.INSTANCE, TransportGetSnapshotsAction.class);
         actions.register(DeleteSnapshotAction.INSTANCE, TransportDeleteSnapshotAction.class);
         actions.register(CreateSnapshotAction.INSTANCE, TransportCreateSnapshotAction.class);
+        actions.register(CloneSnapshotAction.INSTANCE, TransportCloneSnapshotAction.class);
         actions.register(RestoreSnapshotAction.INSTANCE, TransportRestoreSnapshotAction.class);
         actions.register(SnapshotsStatusAction.INSTANCE, TransportSnapshotsStatusAction.class);
 
@@ -646,7 +652,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestNodesHotThreadsAction());
         registerHandler.accept(new RestClusterAllocationExplainAction());
         registerHandler.accept(new RestClusterStatsAction());
-        registerHandler.accept(new RestClusterStateAction(settingsFilter));
+        registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
@@ -660,6 +666,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCleanupRepositoryAction());
         registerHandler.accept(new RestGetSnapshotsAction());
         registerHandler.accept(new RestCreateSnapshotAction());
+        registerHandler.accept(new RestCloneSnapshotAction());
         registerHandler.accept(new RestRestoreSnapshotAction());
         registerHandler.accept(new RestDeleteSnapshotAction());
         registerHandler.accept(new RestSnapshotsStatusAction());
@@ -698,15 +705,15 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestSimulateTemplateAction());
 
         registerHandler.accept(new RestPutMappingAction());
-        registerHandler.accept(new RestGetMappingAction());
+        registerHandler.accept(new RestGetMappingAction(threadPool));
         registerHandler.accept(new RestGetFieldMappingAction());
 
         registerHandler.accept(new RestRefreshAction());
         registerHandler.accept(new RestFlushAction());
         registerHandler.accept(new RestSyncedFlushAction());
         registerHandler.accept(new RestForceMergeAction());
-        registerHandler.accept(new RestUpgradeAction());
-        registerHandler.accept(new RestUpgradeStatusAction());
+        registerHandler.accept(new RestUpgradeActionDeprecated());
+        registerHandler.accept(new RestUpgradeStatusActionDeprecated());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveIndexAction());
 

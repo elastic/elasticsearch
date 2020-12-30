@@ -1,14 +1,18 @@
 {
   "ml.get_trained_models":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-inference.html",
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-trained-models.html",
       "description":"Retrieves configuration information for a trained inference model."
     },
-    "stability":"experimental",
+    "stability":"beta",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
-          "path":"/_ml/inference/{model_id}",
+          "path":"/_ml/trained_models/{model_id}",
           "methods":[
             "GET"
           ],
@@ -20,7 +24,7 @@
           }
         },
         {
-          "path":"/_ml/inference",
+          "path":"/_ml/trained_models",
           "methods":[
             "GET"
           ]
@@ -34,11 +38,17 @@
         "description":"Whether to ignore if a wildcard expression matches no trained models. (This includes `_all` string or when no trained models have been specified)",
         "default":true
       },
+      "include":{
+        "type":"string",
+        "required":false,
+        "description":"A comma-separate list of fields to optionally include. Valid options are 'definition' and 'total_feature_importance'. Default is none."
+      },
       "include_model_definition":{
         "type":"boolean",
         "required":false,
         "description":"Should the full model definition be included in the results. These definitions can be large. So be cautious when including them. Defaults to false.",
-        "default":false
+        "default":false,
+        "deprecated": true
       },
       "decompress_definition":{
         "type":"boolean",
@@ -63,7 +73,7 @@
         "type":"list",
         "description":"A comma-separated list of tags that the model must have."
       },
-      "for_export": {
+      "exclude_generated": {
         "required": false,
         "type": "boolean",
         "default": false,

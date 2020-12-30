@@ -32,20 +32,20 @@ import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.par
 
 /**
  * EQL specific between function.
- * between(source, left, right[, greedy=false, case_sensitive=false])
+ * between(source, left, right[, greedy=false])
  * Extracts a substring from source that’s between left and right substrings
  */
 public class Between extends ScalarFunction implements OptionalArgument {
 
     private final Expression input, left, right, greedy, caseSensitive;
 
-    public Between(Source source, Expression input, Expression left, Expression right, Expression greedy, Expression caseSensitive) {
-        super(source, Arrays.asList(input, left, right, toDefault(greedy), toDefault(caseSensitive)));
+    public Between(Source source, Expression input, Expression left, Expression right, Expression greedy) {
+        super(source, Arrays.asList(input, left, right, toDefault(greedy)));
         this.input = input;
         this.left = left;
         this.right = right;
         this.greedy = arguments().get(3);
-        this.caseSensitive = arguments().get(4);
+        this.caseSensitive = Literal.TRUE;
     }
 
     private static Expression toDefault(Expression exp) {
@@ -73,12 +73,12 @@ public class Between extends ScalarFunction implements OptionalArgument {
             return resolution;
         }
 
-        resolution = isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FOURTH);
-        if (resolution.unresolved()) {
-            return resolution;
-        }
-
-        return isBoolean(caseSensitive, sourceText(), Expressions.ParamOrdinal.FIFTH);
+        return isBoolean(greedy, sourceText(), Expressions.ParamOrdinal.FOURTH);
+//        if (resolution.unresolved()) {
+//            return resolution;
+//        }
+//
+//        return isBoolean(caseSensitive, sourceText(), Expressions.ParamOrdinal.FIFTH);
     }
 
     @Override
@@ -100,7 +100,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Between::new, input, left, right, greedy, caseSensitive);
+        return NodeInfo.create(this, Between::new, input, left, right, greedy);
     }
 
     @Override
@@ -146,10 +146,10 @@ public class Between extends ScalarFunction implements OptionalArgument {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 5) {
-            throw new IllegalArgumentException("expected [5] children but received [" + newChildren.size() + "]");
+        if (newChildren.size() != 4) {
+            throw new IllegalArgumentException("expected [4] children but received [" + newChildren.size() + "]");
         }
 
-        return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3), newChildren.get(4));
+        return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }

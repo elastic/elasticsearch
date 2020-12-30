@@ -40,6 +40,7 @@ import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Setting;
@@ -85,6 +86,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -464,11 +466,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param shardId the id of the shard to delete to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException, ShardLockObtainFailedException {
+    public void deleteShardDirectorySafe(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException, ShardLockObtainFailedException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
         try (ShardLock lock = shardLock(shardId, "shard deletion under lock")) {
-            deleteShardDirectoryUnderLock(lock, indexSettings);
+            deleteShardDirectoryUnderLock(lock, indexSettings, listener);
         }
     }
 
@@ -513,18 +519,24 @@ public final class NodeEnvironment  implements Closeable {
      * @throws IOException if an IOException occurs
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
-    public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardDirectoryUnderLock(
+        ShardLock lock,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException {
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
+        listener.accept(paths);
         IOUtils.rm(paths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveCustomLocation(indexSettings.customDataPath(), shardId);
             logger.trace("acquiring lock for {}, custom path: [{}]", shardId, customLocation);
             acquireFSLockForPaths(indexSettings, customLocation);
             logger.trace("deleting custom shard {} directory [{}]", shardId, customLocation);
+            listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
         logger.trace("deleted shard {} directory, paths: [{}]", shardId, paths);
@@ -576,11 +588,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param indexSettings settings for the index being deleted
      * @throws IOException if any of the shards data directories can't be locked or deleted
      */
-    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, IndexSettings indexSettings)
-            throws IOException, ShardLockObtainFailedException {
+    public void deleteIndexDirectorySafe(
+        Index index,
+        long lockTimeoutMS,
+        IndexSettings indexSettings,
+        Consumer<Path[]> listener
+    ) throws IOException, ShardLockObtainFailedException {
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, "deleting index directory", lockTimeoutMS);
         try {
-            deleteIndexDirectoryUnderLock(index, indexSettings);
+            deleteIndexDirectoryUnderLock(index, indexSettings, listener);
         } finally {
             IOUtils.closeWhileHandlingException(locks);
         }
@@ -593,13 +609,15 @@ public final class NodeEnvironment  implements Closeable {
      * @param index the index to delete
      * @param indexSettings settings for the index being deleted
      */
-    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings) throws IOException {
+    public void deleteIndexDirectoryUnderLock(Index index, IndexSettings indexSettings, Consumer<Path[]> listener) throws IOException {
         final Path[] indexPaths = indexPaths(index);
         logger.trace("deleting index {} directory, paths({}): [{}]", index, indexPaths.length, indexPaths);
+        listener.accept(indexPaths);
         IOUtils.rm(indexPaths);
         if (indexSettings.hasCustomDataPath()) {
             Path customLocation = resolveIndexCustomLocation(indexSettings.customDataPath(), index.getUUID());
             logger.trace("deleting custom index {} directory [{}]", index, customLocation);
+            listener.accept(new Path[]{customLocation});
             IOUtils.rm(customLocation);
         }
     }
@@ -698,6 +716,11 @@ public final class NodeEnvironment  implements Closeable {
                 shardLock.release();
                 logger.trace("released shard lock for [{}]", shardId);
             }
+
+            @Override
+            public void setDetails(String details) {
+                shardLock.setDetails(details);
+            }
         };
     }
 
@@ -729,13 +752,13 @@ public final class NodeEnvironment  implements Closeable {
          */
         private final Semaphore mutex = new Semaphore(1);
         private int waitCount = 1; // guarded by shardLocks
-        private String lockDetails;
         private final ShardId shardId;
+        private volatile Tuple<Long, String> lockDetails;
 
         InternalShardLock(final ShardId shardId, final String details) {
             this.shardId = shardId;
             mutex.acquireUninterruptibly();
-            lockDetails = details;
+            lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
 
         protected void release() {
@@ -766,16 +789,22 @@ public final class NodeEnvironment  implements Closeable {
         void acquire(long timeoutInMillis, final String details) throws ShardLockObtainFailedException {
             try {
                 if (mutex.tryAcquire(timeoutInMillis, TimeUnit.MILLISECONDS)) {
-                    lockDetails = details;
+                    setDetails(details);
                 } else {
+                    final Tuple<Long, String> lockDetails = this.lockDetails; // single volatile read
                     throw new ShardLockObtainFailedException(shardId,
-                        "obtaining shard lock timed out after " + timeoutInMillis + "ms, previous lock details: [" + lockDetails +
-                            "] trying to lock for [" + details + "]");
+                        "obtaining shard lock for [" + details + "] timed out after [" + timeoutInMillis +
+                        "ms], lock already held for [" + lockDetails.v2() + "] with age [" +
+                        TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - lockDetails.v1()) + "ms]");
                 }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new ShardLockObtainFailedException(shardId, "thread interrupted while trying to obtain shard lock", e);
             }
+        }
+
+        public void setDetails(String details) {
+            lockDetails = Tuple.tuple(System.nanoTime(), details);
         }
     }
 

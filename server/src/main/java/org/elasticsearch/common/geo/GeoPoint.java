@@ -25,10 +25,10 @@ import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.geo.GeoUtils.EffectivePoint;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -40,8 +40,6 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Locale;
-
-import static org.elasticsearch.index.mapper.AbstractPointGeometryFieldMapper.Names.IGNORE_Z_VALUE;
 
 public class GeoPoint implements ToXContentFragment {
 
@@ -265,8 +263,8 @@ public class GeoPoint implements ToXContentFragment {
 
     public static double assertZValue(final boolean ignoreZValue, double zValue) {
         if (ignoreZValue == false) {
-            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [{}] "
-                + "parameter is [{}]", zValue, IGNORE_Z_VALUE, ignoreZValue);
+            throw new ElasticsearchParseException("Exception parsing coordinates: found Z value [{}] but [ignore_z_value] "
+                + "parameter is [{}]", zValue, ignoreZValue);
         }
         return zValue;
     }

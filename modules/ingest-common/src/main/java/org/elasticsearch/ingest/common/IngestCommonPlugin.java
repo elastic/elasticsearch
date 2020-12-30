@@ -49,7 +49,6 @@ import java.util.function.Supplier;
 
 public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPlugin {
 
-    static final Map<String, String> GROK_PATTERNS = Grok.getBuiltinPatterns();
     static final Setting<TimeValue> WATCHDOG_INTERVAL =
         Setting.timeSetting("ingest.grok.watchdog.interval", TimeValue.timeValueSeconds(1), Setting.Property.NodeScope);
     static final Setting<TimeValue> WATCHDOG_MAX_EXECUTION_TIME =
@@ -77,7 +76,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         processors.put(ForEachProcessor.TYPE, new ForEachProcessor.Factory(parameters.scriptService));
         processors.put(DateIndexNameProcessor.TYPE, new DateIndexNameProcessor.Factory(parameters.scriptService));
         processors.put(SortProcessor.TYPE, new SortProcessor.Factory());
-        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(GROK_PATTERNS, createGrokThreadWatchdog(parameters)));
+        processors.put(GrokProcessor.TYPE, new GrokProcessor.Factory(Grok.BUILTIN_PATTERNS, createGrokThreadWatchdog(parameters)));
         processors.put(ScriptProcessor.TYPE, new ScriptProcessor.Factory(parameters.scriptService));
         processors.put(DotExpanderProcessor.TYPE, new DotExpanderProcessor.Factory());
         processors.put(JsonProcessor.TYPE, new JsonProcessor.Factory());

@@ -21,10 +21,13 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ingest.SimulateProcessorResult;
+import org.elasticsearch.common.collect.Tuple;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
+
+import static org.elasticsearch.ingest.IngestDocument.PIPELINE_CYCLE_ERROR_MESSAGE;
 
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
@@ -46,11 +49,19 @@ public final class TrackingResultProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument, BiConsumer<IngestDocument, Exception> handler) {
-        if (conditionalProcessor != null ) {
+        Tuple<String, Boolean> conditionalWithResult;
+        if (conditionalProcessor != null) {
             if (conditionalProcessor.evaluate(ingestDocument) == false) {
+                conditionalWithResult = new Tuple<>(conditionalProcessor.getCondition(), Boolean.FALSE);
+                processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                    actualProcessor.getDescription(), conditionalWithResult));
                 handler.accept(ingestDocument, null);
                 return;
+            } else {
+                conditionalWithResult = new Tuple<>(conditionalProcessor.getCondition(), Boolean.TRUE);
             }
+        } else {
+            conditionalWithResult = null; //no condition
         }
 
         if (actualProcessor instanceof PipelineProcessor) {
@@ -58,24 +69,30 @@ public final class TrackingResultProcessor implements Processor {
             Pipeline pipeline = pipelineProcessor.getPipeline(ingestDocument);
             //runtime check for cycles against a copy of the document. This is needed to properly handle conditionals around pipelines
             IngestDocument ingestDocumentCopy = new IngestDocument(ingestDocument);
-            ingestDocumentCopy.executePipeline(pipelineProcessor.getPipeline(ingestDocument), (result, e) -> {
-                // do nothing, let the tracking processors throw the exception while recording the path up to the failure
-                if (e instanceof ElasticsearchException) {
-                    ElasticsearchException elasticsearchException = (ElasticsearchException) e;
-                    //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
-                    if (elasticsearchException.getCause() instanceof IllegalStateException) {
-                        if (ignoreFailure) {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e));
-                        } else {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(), e));
-                        }
-                        handler.accept(null, elasticsearchException);
+            Pipeline pipelineToCall = pipelineProcessor.getPipeline(ingestDocument);
+            if (pipelineToCall == null) {
+                throw new IllegalArgumentException("Pipeline processor configured for non-existent pipeline [" +
+                    pipelineProcessor.getPipelineToCallName(ingestDocument) + ']');
+            }
+            ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
+                // special handling for pipeline cycle errors
+                if (e instanceof ElasticsearchException &&
+                    e.getCause() instanceof IllegalStateException &&
+                    e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
+                    if (ignoreFailure) {
+                        processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
+                            pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e, conditionalWithResult));
+                    } else {
+                        processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
+                            pipelineProcessor.getDescription(), e, conditionalWithResult));
                     }
+                    handler.accept(null, e);
                 } else {
                     //now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and execute it
                     CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);
+                    //add the pipeline process to the results
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), conditionalWithResult));
                     Pipeline verbosePipeline = new Pipeline(pipeline.getId(), pipeline.getDescription(), pipeline.getVersion(),
                         verbosePipelineProcessor);
                     ingestDocument.executePipeline(verbosePipeline, handler);
@@ -87,21 +104,21 @@ public final class TrackingResultProcessor implements Processor {
         actualProcessor.execute(ingestDocument, (result, e) -> {
             if (e != null) {
                 if (ignoreFailure) {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), e));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), e, conditionalWithResult));
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription(), e));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), e, conditionalWithResult));
                 }
                 handler.accept(null, e);
             } else {
                 if (result != null) {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription(), new IngestDocument(ingestDocument)));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), new IngestDocument(ingestDocument), conditionalWithResult));
                     handler.accept(result, null);
                 } else {
-                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getTag(),
-                        actualProcessor.getDescription()));
+                    processorResultList.add(new SimulateProcessorResult(actualProcessor.getType(), actualProcessor.getTag(),
+                        actualProcessor.getDescription(), conditionalWithResult));
                     handler.accept(null, null);
                 }
             }

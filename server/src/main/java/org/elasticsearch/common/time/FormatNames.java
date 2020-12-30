@@ -20,6 +20,7 @@
 package org.elasticsearch.common.time;
 
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -63,7 +64,8 @@ public enum FormatNames {
     WEEK_DATE("weekDate", "week_date"),
     WEEK_DATE_TIME("weekDateTime", "week_date_time"),
     WEEK_DATE_TIME_NO_MILLIS("weekDateTimeNoMillis", "week_date_time_no_millis"),
-    WEEK_YEAR("weekyear", "week_year"),
+    WEEK_YEAR(null, "week_year"),
+    WEEKYEAR(null, "weekyear"),
     WEEK_YEAR_WEEK("weekyearWeek", "weekyear_week"),
     WEEKYEAR_WEEK_DAY("weekyearWeekDay", "weekyear_week_day"),
     YEAR(null, "year"),
@@ -110,6 +112,13 @@ public enum FormatNames {
     private static final Set<String> ALL_NAMES = Arrays.stream(values())
                                                        .flatMap(n -> Stream.of(n.snakeCaseName, n.camelCaseName))
                                                        .collect(Collectors.toSet());
+
+    public static final Set<FormatNames> WEEK_BASED_FORMATS = EnumSet.of(
+        BASIC_WEEK_DATE, BASIC_WEEK_DATE_TIME, BASIC_WEEK_DATE_TIME_NO_MILLIS,
+        WEEK_DATE, WEEK_DATE_TIME, WEEK_DATE_TIME_NO_MILLIS, WEEK_YEAR, WEEKYEAR, WEEK_YEAR_WEEK, WEEKYEAR_WEEK_DAY,
+        STRICT_WEEK_DATE, STRICT_WEEK_DATE_TIME,
+        STRICT_WEEK_DATE_TIME_NO_MILLIS, STRICT_WEEKYEAR, STRICT_WEEKYEAR_WEEK, STRICT_WEEKYEAR_WEEK_DAY);
+
     private final String camelCaseName;
     private final String snakeCaseName;
 

@@ -29,8 +29,10 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
+import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
@@ -320,18 +322,18 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param name The field to load
      */
     public SearchRequestBuilder addFetchField(String name) {
-        sourceBuilder().fetchField(name, null);
+        sourceBuilder().fetchField(new FieldAndFormat(name, null, null));
         return this;
     }
 
     /**
      * Adds a field to load and return. The field must be present in the document _source.
      *
-     * @param name The field to load
-     * @param format TODO(jtibs): fill this in
+     * @param fetchField a {@link FieldAndFormat} specifying the field pattern, optional format (for example a date format) and
+     * whether this field pattern sould also include unmapped fields
      */
-    public SearchRequestBuilder addFetchField(String name, String format) {
-        sourceBuilder().fetchField(name, format);
+    public SearchRequestBuilder addFetchField(FieldAndFormat fetchField) {
+        sourceBuilder().fetchField(fetchField);
         return this;
     }
 
@@ -550,6 +552,14 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
 
     public SearchRequestBuilder setCollapse(CollapseBuilder collapse) {
         sourceBuilder().collapse(collapse);
+        return this;
+    }
+
+    /**
+     * If specified, Elasticsearch will execute this search request using reader contexts from that point in time.
+     */
+    public SearchRequestBuilder setPointInTime(PointInTimeBuilder pointInTimeBuilder) {
+        sourceBuilder().pointInTimeBuilder(pointInTimeBuilder);
         return this;
     }
 

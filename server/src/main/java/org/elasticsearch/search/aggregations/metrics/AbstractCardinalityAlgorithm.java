@@ -45,7 +45,7 @@ abstract class AbstractCardinalityAlgorithm {
     }
 
     /** Returns the current computed cardinality */
-    public abstract long cardinality();
+    public abstract long cardinality(long bucketOrd);
 
     static long linearCounting(long m, long v) {
         return Math.round(m * Math.log((double) m / v));

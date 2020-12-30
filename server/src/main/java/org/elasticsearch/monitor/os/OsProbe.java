@@ -233,7 +233,7 @@ public class OsProbe {
      */
     private String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
-        assert lines != null && lines.size() == 1;
+        assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
     }
 

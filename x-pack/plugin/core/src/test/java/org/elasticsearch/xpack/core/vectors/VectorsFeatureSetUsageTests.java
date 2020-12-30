@@ -14,32 +14,18 @@ public class VectorsFeatureSetUsageTests extends AbstractWireSerializingTestCase
 
     @Override
     protected VectorsFeatureSetUsage createTestInstance() {
-        boolean available = randomBoolean();
-        boolean enabled = randomBoolean();
-        if (available && enabled) {
-            return new VectorsFeatureSetUsage(available, enabled, randomIntBetween(0, 100000), randomIntBetween(0, 100000),
-                randomIntBetween(0, 1024));
-        } else {
-            return new VectorsFeatureSetUsage(available, enabled, 0, 0, 0);
-        }
+        return new VectorsFeatureSetUsage(randomIntBetween(0, 100000), randomIntBetween(0, 100000), randomIntBetween(0, 1024));
     }
 
     @Override
     protected VectorsFeatureSetUsage mutateInstance(VectorsFeatureSetUsage instance) throws IOException {
-        boolean available = instance.available();
-        boolean enabled = instance.enabled();
         int numDenseVectorFields = instance.numDenseVectorFields();
         int numSparseVectorFields = instance.numSparseVectorFields();
         int avgDenseVectorDims = instance.avgDenseVectorDims();
-
-        if (available == false || enabled == false) {
-            available = true;
-            enabled = true;
-        }
         numDenseVectorFields = randomValueOtherThan(numDenseVectorFields, () -> randomIntBetween(0, 100000));
         numSparseVectorFields = randomValueOtherThan(numSparseVectorFields, () -> randomIntBetween(0, 100000));
         avgDenseVectorDims = randomValueOtherThan(avgDenseVectorDims, () -> randomIntBetween(0, 1024));
-        return new VectorsFeatureSetUsage(available, enabled, numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims);
+        return new VectorsFeatureSetUsage(numDenseVectorFields, numSparseVectorFields, avgDenseVectorDims);
     }
 
     @Override

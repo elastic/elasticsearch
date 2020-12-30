@@ -108,6 +108,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
 
         assertThat(authenticateResponse.getUser(), is(putUserRequest.getUser()));
         assertThat(authenticateResponse.enabled(), is(true));
+        assertThat(authenticateResponse.getAuthenticationType(), is("realm"));
 
         // get user
         final GetUsersRequest getUsersRequest =
@@ -221,7 +222,7 @@ public class SecurityIT extends ESRestHighLevelClientTestCase {
     }
 
     private static PutUserRequest randomPutUserRequest(User user, boolean enabled) {
-        final char[] password = randomAlphaOfLengthBetween(6, 10).toCharArray();
+        final char[] password = randomAlphaOfLengthBetween(14, 19).toCharArray();
         return new PutUserRequest(user, password, enabled, RefreshPolicy.IMMEDIATE);
     }
 

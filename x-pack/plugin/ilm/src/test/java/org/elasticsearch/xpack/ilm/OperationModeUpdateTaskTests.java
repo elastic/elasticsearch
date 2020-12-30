@@ -14,7 +14,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
-import org.elasticsearch.xpack.slm.SnapshotLifecycleStats;
+import org.elasticsearch.xpack.core.slm.SnapshotLifecycleStats;
 
 import java.util.Collections;
 

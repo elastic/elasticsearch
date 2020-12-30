@@ -55,7 +55,7 @@ public class StopDatafeedRequestTests extends AbstractXContentTestCase<StopDataf
         StopDatafeedRequest request = new StopDatafeedRequest(datafeedIds.toArray(new String[0]));
 
         if (randomBoolean()) {
-            request.setAllowNoDatafeeds(randomBoolean());
+            request.setAllowNoMatch(randomBoolean());
         }
 
         if (randomBoolean()) {

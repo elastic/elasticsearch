@@ -83,10 +83,14 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     }
 
     public void setupTestNodes(Settings settings) {
+        setupTestNodes(settings, Version.CURRENT);
+    }
+
+    public void setupTestNodes(Settings settings, Version version) {
         nodesCount = randomIntBetween(2, 10);
         testNodes = new TestNode[nodesCount];
         for (int i = 0; i < testNodes.length; i++) {
-            testNodes[i] = new TestNode("node" + i, threadPool, settings);
+            testNodes[i] = new TestNode("node" + i, threadPool, version, settings);
         }
     }
 
@@ -165,14 +169,14 @@ public abstract class TaskManagerTestCase extends ESTestCase {
     }
 
     public static class TestNode implements Releasable {
-        public TestNode(String name, ThreadPool threadPool, Settings settings) {
+        public TestNode(String name, ThreadPool threadPool, Version version, Settings settings) {
             final Function<BoundTransportAddress, DiscoveryNode> boundTransportAddressDiscoveryNodeFunction =
                 address -> {
                  discoveryNode.set(new DiscoveryNode(name, address.publishAddress(), emptyMap(), emptySet(), Version.CURRENT));
                  return discoveryNode.get();
                 };
             transportService = new TransportService(settings,
-                new MockNioTransport(settings, Version.CURRENT, threadPool, new NetworkService(Collections.emptyList()),
+                new MockNioTransport(settings, version, threadPool, new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE, new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
                     new NoneCircuitBreakerService()),
                 threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR, boundTransportAddressDiscoveryNodeFunction, null,

@@ -9,7 +9,7 @@ NOTE: This documentation while trying to be complete, does assume the reader has
 
 As a general rule, {es-sql} as the name indicates provides a SQL interface to {es}. As such, it follows the SQL terminology and conventions first, whenever possible. However the backing engine itself is {es} for which {es-sql} was purposely created hence why features or concepts that are not available, or cannot be mapped correctly, in SQL appear
 in {es-sql}.
-Last but not least, {es-sql} tries to obey the https://en.wikipedia.org/wiki/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
+Last but not least, {es-sql} tries to obey the {wikipedia}/Principle_of_least_astonishment[principle of least surprise], though as all things in the world, everything is relative.
 
 === Mapping concepts across SQL and {es}
 

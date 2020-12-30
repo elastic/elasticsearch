@@ -14,12 +14,15 @@ import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.xpack.core.transform.TransformField.ALLOW_NO_MATCH;
+import static org.elasticsearch.xpack.core.transform.TransformField.EXCLUDE_GENERATED;
 
 public class RestGetTransformAction extends BaseRestHandler {
 
@@ -48,5 +51,10 @@ public class RestGetTransformAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "transform_get_transform_action";
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Collections.singleton(EXCLUDE_GENERATED);
     }
 }

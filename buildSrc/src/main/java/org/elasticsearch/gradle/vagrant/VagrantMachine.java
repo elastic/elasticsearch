@@ -28,6 +28,7 @@ import org.gradle.api.Action;
 import org.gradle.api.Project;
 import org.gradle.internal.logging.progress.ProgressLogger;
 import org.gradle.internal.logging.progress.ProgressLoggerFactory;
+import org.gradle.process.ExecOperations;
 
 import javax.inject.Inject;
 import java.io.File;
@@ -63,13 +64,18 @@ public class VagrantMachine {
         throw new UnsupportedOperationException();
     }
 
+    @Inject
+    protected ExecOperations getExecOperations() {
+        throw new UnsupportedOperationException();
+    }
+
     public void execute(Action<VagrantExecSpec> action) {
         VagrantExecSpec vagrantSpec = new VagrantExecSpec();
         action.execute(vagrantSpec);
 
         Objects.requireNonNull(vagrantSpec.command);
 
-        LoggedExec.exec(project, execSpec -> {
+        LoggedExec.exec(getExecOperations(), execSpec -> {
             execSpec.setExecutable("vagrant");
             File vagrantfile = extension.getVagrantfile();
             execSpec.setEnvironment(System.getenv()); // pass through env

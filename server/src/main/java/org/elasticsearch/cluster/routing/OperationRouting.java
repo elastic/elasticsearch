@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -52,7 +51,7 @@ public class OperationRouting {
             Setting.boolSetting("cluster.routing.use_adaptive_replica_selection", true,
                     Setting.Property.Dynamic, Setting.Property.NodeScope);
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(OperationRouting.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(OperationRouting.class);
     private static final String IGNORE_AWARENESS_ATTRIBUTES_PROPERTY = "es.search.ignore_awareness_attributes";
     static final String IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE =
         "searches will not be routed based on awareness attributes starting in version 8.0.0; " +
@@ -67,7 +66,7 @@ public class OperationRouting {
         if (ignoreAwarenessAttr == false) {
             awarenessAttributes = AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING.get(settings);
             if (awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecatedAndMaybeLog("searches_not_routed_on_awareness_attributes",
+                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes",
                     IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
             }
             clusterSettings.addSettingsUpdateConsumer(AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
@@ -92,7 +91,7 @@ public class OperationRouting {
         boolean ignoreAwarenessAttr = parseBoolean(System.getProperty(IGNORE_AWARENESS_ATTRIBUTES_PROPERTY), false);
         if (ignoreAwarenessAttr == false) {
             if (this.awarenessAttributes.isEmpty() && awarenessAttributes.isEmpty() == false) {
-                deprecationLogger.deprecatedAndMaybeLog("searches_not_routed_on_awareness_attributes",
+                deprecationLogger.deprecate("searches_not_routed_on_awareness_attributes",
                     IGNORE_AWARENESS_ATTRIBUTES_DEPRECATION_MESSAGE);
             }
             this.awarenessAttributes = awarenessAttributes;
@@ -139,6 +138,11 @@ public class OperationRouting {
             }
         }
         return GroupShardsIterator.sortAndCreate(new ArrayList<>(set));
+    }
+
+    public static ShardIterator getShards(ClusterState clusterState, ShardId shardId) {
+        final IndexShardRoutingTable shard = clusterState.routingTable().shardRoutingTable(shardId);
+        return shard.activeInitializingShardsRandomIt();
     }
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();

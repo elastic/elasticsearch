@@ -75,6 +75,8 @@ public class ElvisTests extends ScriptTestCase {
     }
 
     public void testWithNullSafeDereferences() {
+        assertEquals(false, exec("Map x = ['0': 0]; x?.0 > 5.0"));
+        assertEquals(false, exec("List x = [0]; x?.0 > 5.0"));
         assertEquals(1, exec("return params.a?.b ?: 1"));
         assertEquals(1, exec("return params.a?.b ?: 2", singletonMap("a", singletonMap("b", 1)), true));
 

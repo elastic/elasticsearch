@@ -314,6 +314,6 @@ public class AnalyticsResultProcessorTests extends ESTestCase {
             trainedModelProvider,
             auditor,
             statsPersister,
-            new ExtractedFields(fieldNames, Collections.emptyMap()));
+            new ExtractedFields(fieldNames, Collections.emptyList(), Collections.emptyMap()));
     }
 }

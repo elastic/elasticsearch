@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -47,6 +48,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.Uid;
@@ -328,14 +330,16 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                     if (liveDocs == null || liveDocs.get(i)) {
                         rootFieldsVisitor.reset();
                         leafReader.document(i, rootFieldsVisitor);
-                        rootFieldsVisitor.postProcess(targetShard.mapperService());
+                        DocumentMapper documentMapper = targetShard.mapperService().documentMapper();
+                        rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType,
+                            documentMapper == null ? null : documentMapper.type());
                         Uid uid = rootFieldsVisitor.uid();
                         BytesReference source = rootFieldsVisitor.source();
                         assert source != null : "_source is null but should have been filtered out at snapshot time";
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(Versions.MATCH_ANY, VersionType.INTERNAL,
                             new SourceToParse(index, uid.type(), uid.id(), source, XContentHelper.xContentType(source),
                                 rootFieldsVisitor.routing()), SequenceNumbers.UNASSIGNED_SEQ_NO, 0,
-                                IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
+                            IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP, false);
                         if (result.getResultType() != Engine.Result.Type.SUCCESS) {
                             throw new IllegalStateException("failed applying post restore operation result: " + result
                                 .getResultType(), result.getFailure());
@@ -369,6 +373,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         RepositoryMetadata repositoryMetadata = new RepositoryMetadata(randomAlphaOfLength(10), FsRepository.TYPE, settings);
         final ClusterService clusterService = BlobStoreTestUtil.mockClusterService(repositoryMetadata);
         final Repository repository = new FsRepository(repositoryMetadata, createEnvironment(), xContentRegistry(), clusterService,
+            MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)));
         clusterService.addStateApplier(e -> repository.updateState(e.state()));
         // Apply state once to initialize repo properly like RepositoriesService would

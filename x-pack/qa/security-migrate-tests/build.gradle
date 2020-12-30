@@ -22,7 +22,7 @@ testClusters.integTest {
   }
 }
 
-integTest.runner {
+integTest {
   nonInputProperties.systemProperty 'tests.config.dir', "${-> testClusters.integTest.singleNode().getConfigDir()}"
 }
 

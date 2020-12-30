@@ -20,6 +20,7 @@ package org.elasticsearch.search.aggregations.matrix.stats;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -67,10 +68,9 @@ public class InternalMatrixStatsTests extends InternalAggregationTestCase<Intern
 
     @Override
     protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(getDefaultNamedXContents());
         ContextParser<Object, Aggregation> parser = (p, c) -> ParsedMatrixStats.fromXContent(p, (String) c);
-        namedXContents.add(new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser));
-        return namedXContents;
+        return CollectionUtils.appendToCopy(getDefaultNamedXContents(),
+                new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MatrixStatsAggregationBuilder.NAME), parser));
     }
 
     @Override

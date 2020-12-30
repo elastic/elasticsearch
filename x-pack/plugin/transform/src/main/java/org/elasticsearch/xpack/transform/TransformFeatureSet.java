@@ -15,11 +15,9 @@ import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -49,7 +47,6 @@ import java.util.Objects;
 public class TransformFeatureSet implements XPackFeatureSet {
 
     private final Client client;
-    private final XPackLicenseState licenseState;
     private final ClusterService clusterService;
 
     private static final Logger logger = LogManager.getLogger(TransformFeatureSet.class);
@@ -72,10 +69,9 @@ public class TransformFeatureSet implements XPackFeatureSet {
         TransformIndexerStats.EXPONENTIAL_AVG_DOCUMENTS_PROCESSED.getPreferredName(), };
 
     @Inject
-    public TransformFeatureSet(ClusterService clusterService, Client client, @Nullable XPackLicenseState licenseState) {
+    public TransformFeatureSet(ClusterService clusterService, Client client) {
         this.client = Objects.requireNonNull(client);
         this.clusterService = Objects.requireNonNull(clusterService);
-        this.licenseState = licenseState;
     }
 
     @Override
@@ -85,7 +81,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
     @Override
     public boolean available() {
-        return licenseState != null && licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM);
+        return true;
     }
 
     @Override
@@ -113,7 +109,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
 
         ActionListener<TransformIndexerStats> totalStatsListener = ActionListener.wrap(
             statSummations -> listener.onResponse(
-                new TransformFeatureSetUsage(available(), transformsCountByState, statSummations)
+                new TransformFeatureSetUsage(transformsCountByState, statSummations)
             ),
             listener::onFailure
         );
@@ -128,7 +124,7 @@ public class TransformFeatureSet implements XPackFeatureSet {
             long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
             if (totalTransforms == 0) {
                 listener.onResponse(
-                    new TransformFeatureSetUsage(available(), transformsCountByState, new TransformIndexerStats())
+                    new TransformFeatureSetUsage(transformsCountByState, new TransformIndexerStats())
                 );
                 return;
             }

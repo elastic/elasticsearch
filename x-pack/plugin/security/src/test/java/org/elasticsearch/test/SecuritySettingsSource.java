@@ -46,7 +46,8 @@ import java.util.function.Consumer;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static org.apache.lucene.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.test.ESTestCase.inFipsJvm;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 
@@ -58,9 +59,9 @@ import static org.elasticsearch.xpack.security.test.SecurityTestUtils.writeFile;
 public class SecuritySettingsSource extends NodeConfigurationSource {
 
     public static final String TEST_USER_NAME = "test_user";
+    public static final Hasher HASHER = getFastStoredHashAlgoForTests();
     public static final String TEST_PASSWORD_HASHED =
-        new String(Hasher.resolve(randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt9", "bcrypt8", "bcrypt")).
-            hash(new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        new String(HASHER.hash(new SecureString(TEST_PASSWORD.toCharArray())));
     public static final RequestOptions SECURITY_REQUEST_OPTIONS = RequestOptions.DEFAULT.toBuilder()
         .addHeader("Authorization",
             "Basic " + Base64.getEncoder().encodeToString(
@@ -132,6 +133,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         writeFile(xpackConf, "roles.yml", configRoles());
         writeFile(xpackConf, "users", configUsers());
         writeFile(xpackConf, "users_roles", configUsersRoles());
+        writeFile(xpackConf, "operator_users.yml", configOperatorUsers());
 
         Settings.Builder builder = Settings.builder()
                 .put(Environment.PATH_HOME_SETTING.getKey(), home)
@@ -204,6 +206,11 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
 
     protected String configRoles() {
         return CONFIG_ROLE_ALLOW_ALL;
+    }
+
+    protected String configOperatorUsers() {
+        // By default, no operator user is configured
+        return "";
     }
 
     protected String nodeClientUsername() {

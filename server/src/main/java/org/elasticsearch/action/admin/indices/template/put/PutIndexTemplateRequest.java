@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.template.put;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -59,16 +58,16 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
 /**
  * A request to create an index template.
  */
 public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateRequest> implements IndicesRequest, ToXContentObject {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(PutIndexTemplateRequest.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PutIndexTemplateRequest.class);
 
     private String name;
 
@@ -227,13 +226,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
      * The settings to create the index template with (either json or yaml format).
      */
     public PutIndexTemplateRequest settings(Map<String, Object> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 
@@ -343,7 +336,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
                 if(entry.getValue() instanceof String) {
-                    deprecationLogger.deprecatedAndMaybeLog("put_index_template_field",
+                    deprecationLogger.deprecate("put_index_template_field",
                         "Deprecated field [template] used, replaced by [index_patterns]");
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }

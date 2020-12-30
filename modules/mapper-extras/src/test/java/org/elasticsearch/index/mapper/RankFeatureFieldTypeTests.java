@@ -19,12 +19,20 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
 import java.util.Collections;
 
 public class RankFeatureFieldTypeTests extends FieldTypeTestCase {
 
-    public void testIsAggregatable() {
+    public void testIsNotAggregatable() {
         MappedFieldType fieldType = new RankFeatureFieldMapper.RankFeatureFieldType("field", Collections.emptyMap(), true);
         assertFalse(fieldType.isAggregatable());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        MappedFieldType mapper = new RankFeatureFieldMapper.Builder("field").build(new ContentPath()).fieldType();
+
+        assertEquals(Collections.singletonList(3.14f), fetchSourceValue(mapper, 3.14));
+        assertEquals(Collections.singletonList(42.9f), fetchSourceValue(mapper, "42.9"));
     }
 }

@@ -117,7 +117,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
         failureListener = new HostsTrackingFailureListener();
         strictDeprecationMode = randomBoolean();
         restClient = new RestClient(this.httpClient, defaultHeaders,
-                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode);
+                singletonList(node), null, failureListener, NodeSelector.ANY, strictDeprecationMode, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -519,7 +519,7 @@ public class RestClientSingleHostTests extends RestClientTestCase {
     }
 
     /**
-     * Emulates Elasticsearch's DeprecationLogger.formatWarning in simple
+     * Emulates Elasticsearch's HeaderWarningLogger.formatWarning in simple
      * cases. We don't have that available because we're testing against 1.7.
      */
     private static String formatWarningWithoutDate(String warningBody) {

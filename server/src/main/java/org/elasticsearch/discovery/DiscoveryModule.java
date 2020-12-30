@@ -19,8 +19,9 @@
 
 package org.elasticsearch.discovery;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.ElectionStrategy;
@@ -67,7 +68,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 public class DiscoveryModule {
     private static final Logger logger = LogManager.getLogger(DiscoveryModule.class);
 
-    public static final String ZEN_DISCOVERY_TYPE = "legacy-zen";
+    public static final String ZEN_DISCOVERY_TYPE = "legacy-zen-for-testing-only-do-not-use";
     public static final String ZEN2_DISCOVERY_TYPE = "zen";
 
     public static final String SINGLE_NODE_DISCOVERY_TYPE = "single-node";
@@ -155,7 +156,7 @@ public class DiscoveryModule {
                 transportService, namedWriteableRegistry, allocationService, masterService, gatewayMetaState::getPersistedState,
                 seedHostsProvider, clusterApplier, joinValidators, new Random(Randomness.get().nextLong()), rerouteService,
                 electionStrategy, nodeHealthService);
-        } else if (ZEN_DISCOVERY_TYPE.equals(discoveryType)) {
+        } else if (Assertions.ENABLED && ZEN_DISCOVERY_TYPE.equals(discoveryType)) {
             discovery = new ZenDiscovery(settings, threadPool, transportService, namedWriteableRegistry, masterService, clusterApplier,
                 clusterSettings, seedHostsProvider, allocationService, joinValidators, rerouteService);
         } else {

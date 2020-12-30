@@ -38,13 +38,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.ShardGenerations;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
+import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotsService;
@@ -52,6 +53,7 @@ import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
@@ -69,9 +71,9 @@ import java.util.function.Function;
  * <dt>{@code compress}</dt><dd>If set to true metadata files will be stored compressed. Defaults to false.</dd>
  * </dl>
  */
-class S3Repository extends BlobStoreRepository {
+class S3Repository extends MeteredBlobStoreRepository {
     private static final Logger logger = LogManager.getLogger(S3Repository.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     static final String TYPE = "s3";
 
@@ -134,10 +136,10 @@ class S3Repository extends BlobStoreRepository {
         Setting.byteSizeSetting("buffer_size", DEFAULT_BUFFER_SIZE, MIN_PART_SIZE_USING_MULTIPART, MAX_PART_SIZE_USING_MULTIPART);
 
     /**
-     * Big files can be broken down into chunks during snapshotting if needed. Defaults to 1g.
+     * Big files can be broken down into chunks during snapshotting if needed. Defaults to 5tb.
      */
-    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", new ByteSizeValue(1, ByteSizeUnit.GB),
-            new ByteSizeValue(5, ByteSizeUnit.MB), new ByteSizeValue(5, ByteSizeUnit.TB));
+    static final Setting<ByteSizeValue> CHUNK_SIZE_SETTING = Setting.byteSizeSetting("chunk_size", MAX_FILE_SIZE_USING_MULTIPART,
+            new ByteSizeValue(5, ByteSizeUnit.MB), MAX_FILE_SIZE_USING_MULTIPART);
 
     /**
      * When set to true metadata files are stored in compressed format. This setting doesn’t affect index
@@ -213,8 +215,15 @@ class S3Repository extends BlobStoreRepository {
             final NamedXContentRegistry namedXContentRegistry,
             final S3Service service,
             final ClusterService clusterService,
+            final BigArrays bigArrays,
             final RecoverySettings recoverySettings) {
-        super(metadata, COMPRESS_SETTING.get(metadata.settings()), namedXContentRegistry, clusterService, recoverySettings);
+        super(metadata,
+            COMPRESS_SETTING.get(metadata.settings()),
+            namedXContentRegistry,
+            clusterService,
+            bigArrays,
+            recoverySettings,
+            buildLocation(metadata));
         this.service = service;
 
         this.repositoryMetadata = metadata;
@@ -248,7 +257,7 @@ class S3Repository extends BlobStoreRepository {
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
-            deprecationLogger.deprecatedAndMaybeLog("s3_repository_secret_settings",
+            deprecationLogger.deprecate("s3_repository_secret_settings",
                     "Using s3 access/secret key from repository settings. Instead "
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
         }
@@ -263,6 +272,11 @@ class S3Repository extends BlobStoreRepository {
                 bufferSize,
                 cannedACL,
                 storageClass);
+    }
+
+    private static Map<String, String> buildLocation(RepositoryMetadata metadata) {
+        return org.elasticsearch.common.collect.Map.of("base_path", BASE_PATH_SETTING.get(metadata.settings()),
+            "bucket", BUCKET_SETTING.get(metadata.settings()));
     }
 
     /**

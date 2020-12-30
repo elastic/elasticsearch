@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 
+@Deprecated
 public class RepositoryStatsNodeRequest extends BaseNodeRequest {
 
     private final String repository;

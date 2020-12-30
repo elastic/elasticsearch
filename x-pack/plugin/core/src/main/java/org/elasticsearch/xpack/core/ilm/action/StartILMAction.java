@@ -14,6 +14,6 @@ public class StartILMAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/ilm/start";
 
     protected StartILMAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 }

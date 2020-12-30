@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -53,10 +52,10 @@ import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationExcept
 public final class ScriptProcessor extends AbstractProcessor {
 
     private static final DeprecationLogger deprecationLogger =
-            new DeprecationLogger(LogManager.getLogger(DynamicMap.class));
+            DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = org.elasticsearch.common.collect.Map.of(
             "_type", value -> {
-                deprecationLogger.deprecatedAndMaybeLog("script_processor",
+                deprecationLogger.deprecate("script_processor",
                         "[types removal] Looking up doc types [_type] in scripts is deprecated.");
                 return value;
             });

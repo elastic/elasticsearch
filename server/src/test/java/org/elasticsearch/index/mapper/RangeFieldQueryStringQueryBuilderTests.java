@@ -101,7 +101,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
 
     public void testDateRangeQuery() throws Exception {
         QueryShardContext context = createShardContext();
-        RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.fieldMapper(DATE_RANGE_FIELD_NAME);
+        RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.getFieldType(DATE_RANGE_FIELD_NAME);
         DateMathParser parser = type.dateMathParser;
         Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         String lowerBoundExact = "2010-01-01T00:00:00.000";
@@ -116,7 +116,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         assertEquals(new IndexOrDocValuesQuery(range, dv), query);
 
         // also make sure the produced bounds are the same as on a regular `date` field
-        DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.fieldMapper(DATE_FIELD_NAME);
+        DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.getFieldType(DATE_FIELD_NAME);
         parser = dateType.dateMathParser;
         Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createShardContext());
         Query controlQuery = LongPoint.newRangeQuery(DATE_FIELD_NAME,

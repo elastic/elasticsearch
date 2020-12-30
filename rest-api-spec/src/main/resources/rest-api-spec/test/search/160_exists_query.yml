@@ -184,7 +184,6 @@ setup:
                       doc_values: false
                 text:
                   type: text
-                  doc_values: false
 
   - do:
       headers:

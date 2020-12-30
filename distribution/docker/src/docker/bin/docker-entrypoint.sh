@@ -7,7 +7,7 @@ umask 0002
 run_as_other_user_if_needed() {
   if [[ "$(id -u)" == "0" ]]; then
     # If running as root, drop to specified UID and run command
-    exec chroot --userspec=1000 / "${@}"
+    exec chroot --userspec=1000:0 / "${@}"
   else
     # Either we are running in Openshift with random uid and are a member of the root group
     # or with a custom --user
@@ -30,8 +30,8 @@ if [[ "$1" != "eswrapper" ]]; then
     # Without this, user could specify `elasticsearch -E x.y=z` but
     # `bin/elasticsearch -E x.y=z` would not work.
     set -- "elasticsearch" "${@:2}"
-    # Use chroot to switch to UID 1000
-    exec chroot --userspec=1000 / "$@"
+    # Use chroot to switch to UID 1000 / GID 0
+    exec chroot --userspec=1000:0 / "$@"
   else
     # User probably wants to run something else, like /bin/bash, with another uid forced (Openshift?)
     exec "$@"
@@ -80,4 +80,21 @@ if [[ "$(id -u)" == "0" ]]; then
   fi
 fi
 
+if [[ -n "$ES_LOG_STYLE" ]]; then
+  case "$ES_LOG_STYLE" in
+    console)
+      # This is the default. Nothing to do.
+      ;;
+    file)
+      # Overwrite the default config with the stack config
+      mv /usr/share/elasticsearch/config/log4j2.file.properties /usr/share/elasticsearch/config/log4j2.properties
+      ;;
+    *)
+      echo "ERROR: ES_LOG_STYLE set to [$ES_LOG_STYLE]. Expected [console] or [file]" >&2
+      exit 1 ;;
+  esac
+fi
+
+# Signal forwarding and child reaping is handled by `tini`, which is the
+# actual entrypoint of the container
 run_as_other_user_if_needed /usr/share/elasticsearch/bin/elasticsearch <<<"$KEYSTORE_PASSWORD"

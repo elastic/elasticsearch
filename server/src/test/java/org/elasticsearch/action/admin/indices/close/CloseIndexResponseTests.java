@@ -169,13 +169,13 @@ public class CloseIndexResponseTests extends AbstractWireSerializingTestCase<Clo
 
                 try (StreamInput in = out.bytes().streamInput()) {
                     in.setVersion(out.getVersion());
-                    final AcknowledgedResponse deserializedResponse = new AcknowledgedResponse(in);
+                    final AcknowledgedResponse deserializedResponse = AcknowledgedResponse.readFrom(in);
                     assertThat(deserializedResponse.isAcknowledged(), equalTo(response.isAcknowledged()));
                 }
             }
         }
         {
-            final AcknowledgedResponse response = new AcknowledgedResponse(randomBoolean());
+            final AcknowledgedResponse response = AcknowledgedResponse.of(randomBoolean());
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 response.writeTo(out);
 

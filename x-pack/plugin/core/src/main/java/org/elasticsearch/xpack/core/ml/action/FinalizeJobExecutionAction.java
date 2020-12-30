@@ -22,7 +22,7 @@ public class FinalizeJobExecutionAction extends ActionType<AcknowledgedResponse>
     public static final String NAME = "cluster:internal/xpack/ml/job/finalize_job_execution";
 
     private FinalizeJobExecutionAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     public static class Request extends MasterNodeRequest<Request> {

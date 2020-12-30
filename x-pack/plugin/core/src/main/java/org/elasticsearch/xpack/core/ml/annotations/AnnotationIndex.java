@@ -18,9 +18,11 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 
+import java.util.Collections;
 import java.util.SortedMap;
 
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -46,6 +48,15 @@ public class AnnotationIndex {
 
         boolean isHiddenAttributeAvailable = state.nodes().getMinNodeVersion().onOrAfter(HIDDEN_INTRODUCED_VERSION);
 
+        final ActionListener<Boolean> checkMappingsListener = ActionListener.wrap(success -> {
+            ElasticsearchMappings.addDocMappingIfMissing(
+                WRITE_ALIAS_NAME,
+                AnnotationIndex::annotationsMapping,
+                client,
+                state,
+                finalListener);
+        }, finalListener::onFailure);
+
         final ActionListener<Boolean> createAliasListener = ActionListener.wrap(success -> {
             IndicesAliasesRequest.AliasActions addReadAliasAction =
                 IndicesAliasesRequest.AliasActions.add().index(INDEX_NAME).alias(READ_ALIAS_NAME);
@@ -61,7 +72,8 @@ public class AnnotationIndex {
                     .addAliasAction(addWriteAliasAction)
                     .request();
             executeAsyncWithOrigin(client.threadPool().getThreadContext(), ML_ORIGIN, request,
-                ActionListener.<AcknowledgedResponse>wrap(r -> finalListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
+                ActionListener.<AcknowledgedResponse>wrap(
+                    r -> checkMappingsListener.onResponse(r.isAcknowledged()), finalListener::onFailure),
                 client.admin().indices()::aliases);
         }, finalListener::onFailure);
 
@@ -107,6 +119,10 @@ public class AnnotationIndex {
                 createAliasListener.onResponse(true);
                 return;
             }
+
+            // Check the mappings
+            checkMappingsListener.onResponse(false);
+            return;
         }
 
         // Nothing to do, but respond to the listener
@@ -114,7 +130,11 @@ public class AnnotationIndex {
     }
 
     private static String annotationsMapping() {
-        return TemplateUtils.loadTemplate(
-            "/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json", Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE);
+        return annotationsMapping(SINGLE_MAPPING_NAME);
+    }
+
+    private static String annotationsMapping(String mappingType) {
+        return TemplateUtils.loadTemplate("/org/elasticsearch/xpack/core/ml/annotations_index_mappings.json",
+            Version.CURRENT.toString(), MAPPINGS_VERSION_VARIABLE, Collections.singletonMap("xpack.ml.mapping_type", mappingType));
     }
 }

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,8 +49,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
     public static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField PREDICT = new ParseField("predict");
     private static final ParseField MINIMIZE = new ParseField("minimize");
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(MovAvgPipelineAggregationBuilder.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(MovAvgPipelineAggregationBuilder.class);
 
     private String format;
     private GapPolicy gapPolicy = GapPolicy.SKIP;
@@ -301,7 +299,7 @@ public class MovAvgPipelineAggregationBuilder extends AbstractPipelineAggregatio
         Integer predict = null;
         Boolean minimize = null;
 
-        DEPRECATION_LOGGER.deprecatedAndMaybeLog("moving_avg_aggregation",
+        DEPRECATION_LOGGER.deprecate("moving_avg_aggregation",
             "The moving_avg aggregation has been deprecated in favor of the moving_fn aggregation.");
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

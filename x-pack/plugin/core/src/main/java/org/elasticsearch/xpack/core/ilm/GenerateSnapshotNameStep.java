@@ -132,7 +132,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
         }
 
         public ResolverContext(long startTime) {
-            super(null, null, startTime, false, false, false, false);
+            super(null, null, startTime, false, false, false, false, false);
         }
 
         @Override

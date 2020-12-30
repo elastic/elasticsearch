@@ -1,5 +1,5 @@
 {
-  "_doc": {
+  "${xpack.ml.mapping_type}": {
     "_meta" : {
       "version" : "${xpack.ml.version}"
     },

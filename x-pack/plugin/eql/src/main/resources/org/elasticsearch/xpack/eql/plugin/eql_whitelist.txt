@@ -75,4 +75,10 @@ class org.elasticsearch.xpack.eql.expression.function.scalar.whitelist.InternalE
   String  string(Object)
   Boolean stringContains(String, String, Boolean)
   String  substring(String, Number, Number)
+
+#
+# Comparison
+#
+  Boolean seq(Object, Object)
+  Boolean sneq(Object, Object)
 }

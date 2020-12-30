@@ -35,7 +35,7 @@ public class GetOverallBucketsActionRequestTests extends AbstractSerializingTest
         if (randomBoolean()) {
             request.setEnd(randomNonNegativeLong());
         }
-        request.setAllowNoJobs(randomBoolean());
+        request.setAllowNoMatch(randomBoolean());
         return request;
     }
 

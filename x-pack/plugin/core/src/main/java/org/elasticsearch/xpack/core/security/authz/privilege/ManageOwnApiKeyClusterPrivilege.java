@@ -18,6 +18,8 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
+import java.util.Arrays;
+
 /**
  * Named cluster privilege for managing API keys owned by the current authenticated user.
  */
@@ -56,9 +58,16 @@ public class ManageOwnApiKeyClusterPrivilege implements NamedClusterPrivilege {
                     getApiKeyRequest.getRealmName(), getApiKeyRequest.ownedByAuthenticatedUser());
             } else if (request instanceof InvalidateApiKeyRequest) {
                 final InvalidateApiKeyRequest invalidateApiKeyRequest = (InvalidateApiKeyRequest) request;
-                return checkIfUserIsOwnerOfApiKeys(authentication, invalidateApiKeyRequest.getId(),
-                    invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
-                    invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                final String[] apiKeyIds = invalidateApiKeyRequest.getIds();
+                if (apiKeyIds == null) {
+                    return checkIfUserIsOwnerOfApiKeys(authentication, null,
+                        invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.ownedByAuthenticatedUser());
+                } else {
+                    return Arrays.stream(apiKeyIds).allMatch(id -> checkIfUserIsOwnerOfApiKeys(authentication, id,
+                        invalidateApiKeyRequest.getUserName(), invalidateApiKeyRequest.getRealmName(),
+                        invalidateApiKeyRequest.ownedByAuthenticatedUser()));
+                }
             }
             throw new IllegalArgumentException(
                 "manage own api key privilege only supports API key requests (not " + request.getClass().getName() + ")");

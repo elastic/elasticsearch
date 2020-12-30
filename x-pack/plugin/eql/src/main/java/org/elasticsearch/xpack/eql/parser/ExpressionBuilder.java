@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.eql.parser;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.TerminalNode;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ArithmeticUnaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ComparisonContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.DereferenceContext;
@@ -17,7 +18,6 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalBinaryContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.LogicalNotContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PredicateContext;
-import org.elasticsearch.xpack.eql.parser.EqlBaseParser.ValueExpressionDefaultContext;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
+import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
@@ -50,6 +51,7 @@ import java.time.ZoneId;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.stream.Collectors.toList;
 
 
 public class ExpressionBuilder extends IdentifierBuilder {
@@ -85,7 +87,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitArithmeticUnary(ArithmeticUnaryContext ctx) {
-        Expression expr = expression(ctx.valueExpression());
+        Expression expr = expression(ctx.operatorExpression());
         Source source = source(ctx);
         int type = ctx.operator.getType();
 
@@ -149,9 +151,10 @@ public class ExpressionBuilder extends IdentifierBuilder {
     }
 
     @Override
-    public Expression visitValueExpressionDefault(ValueExpressionDefaultContext ctx) {
+    public Expression visitOperatorExpressionDefault(EqlBaseParser.OperatorExpressionDefaultContext ctx) {
         Expression expr = expression(ctx.primaryExpression());
         Source source = source(ctx);
+        ZoneId zoneId = params.zoneId();
 
         PredicateContext predicate = ctx.predicate();
 
@@ -159,10 +162,18 @@ public class ExpressionBuilder extends IdentifierBuilder {
             return expr;
         }
 
-        List<Expression> container = expressions(predicate.expression());
-        Expression checkInSet = new In(source, expr, container);
-
-        return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+        switch (predicate.kind.getType()) {
+            case EqlBaseParser.SEQ:
+                return Predicates.combineOr(expressions(predicate.constant()).stream()
+                    .map(c -> new InsensitiveEquals(source, expr, c, zoneId))
+                    .collect(toList()));
+            case EqlBaseParser.IN:
+                List<Expression> container = expressions(predicate.expression());
+                Expression checkInSet = new In(source, expr, container, zoneId);
+                return predicate.NOT() != null ? new Not(source, checkInSet) : checkInSet;
+            default:
+                throw new ParsingException(source, "Unknown predicate {}", source.text());
+        }
     }
 
     @Override
@@ -253,6 +264,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Literal visitString(EqlBaseParser.StringContext ctx) {
-        return new Literal(source(ctx), unquoteString(ctx.getText()), DataTypes.KEYWORD);
+        Source source = source(ctx);
+        return new Literal(source, unquoteString(source), DataTypes.KEYWORD);
     }
 }

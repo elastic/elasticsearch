@@ -18,14 +18,15 @@
  */
 package org.elasticsearch.rest.action.admin.indices;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -40,8 +41,10 @@ import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.usage.UsageService;
 import org.junit.AfterClass;
+import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.util.Collections;
@@ -52,6 +55,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class RestValidateQueryActionTests extends AbstractSearchTestCase {
 
@@ -73,7 +77,7 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
 
         final TransportAction transportAction = new TransportAction(ValidateQueryAction.NAME,
-            new ActionFilters(Collections.emptySet()), taskManager) {
+            new ActionFilters(Collections.emptySet()), mock(Transport.Connection.class), taskManager) {
             @Override
             protected void doExecute(Task task, ActionRequest request, ActionListener listener) {
             }
@@ -82,8 +86,14 @@ public class RestValidateQueryActionTests extends AbstractSearchTestCase {
         final Map<ActionType, TransportAction> actions = new HashMap<>();
         actions.put(ValidateQueryAction.INSTANCE, transportAction);
 
-        client.initialize(actions, () -> "local", null);
+        client.initialize(actions, () -> "local", null, new NamedWriteableRegistry(Collections.emptyList()));
         controller.registerHandler(action);
+    }
+
+    @Before
+    public void ensureCleanContext() {
+        // Make sure we have a clean context for each test
+        threadPool.getThreadContext().stashContext();
     }
 
     @AfterClass

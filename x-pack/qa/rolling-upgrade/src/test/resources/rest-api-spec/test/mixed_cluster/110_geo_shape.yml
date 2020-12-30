@@ -18,7 +18,8 @@
         body:   { location: "POINT(11.25 43.24)" }
 
   - do:
-      indices.refresh: {}
+      indices.refresh:
+        index: old_locations
 
   - do:
       search:

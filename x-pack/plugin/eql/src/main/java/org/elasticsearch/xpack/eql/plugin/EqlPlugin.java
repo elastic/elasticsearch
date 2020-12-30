@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.eql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.Client;
@@ -47,16 +46,14 @@ import java.util.function.Supplier;
 
 public class EqlPlugin extends Plugin implements ActionPlugin {
 
-    private final boolean enabled;
-
     public static final Setting<Boolean> EQL_ENABLED_SETTING = Setting.boolSetting(
         "xpack.eql.enabled",
         true,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
     );
 
-    public EqlPlugin(final Settings settings) {
-        this.enabled = EQL_ENABLED_SETTING.get(settings);
+    public EqlPlugin() {
     }
 
     @Override
@@ -93,23 +90,11 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        if (enabled) {
-            return Arrays.asList(
-                new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
-                new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
-                new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class)
-            );
-        }
-        return Collections.emptyList();
-    }
-
-    boolean isSnapshot() {
-        return Build.CURRENT.isSnapshot();
-    }
-
-    // TODO: this needs to be used by all plugin methods - including getActions and createComponents
-    public static boolean isEnabled(Settings settings) {
-        return EQL_ENABLED_SETTING.get(settings);
+        return org.elasticsearch.common.collect.List.of(
+            new ActionHandler<>(EqlSearchAction.INSTANCE, TransportEqlSearchAction.class),
+            new ActionHandler<>(EqlStatsAction.INSTANCE, TransportEqlStatsAction.class),
+            new ActionHandler<>(EqlAsyncGetResultAction.INSTANCE, TransportEqlAsyncGetResultAction.class)
+        );
     }
 
     @Override
@@ -121,15 +106,12 @@ public class EqlPlugin extends Plugin implements ActionPlugin {
                                              IndexNameExpressionResolver indexNameExpressionResolver,
                                              Supplier<DiscoveryNodes> nodesInCluster) {
 
-        if (enabled) {
-            return Arrays.asList(
-                new RestEqlSearchAction(),
-                new RestEqlStatsAction(),
-                new RestEqlGetAsyncResultAction(),
-                new RestEqlDeleteAsyncResultAction()
-            );
-        }
-        return Collections.emptyList();
+        return Arrays.asList(
+            new RestEqlSearchAction(),
+            new RestEqlStatsAction(),
+            new RestEqlGetAsyncResultAction(),
+            new RestEqlDeleteAsyncResultAction()
+        );
     }
 
     // overridable by tests

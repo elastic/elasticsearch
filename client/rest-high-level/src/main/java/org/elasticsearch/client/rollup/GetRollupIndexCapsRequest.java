@@ -21,16 +21,11 @@ package org.elasticsearch.client.rollup;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-public class GetRollupIndexCapsRequest implements Validatable, ToXContentObject {
-    private static final String INDICES = "indices";
-    private static final String INDICES_OPTIONS = "indices_options";
+public class GetRollupIndexCapsRequest implements Validatable {
 
     private String[] indices;
     private IndicesOptions options;
@@ -58,21 +53,6 @@ public class GetRollupIndexCapsRequest implements Validatable, ToXContentObject 
 
     public String[] indices() {
         return indices;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.array(INDICES, indices);
-            builder.startObject(INDICES_OPTIONS);
-            {
-                options.toXContent(builder, params);
-            }
-            builder.endObject();
-        }
-        builder.endObject();
-        return builder;
     }
 
     @Override

@@ -28,7 +28,8 @@ to login. The <<saml-kibana>> section provides more detail about how this works.
 The Elastic Stack supports the SAML 2.0 _Web Browser SSO_ and the SAML
 2.0 _Single Logout_ profiles and can integrate with any Identity Provider (IdP)
 that supports at least the SAML 2.0 _Web Browser SSO Profile_.
-It has been tested with a number of popular IdP implementations.
+It has been tested with a number of popular IdP implementations, such as
+https://www.elastic.co/blog/how-to-configure-elasticsearch-saml-authentication-with-adfs[Microsoft Active Directory Federation Services (ADFS)].
 
 This guide assumes that you have an existing IdP and wish to add {kib} as a
 Service Provider.
@@ -145,9 +146,12 @@ xpack.security.authc.realms.saml.saml1::
     See <<realms>> for more explanation of realms.
 
 order::
-    You should define a unique order on each realm in your authentication chain.
-    It is recommended that the SAML realm be at the bottom of your authentication
-    chain (that is, that it has the _highest_ order).
+    The order of the realm within the realm chain. Realms with a lower order
+    have highest priority and are consulted first. We recommend giving
+    password-based realms such as file, native, LDAP, and Active Directory the
+    lowest order (highest priority), followed by SSO realms such as SAML and
+    OpenID Connect. If you have multiple realms of the same type, give the most
+    frequently accessed realm the lowest order to have it consulted first.
 
 idp.metadata.path::
     This is the path to the metadata file that you saved for your Identity Provider.
@@ -249,7 +253,7 @@ URI such as `urn:oid:0.9.2342.19200300.100.1.1`, however there are some
 additional names that can be used:
 
 `nameid`::
-    This uses the SAML `NamedID` value instead of a SAML attribute. SAML
+    This uses the SAML `NameID` value instead of a SAML attribute. SAML
     `NameID` elements are an optional, but frequently provided, field within a
     SAML Assertion that the IdP may use to identify the Subject of that
     Assertion. In some cases the `NameID` will relate to the user's login
@@ -500,7 +504,7 @@ signing certificate with the following command:
 
 [source, sh]
 --------------------------------------------------
-bin/elasticsearch-certutil cert -pem -days 1100 -name saml-sign -out saml-sign.zip
+bin/elasticsearch-certutil cert --self-signed --pem --days 1100 --name saml-sign --out saml-sign.zip
 --------------------------------------------------
 
 This will
@@ -610,11 +614,19 @@ Some Identity Providers support importing a metadata file from the Service
 Provider. This will automatically configure many of the integration options
 between the IdP and the SP.
 
-The Elastic Stack supports generating such a metadata file using the
-`bin/elasticsearch-saml-metadata` command in your {es} directory.
+The {stack} supports generating such a metadata file using the
+<<saml-metadata,`bin/elasticsearch-saml-metadata` command>> or the
+<<security-api-saml-sp-metadata,SAML service provider metadata API>>.
 
-The <<saml-metadata,documentation for the elasticsearch-saml-metadata utility>>
-describes how to run it, and the available command line options.
+You can generate the SAML metadata by issuing the API request to {es} and store 
+it as an XML file using tools like `jq`. For example, the following command 
+generates the metadata for the SAML realm `realm1` and saves it to a 
+`metadata.xml` file:
+
+["source","console"]
+--
+curl -u user_name:password  -X GET http://localhost:9200/_security/saml/metadata/saml1 -H 'Content-Type: application/json' | jq -r '.[]' > metadata.xml
+--
 
 [[saml-role-mapping]]
 === Configuring role mappings
@@ -877,12 +889,12 @@ in {es}. See <<saml-guide-authentication>>
 
 The realm is designed with the assumption that there needs to be a privileged entity
 acting as an authentication proxy. In this case, the custom web application is the
-authentication proxy handling the authentication of end users ( more correctly,
-"delegating" the authentication to the SAML Identity Provider ). The SAML related
+authentication proxy handling the authentication of end users (more correctly,
+"delegating" the authentication to the SAML Identity Provider). The SAML related
 APIs require authentication and the necessary authorization level for the authenticated
 user. For this reason, you must create a Service Account user and assign it a role
 that gives it the `manage_saml` cluster privilege. The use of the `manage_token`
-cluster privilege will be necessary after the authentication takes place, so that the
+cluster privilege will be necessary after the authentication takes place, so that
 the service account user can maintain access in order refresh access tokens on
 behalf of the authenticated users or to subsequently log them out.
 

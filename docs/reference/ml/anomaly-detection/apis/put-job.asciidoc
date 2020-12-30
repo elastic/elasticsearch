@@ -40,7 +40,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-define
 == {api-request-body-title}
 
 `allow_lazy_open`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-lazy-open]
 
 //Begin analysis_config
@@ -169,7 +169,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 
 `use_null`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=use-null]
 =====
 //End analysis_config.detectors
@@ -183,7 +183,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=influencers]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=latency]
 
 `multivariate_by_fields`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=multivariate-by-fields]
 
 //Begin analysis_config.per_partition_categorization
@@ -195,11 +195,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization]
 [%collapsible%open]
 =====
 `enabled`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-enabled]
 
 `stop_on_warn`::::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=per-partition-categorization-stop-on-warn]
 =====
 //End analysis_config.per_partition_categorization
@@ -262,11 +262,11 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config]
 [%collapsible%open]
 ====
 `annotations_enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-annotations-enabled]
 
 `enabled`:::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-plot-config-enabled]
 
 `terms`:::

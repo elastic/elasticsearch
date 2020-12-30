@@ -85,14 +85,16 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
                     ActionListener.wrap(
                         p -> getSearchResponseFromTask(searchId, request, nowInMillis, expirationTime, listener),
                         exc -> {
-                            //don't log when: the async search document or its index is not found. That can happen if an invalid
-                            //search id is provided or no async search initial response has been stored yet.
                             RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                             if (status != RestStatus.NOT_FOUND) {
                                 logger.error(() -> new ParameterizedMessage("failed to update expiration time for async-search [{}]",
                                     searchId.getEncoded()), exc);
+                                listener.onFailure(exc);
+                            } else {
+                                //the async search document or its index is not found.
+                                //That can happen if an invalid/deleted search id is provided.
+                                listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                             }
-                            listener.onFailure(new ResourceNotFoundException(searchId.getEncoded()));
                         }
                     ));
             } else {

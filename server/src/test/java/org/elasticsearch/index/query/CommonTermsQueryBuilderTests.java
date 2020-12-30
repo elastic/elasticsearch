@@ -47,8 +47,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         }
 
         String fieldName = randomFrom(TEXT_FIELD_NAME,
-                TEXT_ALIAS_FIELD_NAME,
-            randomAlphaOfLengthBetween(1, 10));
+                TEXT_ALIAS_FIELD_NAME);
         CommonTermsQueryBuilder query = new CommonTermsQueryBuilder(fieldName, text.toString());
 
         if (randomBoolean()) {
@@ -208,7 +207,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     // see #11730
     public void testCommonTermsQuery4() throws IOException {
-        Query parsedQuery = parseQuery(commonTermsQuery("field", "text")).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(commonTermsQuery(TEXT_FIELD_NAME, "text")).toQuery(createShardContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
 
         assertDeprecationWarning();

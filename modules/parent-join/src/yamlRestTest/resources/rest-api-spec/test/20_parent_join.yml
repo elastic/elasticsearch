@@ -3,53 +3,30 @@ setup:
       indices.create:
         index: test
         body:
+          settings:
+            number_of_shards: 2 #Two shards proves that we route properly
           mappings:
             properties:
               join_field: { "type": "join", "relations": { "parent": "child", "child": "grand_child" } }
               id: { "type": "keyword" }
 
   - do:
-      index:
+      bulk:
         index: test
-        id:    1
-        body:  { "id", "1", "join_field": { "name": "parent" } }
-
-  - do:
-      index:
-        index: test
-        id:    2
-        body:  { "id", "2", "join_field": { "name": "parent" } }
-
-  - do:
-      index:
-        index: test
-        id:    3
-        routing: 1
-        body:  { "id", "3", "join_field": { "name": "child", "parent": "1" } }
-
-  - do:
-      index:
-        index: test
-        id:    4
-        routing: 1
-        body:  { "id", "4", "join_field": { "name": "child", "parent": "1" } }
-
-  - do:
-      index:
-        index: test
-        id:    5
-        routing: 1
-        body:  { "id", "5", "join_field": { "name": "child", "parent": "2" } }
-
-  - do:
-      index:
-        index: test
-        id:    6
-        routing: 1
-        body:  { "id", "6", "join_field": { "name": "grand_child", "parent": "5" } }
-
-  - do:
-      indices.refresh: {}
+        refresh: true
+        body:
+          - '{ "index": {"_id": "1"}}'
+          - '{ "id": 1, "join_field": { "name": "parent" } }'
+          - '{ "index": {"_id": "2"}}'
+          - '{ "id": 2, "join_field": { "name": "parent" } }'
+          - '{ "index": {"_id": "3", "routing": "1"}}'
+          - '{ "id": 3, "join_field": { "name": "child", "parent": "1" } }'
+          - '{ "index": {"_id": "4", "routing": "1"}}'
+          - '{ "id": 4, "join_field": { "name": "child", "parent": "1" } }'
+          - '{ "index": {"_id": "5", "routing": "2"}}'
+          - '{ "id": 5, "join_field": { "name": "child", "parent": "2" } }'
+          - '{ "index": {"_id": "6", "routing": "1"}}'
+          - '{ "id": 6, "join_field": { "name": "grand_child", "parent": "5" } }'
 
 ---
 teardown:

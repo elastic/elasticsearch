@@ -19,7 +19,7 @@ filters:: a list of token filters to apply to incoming tokens.  These can be any
   using a comma-delimited string, so for example `"lowercase, porter_stem"` would
   apply the `lowercase` filter and then the `porter_stem` filter to a single token.
 
-WARNING: Shingle or multi-word synonym token filters will not function normally
+WARNING: <<analysis-shingle-tokenfilter,Shingle>> or multi-word synonym token filters will not function normally
   when they are declared in the filters array because they read ahead internally
   which is unsupported by the multiplexer
 

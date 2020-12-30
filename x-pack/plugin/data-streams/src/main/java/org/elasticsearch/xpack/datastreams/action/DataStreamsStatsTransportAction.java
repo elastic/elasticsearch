@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.datastreams.action;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.PointValues;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.action.DataStreamsStatsAction;
@@ -77,6 +79,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     }
 
     @Override
+    protected void doExecute(Task task, DataStreamsStatsAction.Request request, ActionListener<DataStreamsStatsAction.Response> listener) {
+        request.indicesOptions(DataStreamsActionUtil.updateIndicesOptions(request.indicesOptions()));
+        super.doExecute(task, request, listener);
+    }
+
+    @Override
     protected DataStreamsStatsAction.Request readRequestFrom(StreamInput in) throws IOException {
         return new DataStreamsStatsAction.Request(in);
     }
@@ -95,17 +103,13 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         return state.blocks().indicesBlockedException(ClusterBlockLevel.METADATA_READ, concreteIndices);
     }
 
-    private List<String> dataStreamNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
-        String[] requestIndices = request.indices();
-        if (requestIndices == null || requestIndices.length == 0) {
-            requestIndices = new String[] { "*" };
-        }
-        return indexNameExpressionResolver.dataStreamNames(clusterState, request.indicesOptions(), requestIndices);
-    }
-
     @Override
-    protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
-        List<String> abstractionNames = dataStreamNames(clusterState, request);
+    protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            request.indicesOptions(),
+            request.indices()
+        );
         SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getIndicesLookup();
 
         String[] concreteDatastreamIndices = abstractionNames.stream().flatMap(abstractionName -> {
@@ -119,7 +123,12 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
                 return Stream.empty();
             }
         }).toArray(String[]::new);
-        return clusterState.getRoutingTable().allShards(concreteDatastreamIndices);
+        return concreteDatastreamIndices;
+    }
+
+    @Override
+    protected ShardsIterator shards(ClusterState clusterState, DataStreamsStatsAction.Request request, String[] concreteIndices) {
+        return clusterState.getRoutingTable().allShards(concreteIndices);
     }
 
     @Override
@@ -171,7 +180,11 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
         // Collect the number of backing indices from the cluster state. If every shard operation for an index fails,
         // or if a backing index simply has no shards allocated, it would be excluded from the counts if we only used
         // shard results to calculate.
-        List<String> abstractionNames = dataStreamNames(clusterState, request);
+        List<String> abstractionNames = indexNameExpressionResolver.dataStreamNames(
+            clusterState,
+            request.indicesOptions(),
+            request.indices()
+        );
         for (String abstractionName : abstractionNames) {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);
             assert indexAbstraction != null;

@@ -1,5 +1,8 @@
 [[search-aggregations-metrics-cardinality-aggregation]]
-=== Cardinality Aggregation
+=== Cardinality aggregation
+++++
+<titleabbrev>Cardinality</titleabbrev>
+++++
 
 A `single-value` metrics aggregation that calculates an approximate count of
 distinct values. Values can be extracted either from specific fields in the

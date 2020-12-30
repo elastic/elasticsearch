@@ -256,7 +256,7 @@ public class SumAggregatorTests extends AggregatorTestCase {
 
                 final IndexSearcher searcher = newSearcher(multiReader, true, true);
 
-                final InternalSum internalSum = search(searcher, new MatchAllDocsQuery(), builder, fieldType);
+                final InternalSum internalSum = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldType);
                 assertEquals(sum, internalSum.getValue(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(internalSum));
             }

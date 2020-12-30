@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.not;
 
 public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
 
-    private FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
-    private FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', '"', 3, false);
+    private final FileStructureFinderFactory csvFactory = new DelimitedFileStructureFinderFactory(',', '"', 2, false);
+    private final FileStructureFinderFactory tsvFactory = new DelimitedFileStructureFinderFactory('\t', '"', 3, false);
 
     public void testCreateConfigsGivenCompleteCsv() throws Exception {
         String sample = "time,message\n" +
@@ -63,6 +63,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenIncompleteCsv() throws Exception {
@@ -109,6 +110,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getMultilineStartPattern());
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenIncompleteCsvWithMultiLinedRows() throws Exception {
@@ -156,6 +158,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("^\"?\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}", structure.getMultilineStartPattern());
         assertNull(structure.getShouldTrimFields());
         assertNull(structure.getGrokPattern());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCompleteCsvAndColumnNamesOverride() throws Exception {
@@ -191,6 +194,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("my_time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCompleteCsvAndHasHeaderRowOverride() throws Exception {
@@ -228,6 +232,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertNull(structure.getTimestampField());
         assertNull(structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCsvWithIncompleteLastRecord() throws Exception {
@@ -261,6 +266,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("time", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNulls() throws Exception {
@@ -301,6 +307,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_pickup_datetime", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNullsAndOverriddenTimeField() throws Exception {
@@ -346,6 +353,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_dropoff_datetime", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeader() throws Exception {
@@ -386,6 +394,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("tpep_pickup_datetime", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCsvWithTrailingNullsExceptHeaderAndColumnNamesOverride() throws Exception {
@@ -434,6 +443,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("my_tpep_pickup_datetime", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenCsvWithTimeLastColumn() throws Exception {
@@ -467,6 +477,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("timestamp", structure.getTimestampField());
         assertEquals(Collections.singletonList("YYYY-MM-dd HH:mm:ss.SSSSSS"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenTsvWithSyslogLikeTimestamp() throws Exception {
@@ -508,6 +519,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertEquals("Timestamp", structure.getTimestampField());
         assertEquals(Arrays.asList("MMM dd YYYY HH:mm:ss", "MMM  d YYYY HH:mm:ss", "MMM d YYYY HH:mm:ss"),
             structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testCreateConfigsGivenDotInFieldName() throws Exception {
@@ -541,6 +553,7 @@ public class DelimitedFileStructureFinderTests extends FileStructureTestCase {
         assertNull(structure.getGrokPattern());
         assertEquals("time_iso8601", structure.getTimestampField());
         assertEquals(Collections.singletonList("ISO8601"), structure.getJodaTimestampFormats());
+        assertEquals(Collections.singleton("properties"), structure.getMappings().keySet());
     }
 
     public void testFindHeaderFromSampleGivenHeaderInSample() throws IOException {

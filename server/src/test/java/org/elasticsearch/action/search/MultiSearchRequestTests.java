@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.search;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedRunnable;
@@ -61,8 +60,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MultiSearchRequestTests extends ESTestCase {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(MultiSearchRequestTests.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MultiSearchRequestTests.class);
 
     public void testSimpleAdd() throws Exception {
         MultiSearchRequest request = parseMultiSearchRequestFromFile("/org/elasticsearch/action/search/simple-msearch1.json");

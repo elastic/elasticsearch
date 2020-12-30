@@ -38,6 +38,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -53,7 +54,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -94,14 +94,17 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    protected Settings repositorySettings() {
-        return Settings.builder()
-            .put(super.repositorySettings())
+    protected Settings repositorySettings(String repoName) {
+        Settings.Builder settingsBuilder = Settings.builder()
+            .put(super.repositorySettings(repoName))
             .put(S3Repository.BUCKET_SETTING.getKey(), "bucket")
             .put(S3Repository.CLIENT_NAME.getKey(), "test")
             // Don't cache repository data because some tests manually modify the repository data
-            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
-            .build();
+            .put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false);
+        if (randomBoolean()) {
+            settingsBuilder.put(S3Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
+        }
+        return settingsBuilder.build();
     }
 
     @Override
@@ -120,15 +123,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    protected List<String> requestTypesTracked() {
-        return org.elasticsearch.common.collect.List.of("GET", "LIST", "POST", "PUT");
-    }
-
-    @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         final MockSecureSettings secureSettings = new MockSecureSettings();
-        secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "access");
-        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "secret");
+        secureSettings.setString(S3ClientSettings.ACCESS_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "test_access_key");
+        secureSettings.setString(S3ClientSettings.SECRET_KEY_SETTING.getConcreteSettingForNamespace("test").getKey(), "test_secret_key");
 
         final Settings.Builder builder = Settings.builder()
             .put(ThreadPool.ESTIMATED_TIME_INTERVAL_SETTING.getKey(), 0) // We have tests that verify an exact wait time
@@ -150,8 +148,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     public void testEnforcedCooldownPeriod() throws IOException {
-        final String repoName = createRepository(randomName(), Settings.builder().put(repositorySettings())
-            .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build());
+        final String repoName = randomRepositoryName();
+        createRepository(repoName, Settings.builder().put(repositorySettings(repoName))
+                .put(S3Repository.COOLDOWN_PERIOD.getKey(), TEST_COOLDOWN_PERIOD).build(), true);
 
         final SnapshotId fakeOldSnapshot = client().admin().cluster().prepareCreateSnapshot(repoName, "snapshot-old")
             .setWaitForCompletion(true).setIndices().get().getSnapshotInfo().snapshotId();
@@ -162,12 +161,9 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.minimumCompatibilityVersion()));
         final BytesReference serialized = BytesReference.bytes(modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(),
             SnapshotsService.OLD_SNAPSHOT_FORMAT));
-        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () -> {
-            try (InputStream stream = serialized.streamInput()) {
+        PlainActionFuture.get(f -> repository.threadPool().generic().execute(ActionRunnable.run(f, () ->
                 repository.blobStore().blobContainer(repository.basePath()).writeBlobAtomic(
-                    BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), stream, serialized.length(), true);
-            }
-        })));
+                        BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(), serialized, true))));
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();
@@ -201,8 +197,8 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
 
         @Override
         protected S3Repository createRepository(RepositoryMetadata metadata, NamedXContentRegistry registry,
-                                                ClusterService clusterService, RecoverySettings recoverySettings) {
-            return new S3Repository(metadata, registry, service, clusterService, recoverySettings) {
+                                                ClusterService clusterService, BigArrays bigArrays, RecoverySettings recoverySettings) {
+            return new S3Repository(metadata, registry, service, clusterService, bigArrays, recoverySettings) {
 
                 @Override
                 public BlobStore blobStore() {
@@ -287,13 +283,13 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         @Override
         public void maybeTrack(final String request, Headers requestHeaders) {
             if (Regex.simpleMatch("GET /*/?prefix=*", request)) {
-                trackRequest("LIST");
+                trackRequest("ListObjects");
             } else if (Regex.simpleMatch("GET /*/*", request)) {
-                trackRequest("GET");
+                trackRequest("GetObject");
             } else if (isMultiPartUpload(request)) {
-                trackRequest("POST");
+                trackRequest("PutMultipartObject");
             } else if (Regex.simpleMatch("PUT /*/*", request)) {
-                trackRequest("PUT");
+                trackRequest("PutObject");
             }
         }
 

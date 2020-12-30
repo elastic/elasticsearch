@@ -31,7 +31,7 @@ public class DeleteSnapshotAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/snapshot/delete";
 
     private DeleteSnapshotAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

@@ -95,6 +95,19 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:17: Unknown index [missing]", error(IndexResolution.notFound("missing"), "SELECT foo FROM missing"));
     }
 
+    public void testNonBooleanFilter() {
+        String[][] testData = new String[][]{
+            {"INTEGER", "int", "int + 1", "ABS(int)", "ASCII(keyword)"},
+            {"KEYWORD", "keyword", "RTRIM(keyword)", "IIF(true, 'true', 'false')"},
+            {"DATETIME", "date", "date + INTERVAL 1 DAY", "NOW()"}};
+        for (String[] testDatum : testData) {
+            for (int j = 1; j < testDatum.length; j++) {
+                assertEquals("1:26: Condition expression needs to be boolean, found [" + testDatum[0] + "]",
+                    error("SELECT * FROM test WHERE " + testDatum[j]));
+            }
+        }
+    }
+
     public void testMissingColumn() {
         assertEquals("1:8: Unknown column [xxx]", error("SELECT xxx FROM test"));
     }
@@ -350,6 +363,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals(
             "1:8: second argument of [DATETIME_PARSE(keyword, int)] must be [string], found value [int] type [integer]",
             error("SELECT DATETIME_PARSE(keyword, int) FROM test")
+        );
+    }
+
+    public void testFormatValidArgs() {
+        accept("SELECT FORMAT(date, 'HH:mm:ss.fff KK') FROM test");
+        accept("SELECT FORMAT(date::date, 'MM/dd/YYYY') FROM test");
+        accept("SELECT FORMAT(date::time, 'HH:mm:ss Z') FROM test");
+    }
+
+    public void testFormatInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [FORMAT(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT FORMAT(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [FORMAT(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT FORMAT(date, int) FROM test")
         );
     }
 
@@ -648,14 +678,10 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT int FROM test GROUP BY int HAVING 2 < ABS(int)"));
     }
 
-    public void testInWithDifferentDataTypes() {
-        assertEquals("1:8: 2nd argument of [1 IN (2, '3', 4)] must be [integer], found value ['3'] type [keyword]",
-            error("SELECT 1 IN (2, '3', 4)"));
-    }
-
-    public void testInWithDifferentDataTypesFromLeftValue() {
-        assertEquals("1:8: 1st argument of [1 IN ('foo', 'bar')] must be [integer], found value ['foo'] type [keyword]",
-            error("SELECT 1 IN ('foo', 'bar')"));
+    public void testInWithIncompatibleDataTypes() {
+        assertEquals("1:8: 1st argument of ['2000-02-02T00:00:00Z'::date IN ('02:02:02Z'::time)] must be [date], " +
+                "found value ['02:02:02Z'::time] type [time]",
+            error("SELECT '2000-02-02T00:00:00Z'::date IN ('02:02:02Z'::time)"));
     }
 
     public void testInWithFieldInListOfValues() {
@@ -961,9 +987,62 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT PERCENTILE(int, ABS(int)) FROM test"));
     }
 
+    public void testErrorMessageForPercentileWithWrongMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 2)] must be [string], found value [2] type [integer]",
+            error("SELECT PERCENTILE(int, 50, 2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithNullMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, null)] must be one of [tdigest, hdr], received [null]",
+            error("SELECT PERCENTILE(int, 50, null) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithHDRRequiresInt() {
+        assertEquals("1:8: fourth argument of [PERCENTILE(int, 50, 'hdr', 2.2)] must be [integer], found value [2.2] type [double]",
+            error("SELECT PERCENTILE(int, 50, 'hdr', 2.2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithWrongMethod() {
+        assertEquals("1:8: third argument of [PERCENTILE(int, 50, 'notExistingMethod', 5)] must be " +
+                "one of [tdigest, hdr], received [notExistingMethod]",
+            error("SELECT PERCENTILE(int, 50, 'notExistingMethod', 5) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileWithWrongMethodParameterType() {
+        assertEquals("1:8: fourth argument of [PERCENTILE(int, 50, 'tdigest', '5')] must be [numeric], found value ['5'] type [keyword]",
+            error("SELECT PERCENTILE(int, 50, 'tdigest', '5') FROM test"));
+    }
+
     public void testErrorMessageForPercentileRankWithSecondArgBasedOnAField() {
         assertEquals("1:8: second argument of [PERCENTILE_RANK(int, ABS(int))] must be a constant, received [ABS(int)]",
             error("SELECT PERCENTILE_RANK(int, ABS(int)) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 2)] must be [string], found value [2] type [integer]",
+            error("SELECT PERCENTILE_RANK(int, 50, 2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithNullMethodType() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, null)] must be one of [tdigest, hdr], received [null]",
+            error("SELECT PERCENTILE_RANK(int, 50, null) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithHDRRequiresInt() {
+        assertEquals("1:8: fourth argument of [PERCENTILE_RANK(int, 50, 'hdr', 2.2)] must be [integer], found value [2.2] type [double]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'hdr', 2.2) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethod() {
+        assertEquals("1:8: third argument of [PERCENTILE_RANK(int, 50, 'notExistingMethod', 5)] must be " +
+                "one of [tdigest, hdr], received [notExistingMethod]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'notExistingMethod', 5) FROM test"));
+    }
+
+    public void testErrorMessageForPercentileRankWithWrongMethodParameterType() {
+        assertEquals("1:8: fourth argument of [PERCENTILE_RANK(int, 50, 'tdigest', '5')] must be [numeric], " +
+                "found value ['5'] type [keyword]",
+            error("SELECT PERCENTILE_RANK(int, 50, 'tdigest', '5') FROM test"));
     }
 
     public void testTopHitsFirstArgConstant() {
@@ -1117,5 +1196,14 @@ public class VerifierErrorMessagesTests extends ESTestCase {
                 error("SELECT KURTOSIS(ABS(int * 10.123)) FROM test"));
         assertEquals("1:17: [SKEWNESS()] cannot be used on top of operators or scalars",
                 error("SELECT SKEWNESS(ABS(int * 10.123)) FROM test"));
+    }
+
+    public void testCastOnInexact() {
+        // inexact with underlying keyword
+        assertEquals("1:36: [some.string] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
+                error("SELECT * FROM test WHERE NOT (CAST(some.string AS string) = 'foo') OR true"));
+        // inexact without underlying keyword (text only)
+        assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
+                error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
     }
 }

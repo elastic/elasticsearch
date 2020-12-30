@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
@@ -47,8 +46,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  * TermVectorsRequest.
  */
 public class RestTermVectorsAction extends BaseRestHandler {
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(
-        LogManager.getLogger(RestTermVectorsAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestTermVectorsAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] " +
         "Specifying types in term vector requests is deprecated.";
 
@@ -75,7 +73,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         TermVectorsRequest termVectorsRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("termvectors_with_types", TYPES_DEPRECATION_MESSAGE);
             termVectorsRequest = new TermVectorsRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

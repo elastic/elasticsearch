@@ -180,5 +180,5 @@ repository is lost while copying files.
 
 <1> Information about the last time the policy successfully initated a snapshot
 <2> The name of the snapshot that was successfully initiated
-<3> Unformation about the last time the policy failed to initiate a snapshot
+<3> Information about the last time the policy failed to initiate a snapshot
 <4> The next time the policy will execute

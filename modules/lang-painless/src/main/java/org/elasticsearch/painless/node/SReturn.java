@@ -19,71 +19,35 @@
 
 package org.elasticsearch.painless.node;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.Globals;
-import org.elasticsearch.painless.Locals;
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.ScriptRoot;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
-
-import java.util.Set;
+import org.elasticsearch.painless.phase.UserTreeVisitor;
 
 /**
  * Represents a return statement.
  */
-public final class SReturn extends AStatement {
+public class SReturn extends AStatement {
 
-    private AExpression expression;
+    private final AExpression valueNode;
 
-    public SReturn(Location location, AExpression expression) {
-        super(location);
+    public SReturn(int identifier, Location location, AExpression valueNode) {
+        super(identifier, location);
 
-        this.expression = expression;
+        this.valueNode = valueNode;
+    }
+
+    public AExpression getValueNode() {
+        return valueNode;
     }
 
     @Override
-    void extractVariables(Set<String> variables) {
-        if (expression != null) {
-            expression.extractVariables(variables);
+    public <Scope> void visit(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        userTreeVisitor.visitReturn(this, scope);
+    }
+
+    @Override
+    public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
+        if (valueNode != null) {
+            valueNode.visit(userTreeVisitor, scope);
         }
-    }
-
-    @Override
-    void analyze(ScriptRoot scriptRoot, Locals locals) {
-        if (expression == null) {
-            if (locals.getReturnType() != void.class) {
-                throw location.createError(new ClassCastException("Cannot cast from " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(locals.getReturnType()) + "] to " +
-                        "[" + PainlessLookupUtility.typeToCanonicalTypeName(void.class) + "]."));
-            }
-        } else {
-            expression.expected = locals.getReturnType();
-            expression.internal = true;
-            expression.analyze(scriptRoot, locals);
-            expression = expression.cast(scriptRoot, locals);
-        }
-
-        methodEscape = true;
-        loopEscape = true;
-        allEscape = true;
-
-        statementCount = 1;
-    }
-
-    @Override
-    void write(ClassWriter classWriter, MethodWriter methodWriter, Globals globals) {
-        methodWriter.writeStatementOffset(location);
-
-        if (expression != null) {
-            expression.write(classWriter, methodWriter, globals);
-        }
-
-        methodWriter.returnValue();
-    }
-
-    @Override
-    public String toString() {
-        return expression == null ? singleLineToString() : singleLineToString(expression);
     }
 }

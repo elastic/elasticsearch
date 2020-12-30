@@ -27,6 +27,9 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.junit.After;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -37,9 +40,17 @@ import static org.mockito.Mockito.mock;
 
 public class RestGetMappingActionTests extends RestActionTestCase {
 
+    private ThreadPool threadPool;
+
     @Before
     public void setUpAction() {
-        controller().registerHandler(new RestGetMappingAction());
+        threadPool = new TestThreadPool(RestValidateQueryActionTests.class.getName());
+        controller().registerHandler(new RestGetMappingAction(threadPool));
+    }
+
+    @After
+    public void tearDownAction() {
+        assertTrue(terminate(threadPool));
     }
 
     public void testTypeExistsDeprecation() throws Exception {
@@ -50,7 +61,7 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        RestGetMappingAction handler = new RestGetMappingAction();
+        RestGetMappingAction handler = new RestGetMappingAction(threadPool);
         handler.prepareRequest(request, mock(NodeClient.class));
 
         assertWarnings("Type exists requests are deprecated, as types have been deprecated.");
@@ -66,6 +77,9 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withPath("some_index/some_type/_mapping/some_field")
             .withParams(params)
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -86,6 +100,9 @@ public class RestGetMappingActionTests extends RestActionTestCase {
             .withParams(params)
             .withPath("/some_index/_mappings")
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         FakeRestChannel channel = new FakeRestChannel(request, false, 1);
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);

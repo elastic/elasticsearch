@@ -102,55 +102,43 @@ public class TermsTests extends BaseAggregationTestCase<TermsAggregationBuilder>
             factory.format("###.##");
         }
         if (randomBoolean()) {
-            IncludeExclude incExc = null;
-            switch (randomInt(6)) {
-            case 0:
-                incExc = new IncludeExclude(new RegExp("foobar"), null);
-                break;
-            case 1:
-                incExc = new IncludeExclude(null, new RegExp("foobaz"));
-                break;
-            case 2:
-                incExc = new IncludeExclude(new RegExp("foobar"), new RegExp("foobaz"));
-                break;
-            case 3:
-                SortedSet<BytesRef> includeValues = new TreeSet<>();
-                int numIncs = randomIntBetween(1, 20);
-                for (int i = 0; i < numIncs; i++) {
-                    includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            RegExp includeRegexp = null, excludeRegexp = null;
+            SortedSet<BytesRef> includeValues = null, excludeValues = null;
+            boolean hasIncludeOrExclude = false;
+
+            if (randomBoolean()) {
+                hasIncludeOrExclude = true;
+                if (randomBoolean()) {
+                    includeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                } else {
+                    includeValues = new TreeSet<>();
+                    int numIncs = randomIntBetween(1, 20);
+                    for (int i = 0; i < numIncs; i++) {
+                        includeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+                    }
                 }
-                SortedSet<BytesRef> excludeValues = null;
-                incExc = new IncludeExclude(includeValues, excludeValues);
-                break;
-            case 4:
-                SortedSet<BytesRef> includeValues2 = null;
-                SortedSet<BytesRef> excludeValues2 = new TreeSet<>();
-                int numExcs2 = randomIntBetween(1, 20);
-                for (int i = 0; i < numExcs2; i++) {
-                    excludeValues2.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+            }
+
+            if (randomBoolean()) {
+                hasIncludeOrExclude = true;
+                if (randomBoolean()) {
+                    excludeRegexp = new RegExp(randomAlphaOfLengthBetween(5, 10));
+                } else {
+                    excludeValues = new TreeSet<>();
+                    int numIncs = randomIntBetween(1, 20);
+                    for (int i = 0; i < numIncs; i++) {
+                        excludeValues.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
+                    }
                 }
-                incExc = new IncludeExclude(includeValues2, excludeValues2);
-                break;
-            case 5:
-                SortedSet<BytesRef> includeValues3 = new TreeSet<>();
-                int numIncs3 = randomIntBetween(1, 20);
-                for (int i = 0; i < numIncs3; i++) {
-                    includeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
-                }
-                SortedSet<BytesRef> excludeValues3 = new TreeSet<>();
-                int numExcs3 = randomIntBetween(1, 20);
-                for (int i = 0; i < numExcs3; i++) {
-                    excludeValues3.add(new BytesRef(randomAlphaOfLengthBetween(1, 30)));
-                }
-                incExc = new IncludeExclude(includeValues3, excludeValues3);
-                break;
-            case 6:
+            }
+
+            IncludeExclude incExc;
+            if (hasIncludeOrExclude) {
+                incExc = new IncludeExclude(includeRegexp, excludeRegexp, includeValues, excludeValues);
+            } else {
                 final int numPartitions = randomIntBetween(1, 100);
                 final int partition = randomIntBetween(0, numPartitions - 1);
                 incExc = new IncludeExclude(partition, numPartitions);
-                break;
-            default:
-                fail();
             }
             factory.includeExclude(incExc);
         }

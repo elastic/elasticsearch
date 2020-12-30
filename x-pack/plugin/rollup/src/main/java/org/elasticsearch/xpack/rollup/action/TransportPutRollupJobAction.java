@@ -24,7 +24,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -34,20 +34,17 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 import org.elasticsearch.xpack.core.rollup.action.PutRollupJobAction;
@@ -58,49 +55,31 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
-public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRollupJobAction.Request, AcknowledgedResponse> {
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+
+public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNodeAction<PutRollupJobAction.Request> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutRollupJobAction.class);
 
-    private final XPackLicenseState licenseState;
     private final PersistentTasksService persistentTasksService;
     private final Client client;
-    private static final DeprecationLogger deprecationLogger
-        = new DeprecationLogger(LogManager.getLogger(TransportPutRollupJobAction.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportPutRollupJobAction.class);
 
     @Inject
     public TransportPutRollupJobAction(TransportService transportService, ThreadPool threadPool,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                       ClusterService clusterService, XPackLicenseState licenseState,
+                                       ClusterService clusterService,
                                        PersistentTasksService persistentTasksService, Client client) {
         super(PutRollupJobAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            PutRollupJobAction.Request::new, indexNameExpressionResolver);
-        this.licenseState = licenseState;
+            PutRollupJobAction.Request::new, indexNameExpressionResolver, ThreadPool.Names.SAME);
         this.persistentTasksService = persistentTasksService;
         this.client = client;
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected AcknowledgedResponse read(StreamInput in) throws IOException {
-        return new AcknowledgedResponse(in);
-    }
-
-    @Override
     protected void masterOperation(PutRollupJobAction.Request request, ClusterState clusterState,
                                    ActionListener<AcknowledgedResponse> listener) {
-
-        if (!licenseState.checkFeature(XPackLicenseState.Feature.ROLLUP)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
-            return;
-        }
-
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
@@ -132,17 +111,15 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.deprecatedAndMaybeLog("deprecated_timezone",
+            deprecationLogger.deprecate("deprecated_timezone",
                 "Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
-                + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
+                    + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
         }
     }
 
     private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
-        Map<String, String> filteredHeaders = threadPool.getThreadContext().getHeaders().entrySet().stream()
-                .filter(e -> Rollup.HEADER_FILTERS.contains(e.getKey()))
-                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
         return new RollupJob(config, filteredHeaders);
     }
 
@@ -272,7 +249,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
 
     static void startPersistentTask(RollupJob job, ActionListener<AcknowledgedResponse> listener,
                                     PersistentTasksService persistentTasksService) {
-
+        assertNoAuthorizationHeader(job.getHeaders());
         persistentTasksService.sendStartRequest(job.getConfig().getId(), RollupField.TASK_NAME, job,
                 ActionListener.wrap(
                         rollupConfigPersistentTask -> waitForRollupStarted(job, listener, persistentTasksService),
@@ -292,7 +269,7 @@ public class TransportPutRollupJobAction extends TransportMasterNodeAction<PutRo
                 new PersistentTasksService.WaitForPersistentTaskListener<RollupJob>() {
                     @Override
                     public void onResponse(PersistentTasksCustomMetadata.PersistentTask<RollupJob> task) {
-                        listener.onResponse(new AcknowledgedResponse(true));
+                        listener.onResponse(AcknowledgedResponse.TRUE);
                     }
 
                     @Override

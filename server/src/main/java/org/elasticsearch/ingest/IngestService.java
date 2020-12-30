@@ -21,6 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
@@ -70,7 +71,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -249,18 +249,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
         clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(),
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return new AcknowledgedResponse(acknowledged);
-            }
-
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerDelete(request, currentState);
-            }
-        });
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerDelete(request, currentState);
+                }
+            });
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -334,22 +328,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Stores the specified pipeline definition in the request.
      */
     public void putPipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, PutPipelineRequest request,
-        ActionListener<AcknowledgedResponse> listener) throws Exception {
-            // validates the pipeline and processor configuration before submitting a cluster update task:
-            validatePipeline(ingestInfos, request);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
-                new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, listener) {
-
-                    @Override
-                    protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                        return new AcknowledgedResponse(acknowledged);
-                    }
-
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return innerPut(request, currentState);
-                    }
-                });
+                            ActionListener<AcknowledgedResponse> listener) throws Exception {
+        // validates the pipeline and processor configuration before submitting a cluster update task:
+        validatePipeline(ingestInfos, request);
+        clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(),
+            new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return innerPut(request, currentState);
+                }
+            });
     }
 
     /**
@@ -451,9 +439,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                                    Iterable<DocWriteRequest<?>> actionRequests,
                                    BiConsumer<Integer, Exception> onFailure,
                                    BiConsumer<Thread, Exception> onCompletion,
-                                   IntConsumer onDropped) {
+                                   IntConsumer onDropped,
+                                   String executorName) {
 
-        threadPool.executor(ThreadPool.Names.WRITE).execute(new AbstractRunnable() {
+        threadPool.executor(executorName).execute(new AbstractRunnable() {
 
             @Override
             public void onFailure(Exception e) {
@@ -472,6 +461,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 
@@ -494,6 +484,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                             onCompletion.accept(originalThread, null);
                         }
                         assert counter.get() >= 0;
+                        i++;
                         continue;
                     }
 
@@ -528,6 +519,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 String originalIndex = indexRequest.indices()[0];
                 innerExecute(slot, indexRequest, pipeline, onDropped, e -> {
                     if (e != null) {
+                        logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                            pipelineId, indexRequest.index(), indexRequest.id()), e);
                         onFailure.accept(slot, e);
                     }
 
@@ -567,6 +560,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     }
                 });
             } catch (Exception e) {
+                logger.debug(() -> new ParameterizedMessage("failed to execute pipeline [{}] for document [{}/{}]",
+                    pipelineId, indexRequest.index(), indexRequest.id()), e);
                 onFailure.accept(slot, e);
                 if (counter.decrementAndGet() == 0) {
                     onCompletion.accept(originalThread, null);
@@ -648,8 +643,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
         IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, version, versionType, sourceAsMap);
         ingestDocument.executePipeline(pipeline, (result, e) -> {
-            long ingestTimeInMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startTimeInNanos);
-            totalMetrics.postIngest(ingestTimeInMillis);
+            long ingestTimeInNanos = System.nanoTime() - startTimeInNanos;
+            totalMetrics.postIngest(ingestTimeInNanos);
             if (e != null) {
                 totalMetrics.ingestFailed();
                 handler.accept(e);

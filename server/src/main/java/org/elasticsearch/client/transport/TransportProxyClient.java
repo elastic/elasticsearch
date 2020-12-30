@@ -25,7 +25,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.TransportActionNodeProxy;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
@@ -39,12 +38,11 @@ final class TransportProxyClient {
     private final TransportClientNodesService nodesService;
     private final Map<ActionType, TransportActionNodeProxy> proxies;
 
-    TransportProxyClient(Settings settings, TransportService transportService,
-                                TransportClientNodesService nodesService, List<ActionType> actions) {
+    TransportProxyClient(TransportService transportService, TransportClientNodesService nodesService, List<ActionType> actions) {
         this.nodesService = nodesService;
         Map<ActionType, TransportActionNodeProxy> proxies = new HashMap<>();
         for (ActionType action : actions) {
-            proxies.put(action, new TransportActionNodeProxy(settings, action, transportService));
+            proxies.put(action, new TransportActionNodeProxy(action, transportService));
         }
         this.proxies = unmodifiableMap(proxies);
     }

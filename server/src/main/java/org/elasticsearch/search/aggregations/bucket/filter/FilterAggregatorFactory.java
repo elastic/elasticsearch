@@ -24,26 +24,25 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
 
 public class FilterAggregatorFactory extends AggregatorFactory {
 
+    private final Query filter;
     private Weight weight;
-    private Query filter;
 
-    public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, QueryShardContext queryShardContext,
+    public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, AggregationContext context,
             AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactoriesBuilder, metadata);
-        filter = filterBuilder.toQuery(queryShardContext);
+        super(name, context, parent, subFactoriesBuilder, metadata);
+        filter = context.buildQuery(filterBuilder);
     }
 
     /**
@@ -57,7 +56,7 @@ public class FilterAggregatorFactory extends AggregatorFactory {
      */
     public Weight getWeight() {
         if (weight == null) {
-            IndexSearcher contextSearcher = queryShardContext.searcher();
+            IndexSearcher contextSearcher = context.searcher();
             try {
                 weight = contextSearcher.createWeight(contextSearcher.rewrite(filter), ScoreMode.COMPLETE_NO_SCORES, 1f);
             } catch (IOException e) {
@@ -68,11 +67,9 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
-        return new FilterAggregator(name, () -> this.getWeight(), factories, searchContext, parent, cardinality, metadata);
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return new FilterAggregator(name, () -> this.getWeight(), factories, context, parent, cardinality, metadata);
     }
 
 }

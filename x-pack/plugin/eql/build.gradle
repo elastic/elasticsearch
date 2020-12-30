@@ -15,9 +15,6 @@ ext {
 
 archivesBaseName = 'x-pack-eql'
 
-// All integration tests live in qa modules
-integTest.enabled = false
-
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
   compileOnly(project(':modules:lang-painless')) {
@@ -45,14 +42,7 @@ dependencies {
  *  TODO: Enable for all builds upon this feature release       *
  ****************************************************************/
 if (BuildParams.isSnapshotBuild()) {
-  // add all sub-projects of the qa sub-project
-  gradle.projectsEvaluated {
-    project.subprojects
-      .find { it.path == project.path + ":qa" }
-      .subprojects
-      .findAll { it.path.startsWith(project.path + ":qa") }
-      .each { check.dependsOn it.check }
-  }
+  addQaCheckDependencies()
 }
 
 /**********************************************

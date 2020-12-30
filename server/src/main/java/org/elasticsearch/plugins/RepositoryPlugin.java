@@ -20,6 +20,7 @@
 package org.elasticsearch.plugins;
 
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.indices.recovery.RecoverySettings;
@@ -42,7 +43,8 @@ public interface RepositoryPlugin {
      * the value is a factory to construct the {@link Repository} interface.
      */
     default Map<String, Repository.Factory> getRepositories(Environment env, NamedXContentRegistry namedXContentRegistry,
-                                                            ClusterService clusterService, RecoverySettings recoverySettings) {
+                                                            ClusterService clusterService, BigArrays bigArrays,
+                                                            RecoverySettings recoverySettings) {
         return Collections.emptyMap();
     }
 

@@ -103,7 +103,6 @@ public class TransformIndexerTests extends ESTestCase {
         ) {
             super(
                 threadPool,
-                executorName,
                 transformsConfigManager,
                 checkpointProvider,
                 auditor,
@@ -141,7 +140,7 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
-        protected void doNextSearch(SearchRequest request, ActionListener<SearchResponse> nextPhase) {
+        protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             assert latch != null;
             try {
                 latch.await();
@@ -150,7 +149,7 @@ public class TransformIndexerTests extends ESTestCase {
             }
 
             try {
-                SearchResponse response = searchFunction.apply(request);
+                SearchResponse response = searchFunction.apply(buildSearchRequest());
                 nextPhase.onResponse(response);
             } catch (Exception e) {
                 nextPhase.onFailure(e);
@@ -262,8 +261,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         final long initialPageSize = pageSize == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : pageSize;
@@ -278,7 +280,7 @@ public class TransformIndexerTests extends ESTestCase {
 
         Function<BulkRequest, BulkResponse> bulkFunction = bulkRequest -> new BulkResponse(new BulkItemResponse[0], 100);
 
-        TransformAuditor auditor = new TransformAuditor(client, "node_1");
+        TransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, mock(TransformContext.Listener.class));
 
         MockedTransformIndexer indexer = createMockIndexer(
@@ -330,8 +332,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         SearchResponse searchResponse = new SearchResponse(
             new InternalSearchResponse(
@@ -388,8 +393,11 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             null,
             randomPivotConfig(),
+            null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(pageSize, null)
+            new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
+            null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
         Function<SearchRequest, SearchResponse> searchFunction = searchRequest -> {
@@ -419,7 +427,7 @@ public class TransformIndexerTests extends ESTestCase {
             failureMessage.compareAndSet(null, message);
         };
 
-        MockTransformAuditor auditor = new MockTransformAuditor();
+        MockTransformAuditor auditor = MockTransformAuditor.createMockAuditor();
         TransformContext.Listener contextListener = mock(TransformContext.Listener.class);
         TransformContext context = new TransformContext(TransformTaskState.STARTED, "", 0, contextListener);
 

@@ -113,7 +113,7 @@ String json = Strings.toString(builder);
 ==== Index document
 
 The following example indexes a JSON document into an index called
-twitter, under a type called `_doc``, with id valued 1:
+twitter, under a type called `_doc`, with id valued 1:
 
 [source,java]
 --------------------------------------------------

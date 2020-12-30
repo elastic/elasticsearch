@@ -375,6 +375,8 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             request.setOptions(builder.build());
             adminClient().performRequest(request);
         }
+        assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
+            inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
 
         if (!testCandidate.getSetupSection().isEmpty()) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
@@ -438,14 +440,5 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         RestClientBuilder builder = RestClient.builder(sniffer.sniff().toArray(new Node[0]));
         configureClient(builder, restClientSettings());
         return builder;
-    }
-
-    protected final boolean preserveDataStreamsUponCompletion() {
-        // TODO: enable automatic deleting of data streams
-        // For now don't automatically try to remove all data streams after each yaml test.
-        // The client runners need to be adjust to remove data streams after each test too,
-        // otherwise rest yaml tests using data streams succeed in Elasticsearch, but may fail when clients run
-        // the yaml test suite. In the mean time we should delete data streams manually after each test.
-        return true;
     }
 }

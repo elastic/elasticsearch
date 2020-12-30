@@ -23,11 +23,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 
@@ -44,7 +44,7 @@ import java.util.Map;
  * doesn't support any "server" side things like
  * {@linkplain Writeable#writeTo(StreamOutput)},
  * {@linkplain AggregationBuilder#rewrite(QueryRewriteContext)}, or
- * {@linkplain AbstractAggregationBuilder#build(QueryShardContext, AggregatorFactory)}.
+ * {@linkplain AbstractAggregationBuilder#build(AggregationContext, AggregatorFactory)}.
  */
 public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<TopMetricsAggregationBuilder> {
     public static final String NAME = "top_metrics";
@@ -100,7 +100,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
     }
 
     @Override
-    protected AggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent, Builder subfactoriesBuilder)
+    protected AggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent, Builder subfactoriesBuilder)
             throws IOException {
         throw new UnsupportedOperationException();
     }

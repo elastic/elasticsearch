@@ -22,7 +22,6 @@ import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
@@ -37,20 +36,18 @@ import java.util.List;
 /**
  * Aggregation phase of a search request, used to collect aggregations
  */
-public class AggregationPhase implements SearchPhase {
+public class AggregationPhase {
 
     @Inject
     public AggregationPhase() {
     }
 
-    @Override
     public void preProcess(SearchContext context) {
         if (context.aggregations() != null) {
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
             try {
-                AggregatorFactories factories = context.aggregations().factories();
-                aggregators = factories.createTopLevelAggregators(context);
+                aggregators = context.aggregations().factories().createTopLevelAggregators();
                 for (int i = 0; i < aggregators.length; i++) {
                     if (aggregators[i] instanceof GlobalAggregator == false) {
                         collectors.add(aggregators[i]);
@@ -73,7 +70,6 @@ public class AggregationPhase implements SearchPhase {
         }
     }
 
-    @Override
     public void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
@@ -115,16 +111,16 @@ public class AggregationPhase implements SearchPhase {
                 context.searcher().search(query, collector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
-            } finally {
-                context.clearReleasables(SearchContext.Lifetime.COLLECTION);
             }
         }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
-        context.aggregations().resetBucketMultiConsumer();
+        if (context.aggregations().factories().context() != null) {
+            // Rollup can end up here with a null context but not null factories.....
+            context.aggregations().factories().context().multiBucketConsumer().reset();
+        }
         for (Aggregator aggregator : context.aggregations().aggregators()) {
             try {
-                aggregator.postCollection();
                 aggregations.add(aggregator.buildTopLevel());
             } catch (IOException e) {
                 throw new AggregationExecutionException("Failed to build aggregation [" + aggregator.name() + "]", e);

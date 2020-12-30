@@ -51,6 +51,7 @@ import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.script.ScriptCache;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
 import org.elasticsearch.xpack.core.watcher.transform.TransformFactory;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
+import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.activate.ActivateWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.delete.DeleteWatchAction;
@@ -144,6 +146,7 @@ import org.elasticsearch.xpack.watcher.rest.action.RestActivateWatchAction.Deact
 import org.elasticsearch.xpack.watcher.rest.action.RestDeleteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestExecuteWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestGetWatchAction;
+import org.elasticsearch.xpack.watcher.rest.action.RestQueryWatchesAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestPutWatchAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatchServiceAction;
 import org.elasticsearch.xpack.watcher.rest.action.RestWatcherStatsAction;
@@ -154,14 +157,15 @@ import org.elasticsearch.xpack.watcher.transform.script.ScriptTransformFactory;
 import org.elasticsearch.xpack.watcher.transform.script.WatcherTransformScript;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransform;
 import org.elasticsearch.xpack.watcher.transform.search.SearchTransformFactory;
-import org.elasticsearch.xpack.watcher.transport.actions.ack.TransportAckWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.activate.TransportActivateWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.delete.TransportDeleteWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.execute.TransportExecuteWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.get.TransportGetWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.put.TransportPutWatchAction;
-import org.elasticsearch.xpack.watcher.transport.actions.service.TransportWatcherServiceAction;
-import org.elasticsearch.xpack.watcher.transport.actions.stats.TransportWatcherStatsAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportQueryWatchesAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportAckWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportActivateWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportDeleteWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportExecuteWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportGetWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportPutWatchAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherServiceAction;
+import org.elasticsearch.xpack.watcher.transport.actions.TransportWatcherStatsAction;
 import org.elasticsearch.xpack.watcher.trigger.TriggerEngine;
 import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.trigger.manual.ManualTriggerEngine;
@@ -225,7 +229,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             new ByteSizeValue(1, ByteSizeUnit.MB), new ByteSizeValue(10, ByteSizeUnit.MB), NodeScope);
 
     public static final ScriptContext<TemplateScript.Factory> SCRIPT_TEMPLATE_CONTEXT
-        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class);
+        = new ScriptContext<>("xpack_template", TemplateScript.Factory.class,
+        200, TimeValue.timeValueMillis(0), ScriptCache.UNLIMITED_COMPILATION_RATE.asTuple());
 
     private static final Logger logger = LogManager.getLogger(Watcher.class);
     private WatcherIndexingListener listener;
@@ -274,7 +279,9 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             throw new UncheckedIOException(e);
         }
 
-        new WatcherIndexTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
+        WatcherIndexTemplateRegistry templateRegistry = new WatcherIndexTemplateRegistry(environment.settings(),
+            clusterService, threadPool, client, xContentRegistry);
+        templateRegistry.initialize();
 
         final SSLService sslService = getSslService();
         // http client
@@ -566,7 +573,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 new ActionHandler<>(AckWatchAction.INSTANCE, TransportAckWatchAction.class),
                 new ActionHandler<>(ActivateWatchAction.INSTANCE, TransportActivateWatchAction.class),
                 new ActionHandler<>(WatcherServiceAction.INSTANCE, TransportWatcherServiceAction.class),
-                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class));
+                new ActionHandler<>(ExecuteWatchAction.INSTANCE, TransportExecuteWatchAction.class),
+                new ActionHandler<>(QueryWatchesAction.INSTANCE, TransportQueryWatchesAction.class));
     }
 
     @Override
@@ -586,7 +594,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 new RestAckWatchAction(),
                 new RestActivateWatchAction(),
                 new DeactivateRestHandler(),
-                new RestExecuteWatchAction());
+                new RestExecuteWatchAction(),
+                new RestQueryWatchesAction());
     }
 
     @Override

@@ -122,11 +122,11 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
         this.clusterPrivileges = clusterPrivileges;
     }
 
-    void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivileges) {
+    public void conditionalCluster(ConfigurableClusterPrivilege... configurableClusterPrivileges) {
         this.configurableClusterPrivileges = configurableClusterPrivileges;
     }
 
-    void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
+    public void addIndex(RoleDescriptor.IndicesPrivileges... privileges) {
         this.indicesPrivileges.addAll(Arrays.asList(privileges));
     }
 
@@ -142,7 +142,7 @@ public class PutRoleRequest extends ActionRequest implements WriteRequest<PutRol
                 .build());
     }
 
-    void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
+    public void addApplicationPrivileges(RoleDescriptor.ApplicationResourcePrivileges... privileges) {
         this.applicationPrivileges.addAll(Arrays.asList(privileges));
     }
 

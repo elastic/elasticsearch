@@ -70,20 +70,20 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
       }
       if (ids.length > MAX_NUM_PINNED_HITS) {
           throw new IllegalArgumentException("[" + NAME + "] Max of "+MAX_NUM_PINNED_HITS+" ids exceeded: "+
-                  ids.length+" provided.");          
+                  ids.length+" provided.");
       }
       LinkedHashSet<String> deduped = new LinkedHashSet<>();
       for (String id : ids) {
           if (id == null) {
               throw new IllegalArgumentException("[" + NAME + "] id cannot be null");
-          }          
+          }
           if(deduped.add(id) == false) {
-              throw new IllegalArgumentException("[" + NAME + "] duplicate id found in list: "+id);              
+              throw new IllegalArgumentException("[" + NAME + "] duplicate id found in list: "+id);
           }
       }
       this.ids = new ArrayList<>();
       Collections.addAll(this.ids, ids);
-      
+
     }
 
     /**
@@ -130,11 +130,11 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
         printBoostAndQueryName(builder);
         builder.endObject();
     }
-    
-    
-    
+
+
+
     private static final ConstructingObjectParser<PinnedQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME,
-            a -> 
+            a ->
                 {
                     QueryBuilder organicQuery = (QueryBuilder) a[0];
                     @SuppressWarnings("unchecked")
@@ -143,7 +143,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
                 }
              );
     static {
-        PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);        
+        PARSER.declareObject(constructorArg(), (p, c) -> parseInnerQueryBuilder(p), ORGANIC_QUERY_FIELD);
         PARSER.declareStringArray(constructorArg(), IDS_FIELD);
         declareStandardFields(PARSER);
     }
@@ -174,7 +174,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        MappedFieldType idField = context.fieldMapper(IdFieldMapper.NAME);
+        MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");
         }

@@ -122,4 +122,10 @@ public class Header {
             this.actionName = RESPONSE_NAME;
         }
     }
+
+    @Override
+    public String toString() {
+        return "Header{" + networkMessageSize + "}{" + version + "}{" + requestId + "}{" + isRequest() + "}{" + isError() + "}{"
+                + isHandshake() + "}{" + isCompressed() + "}{" + actionName + "}";
+    }
 }

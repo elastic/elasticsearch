@@ -59,10 +59,10 @@ import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
-import org.elasticsearch.http.netty4.cors.Netty4CorsHandler;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.NettyAllocator;
+import org.elasticsearch.transport.NettyByteBufSizer;
+import org.elasticsearch.transport.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 
 import java.net.InetSocketAddress;
@@ -150,6 +150,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                                      SharedGroupFactory sharedGroupFactory) {
         super(settings, networkService, bigArrays, threadPool, xContentRegistry, dispatcher, clusterSettings);
         Netty4Utils.setAvailableProcessors(EsExecutors.NODE_PROCESSORS_SETTING.get(settings));
+        NettyAllocator.logAllocatorDescriptionIfNeeded();
         this.sharedGroupFactory = sharedGroupFactory;
 
         this.maxChunkSize = SETTING_HTTP_MAX_CHUNK_SIZE.get(settings);
@@ -283,21 +284,26 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     protected static class HttpChannelHandler extends ChannelInitializer<Channel> {
 
         private final Netty4HttpServerTransport transport;
+        private final NettyByteBufSizer byteBufSizer;
         private final Netty4HttpRequestCreator requestCreator;
         private final Netty4HttpRequestHandler requestHandler;
+        private final Netty4HttpResponseCreator responseCreator;
         private final HttpHandlingSettings handlingSettings;
 
         protected HttpChannelHandler(final Netty4HttpServerTransport transport, final HttpHandlingSettings handlingSettings) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
+            this.byteBufSizer =  new NettyByteBufSizer();
             this.requestCreator =  new Netty4HttpRequestCreator();
             this.requestHandler = new Netty4HttpRequestHandler(transport);
+            this.responseCreator = new Netty4HttpResponseCreator();
         }
 
         @Override
         protected void initChannel(Channel ch) throws Exception {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
+            ch.pipeline().addLast("byte_buf_sizer", byteBufSizer);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(
                 handlingSettings.getMaxInitialLineLength(),
@@ -314,9 +320,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                 ch.pipeline().addLast("encoder_compress", new HttpContentCompressor(handlingSettings.getCompressionLevel()));
             }
             ch.pipeline().addLast("request_creator", requestCreator);
-            if (handlingSettings.isCorsEnabled()) {
-                ch.pipeline().addLast("cors", new Netty4CorsHandler(transport.corsConfig));
-            }
+            ch.pipeline().addLast("response_creator", responseCreator);
             ch.pipeline().addLast("pipelining", new Netty4HttpPipeliningHandler(logger, transport.pipeliningMaxEvents));
             ch.pipeline().addLast("handler", requestHandler);
             transport.serverAcceptedChannel(nettyHttpChannel);

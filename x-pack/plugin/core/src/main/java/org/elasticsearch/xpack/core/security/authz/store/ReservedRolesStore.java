@@ -78,7 +78,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder().indices(".monitoring-*").privileges("all").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices("metricbeat-*").privileges("index", "create_index").build() },
+                                    .indices("metricbeat-*").privileges("index", "create_index", "view_index_metadata").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))
                 .put("remote_monitoring_collector", new RoleDescriptor(
                         "remote_monitoring_collector",
@@ -149,6 +149,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices("*")
                                     .privileges("view_index_metadata", "monitor").build(),
+                                // Endpoint diagnostic information. Kibana reads from these indices to send telemetry
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(".logs-endpoint.diagnostic.collection-*")
+                                    .privileges("read").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },
@@ -273,7 +277,8 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder().indices(HistoryStoreField.INDEX_PREFIX + "*")
                                         .privileges("read")
                                         .build() }, null, MetadataUtils.DEFAULT_RESERVED_METADATA))
-                .put("logstash_admin", new RoleDescriptor("logstash_admin", null, new RoleDescriptor.IndicesPrivileges[] {
+                .put("logstash_admin", new RoleDescriptor("logstash_admin", new String[] {"manage_logstash_pipelines"},
+                    new RoleDescriptor.IndicesPrivileges[] {
                         RoleDescriptor.IndicesPrivileges.builder().indices(".logstash*")
                                 .privileges("create", "delete", "index", "manage", "read").build() },
                         null, MetadataUtils.DEFAULT_RESERVED_METADATA))

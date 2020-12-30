@@ -32,6 +32,9 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPathWithGet() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(Method.GET).build());
@@ -43,6 +46,9 @@ public class RestGetActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPathWithHead() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         FakeRestRequest.Builder deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withPath("/some_index/some_type/some_id");
         dispatchRequest(deprecatedRequest.withMethod(Method.HEAD).build());

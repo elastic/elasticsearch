@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.JobTaskRequest;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 
 import java.util.List;
 
@@ -30,7 +31,7 @@ import java.util.List;
 // redirects to a single node only
 public abstract class TransportJobTaskAction<Request extends JobTaskRequest<Request>,
         Response extends BaseTasksResponse & Writeable>
-        extends TransportTasksAction<TransportOpenJobAction.JobTask, Request, Response, Response> {
+        extends TransportTasksAction<JobTask, Request, Response, Response> {
 
     protected final AutodetectProcessManager processManager;
 

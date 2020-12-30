@@ -88,7 +88,7 @@ The key is the ID of the node.
 (string)
 Human-readable name for the node.
 +
-You can set this name using the <<node.name,`node.name`>> property in
+You can set this name using the <<node-name,`node.name`>> property in
 `elasticsearch.yml`. Defaults to the machine's hostname.
 =====
 ====

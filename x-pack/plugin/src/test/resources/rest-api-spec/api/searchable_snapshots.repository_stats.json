@@ -1,10 +1,14 @@
 {
   "searchable_snapshots.repository_stats": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-repository-stats.html",
-      "description": "Retrieve usage statistics about a snapshot repository."
+      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html",
+      "description": "DEPRECATED: This API is replaced by the Repositories Metering API."
     },
     "stability": "experimental",
+    "visibility": "public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url": {
       "paths": [
         {

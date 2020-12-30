@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.ingest;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -46,9 +44,7 @@ import java.util.Objects;
 
 public class SimulatePipelineRequest extends ActionRequest implements ToXContentObject {
 
-    private static final Logger logger = LogManager.getLogger(SimulatePipelineRequest.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
-
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SimulatePipelineRequest.class);
     private String id;
     private boolean verbose;
     private BytesReference source;
@@ -187,7 +183,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String index = ConfigurationUtils.readStringOrIntProperty(null, null,
                 dataMap, Metadata.INDEX.getFieldName(), "_index");
             if (dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.deprecatedAndMaybeLog("simulate_pipeline_with_types",
+                deprecationLogger.deprecate("simulate_pipeline_with_types",
                     "[types removal] specifying _type in pipeline simulation requests is deprecated");
             }
             String type = ConfigurationUtils.readStringOrIntProperty(null, null,

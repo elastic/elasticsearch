@@ -18,17 +18,16 @@
  */
 package org.elasticsearch.search.aggregations.matrix.stats;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -41,25 +40,21 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
     MatrixStatsAggregatorFactory(String name,
                                     Map<String, ValuesSourceConfig> configs,
                                     MultiValueMode multiValueMode,
-                                    QueryShardContext queryShardContext,
+                                    AggregationContext context,
                                     AggregatorFactory parent,
                                     AggregatorFactories.Builder subFactoriesBuilder,
                                     Map<String, Object> metadata) throws IOException {
-        super(name, configs, queryShardContext, parent, subFactoriesBuilder, metadata);
+        super(name, configs, context, parent, subFactoriesBuilder, metadata);
         this.multiValueMode = multiValueMode;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata)
-        throws IOException {
-        return new MatrixStatsAggregator(name, null, searchContext, parent, multiValueMode, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new MatrixStatsAggregator(name, null, context, parent, multiValueMode, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(Map<String, ValuesSource> valuesSources,
-                                            SearchContext searchContext,
                                             Aggregator parent,
                                             CardinalityUpperBound cardinality,
                                             Map<String, Object> metadata) throws IOException {
@@ -72,6 +67,6 @@ final class MatrixStatsAggregatorFactory extends ArrayValuesSourceAggregatorFact
             // TODO: There must be a better option than this.
             typedValuesSources.put(entry.getKey(), (ValuesSource.Numeric) entry.getValue());
         }
-        return new MatrixStatsAggregator(name, typedValuesSources, searchContext, parent, multiValueMode, metadata);
+        return new MatrixStatsAggregator(name, typedValuesSources, context, parent, multiValueMode, metadata);
     }
 }

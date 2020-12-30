@@ -47,6 +47,9 @@ public class RestUpdateActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.POST)
             .withPath("/some_index/some_type/some_id/_update")

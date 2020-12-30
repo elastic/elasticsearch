@@ -5,13 +5,16 @@
  */
 package org.elasticsearch.xpack.ml.job.persistence;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.calendars.Calendar;
+import org.elasticsearch.xpack.ml.utils.QueryBuilderHelper;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -23,6 +26,11 @@ public class CalendarQueryBuilder {
     private String jobId;
     private List<String> jobGroups = Collections.emptyList();
     private boolean sort = false;
+    private String[] idTokens = new String[0];
+
+    public static CalendarQueryBuilder builder() {
+        return new CalendarQueryBuilder();
+    }
 
     /**
      * Page the query result
@@ -49,6 +57,19 @@ public class CalendarQueryBuilder {
         return this;
     }
 
+    public CalendarQueryBuilder calendarIdTokens(String[] idTokens) {
+        this.idTokens = idTokens;
+        return this;
+    }
+
+    public boolean isForAllCalendars() {
+        return Strings.isAllOrWildcard(idTokens);
+    }
+
+    public Exception buildNotFoundException() {
+        return new ResourceNotFoundException("No calendar with id [" + Strings.arrayToCommaDelimitedString(idTokens) + "]");
+    }
+
     /**
      * Sort results by calendar_id
      * @param sort Sort if true
@@ -60,7 +81,8 @@ public class CalendarQueryBuilder {
     }
 
     public SearchSourceBuilder build() {
-        QueryBuilder qb;
+        BoolQueryBuilder qb = QueryBuilders.boolQuery()
+            .filter(QueryBuilders.termQuery(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE));
         List<String> jobIdAndGroups = new ArrayList<>(jobGroups);
         if (jobId != null) {
             jobIdAndGroups.add(jobId);
@@ -68,12 +90,11 @@ public class CalendarQueryBuilder {
 
         if (jobIdAndGroups.isEmpty() == false) {
             jobIdAndGroups.add(Metadata.ALL);
-            qb = new BoolQueryBuilder()
-                    .filter(new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE))
-                    .filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));
-        } else {
-            qb = new TermsQueryBuilder(Calendar.TYPE.getPreferredName(), Calendar.CALENDAR_TYPE);
+            qb.filter(new TermsQueryBuilder(Calendar.JOB_IDS.getPreferredName(), jobIdAndGroups));
         }
+        QueryBuilderHelper
+            .buildTokenFilterQuery(Calendar.ID.getPreferredName(), idTokens)
+            .ifPresent(qb::filter);
 
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(qb);
 

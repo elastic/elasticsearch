@@ -51,6 +51,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
@@ -65,8 +66,23 @@ import java.util.function.Supplier;
 
 public class ClusterModuleTests extends ModuleTestCase {
     private ClusterInfoService clusterInfoService = EmptyClusterInfoService.INSTANCE;
-    private ClusterService clusterService = new ClusterService(Settings.EMPTY,
-        new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
+    private ClusterService clusterService;
+    private ThreadContext threadContext;
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+        threadContext = new ThreadContext(Settings.EMPTY);
+        clusterService = new ClusterService(Settings.EMPTY,
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null);
+    }
+
+    @Override
+    public void tearDown() throws Exception {
+        super.tearDown();
+        clusterService.close();
+    }
+
     static class FakeAllocationDecider extends AllocationDecider {
         protected FakeAllocationDecider() {
         }
@@ -121,7 +137,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                         return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                     }
-                }), clusterInfoService));
+                }), clusterInfoService, null, threadContext));
         assertEquals(e.getMessage(),
             "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -133,7 +149,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new FakeAllocationDecider());
                 }
-            }), clusterInfoService);
+            }), clusterInfoService, null, threadContext);
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -145,7 +161,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                     return Collections.singletonMap(name, supplier);
                 }
             }
-        ), clusterInfoService);
+        ), clusterInfoService, null, threadContext);
     }
 
     public void testRegisterShardsAllocator() {
@@ -163,7 +179,7 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testUnknownShardsAllocator() {
         Settings settings = Settings.builder().put(ClusterModule.SHARDS_ALLOCATOR_TYPE_SETTING.getKey(), "dne").build();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () ->
-            new ClusterModule(settings, clusterService, Collections.emptyList(), clusterInfoService));
+            new ClusterModule(settings, clusterService, Collections.emptyList(), clusterInfoService, null, threadContext));
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
     }
 
@@ -231,13 +247,15 @@ public class ClusterModuleTests extends ModuleTestCase {
 
     public void testRejectsReservedExistingShardsAllocatorName() {
         final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
-            Collections.singletonList(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)), clusterInfoService);
+            Collections.singletonList(existingShardsAllocatorPlugin(GatewayAllocator.ALLOCATOR_NAME)), clusterInfoService, null,
+            threadContext);
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 
     public void testRejectsDuplicateExistingShardsAllocatorName() {
         final ClusterModule clusterModule = new ClusterModule(Settings.EMPTY, clusterService,
-            Arrays.asList(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")), clusterInfoService);
+            Arrays.asList(existingShardsAllocatorPlugin("duplicate"), existingShardsAllocatorPlugin("duplicate")), clusterInfoService, null,
+            threadContext);
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 

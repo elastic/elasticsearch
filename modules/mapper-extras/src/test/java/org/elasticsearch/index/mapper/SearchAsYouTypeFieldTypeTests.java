@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.PrefixFieldType
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.SearchAsYouTypeFieldType;
 import org.elasticsearch.index.mapper.SearchAsYouTypeFieldMapper.ShingleFieldType;
 
+import java.io.IOException;
 import java.util.Collections;
 
 import static java.util.Arrays.asList;
@@ -49,8 +50,14 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
         UNSEARCHABLE.freeze();
     }
 
-    protected SearchAsYouTypeFieldType createFieldType() {
-        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, Defaults.FIELD_TYPE, null,
+    private static final FieldType SEARCHABLE = new FieldType();
+    static {
+        SEARCHABLE.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS);
+        SEARCHABLE.freeze();
+    }
+
+    private static SearchAsYouTypeFieldType createFieldType() {
+        final SearchAsYouTypeFieldType fieldType = new SearchAsYouTypeFieldType(NAME, SEARCHABLE, null,
             Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER, Collections.emptyMap());
         fieldType.setPrefixField(new PrefixFieldType(NAME, TextSearchInfo.SIMPLE_MATCH_ONLY, Defaults.MIN_GRAM, Defaults.MAX_GRAM));
         fieldType.setShingleFields(new ShingleFieldType[] {
@@ -102,5 +109,25 @@ public class SearchAsYouTypeFieldTypeTests extends FieldTypeTestCase {
                 () -> fieldType.prefixQuery(longTerm, CONSTANT_SCORE_REWRITE, MOCK_QSC_DISALLOW_EXPENSIVE));
         assertEquals("[prefix] queries cannot be executed when 'search.allow_expensive_queries' is set to false. " +
                 "For optimised prefix queries on text fields please enable [index_prefixes].", ee.getMessage());
+    }
+
+    public void testFetchSourceValue() throws IOException {
+        SearchAsYouTypeFieldType fieldType = createFieldType();
+
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(fieldType, "value"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(fieldType, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(fieldType, true));
+
+        SearchAsYouTypeFieldMapper.PrefixFieldType prefixFieldType = new SearchAsYouTypeFieldMapper.PrefixFieldType(
+            fieldType.name(), fieldType.getTextSearchInfo(), 2, 10);
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(prefixFieldType, "value"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(prefixFieldType, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(prefixFieldType, true));
+
+        SearchAsYouTypeFieldMapper.ShingleFieldType shingleFieldType = new SearchAsYouTypeFieldMapper.ShingleFieldType(
+            fieldType.name(), 5, fieldType.getTextSearchInfo());
+        assertEquals(org.elasticsearch.common.collect.List.of("value"), fetchSourceValue(shingleFieldType, "value"));
+        assertEquals(org.elasticsearch.common.collect.List.of("42"), fetchSourceValue(shingleFieldType, 42L));
+        assertEquals(org.elasticsearch.common.collect.List.of("true"), fetchSourceValue(shingleFieldType, true));
     }
 }

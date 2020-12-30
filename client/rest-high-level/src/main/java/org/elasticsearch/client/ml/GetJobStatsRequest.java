@@ -43,7 +43,7 @@ import java.util.Objects;
  */
 public class GetJobStatsRequest extends ActionRequest implements ToXContentObject {
 
-    public static final ParseField ALLOW_NO_JOBS = new ParseField("allow_no_jobs");
+    public static final ParseField ALLOW_NO_MATCH = new ParseField("allow_no_match");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<GetJobStatsRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -53,13 +53,13 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         PARSER.declareField(ConstructingObjectParser.constructorArg(),
             p -> Arrays.asList(Strings.commaDelimitedListToStringArray(p.text())),
             Job.ID, ObjectParser.ValueType.STRING_ARRAY);
-        PARSER.declareBoolean(GetJobStatsRequest::setAllowNoJobs, ALLOW_NO_JOBS);
+        PARSER.declareBoolean(GetJobStatsRequest::setAllowNoMatch, ALLOW_NO_MATCH);
     }
 
     private static final String ALL_JOBS = "_all";
 
     private final List<String> jobIds;
-    private Boolean allowNoJobs;
+    private Boolean allowNoMatch;
 
     /**
      * Explicitly gets all jobs statistics
@@ -93,8 +93,8 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
         return jobIds;
     }
 
-    public Boolean getAllowNoJobs() {
-        return this.allowNoJobs;
+    public Boolean getAllowNoMatch() {
+        return this.allowNoMatch;
     }
 
     /**
@@ -102,15 +102,15 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
      *
      * This includes {@code _all} string or when no jobs have been specified
      *
-     * @param allowNoJobs When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
+     * @param allowNoMatch When {@code true} ignore if wildcard or {@code _all} matches no jobs. Defaults to {@code true}
      */
-    public void setAllowNoJobs(boolean allowNoJobs) {
-        this.allowNoJobs = allowNoJobs;
+    public void setAllowNoMatch(boolean allowNoMatch) {
+        this.allowNoMatch = allowNoMatch;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobIds, allowNoJobs);
+        return Objects.hash(jobIds, allowNoMatch);
     }
 
     @Override
@@ -125,7 +125,7 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
 
         GetJobStatsRequest that = (GetJobStatsRequest) other;
         return Objects.equals(jobIds, that.jobIds) &&
-            Objects.equals(allowNoJobs, that.allowNoJobs);
+            Objects.equals(allowNoMatch, that.allowNoMatch);
     }
 
     @Override
@@ -137,8 +137,8 @@ public class GetJobStatsRequest extends ActionRequest implements ToXContentObjec
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Job.ID.getPreferredName(), Strings.collectionToCommaDelimitedString(jobIds));
-        if (allowNoJobs != null) {
-            builder.field(ALLOW_NO_JOBS.getPreferredName(), allowNoJobs);
+        if (allowNoMatch != null) {
+            builder.field(ALLOW_NO_MATCH.getPreferredName(), allowNoMatch);
         }
         builder.endObject();
         return builder;

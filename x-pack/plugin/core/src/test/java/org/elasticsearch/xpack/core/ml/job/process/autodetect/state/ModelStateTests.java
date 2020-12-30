@@ -28,4 +28,13 @@ public class ModelStateTests extends ESTestCase {
         assertThat(ModelState.extractJobId("_model_state_3141341341"), is(nullValue()));
         assertThat(ModelState.extractJobId("foo_quantiles"), is(nullValue()));
     }
+
+    public void testExtractJobId_GivenV54DocId() {
+        assertThat(ModelState.extractJobId("test_job_id-1-0123456789#1"), equalTo("test_job_id-1"));
+        assertThat(ModelState.extractJobId("test_job_id-2-9876543210#42"), equalTo("test_job_id-2"));
+        assertThat(ModelState.extractJobId("test_job_id-0123456789-9876543210#42"), equalTo("test_job_id-0123456789"));
+
+        // This one has one less digit for snapshot id
+        assertThat(ModelState.extractJobId("test_job_id-123456789#42"), is(nullValue()));
+    }
 }

@@ -737,6 +737,28 @@ public class ScopedSettingsTests extends ESTestCase {
         assertThat(diff.getAsInt("foo.bar", null), equalTo(1));
     }
 
+    public void testDiffWithDependentSettings() {
+        final String dependedSettingName = "this.setting.is.depended.on";
+        Setting<Integer> dependedSetting = Setting.intSetting(dependedSettingName, 1, Property.Dynamic, Property.NodeScope);
+
+        final String dependentSettingName = "this.setting.depends.on.another";
+        Setting<Integer> dependentSetting = new Setting<>(dependentSettingName,
+            (s) -> Integer.toString(dependedSetting.get(s) + 10),
+            (s) -> Setting.parseInt(s, 1, dependentSettingName),
+            Property.Dynamic, Property.NodeScope);
+
+        ClusterSettings settings = new ClusterSettings(Settings.EMPTY, new HashSet<>(Arrays.asList(dependedSetting, dependentSetting)));
+
+        // Ensure that the value of the dependent setting is correctly calculated based on the "source" settings
+        Settings diff = settings.diff(Settings.builder().put(dependedSettingName, 2).build(), Settings.EMPTY);
+        assertThat(diff.getAsInt(dependentSettingName, null), equalTo(12));
+
+        // Ensure that the value is correctly calculated if neither is set
+        diff = settings.diff(Settings.EMPTY, Settings.EMPTY);
+        assertThat(diff.getAsInt(dependedSettingName, null), equalTo(1));
+        assertThat(diff.getAsInt(dependentSettingName, null), equalTo(11));
+    }
+
     public void testDiffWithAffixAndComplexMatcher() {
         Setting<Integer> fooBarBaz = Setting.intSetting("foo.bar.baz", 1, Property.NodeScope);
         Setting<Integer> fooBar = Setting.intSetting("foo.bar", 1, Property.Dynamic, Property.NodeScope);

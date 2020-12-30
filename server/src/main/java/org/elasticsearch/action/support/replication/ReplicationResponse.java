@@ -171,7 +171,7 @@ public class ReplicationResponse extends ActionResponse {
 
         public static ShardInfo fromXContent(XContentParser parser) throws IOException {
             XContentParser.Token token = parser.currentToken();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
             int total = 0, successful = 0;
             List<Failure> failuresList = null;
@@ -293,7 +293,7 @@ public class ReplicationResponse extends ActionResponse {
 
             public static Failure fromXContent(XContentParser parser) throws IOException {
                 XContentParser.Token token = parser.currentToken();
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
                 String shardIndex = null, nodeId = null;
                 int shardId = -1;

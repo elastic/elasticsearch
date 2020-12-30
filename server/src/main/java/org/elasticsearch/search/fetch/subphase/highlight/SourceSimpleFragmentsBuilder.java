@@ -33,11 +33,12 @@ public class SourceSimpleFragmentsBuilder extends SimpleFragmentsBuilder {
     private final SourceLookup sourceLookup;
 
     public SourceSimpleFragmentsBuilder(MappedFieldType fieldType,
+                                        boolean fixBrokenAnalysis,
                                         SourceLookup sourceLookup,
                                         String[] preTags,
                                         String[] postTags,
                                         BoundaryScanner boundaryScanner) {
-        super(fieldType, preTags, postTags, boundaryScanner);
+        super(fieldType, fixBrokenAnalysis, preTags, postTags, boundaryScanner);
         this.sourceLookup = sourceLookup;
     }
 

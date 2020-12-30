@@ -31,6 +31,6 @@ public class DeleteDanglingIndexAction extends ActionType<AcknowledgedResponse> 
     public static final String NAME = "cluster:admin/indices/dangling/delete";
 
     private DeleteDanglingIndexAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 }

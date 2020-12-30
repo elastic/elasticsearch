@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.document;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
@@ -43,7 +42,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestUpdateAction extends BaseRestHandler {
     private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(RestUpdateAction.class));
+            DeprecationLogger.getLogger(RestUpdateAction.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in " +
         "document update requests is deprecated, use the endpoint /{index}/_update/{id} instead.";
 
@@ -64,7 +63,7 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecatedAndMaybeLog("update_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate("update_with_types", TYPES_DEPRECATION_MESSAGE);
             updateRequest = new UpdateRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

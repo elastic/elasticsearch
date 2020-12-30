@@ -63,7 +63,11 @@ public class RescoreContext {
     }
 
     public boolean isRescored(int docId) {
-        return rescoredDocs.contains(docId);
+        return rescoredDocs != null && rescoredDocs.contains(docId);
+    }
+
+    public Set<Integer> getRescoredDocs() {
+        return rescoredDocs;
     }
 
     /**

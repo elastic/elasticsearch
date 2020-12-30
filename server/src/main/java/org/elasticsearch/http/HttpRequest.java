@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -57,6 +58,22 @@ public interface HttpRequest {
      * Get all of the headers and values associated with the headers. Modifications of this map are not supported.
      */
     Map<String, List<String>> getHeaders();
+
+    default String header(String name) {
+        List<String> values = getHeaders().get(name);
+        if (values != null && values.isEmpty() == false) {
+            return values.get(0);
+        }
+        return null;
+    }
+
+    default List<String> allHeaders(String name) {
+        List<String> values = getHeaders().get(name);
+        if (values != null) {
+            return Collections.unmodifiableList(values);
+        }
+        return null;
+    }
 
     List<String> strictCookies();
 

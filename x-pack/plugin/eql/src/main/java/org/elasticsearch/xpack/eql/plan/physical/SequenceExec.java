@@ -119,8 +119,9 @@ public class SequenceExec extends PhysicalPlan {
 
     @Override
     public void execute(EqlSession session, ActionListener<Payload> listener) {
-        new ExecutionManager(session).assemble(keys(), children(), timestamp(), tiebreaker(), direction, maxSpan, limit()).execute(
-                listener);
+        new ExecutionManager(session)
+            .assemble(keys(), children(), timestamp(), tiebreaker(), direction, maxSpan, limit())
+            .execute(listener);
     }
 
     @Override

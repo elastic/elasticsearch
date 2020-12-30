@@ -445,7 +445,7 @@ public class TermSuggestionBuilder extends SuggestionBuilder<TermSuggestionBuild
     public SuggestionContext build(QueryShardContext context) throws IOException {
         TermSuggestionContext suggestionContext = new TermSuggestionContext(context);
         // copy over common settings to each suggestion builder
-        populateCommonFields(context.getMapperService(), suggestionContext);
+        populateCommonFields(context, suggestionContext);
         // Transfers the builder settings to the target TermSuggestionContext
         DirectSpellcheckerSettings settings = suggestionContext.getDirectSpellCheckerSettings();
         settings.accuracy(accuracy);

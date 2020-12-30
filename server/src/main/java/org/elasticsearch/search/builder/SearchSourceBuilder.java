@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.builder;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Booleans;
@@ -65,9 +64,11 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_ACCURATE;
 import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_DISABLED;
@@ -80,8 +81,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
 public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
-    private static final DeprecationLogger deprecationLogger =
-        new DeprecationLogger(LogManager.getLogger(SearchSourceBuilder.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(SearchSourceBuilder.class);
 
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
@@ -115,6 +115,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField SEARCH_AFTER = new ParseField("search_after");
     public static final ParseField COLLAPSE = new ParseField("collapse");
     public static final ParseField SLICE = new ParseField("slice");
+    public static final ParseField POINT_IN_TIME = new ParseField("pit");
+    public static final ParseField RUNTIME_MAPPINGS_FIELD = new ParseField("runtime_mappings");
 
     public static SearchSourceBuilder fromXContent(XContentParser parser) throws IOException {
         return fromXContent(parser, true);
@@ -192,6 +194,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private boolean profile = false;
 
     private CollapseBuilder collapse = null;
+
+    private PointInTimeBuilder pointInTimeBuilder = null;
+
+    private Map<String, Object> runtimeMappings = emptyMap();
 
     /**
      * Constructs a new search source builder.
@@ -271,6 +277,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 fetchFields = in.readList(FieldAndFormat::new);
             }
         }
+        if (in.getVersion().onOrAfter(Version.V_7_10_0)) {
+            pointInTimeBuilder = in.readOptionalWriteable(PointInTimeBuilder::new);
+        }
+        if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
+            runtimeMappings = in.readMap();
+        }
     }
 
     @Override
@@ -341,6 +353,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeBoolean(fetchFields != null);
             if (fetchFields != null) {
                 out.writeList(fetchFields);
+            }
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_10_0)) {
+            out.writeOptionalWriteable(pointInTimeBuilder);
+        }
+        if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
+            out.writeMap(runtimeMappings);
+        } else {
+            if (false == runtimeMappings.isEmpty()) {
+                throw new IllegalArgumentException(
+                    "Versions before 7.11.0 don't support [runtime_mappings] and search was sent to [" + out.getVersion() + "]"
+                );
             }
         }
     }
@@ -880,19 +904,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a field to load and return as part of the search request.
      */
     public SearchSourceBuilder fetchField(String name) {
-        return fetchField(name, null);
+        return fetchField(new FieldAndFormat(name, null, null));
     }
 
     /**
      * Adds a field to load and return as part of the search request.
-     * @param name the field name.
-     * @param format an optional format string used when formatting values, for example a date format.
+     * @param fetchField defining the field name, optional format and optional inclusion of unmapped fields
      */
-    public SearchSourceBuilder fetchField(String name, @Nullable String format) {
+    public SearchSourceBuilder fetchField(FieldAndFormat fetchField) {
         if (fetchFields == null) {
             fetchFields = new ArrayList<>();
         }
-        fetchFields.add(new FieldAndFormat(name, format));
+        fetchFields.add(fetchField);
         return this;
     }
 
@@ -988,6 +1011,36 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     /**
+     * Returns the point in time that is configured with this query
+     */
+    public PointInTimeBuilder pointInTimeBuilder() {
+        return pointInTimeBuilder;
+    }
+
+    /**
+     * Specify a point in time that this query should execute against.
+     */
+    public SearchSourceBuilder pointInTimeBuilder(PointInTimeBuilder builder) {
+        this.pointInTimeBuilder = builder;
+        return this;
+    }
+
+    /**
+     * Mappings specified on this search request that override built in mappings.
+     */
+    public Map<String, Object> runtimeMappings() {
+        return Collections.unmodifiableMap(runtimeMappings);
+    }
+
+    /**
+     * Specify the mappings specified on this search request that override built in mappings.
+     */
+    public SearchSourceBuilder runtimeMappings(Map<String, Object> runtimeMappings) {
+        this.runtimeMappings = runtimeMappings == null ? emptyMap() : runtimeMappings;
+        return this;
+    }
+
+    /**
      * Rewrites this search source builder into its primitive form. e.g. by
      * rewriting the QueryBuilder. If the builder did not change the identity
      * reference must be returned otherwise the builder will be rewritten
@@ -1045,6 +1098,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.explain = explain;
         rewrittenBuilder.extBuilders = extBuilders;
         rewrittenBuilder.fetchSourceContext = fetchSourceContext;
+        rewrittenBuilder.fetchFields = fetchFields;
         rewrittenBuilder.docValueFields = docValueFields;
         rewrittenBuilder.storedFieldsContext = storedFieldsContext;
         rewrittenBuilder.from = from;
@@ -1069,6 +1123,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.version = version;
         rewrittenBuilder.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
         rewrittenBuilder.collapse = collapse;
+        rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
+        rewrittenBuilder.runtimeMappings = runtimeMappings;
         return rewrittenBuilder;
     }
 
@@ -1146,7 +1202,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecatedAndMaybeLog("indices_boost_object_format",
+                    deprecationLogger.deprecate("indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -1190,6 +1246,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     sliceBuilder = SliceBuilder.fromXContent(parser);
                 } else if (COLLAPSE.match(currentFieldName, parser.getDeprecationHandler())) {
                     collapse = CollapseBuilder.fromXContent(parser);
+                } else if (POINT_IN_TIME.match(currentFieldName, parser.getDeprecationHandler())) {
+                    pointInTimeBuilder = PointInTimeBuilder.fromXContent(parser);
+                } else if (RUNTIME_MAPPINGS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    runtimeMappings = parser.map();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1394,6 +1454,13 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (collapse != null) {
             builder.field(COLLAPSE.getPreferredName(), collapse);
         }
+        if (pointInTimeBuilder != null) {
+            pointInTimeBuilder.toXContent(builder, params);
+        }
+        if (false == runtimeMappings.isEmpty()) {
+            builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
+        }
+
         return builder;
     }
 
@@ -1603,10 +1670,10 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     @Override
     public int hashCode() {
-        return Objects.hash(aggregations, explain, fetchSourceContext, docValueFields, storedFieldsContext, from, highlightBuilder,
-                indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
-                sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
-                seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo);
+        return Objects.hash(aggregations, explain, fetchSourceContext, fetchFields, docValueFields, storedFieldsContext, from,
+            highlightBuilder, indexBoosts, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields, size,
+            sorts, searchAfterBuilder, sliceBuilder, stats, suggestBuilder, terminateAfter, timeout, trackScores, version,
+            seqNoAndPrimaryTerm, profile, extBuilders, collapse, trackTotalHitsUpTo, pointInTimeBuilder, runtimeMappings);
     }
 
     @Override
@@ -1621,6 +1688,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return Objects.equals(aggregations, other.aggregations)
                 && Objects.equals(explain, other.explain)
                 && Objects.equals(fetchSourceContext, other.fetchSourceContext)
+                && Objects.equals(fetchFields, other.fetchFields)
                 && Objects.equals(docValueFields, other.docValueFields)
                 && Objects.equals(storedFieldsContext, other.storedFieldsContext)
                 && Objects.equals(from, other.from)
@@ -1645,7 +1713,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 && Objects.equals(profile, other.profile)
                 && Objects.equals(extBuilders, other.extBuilders)
                 && Objects.equals(collapse, other.collapse)
-                && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo);
+                && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
+                && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
+                && Objects.equals(runtimeMappings, other.runtimeMappings);
     }
 
     @Override
@@ -1660,4 +1730,5 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new ElasticsearchException(e);
         }
     }
+
 }

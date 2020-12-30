@@ -16,7 +16,7 @@ following queries:
 
 To execute them, Lucene changes these queries to a simpler form, such as a
 <<query-dsl-bool-query, `bool` query>> or a
-https://en.wikipedia.org/wiki/Bit_array[bit set].
+{wikipedia}/Bit_array[bit set].
 
 The `rewrite` parameter determines:
 

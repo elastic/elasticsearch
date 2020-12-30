@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
+import org.elasticsearch.common.geo.GeoUtils;
 
-public final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
-    public static final GeoShapeCoordinateEncoder INSTANCE = new GeoShapeCoordinateEncoder();
+final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
 
     @Override
     public int encodeX(double x) {
@@ -41,5 +41,15 @@ public final class GeoShapeCoordinateEncoder implements CoordinateEncoder {
     @Override
     public double decodeY(int y) {
         return GeoEncodingUtils.decodeLatitude(y);
+    }
+
+    @Override
+    public double normalizeX(double x) {
+        return GeoUtils.normalizeLon(x);
+    }
+
+    @Override
+    public double normalizeY(double y) {
+        return GeoUtils.normalizeLat(y);
     }
 }

@@ -94,7 +94,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertTrue(stats.getDistribution().isEmpty());
             assertEquals(0.0, stats.getEntropy(), 0);
 
-        }, null);
+        });
     }
 
     public void testUnmappedWithMissingField() throws IOException {
@@ -115,7 +115,7 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
             assertEquals(0.25, stats.getDistribution().get("b"), 0);
             assertEquals(0.25, stats.getDistribution().get("c"), 0);
             assertEquals(1.5, stats.getEntropy(), 0);
-        }, null);
+        });
     }
 
     public void testMissing() throws IOException {
@@ -249,7 +249,6 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         TermsAggregator aggregator = createAggregator(aggregationBuilder, indexSearcher, numericFieldType, textFieldType);
         aggregator.preCollection();
         indexSearcher.search(new MatchAllDocsQuery(), aggregator);
-        aggregator.postCollection();
 
         Terms terms = (Terms) aggregator.buildTopLevel();
         assertNotNull(terms);
@@ -400,8 +399,9 @@ public class StringStatsAggregatorTests extends AggregatorTestCase {
         Query query,
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Consumer<InternalStringStats> verify,
-        MappedFieldType fieldType)  throws IOException {
-        testCase(aggregationBuilder, query, buildIndex, verify, fieldType);
+        MappedFieldType... fieldTypes
+    ) throws IOException {
+        testCase(aggregationBuilder, query, buildIndex, verify, fieldTypes);
     }
 
     @Override

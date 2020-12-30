@@ -62,6 +62,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
         private Float requestsPerSecond;
         private TimeValue timeout;
         private String jobId;
+        private String [] expandedJobIds;
 
         public Request() {}
 
@@ -111,6 +112,20 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             return this;
         }
 
+        /**
+         * Not serialized, the expanded job Ids should only be used
+         * on the executing node.
+         * @return The expanded Ids in the case where {@code jobId} is not `_all`
+         * otherwise null.
+         */
+        public String [] getExpandedJobIds() {
+            return expandedJobIds;
+        }
+
+        public void setExpandedJobIds(String [] expandedJobIds) {
+            this.expandedJobIds = expandedJobIds;
+        }
+
         @Override
         public ActionRequestValidationException validate() {
             if (this.requestsPerSecond != null && this.requestsPerSecond != -1.0f && this.requestsPerSecond <= 0) {
@@ -128,12 +143,13 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             Request request = (Request) o;
             return Objects.equals(requestsPerSecond, request.requestsPerSecond)
                 && Objects.equals(jobId, request.jobId)
+                && Objects.equals(expandedJobIds, request.expandedJobIds)
                 && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(requestsPerSecond, timeout, jobId);
+            return Objects.hash(requestsPerSecond, timeout, jobId, expandedJobIds);
         }
 
         @Override
@@ -146,6 +162,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
                 out.writeOptionalString(jobId);
             }
+            // expandedJobIds are set on the node and not part of serialisation
         }
     }
 
@@ -159,7 +176,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
 
         private static final ParseField DELETED = new ParseField("deleted");
 
-        private boolean deleted;
+        private final boolean deleted;
 
         public Response(boolean deleted) {
             this.deleted = deleted;

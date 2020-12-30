@@ -285,4 +285,9 @@ public class AugmentationTests extends ScriptTestCase {
         assertEquals("fcde2b2edba56bf408601fb721fe9b5c338d10ee429ea04fae5511b68fbf8fb9", execDigest("'bar'.sha256()"));
         assertEquals("97df3588b5a3f24babc3851b372f0ba71a9dcdded43b14b9d06961bfc1707d9d", execDigest("'foobarbaz'.sha256()"));
     }
+
+    public void testToEpochMilli() {
+        assertEquals(0L, exec("ZonedDateTime.parse('1970-01-01T00:00:00Z').toEpochMilli()"));
+        assertEquals(1602097376782L, exec("ZonedDateTime.parse('2020-10-07T19:02:56.782Z').toEpochMilli()"));
+    }
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -86,7 +85,7 @@ import java.util.function.BiConsumer;
  */
 public final class Script implements ToXContentObject, Writeable {
 
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(LogManager.getLogger(Script.class));
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(Script.class);
 
     /**
      * The name of the of the default scripting language.
@@ -463,7 +462,7 @@ public final class Script implements ToXContentObject, Writeable {
                         throw new ElasticsearchParseException("Value must be of type String: [" + parameterName + "]");
                     }
                 } else {
-                    deprecationLogger.deprecatedAndMaybeLog("script_unsupported_fields", "script section does not support ["
+                    deprecationLogger.deprecate("script_unsupported_fields", "script section does not support ["
                         + parameterName + "]");
                 }
             }

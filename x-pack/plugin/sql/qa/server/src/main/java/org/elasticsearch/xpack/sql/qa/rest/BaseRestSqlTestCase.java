@@ -133,7 +133,11 @@ public abstract class BaseRestSqlTestCase extends ESRestTestCase {
     }
 
     protected void index(String... docs) throws IOException {
-        Request request = new Request("POST", "/test/_bulk");
+        indexWithIndexName("test", docs);
+    }
+
+    protected void indexWithIndexName(String indexName, String... docs) throws IOException {
+        Request request = new Request("POST", "/" + indexName + "/_bulk");
         request.addParameter("refresh", "true");
         StringBuilder bulk = new StringBuilder();
         for (String doc : docs) {

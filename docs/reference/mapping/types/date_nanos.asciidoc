@@ -1,5 +1,5 @@
 [[date_nanos]]
-=== Date nanoseconds data type
+=== Date nanoseconds field type
 ++++
 <titleabbrev>Date nanoseconds</titleabbrev>
 ++++

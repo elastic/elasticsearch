@@ -44,7 +44,7 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
     public static final String NAME = "indices:admin/index_template/put";
 
     private PutComposableIndexTemplateAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
     /**

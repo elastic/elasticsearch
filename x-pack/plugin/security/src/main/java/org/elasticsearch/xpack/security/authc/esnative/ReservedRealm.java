@@ -53,6 +53,7 @@ import java.util.Map;
 public class ReservedRealm extends CachingUsernamePasswordRealm {
 
     public static final String TYPE = "reserved";
+    public static final String NAME = "reserved";
 
     private final ReservedUserInfo bootstrapUserInfo;
     public static final Setting<Boolean> ACCEPT_DEFAULT_PASSWORD_SETTING = Setting.boolSetting(
@@ -66,27 +67,21 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private final boolean realmEnabled;
     private final boolean anonymousEnabled;
     private final SecurityIndexManager securityIndex;
-    private final Hasher reservedRealmHasher;
-    private final ReservedUserInfo disabledDefaultUserInfo;
-    private final ReservedUserInfo enabledDefaultUserInfo;
 
-    private final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     public ReservedRealm(Environment env, Settings settings, NativeUsersStore nativeUsersStore, AnonymousUser anonymousUser,
                          SecurityIndexManager securityIndex, ThreadPool threadPool) {
-        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, TYPE), settings, env, threadPool.getThreadContext()), threadPool);
+        super(new RealmConfig(new RealmConfig.RealmIdentifier(TYPE, NAME), settings, env, threadPool.getThreadContext()), threadPool);
         this.nativeUsersStore = nativeUsersStore;
         this.realmEnabled = XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
         this.anonymousUser = anonymousUser;
         this.anonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.securityIndex = securityIndex;
-        this.reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
-        final char[] emptyPasswordHash = reservedRealmHasher.hash(new SecureString("".toCharArray()));
-        disabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, false, true);
-        enabledDefaultUserInfo = new ReservedUserInfo(emptyPasswordHash, true, true);
-        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? emptyPasswordHash :
+        final Hasher reservedRealmHasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings));
+        final char[] hash = BOOTSTRAP_ELASTIC_PASSWORD.get(settings).length() == 0 ? new char[0] :
             reservedRealmHasher.hash(BOOTSTRAP_ELASTIC_PASSWORD.get(settings));
-        bootstrapUserInfo = new ReservedUserInfo(hash, true, hash == emptyPasswordHash);
+        bootstrapUserInfo = new ReservedUserInfo(hash, true);
     }
 
     @Override
@@ -100,7 +95,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                 AuthenticationResult result;
                 if (userInfo != null) {
                     try {
-                        if (userInfo.hasEmptyPassword) {
+                        if (userInfo.hasEmptyPassword()) {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         } else if (userInfo.verifyPassword(token.credentials())) {
                             final User user = getUser(token.principal(), userInfo);
@@ -110,8 +105,6 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             result = AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null);
                         }
                     } finally {
-                        assert userInfo.passwordHash != disabledDefaultUserInfo.passwordHash : "default user info must be cloned";
-                        assert userInfo.passwordHash != enabledDefaultUserInfo.passwordHash : "default user info must be cloned";
                         assert userInfo.passwordHash != bootstrapUserInfo.passwordHash : "bootstrap user info must be cloned";
                         Arrays.fill(userInfo.passwordHash, (char) 0);
                     }
@@ -129,8 +122,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (realmEnabled == false) {
             if (anonymousEnabled && AnonymousUser.isAnonymousUsername(username, config.settings())) {
                 listener.onResponse(anonymousUser);
+            } else {
+                listener.onResponse(null);
             }
-            listener.onResponse(null);
         } else if (ClientReservedRealm.isReserved(username, config.settings()) == false) {
             listener.onResponse(null);
         } else if (AnonymousUser.isAnonymousUsername(username, config.settings())) {
@@ -217,7 +211,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void getUserInfo(final String username, ActionListener<ReservedUserInfo> listener) {
         if (userIsDefinedForCurrentSecurityMapping(username) == false) {
             logger.debug("Marking user [{}] as disabled because the security mapping is not at the required version", username);
-            listener.onResponse(disabledDefaultUserInfo.deepClone());
+            listener.onResponse(ReservedUserInfo.defaultDisabledUserInfo());
         } else if (securityIndex.indexExists() == false) {
             listener.onResponse(getDefaultUserInfo(username));
         } else {
@@ -238,9 +232,9 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
     private void logDeprecatedUser(final User user){
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
-            deprecationLogger.deprecatedAndMaybeLog("deprecated_user-" + user.principal(), "The user [" + user.principal() +
-                "] is deprecated and will be removed in a future version of Elasticsearch. " +
-                metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
+            deprecationLogger.deprecate("deprecated_user-" + user.principal(), "The user [" + user.principal() +
+                    "] is deprecated and will be removed in a future version of Elasticsearch. " +
+                    metadata.get(MetadataUtils.DEPRECATED_REASON_METADATA_KEY));
         }
     }
 
@@ -248,7 +242,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         if (ElasticUser.NAME.equals(username)) {
             return bootstrapUserInfo.deepClone();
         } else {
-            return enabledDefaultUserInfo.deepClone();
+            return ReservedUserInfo.defaultEnabledUserInfo();
         }
     }
 

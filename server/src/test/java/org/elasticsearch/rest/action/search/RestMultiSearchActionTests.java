@@ -23,8 +23,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
 
 import java.nio.charset.StandardCharsets;
@@ -46,6 +46,9 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .withContent(bytesContent, XContentType.JSON)
             .build();
 
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
+
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
     }
@@ -59,6 +62,9 @@ public class RestMultiSearchActionTests extends RestActionTestCase {
             .withPath("/some_index/_msearch")
             .withContent(bytesContent, XContentType.JSON)
             .build();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteLocallyVerifier((arg1, arg2) -> null);
 
         dispatchRequest(request);
         assertWarnings(RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);

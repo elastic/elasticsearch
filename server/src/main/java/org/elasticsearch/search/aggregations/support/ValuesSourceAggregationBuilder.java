@@ -27,7 +27,6 @@ import org.elasticsearch.common.xcontent.AbstractObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -41,11 +40,18 @@ import java.util.Map;
 import java.util.Objects;
 
 public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggregationBuilder<AB>>
-        extends AbstractAggregationBuilder<AB> {
+    extends AbstractAggregationBuilder<AB> {
 
     public static <T> void declareFields(
         AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
         boolean scriptable, boolean formattable, boolean timezoneAware) {
+        declareFields(objectParser, scriptable, formattable, timezoneAware, true);
+
+    }
+
+    public static <T> void declareFields(
+        AbstractObjectParser<? extends ValuesSourceAggregationBuilder<?>, T> objectParser,
+        boolean scriptable, boolean formattable, boolean timezoneAware, boolean fieldRequired) {
 
 
         objectParser.declareField(ValuesSourceAggregationBuilder::field, XContentParser::text,
@@ -70,12 +76,17 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
         if (scriptable) {
             objectParser.declareField(ValuesSourceAggregationBuilder::script,
-                    (parser, context) -> Script.parse(parser),
-                    Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
-            String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(), Script.SCRIPT_PARSE_FIELD.getPreferredName()};
-            objectParser.declareRequiredFieldSet(fields);
+                (parser, context) -> Script.parse(parser),
+                Script.SCRIPT_PARSE_FIELD, ObjectParser.ValueType.OBJECT_OR_STRING);
+            if (fieldRequired) {
+                String[] fields = new String[]{ParseField.CommonFields.FIELD.getPreferredName(),
+                    Script.SCRIPT_PARSE_FIELD.getPreferredName()};
+                objectParser.declareRequiredFieldSet(fields);
+            }
         } else {
-            objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
+            if (fieldRequired) {
+                objectParser.declareRequiredFieldSet(ParseField.CommonFields.FIELD.getPreferredName());
+            }
         }
 
         if (timezoneAware) {
@@ -90,7 +101,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     public abstract static class LeafOnly<VS extends ValuesSource, AB extends ValuesSourceAggregationBuilder<AB>>
-            extends ValuesSourceAggregationBuilder<AB> {
+        extends ValuesSourceAggregationBuilder<AB> {
 
         protected LeafOnly(String name) {
             super(name);
@@ -114,7 +125,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         @Override
         public final AB subAggregations(Builder subFactories) {
             throw new AggregationInitializationException("Aggregator [" + name + "] of type ["
-                    + getType() + "] cannot accept sub-aggregations");
+                + getType() + "] cannot accept sub-aggregations");
         }
 
         @Override
@@ -151,7 +162,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      * Read from a stream.
      */
     protected ValuesSourceAggregationBuilder(StreamInput in)
-            throws IOException {
+        throws IOException {
         super(in);
         if (serializeTargetValueType(in.getVersion())) {
             ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
@@ -214,7 +225,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     /**
      * DO NOT OVERRIDE THIS!
-     *
+     * <p>
      * This method only exists for legacy support.  No new aggregations need this, nor should they override it.
      *
      * @param version For backwards compatibility, subclasses can change behavior based on the version
@@ -264,6 +275,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     /**
      * This setter should only be used during parsing, to set the userValueTypeHint.  This is information the user provides in the json
      * query to indicate the output type of a script or the type of the 'missing' replacement value.
+     *
      * @param valueType - The parsed {@link ValueType} based on the string the user specified
      * @return - The modified builder instance, for chaining.
      */
@@ -343,17 +355,27 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
     }
 
     @Override
-    protected final ValuesSourceAggregatorFactory doBuild(QueryShardContext queryShardContext, AggregatorFactory parent,
+    protected final ValuesSourceAggregatorFactory doBuild(AggregationContext context, AggregatorFactory parent,
                                                           Builder subFactoriesBuilder) throws IOException {
-        ValuesSourceConfig config = resolveConfig(queryShardContext);
-        if (queryShardContext.getValuesSourceRegistry().isRegistered(getType())) {
-            // Only test if the values source type is valid if the aggregation uses the registry
-            AggregatorSupplier supplier = queryShardContext.getValuesSourceRegistry().getAggregator(config, getType());
-        }
-        // TODO: We should pass the supplier in from here.  Right now this just checks that the VST is valid
-        ValuesSourceAggregatorFactory factory = innerBuild(queryShardContext, config, parent, subFactoriesBuilder);
+        ValuesSourceConfig config = resolveConfig(context);
+
+        ValuesSourceAggregatorFactory factory;
+
+        /*
+        The inner builder implementation is responsible for validating the
+        ValuesSourceType mapping, typically by checking if an aggregation
+        supplier has been registered for that type on this aggregation, and
+        throw IllegalArgumentException if the mapping is not valid.  Note
+        that we need to throw from here because
+        AbstractAggregationBuilder#build, which called this, will attempt to
+        register the agg usage next, and if the usage is invalid that will fail
+        with a weird error.
+        */
+        factory = innerBuild(context, config, parent, subFactoriesBuilder);
         return factory;
     }
+
+    protected abstract ValuesSourceRegistry.RegistryKey<?> getRegistryKey();
 
     /**
      * Aggregations should use this method to define a {@link ValuesSourceType} of last resort.  This will only be used when the resolver
@@ -363,12 +385,21 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      */
     protected abstract ValuesSourceType defaultValueSourceType();
 
-    protected ValuesSourceConfig resolveConfig(QueryShardContext queryShardContext) {
-        return ValuesSourceConfig.resolve(queryShardContext,
-                this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType());
+    /**
+     * Aggregations should override this if they need non-standard logic for resolving where to get values from.  For example, join
+     * aggregations (like Parent and Child) ask the user to specify one side of the join and then look up the other field to read values
+     * from.
+     * <p>
+     * The default implementation just uses the field and/or script the user provided.
+     *
+     * @return A {@link ValuesSourceConfig} configured based on the parsed field and/or script.
+     */
+    protected ValuesSourceConfig resolveConfig(AggregationContext context) {
+        return ValuesSourceConfig.resolve(context,
+            this.userValueTypeHint, field, script, missing, timeZone, format, this.defaultValueSourceType());
     }
 
-    protected abstract ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+    protected abstract ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                                 ValuesSourceConfig config,
                                                                 AggregatorFactory parent,
                                                                 Builder subFactoriesBuilder) throws IOException;

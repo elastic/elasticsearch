@@ -92,9 +92,6 @@ public class MultiBucketCollectorTests  extends ESTestCase {
 
         @Override
         public void preCollection() {}
-
-        @Override
-        public void postCollection() {}
     }
 
     private static class TotalHitCountBucketCollector extends BucketCollector {
@@ -121,9 +118,6 @@ public class MultiBucketCollectorTests  extends ESTestCase {
 
         @Override
         public void preCollection() {}
-
-        @Override
-        public void postCollection() {}
 
         int getTotalHits() {
             return count;
@@ -158,9 +152,6 @@ public class MultiBucketCollectorTests  extends ESTestCase {
 
         @Override
         public void preCollection() {}
-
-        @Override
-        public void postCollection() {}
     }
 
     public void testCollectionTerminatedExceptionHandling() throws IOException {

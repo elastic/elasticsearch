@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
@@ -37,6 +38,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -73,9 +75,26 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-public class TransportService extends AbstractLifecycleComponent implements ReportingService<TransportInfo>, TransportMessageListener,
-    TransportConnectionListener {
+public class TransportService extends AbstractLifecycleComponent
+        implements ReportingService<TransportInfo>, TransportMessageListener, TransportConnectionListener {
+
     private static final Logger logger = LogManager.getLogger(TransportService.class);
+
+    private static final String PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY = "es.unsafely_permit_handshake_from_incompatible_builds";
+    private static final boolean PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS;
+
+    static {
+        final String value = System.getProperty(PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
+        if (value == null) {
+            PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS = false;
+        } else if (Boolean.parseBoolean(value)) {
+            PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS = true;
+        } else {
+            throw new IllegalArgumentException("invalid value [" + value + "] for system property ["
+                    + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "]");
+        }
+    }
+
 
     public static final String DIRECT_RESPONSE_PROFILE = ".direct";
     public static final String HANDSHAKE_ACTION_NAME = "internal:transport/handshake";
@@ -115,6 +134,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     private final RemoteClusterService remoteClusterService;
 
     private final boolean validateConnections;
+    private final boolean requireCompatibleBuild;
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -160,10 +180,17 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public TransportService(Settings settings, Transport transport, ThreadPool threadPool, TransportInterceptor transportInterceptor,
                             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory, @Nullable ClusterSettings clusterSettings,
                             Set<String> taskHeaders, ConnectionManager connectionManager) {
+
+        final boolean isTransportClient = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey()));
+
+        // If we are a transport client then we skip the check that the remote node has a compatible build hash
+        this.requireCompatibleBuild = isTransportClient == false;
+
         // The only time we do not want to validate node connections is when this is a transport client using the simple node sampler
-        this.validateConnections = TransportClient.CLIENT_TYPE.equals(settings.get(Client.CLIENT_TYPE_SETTING_S.getKey())) == false ||
-            TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
+        this.validateConnections = isTransportClient == false || TransportClient.CLIENT_TRANSPORT_SNIFF.get(settings);
+
         this.transport = transport;
+        transport.setSlowLogThreshold(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING.get(settings));
         this.threadPool = threadPool;
         this.localNodeFactory = localNodeFactory;
         this.connectionManager = connectionManager;
@@ -183,6 +210,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             if (remoteClusterClient) {
                 remoteClusterService.listenForUpdates(clusterSettings);
             }
+            clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
@@ -190,7 +218,14 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             false, false,
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode, clusterName, localNode.getVersion())));
+                new HandshakeResponse(localNode.getVersion(), Build.CURRENT.hash(), localNode, clusterName)));
+
+        if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
+            logger.warn("transport handshakes from incompatible builds are unsafely permitted on this node; remove system property [" +
+                    PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] to resolve this warning");
+            DeprecationLogger.getLogger(TransportService.class).deprecate("permit_handshake_from_incompatible_builds",
+                "system property [" + PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY + "] is deprecated and should be removed");
+        }
     }
 
     public RemoteClusterService getRemoteClusterService() {
@@ -199,6 +234,10 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
 
     public DiscoveryNode getLocalNode() {
         return localNode;
+    }
+
+    public Transport.Connection getLocalNodeConnection() {
+        return localNodeConnection;
     }
 
     public TaskManager getTaskManager() {
@@ -348,7 +387,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public void connectToNode(final DiscoveryNode node, ConnectionProfile connectionProfile) {
-        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, ActionListener.map(fut, x -> null)));
+        PlainActionFuture.get(fut -> connectToNode(node, connectionProfile, fut.map(x -> null)));
     }
 
     /**
@@ -381,7 +420,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public ConnectionManager.ConnectionValidator connectionValidator(DiscoveryNode node) {
         return (newConnection, actualProfile, listener) -> {
             // We don't validate cluster names to allow for CCS connections.
-            handshake(newConnection, actualProfile.getHandshakeTimeout().millis(), cn -> true, ActionListener.map(listener, resp -> {
+            handshake(newConnection, actualProfile.getHandshakeTimeout(), cn -> true, listener.map(resp -> {
                 final DiscoveryNode remote = resp.discoveryNode;
                 if (validateConnections && node.equals(remote) == false) {
                     throw new ConnectTransportException(node, "handshake failed. unexpected remote node " + remote);
@@ -434,10 +473,9 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout,
+        final TimeValue handshakeTimeout,
         final ActionListener<DiscoveryNode> listener) {
-        handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(),
-            ActionListener.map(listener, HandshakeResponse::getDiscoveryNode));
+        handshake(connection, handshakeTimeout, clusterName.getEqualityPredicate(), listener.map(HandshakeResponse::getDiscoveryNode));
     }
 
     /**
@@ -455,11 +493,11 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
      */
     public void handshake(
         final Transport.Connection connection,
-        final long handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
+        final TimeValue handshakeTimeout, Predicate<ClusterName> clusterNamePredicate,
         final ActionListener<HandshakeResponse> listener) {
         final DiscoveryNode node = connection.getNode();
         sendRequest(connection, HANDSHAKE_ACTION_NAME, HandshakeRequest.INSTANCE,
-            TransportRequestOptions.builder().withTimeout(handshakeTimeout).build(),
+            TransportRequestOptions.timeout(handshakeTimeout),
             new ActionListenerResponseHandler<>(
                 new ActionListener<HandshakeResponse>() {
                     @Override
@@ -480,7 +518,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
                         listener.onFailure(e);
                     }
                 }
-                , HandshakeResponse::new, ThreadPool.Names.GENERIC
+                , in -> new HandshakeResponse(in, requireCompatibleBuild), ThreadPool.Names.GENERIC
             ));
     }
 
@@ -502,28 +540,89 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     }
 
     public static class HandshakeResponse extends TransportResponse {
-        private final DiscoveryNode discoveryNode;
-        private final ClusterName clusterName;
+
+        private static final Version BUILD_HASH_HANDSHAKE_VERSION = Version.V_7_11_0;
+
         private final Version version;
 
-        public HandshakeResponse(DiscoveryNode discoveryNode, ClusterName clusterName, Version version) {
-            this.discoveryNode = discoveryNode;
-            this.version = version;
-            this.clusterName = clusterName;
+        @Nullable // if version < BUILD_HASH_HANDSHAKE_VERSION
+        private final String buildHash;
+
+        private final DiscoveryNode discoveryNode;
+
+        private final ClusterName clusterName;
+
+        public HandshakeResponse(Version version, String buildHash, DiscoveryNode discoveryNode, ClusterName clusterName) {
+            this.buildHash = Objects.requireNonNull(buildHash);
+            this.discoveryNode = Objects.requireNonNull(discoveryNode);
+            this.version = Objects.requireNonNull(version);
+            this.clusterName = Objects.requireNonNull(clusterName);
         }
 
-        public HandshakeResponse(StreamInput in) throws IOException {
+        public HandshakeResponse(StreamInput in, boolean requireCompatibleBuild) throws IOException {
             super(in);
-            discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
-            clusterName = new ClusterName(in);
-            version = Version.readVersion(in);
+            if (in.getVersion().onOrAfter(BUILD_HASH_HANDSHAKE_VERSION)) {
+                // the first two fields need only VInts and raw (ASCII) characters, so we cross our fingers and hope that they appear
+                // on the wire as we expect them to even if this turns out to be an incompatible build
+                version = Version.readVersion(in);
+                buildHash = in.readString();
+
+                try {
+                    // If the remote node is incompatible then make an effort to identify it anyway, so we can mention it in the exception
+                    // message, but recognise that this may fail
+                    discoveryNode = new DiscoveryNode(in);
+                } catch (Exception e) {
+                    if (isIncompatibleBuild(version, buildHash, requireCompatibleBuild)) {
+                        throw new IllegalArgumentException("unidentifiable remote node is build [" + buildHash +
+                                "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
+                                "] of version [" + Version.CURRENT + "] which has an incompatible wire format", e);
+                    } else {
+                        throw e;
+                    }
+                }
+
+                if (isIncompatibleBuild(version, buildHash, requireCompatibleBuild)) {
+                    if (PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS) {
+                        logger.warn("remote node [{}] is build [{}] of version [{}] but this node is build [{}] of version [{}] " +
+                                        "which may not be compatible; remove system property [{}] to resolve this warning",
+                                discoveryNode, buildHash, version, Build.CURRENT.hash(), Version.CURRENT,
+                                PERMIT_HANDSHAKES_FROM_INCOMPATIBLE_BUILDS_KEY);
+                    } else {
+                        throw new IllegalArgumentException("remote node [" + discoveryNode + "] is build [" + buildHash +
+                                "] of version [" + version + "] but this node is build [" + Build.CURRENT.hash() +
+                                "] of version [" + Version.CURRENT + "] which has an incompatible wire format");
+                    }
+                }
+
+                clusterName = new ClusterName(in);
+            } else {
+                discoveryNode = in.readOptionalWriteable(DiscoveryNode::new);
+                clusterName = new ClusterName(in);
+                version = Version.readVersion(in);
+                buildHash = null;
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalWriteable(discoveryNode);
-            clusterName.writeTo(out);
-            Version.writeVersion(version, out);
+            if (out.getVersion().onOrAfter(BUILD_HASH_HANDSHAKE_VERSION)) {
+                Version.writeVersion(version, out);
+                out.writeString(buildHash);
+                discoveryNode.writeTo(out);
+                clusterName.writeTo(out);
+            } else {
+                out.writeOptionalWriteable(discoveryNode);
+                clusterName.writeTo(out);
+                Version.writeVersion(version, out);
+            }
+        }
+
+        public Version getVersion() {
+            return version;
+        }
+
+        public String getBuildHash() {
+            return buildHash;
         }
 
         public DiscoveryNode getDiscoveryNode() {
@@ -532,6 +631,10 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
 
         public ClusterName getClusterName() {
             return clusterName;
+        }
+
+        private static boolean isIncompatibleBuild(Version version, String buildHash, boolean requireCompatibleBuild) {
+            return requireCompatibleBuild && version == Version.CURRENT && Build.CURRENT.hash().equals(buildHash) == false;
         }
     }
 
@@ -580,15 +683,7 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
     public <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
                                                                 final TransportRequest request,
                                                                 final TransportResponseHandler<T> handler) {
-        final Transport.Connection connection;
-        try {
-            connection = getConnection(node);
-        } catch (final NodeNotConnectedException ex) {
-            // the caller might not handle this so we invoke the handler
-            handler.handleException(ex);
-            return;
-        }
-        sendRequest(connection, action, request, TransportRequestOptions.EMPTY, handler);
+        sendRequest(node, action, request, TransportRequestOptions.EMPTY, handler);
     }
 
     public final <T extends TransportResponse> void sendRequest(final DiscoveryNode node, final String action,
@@ -604,6 +699,17 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             return;
         }
         sendRequest(connection, action, request, options, handler);
+    }
+
+    /**
+     * Unwraps and returns the actual underlying connection of the given connection.
+     */
+    public static Transport.Connection unwrapConnection(Transport.Connection connection) {
+        Transport.Connection unwrapped = connection;
+        while (unwrapped instanceof RemoteConnectionManager.ProxyConnection) {
+            unwrapped = ((RemoteConnectionManager.ProxyConnection) unwrapped).getConnection();
+        }
+        return unwrapped;
     }
 
     /**
@@ -623,8 +729,18 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         try {
             final TransportResponseHandler<T> delegate;
             if (request.getParentTask().isSet()) {
-                // TODO: capture the connection instead so that we can cancel child tasks on the remote connections.
-                final Releasable unregisterChildNode = taskManager.registerChildNode(request.getParentTask().getId(), connection.getNode());
+                // If the connection is a proxy connection, then we will create a cancellable proxy task on the proxy node and an actual
+                // child task on the target node of the remote cluster.
+                //  ----> a parent task on the local cluster
+                //        |
+                //         ----> a proxy task on the proxy node on the remote cluster
+                //               |
+                //                ----> an actual child task on the target node on the remote cluster
+                // To cancel the child task on the remote cluster, we must send a cancel request to the proxy node instead of the target
+                // node as the parent task of the child task is the proxy task not the parent task on the local cluster. Hence, here we
+                // unwrap the connection and keep track of the connection to the proxy node instead of the proxy connection.
+                final Transport.Connection unwrappedConn = unwrapConnection(connection);
+                final Releasable unregisterChildNode = taskManager.registerChildConnection(request.getParentTask().getId(), unwrappedConn);
                 delegate = new TransportResponseHandler<T>() {
                     @Override
                     public void handleResponse(T response) {
@@ -1005,8 +1121,12 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
         TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
         if (timeoutInfoHolder != null) {
             long time = threadPool.relativeTimeInMillis();
-            logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, " +
-                    "action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(),
+            long sentMs = time - timeoutInfoHolder.sentTime();
+            long timedOutMs = time - timeoutInfoHolder.timeoutTime();
+            logger.warn("Received response for a request that has timed out, sent [{}/{}ms] ago, timed out [{}/{}ms] ago, " +
+                    "action [{}], node [{}], id [{}]",
+                TimeValue.timeValueMillis(sentMs), sentMs,
+                TimeValue.timeValueMillis(timedOutMs), timedOutMs,
                 timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
             action = timeoutInfoHolder.action();
             sourceNode = timeoutInfoHolder.node();
@@ -1356,4 +1476,5 @@ public class TransportService extends AbstractLifecycleComponent implements Repo
             }
         }
     }
+
 }

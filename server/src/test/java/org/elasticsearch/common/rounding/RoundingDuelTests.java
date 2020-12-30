@@ -39,10 +39,13 @@ public class RoundingDuelTests extends ESTestCase  {
         org.elasticsearch.common.Rounding.DateTimeUnit randomDateTimeUnit =
             randomFrom(org.elasticsearch.common.Rounding.DateTimeUnit.values());
         org.elasticsearch.common.Rounding rounding;
+        boolean oldNextRoundingValueWorks;
         if (randomBoolean()) {
             rounding = org.elasticsearch.common.Rounding.builder(randomDateTimeUnit).timeZone(ZoneOffset.UTC).build();
+            oldNextRoundingValueWorks = true;
         } else {
             rounding = org.elasticsearch.common.Rounding.builder(timeValue()).timeZone(ZoneOffset.UTC).build();
+            oldNextRoundingValueWorks = false;
         }
         BytesStreamOutput output = new BytesStreamOutput();
         output.setVersion(VersionUtils.getPreviousVersion(Version.V_7_0_0));
@@ -54,7 +57,9 @@ public class RoundingDuelTests extends ESTestCase  {
 
         int randomInt = randomIntBetween(1, 1_000_000_000);
         assertThat(roundingJoda.round(randomInt), is(roundingJavaTime.round(randomInt)));
-        assertThat(roundingJoda.nextRoundingValue(randomInt), is(roundingJavaTime.nextRoundingValue(randomInt)));
+        if (oldNextRoundingValueWorks) {
+            assertThat(roundingJoda.nextRoundingValue(randomInt), is(roundingJavaTime.nextRoundingValue(randomInt)));
+        }
     }
 
     public void testDuellingImplementations() {

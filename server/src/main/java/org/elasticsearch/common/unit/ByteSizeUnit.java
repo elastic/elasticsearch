@@ -276,6 +276,22 @@ public enum ByteSizeUnit implements Writeable {
         return d * m;
     }
 
+    /**
+     * Convert to an {@code int} number of bytes. Callers are expected to be certain this will not overflow.
+     * @throws IllegalArgumentException on overflow, unless assertions are enabled in which case it throws an {@link AssertionError}.
+     * @return The number of bytes represented as an {@code int}.
+     */
+    public final int toIntBytes(long size) {
+        final long l = toBytes(size);
+        final int i = (int) l;
+        if (i != l) {
+            final String message = "could not convert [" + size + " " + this + "] to an int";
+            assert false : message;
+            throw new IllegalArgumentException(message);
+        }
+        return i;
+    }
+
     public abstract long toBytes(long size);
 
     public abstract long toKB(long size);

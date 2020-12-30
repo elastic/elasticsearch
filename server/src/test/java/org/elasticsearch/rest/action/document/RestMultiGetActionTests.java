@@ -38,6 +38,9 @@ public class RestMultiGetActionTests extends RestActionTestCase {
     }
 
     public void testTypeInPath() {
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
+
         RestRequest deprecatedRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(Method.GET)
             .withPath("some_index/some_type/_mget")
@@ -66,6 +69,9 @@ public class RestMultiGetActionTests extends RestActionTestCase {
                     .endObject()
                 .endArray()
             .endObject();
+
+        // We're not actually testing anything to do with the client, but need to set this so it doesn't fail the test for being unset.
+        verifyingClient.setExecuteVerifier((arg1, arg2) -> null);
 
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
             .withPath("_mget")

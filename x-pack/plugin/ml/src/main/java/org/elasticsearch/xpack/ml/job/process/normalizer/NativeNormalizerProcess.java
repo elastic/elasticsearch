@@ -9,7 +9,6 @@ import org.elasticsearch.xpack.ml.job.process.normalizer.output.NormalizerResult
 import org.elasticsearch.xpack.ml.process.AbstractNativeProcess;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
 
-import java.time.Duration;
 import java.util.Collections;
 
 /**
@@ -19,8 +18,8 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
 
     private static final String NAME = "normalizer";
 
-    NativeNormalizerProcess(String jobId, ProcessPipes processPipes, Duration processConnectTimeout) {
-        super(jobId, processPipes, 0, Collections.emptyList(), (ignore) -> {}, processConnectTimeout);
+    NativeNormalizerProcess(String jobId, ProcessPipes processPipes) {
+        super(jobId, processPipes, 0, Collections.emptyList(), (ignore) -> {});
     }
 
     @Override
@@ -36,6 +35,10 @@ class NativeNormalizerProcess extends AbstractNativeProcess implements Normalize
     @Override
     public void persistState() {
         // nothing to persist
+    }
+
+    @Override
+    public void persistState(long snapshotTimestamp, String snapshotId, String snapshotDescription) {
     }
 
     @Override

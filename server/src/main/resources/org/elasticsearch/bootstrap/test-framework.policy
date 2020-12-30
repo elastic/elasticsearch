@@ -88,25 +88,3 @@ grant codeBase "${codebase.httpasyncclient}" {
   // rest client uses system properties which gets the default proxy
   permission java.net.NetPermission "getProxySelector";
 };
-
-grant codeBase "${codebase.junit-rt.jar}" {
-  // allows IntelliJ IDEA JUnit test runner to control number of test iterations
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "file:${gradle.dist.lib}/-" {
-  // gradle test worker code needs a slew of permissions, we give full access here since gradle isn't a production
-  // dependency and there's no point in exercising the security policy against it
-  permission java.security.AllPermission;
-};
-
-grant codeBase "file:${gradle.worker.jar}" {
-  // gradle test worker code needs a slew of permissions, we give full access here since gradle isn't a production
-  // dependency and there's no point in exercising the security policy against it
-  permission java.security.AllPermission;
-};
-
-grant {
-  // since the gradle test worker jar is on the test classpath, our tests should be able to read it
-  permission java.io.FilePermission "${gradle.worker.jar}", "read";
-};

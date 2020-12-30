@@ -23,6 +23,8 @@ import org.apache.http.Header;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpGet;
+import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.methods.HttpPut;
 import org.apache.http.message.BasicHeader;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.http.ssl.SSLContexts;
@@ -31,6 +33,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -43,6 +46,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -79,6 +83,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -112,6 +117,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public abstract class ESRestTestCase extends ESTestCase {
     public static final String TRUSTSTORE_PATH = "truststore.path";
     public static final String TRUSTSTORE_PASSWORD = "truststore.password";
+    public static final String CERTIFICATE_AUTHORITIES = "certificate_authorities";
     public static final String CLIENT_SOCKET_TIMEOUT = "client.socket.timeout";
     public static final String CLIENT_PATH_PREFIX = "client.path.prefix";
 
@@ -418,7 +424,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             } catch (final IOException e) {
                 throw new AssertionError("error getting active tasks list", e);
             }
-        });
+        }, 30L, TimeUnit.SECONDS);
     }
 
     /**
@@ -672,8 +678,23 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         try {
-            final Request deleteRequest = new Request("DELETE", "*");
+            //remove all indices except ilm history which can pop up after deleting all data streams but shouldn't interfere
+            final Request deleteRequest = new Request("DELETE", "*,-.ds-ilm-history-*");
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            RequestOptions.Builder allowSystemIndexAccessWarningOptions = RequestOptions.DEFAULT.toBuilder();
+            allowSystemIndexAccessWarningOptions.setWarningsHandler(warnings -> {
+                    if (warnings.size() == 0) {
+                        return false;
+                    } else if (warnings.size() > 1) {
+                        return true;
+                    }
+                    // We don't know exactly which indices we're cleaning up in advance, so just accept all system index access warnings.
+                    final String warning = warnings.get(0);
+                    final boolean isSystemIndexWarning = warning.contains("this request accesses system indices")
+                        && warning.contains("but in a future major version, direct access to system indices will be prevented by default");
+                    return isSystemIndexWarning == false;
+                });
+            deleteRequest.setOptions(allowSystemIndexAccessWarningOptions);
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -689,12 +710,21 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void wipeDataStreams() throws IOException {
         try {
             if (hasXPack()) {
-                adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                adminClient().performRequest(new Request("DELETE", "_data_stream/*?expand_wildcards=all"));
             }
         } catch (ResponseException e) {
-            // We hit a version of ES that doesn't have data streams enabled so it's safe to ignore
-            if (e.getResponse().getStatusLine().getStatusCode() != 405 && e.getResponse().getStatusLine().getStatusCode() != 500) {
-                throw e;
+            // We hit a version of ES that doesn't understand expand_wildcards, try again without it
+            try {
+                if (hasXPack()) {
+                    adminClient().performRequest(new Request("DELETE", "_data_stream/*"));
+                }
+            } catch (ResponseException ee) {
+                // We hit a version of ES that doesn't serialize DeleteDataStreamAction.Request#wildcardExpressionsOriginallySpecified
+                //field or that doesn't support data streams so it's safe to ignore
+                int statusCode = ee.getResponse().getStatusLine().getStatusCode();
+                if (org.elasticsearch.common.collect.Set.of(404, 405, 500).contains(statusCode) == false) {
+                    throw ee;
+                }
             }
         }
     }
@@ -813,7 +843,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected void refreshAllIndices() throws IOException {
         boolean includeHidden = minimumNodeVersion().onOrAfter(Version.V_7_7_0);
         Request refreshRequest = new Request("POST", "/_refresh");
-        refreshRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+        refreshRequest.addParameter("expand_wildcards", "open" + (includeHidden ? ",hidden" : ""));
+        // Allow system index deprecation warnings
+        final Builder requestOptions = RequestOptions.DEFAULT.toBuilder();
+        requestOptions.setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else if (warnings.size() > 1) {
+                return true;
+            } else {
+                return warnings.get(0).startsWith("this request accesses system indices:") == false;
+            }
+        });
+        refreshRequest.setOptions(requestOptions);
         client().performRequest(refreshRequest);
     }
 
@@ -982,8 +1024,19 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void configureClient(RestClientBuilder builder, Settings settings) throws IOException {
+        String certificateAuthorities = settings.get(CERTIFICATE_AUTHORITIES);
         String keystorePath = settings.get(TRUSTSTORE_PATH);
+
+        if (certificateAuthorities != null && keystorePath != null) {
+            throw new IllegalStateException("Cannot set both " + CERTIFICATE_AUTHORITIES + " and " + TRUSTSTORE_PATH
+                + ". Please configure one of these.");
+
+        }
         if (keystorePath != null) {
+            if (inFipsJvm()) {
+                throw new IllegalStateException("Keystore " + keystorePath + "cannot be used in FIPS 140 mode. Please configure "
+                    + CERTIFICATE_AUTHORITIES + " with a PEM encoded trusted CA/certificate instead");
+            }
             final String keystorePass = settings.get(TRUSTSTORE_PASSWORD);
             if (keystorePass == null) {
                 throw new IllegalStateException(TRUSTSTORE_PATH + " is provided but not " + TRUSTSTORE_PASSWORD);
@@ -1001,7 +1054,24 @@ public abstract class ESRestTestCase extends ESTestCase {
                 SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
                 SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
                 builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
-            } catch (KeyStoreException |NoSuchAlgorithmException |KeyManagementException |CertificateException e) {
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
+                throw new RuntimeException("Error setting up ssl", e);
+            }
+        }
+        if (certificateAuthorities != null) {
+            Path path = PathUtils.get(certificateAuthorities);
+            if (!Files.exists(path)) {
+                throw new IllegalStateException(CERTIFICATE_AUTHORITIES + " is set but points to a non-existing file");
+            }
+            try {
+                KeyStore keyStore = KeyStore.getInstance(KeyStore.getDefaultType());
+                keyStore.load(null, null);
+                Certificate cert = PemUtils.readCertificates(Collections.singletonList(path)).get(0);
+                keyStore.setCertificateEntry(cert.toString(), cert);
+                SSLContext sslcontext = SSLContexts.custom().loadTrustMaterial(keyStore, null).build();
+                SSLIOSessionStrategy sessionStrategy = new SSLIOSessionStrategy(sslcontext);
+                builder.setHttpClientConfigCallback(httpClientBuilder -> httpClientBuilder.setSSLStrategy(sessionStrategy));
+            } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | CertificateException e) {
                 throw new RuntimeException("Error setting up ssl", e);
             }
         }
@@ -1046,7 +1116,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * in an non green state
      * @param index index to test for
      **/
-    protected static void ensureGreen(String index) throws IOException {
+    public static void ensureGreen(String index) throws IOException {
         ensureHealth(index, (request) -> {
             request.addParameter("wait_for_status", "green");
             request.addParameter("wait_for_no_relocating_shards", "true");
@@ -1220,11 +1290,61 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static Map<String, Object> getAsMap(final String endpoint) throws IOException {
         Response response = client().performRequest(new Request("GET", endpoint));
+        return responseAsMap(response);
+    }
+
+    protected static Map<String, Object> responseAsMap(Response response) throws IOException {
         XContentType entityContentType = XContentType.fromMediaTypeOrFormat(response.getEntity().getContentType().getValue());
         Map<String, Object> responseEntity = XContentHelper.convertToMap(entityContentType.xContent(),
                 response.getEntity().getContent(), false);
         assertNotNull(responseEntity);
         return responseEntity;
+    }
+
+    protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository);
+        request.addParameter("verify", Boolean.toString(verify));
+        request.setJsonEntity(Strings.toString(new PutRepositoryRequest(repository).type(type).settings(settings)));
+
+        final Response response = client().performRequest(request);
+        assertAcked("Failed to create repository [" + repository + "] of type [" + type + "]: " + response, response);
+    }
+
+    protected static void createSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        final Request request = new Request(HttpPut.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot);
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+
+        final Response response = client().performRequest(request);
+        assertThat(
+            "Failed to create snapshot [" + snapshot + "] in repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
+    }
+
+    protected static void restoreSnapshot(String repository, String snapshot, boolean waitForCompletion) throws IOException {
+        final Request request = new Request(HttpPost.METHOD_NAME, "_snapshot/" + repository + '/' + snapshot + "/_restore");
+        request.addParameter("wait_for_completion", Boolean.toString(waitForCompletion));
+
+        final Response response = client().performRequest(request);
+        assertThat(
+            "Failed to restore snapshot [" + snapshot + "] from repository [" + repository + "]: " + response,
+            response.getStatusLine().getStatusCode(),
+            equalTo(RestStatus.OK.getStatus())
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void assertAcked(String message, Response response) throws IOException {
+        final int responseStatusCode = response.getStatusLine().getStatusCode();
+        assertThat(
+            message + ": expecting response code [200] but got [" + responseStatusCode + ']',
+            responseStatusCode,
+            equalTo(RestStatus.OK.getStatus())
+        );
+        final Map<String, Object> responseAsMap = responseAsMap(response);
+        Boolean acknowledged = (Boolean) XContentMapValues.extractValue(responseAsMap, "acknowledged");
+        assertThat(message + ": response is not acknowledged", acknowledged, equalTo(Boolean.TRUE));
     }
 
     /**
@@ -1261,6 +1381,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             case "metrics":
             case "metrics-settings":
             case "metrics-mappings":
+            case "synthetics":
+            case "synthetics-settings":
+            case "synthetics-mappings":
+            case ".snapshot-blob-cache":
+            case ".deprecation-indexing-template":
                 return true;
             default:
                 return false;
@@ -1382,15 +1507,20 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static Response performSyncedFlush(String indexName) throws IOException {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
-        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
+        // prior to v7.11, the deprecation message for synced flush was incorrect so we also need to handle that
+        final List<String> incorrectWarningMessage = Collections.singletonList("Synced flush is deprecated and will be removed in 8.0." +
+            " Use flush at _/flush or /{index}/_flush instead.");
+        final Builder options = RequestOptions.DEFAULT.toBuilder();
+        if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_11_0))) {
             options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+        } else if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
+            options.setWarningsHandler(warnings -> warnings.equals(expectedWarnings) == false &&
+                warnings.equals(incorrectWarningMessage) == false);
         } else if (nodeVersions.stream().anyMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
-            final Builder options = RequestOptions.DEFAULT.toBuilder();
-            options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
-            request.setOptions(options);
+            options.setWarningsHandler(warnings -> warnings.isEmpty() == false &&
+                warnings.equals(expectedWarnings) == false && warnings.equals(incorrectWarningMessage) == false);
         }
+        request.setOptions(options);
         return client().performRequest(request);
     }
 
@@ -1435,8 +1565,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     protected static void useIgnoreMultipleMatchingTemplatesWarningsHandler(Request request) throws IOException {
         RequestOptions.Builder options = request.getOptions().toBuilder();
         options.setWarningsHandler(warnings -> {
-            return warnings.stream().anyMatch(message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
-                PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+            if (warnings.size() > 0) {
+                boolean matches = warnings.stream().anyMatch(
+                    message -> CREATE_INDEX_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches() ||
+                    PUT_TEMPLATE_MULTIPLE_MATCHING_TEMPLATES.matcher(message).matches());
+                return matches == false;
+            } else {
+                return false;
+            }
         });
+        request.setOptions(options);
     }
 }

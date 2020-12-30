@@ -98,9 +98,9 @@ Guidelines
 By default, {es} changes the values of `text` fields during analysis. For
 example, ...
 
-===== Using the `sample` query on time-series data
+===== Using the `sample` query on time series data
 
-You can use the `sample` query to perform searches on time-series data.
+You can use the `sample` query to perform searches on time series data.
 For example:
 
 [source,console]

@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xpack.core.common.table.TableColumnAttributeBuilder;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -19,6 +20,8 @@ import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestTable;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
+import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
@@ -51,14 +54,19 @@ public class RestCatJobsAction extends AbstractCatAction {
         if (Strings.isNullOrEmpty(jobId)) {
             jobId = Metadata.ALL;
         }
-        GetJobsStatsAction.Request request = new GetJobsStatsAction.Request(jobId);
-        request.setAllowNoJobs(restRequest.paramAsBoolean(GetJobsStatsAction.Request.ALLOW_NO_JOBS.getPreferredName(),
-            request.allowNoJobs()));
+        Request request = new Request(jobId);
+        if (restRequest.hasParam(Request.ALLOW_NO_JOBS)) {
+            LoggingDeprecationHandler.INSTANCE.usedDeprecatedName(null, () -> null, Request.ALLOW_NO_JOBS, Request.ALLOW_NO_MATCH);
+        }
+        request.setAllowNoMatch(
+            restRequest.paramAsBoolean(
+                Request.ALLOW_NO_MATCH,
+                restRequest.paramAsBoolean(Request.ALLOW_NO_JOBS, request.allowNoMatch())));
         return channel -> client.execute(GetJobsStatsAction.INSTANCE,
             request,
-            new RestResponseListener<GetJobsStatsAction.Response>(channel) {
+            new RestResponseListener<Response>(channel) {
             @Override
-            public RestResponse buildResponse(GetJobsStatsAction.Response getJobStatsResponse) throws Exception {
+            public RestResponse buildResponse(Response getJobStatsResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(restRequest, getJobStatsResponse), channel);
             }
         });
@@ -326,7 +334,7 @@ public class RestCatJobsAction extends AbstractCatAction {
         return table;
     }
 
-    private Table buildTable(RestRequest request, GetJobsStatsAction.Response jobStats) {
+    private Table buildTable(RestRequest request, Response jobStats) {
         Table table = getTableWithHeader(request);
         jobStats.getResponse().results().forEach(job -> {
             table.startRow();
@@ -338,7 +346,7 @@ public class RestCatJobsAction extends AbstractCatAction {
             DataCounts dataCounts = job.getDataCounts();
             table.addCell(dataCounts.getProcessedRecordCount());
             table.addCell(dataCounts.getProcessedFieldCount());
-            table.addCell(new ByteSizeValue(dataCounts.getInputBytes()));
+            table.addCell(ByteSizeValue.ofBytes(dataCounts.getInputBytes()));
             table.addCell(dataCounts.getInputRecordCount());
             table.addCell(dataCounts.getInputFieldCount());
             table.addCell(dataCounts.getInvalidDateCount());
@@ -354,14 +362,14 @@ public class RestCatJobsAction extends AbstractCatAction {
             table.addCell(dataCounts.getLatestSparseBucketTimeStamp());
 
             ModelSizeStats modelSizeStats = job.getModelSizeStats();
-            table.addCell(modelSizeStats == null ? null : new ByteSizeValue(modelSizeStats.getModelBytes()));
+            table.addCell(modelSizeStats == null ? null : ByteSizeValue.ofBytes(modelSizeStats.getModelBytes()));
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getMemoryStatus().toString());
             table.addCell(modelSizeStats == null || modelSizeStats.getModelBytesExceeded() == null ?
                 null :
-                new ByteSizeValue(modelSizeStats.getModelBytesExceeded()));
+                ByteSizeValue.ofBytes(modelSizeStats.getModelBytesExceeded()));
             table.addCell(modelSizeStats == null || modelSizeStats.getModelBytesMemoryLimit() == null ?
                 null :
-                new ByteSizeValue(modelSizeStats.getModelBytesMemoryLimit()));
+                ByteSizeValue.ofBytes(modelSizeStats.getModelBytesMemoryLimit()));
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalByFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalOverFieldCount());
             table.addCell(modelSizeStats == null ? null : modelSizeStats.getTotalPartitionFieldCount());
@@ -379,10 +387,10 @@ public class RestCatJobsAction extends AbstractCatAction {
             ForecastStats forecastStats = job.getForecastStats();
             boolean missingForecastStats = forecastStats == null || forecastStats.getTotal() <= 0L;
             table.addCell(forecastStats == null ? null : forecastStats.getTotal());
-            table.addCell(missingForecastStats ? null : new ByteSizeValue((long)forecastStats.getMemoryStats().getMin()));
-            table.addCell(missingForecastStats ? null : new ByteSizeValue((long)forecastStats.getMemoryStats().getMax()));
-            table.addCell(missingForecastStats ? null : new ByteSizeValue(Math.round(forecastStats.getMemoryStats().getAvg())));
-            table.addCell(missingForecastStats ? null : new ByteSizeValue((long)forecastStats.getMemoryStats().getTotal()));
+            table.addCell(missingForecastStats ? null : ByteSizeValue.ofBytes((long)forecastStats.getMemoryStats().getMin()));
+            table.addCell(missingForecastStats ? null : ByteSizeValue.ofBytes((long)forecastStats.getMemoryStats().getMax()));
+            table.addCell(missingForecastStats ? null : ByteSizeValue.ofBytes(Math.round(forecastStats.getMemoryStats().getAvg())));
+            table.addCell(missingForecastStats ? null : ByteSizeValue.ofBytes((long)forecastStats.getMemoryStats().getTotal()));
             table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getMin());
             table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getMax());
             table.addCell(missingForecastStats ? null : forecastStats.getRecordStats().getAvg());

@@ -5,15 +5,19 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
+import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.Watcher;
 
 import java.nio.file.Path;
+import java.util.Collection;
+import java.util.Collections;
 
 public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
@@ -49,6 +53,13 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
             @Override
             protected XPackLicenseState getLicenseState() {
                 return thisVar.getLicenseState();
+            }
+
+            @Override
+            public Collection<Module> createGuiceModules() {
+                return XPackPlugin.transportClientMode(settings) ?
+                    Collections.emptyList() :
+                    super.createGuiceModules();
             }
         });
         plugins.add(new IndexLifecycle(settings));

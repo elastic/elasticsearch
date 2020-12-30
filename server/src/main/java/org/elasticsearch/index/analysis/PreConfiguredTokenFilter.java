@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
@@ -35,8 +34,7 @@ import java.util.function.Function;
  */
 public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisComponent<TokenFilterFactory> {
 
-    private static final DeprecationLogger DEPRECATION_LOGGER
-        = new DeprecationLogger(LogManager.getLogger(PreConfiguredTokenFilter.class));
+    private static final DeprecationLogger DEPRECATION_LOGGER =  DeprecationLogger.getLogger(PreConfiguredTokenFilter.class);
 
     /**
      * Create a pre-configured token filter that may not vary at all.
@@ -132,7 +130,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                     }
                     else {
-                        DEPRECATION_LOGGER.deprecatedAndMaybeLog(name(), "Token filter [" + name()
+                        DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
                             + "] will not be usable to parse synonyms after v7.0");
                         return this;
                     }
@@ -159,7 +157,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
                 else {
-                    DEPRECATION_LOGGER.deprecatedAndMaybeLog(name(), "Token filter [" + name()
+                    DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
                         + "] will not be usable to parse synonyms after v7.0");
                     return this;
                 }

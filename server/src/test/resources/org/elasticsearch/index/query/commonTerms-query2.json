@@ -1,6 +1,6 @@
 {
     "common" : {
-        "dogs" : {
+        "mapped_string" : {
             "query" : "buck mia tom",
             "minimum_should_match" : {
                 "high_freq" : "50%",

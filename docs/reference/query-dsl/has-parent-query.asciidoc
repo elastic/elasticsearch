@@ -82,7 +82,7 @@ its child documents.
 `score`::
 +
 --
-(Optional, boolean) Indicates whether the <<query-filter-context,relevance
+(Optional, Boolean) Indicates whether the <<query-filter-context,relevance
 score>> of a matching parent document is aggregated into its child documents.
 Defaults to `false`.
 
@@ -97,7 +97,7 @@ into its child documents' relevance scores.
 `ignore_unmapped`::
 +
 --
-(Optional, boolean) Indicates whether to ignore an unmapped `parent_type` and
+(Optional, Boolean) Indicates whether to ignore an unmapped `parent_type` and
 not return any documents instead of an error. Defaults to `false`.
 
 If `false`, {es} returns an error if the `parent_type` is unmapped.

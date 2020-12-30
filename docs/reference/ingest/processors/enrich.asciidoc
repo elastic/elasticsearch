@@ -1,7 +1,10 @@
 [role="xpack"]
 [testenv="basic"]
 [[enrich-processor]]
-=== Enrich Processor
+=== Enrich processor
+++++
+<titleabbrev>Enrich</titleabbrev>
+++++
 
 The `enrich` processor can enrich documents with data from another index.
 See <<ingest-enriching-data,enrich data>> section for more information about how to set this up.

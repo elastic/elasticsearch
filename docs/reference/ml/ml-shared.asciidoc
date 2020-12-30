@@ -62,6 +62,21 @@ when there are no matches or only partial matches.
 --
 end::allow-no-match[]
 
+tag::allow-no-match-models[]
+Specifies what to do when the request:
++
+--
+* Contains wildcard expressions and there are no models that match.
+* Contains the `_all` string or no identifiers and there are no matches.
+* Contains wildcard expressions and there are only partial matches.
+
+The default value is `true`, which returns an empty array when there are no
+matches and the subset of results when there are partial matches. If this
+parameter is `false`, the request returns a `404` status code when there are no
+matches or only partial matches.
+--
+end::allow-no-match-models[]
+
 tag::analysis[]
 Defines the type of {dfanalytics} you want to perform on your source index. For
 example: `outlier_detection`. See <<ml-dfa-analysis-objects>>.
@@ -92,6 +107,23 @@ end::assignment-explanation-datafeeds[]
 tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
+
+tag::assignment-memory-basis[]
+Where should the memory requirement used for deciding which node the job
+will run on come from? The possible values are:
++
+--
+* `model_memory_limit`: The job's memory requirement will be calculated on
+the basis that its model memory will grow to the `model_memory_limit`
+specified in the `analysis_limits` of its config.
+* `current_model_bytes`: The job's memory requirement will be calculated on
+the basis that its current model memory size is a good reflection of what
+it will be in the future.
+* `peak_model_bytes`: The job's memory requirement will be calculated on
+the basis that its peak model memory size is a good reflection of what
+the model size will be in the future.
+--
+end::assignment-memory-basis[]
 
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the
@@ -292,7 +324,7 @@ Specifies whether the feature influence calculation is enabled. Defaults to
 end::compute-feature-influence[]
 
 tag::custom-preprocessor[]
-(Optional, boolean)
+(Optional, Boolean)
 Boolean value indicating if the analytics job created the preprocessor
 or if a user provided it. This adjusts the feature importance calculation.
 When `true`, the feature importance calculation returns importance for the
@@ -447,16 +479,16 @@ real-time {dfeed} runs. In particular, the default `check_window` span
 calculation is based on the maximum of `2h` or `8 * bucket_span`.
 
 `enabled`::
-(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+(Boolean) Specifies whether the {dfeed} periodically checks for delayed data.
 Defaults to `true`.
 ====
 end::delayed-data-check-config[]
 
 tag::dependent-variable[]
-Defines which field of the document is to be predicted. 
-This parameter is supplied by field name and must match one of the fields in 
-the index being used to train. If this field is missing from a document, then 
-that document will not be used for training, but a prediction with the trained 
+Defines which field of the document is to be predicted.
+This parameter is supplied by field name and must match one of the fields in
+the index being used to train. If this field is missing from a document, then
+that document will not be used for training, but a prediction with the trained
 model will be generated for it. It is also known as continuous target variable.
 end::dependent-variable[]
 
@@ -513,9 +545,17 @@ The value of the downsample factor.
 end::dfas-downsample-factor[]
 
 tag::dfas-eta-growth[]
-Specifies the rate at which the `eta` increases for each new tree that is added to the 
+Specifies the rate at which the `eta` increases for each new tree that is added to the
 forest. For example, a rate of `1.05` increases `eta` by 5%.
 end::dfas-eta-growth[]
+
+tag::dfas-feature-processors[]
+A collection of feature preprocessors that modify one or more included fields.
+The analysis uses the resulting one or more features instead of the
+original document field. Multiple `feature_processors` entries can refer to the
+same document fields.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+end::dfas-feature-processors[]
 
 tag::dfas-iteration[]
 The number of iterations on the analysis.
@@ -529,9 +569,9 @@ training stops.
 end::dfas-max-attempts[]
 
 tag::dfas-max-optimization-rounds[]
-A multiplier responsible for determining the maximum number of 
-hyperparameter optimization steps in the Bayesian optimization procedure. 
-The maximum number of steps is determined based on the number of undefined hyperparameters 
+A multiplier responsible for determining the maximum number of
+hyperparameter optimization steps in the Bayesian optimization procedure.
+The maximum number of steps is determined based on the number of undefined hyperparameters
 times the maximum optimization rounds per hyperparameter.
 end::dfas-max-optimization-rounds[]
 
@@ -595,11 +635,11 @@ functions that are tolerant to gaps in data such as `mean`, `non_null_sum` or
 end::empty-bucket-count[]
 
 tag::eta[]
-Advanced configuration option. The shrinkage applied to the weights. Smaller 
+Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
-information, about shrinkage, see 
-https://en.wikipedia.org/wiki/Gradient_boosting#Shrinkage[this wiki article]. By
+information, about shrinkage, see
+{wikipedia}/Gradient_boosting#Shrinkage[this wiki article]. By
 default, this value is calcuated during hyperparameter optimization.
 end::eta[]
 
@@ -624,13 +664,13 @@ this value to determine the number of unique categories that were missed.
 end::failed-category-count[]
 
 tag::feature-bag-fraction[]
-Advanced configuration option. Defines the fraction of features that will be 
+Advanced configuration option. Defines the fraction of features that will be
 used when selecting a random bag for each candidate split. By default, this
 value is calculated during hyperparameter optimization.
 end::feature-bag-fraction[]
 
 tag::feature-influence-threshold[]
-The minimum {olscore} that a document needs to have to calculate its feature 
+The minimum {olscore} that a document needs to have to calculate its feature
 influence score. Value range: 0-1 (`0.1` by default).
 end::feature-influence-threshold[]
 
@@ -650,6 +690,12 @@ The number of individual forecasts currently available for the job. A value of
 `1` or more indicates that forecasts exist.
 end::forecast-total[]
 
+tag::exclude-generated[]
+Indicates if certain fields should be removed from the configuration on
+retrieval. This allows the configuration to be in an acceptable format to be retrieved
+and then added to another cluster. Default is false.
+end::exclude-generated[]
+
 tag::frequency[]
 The interval at which scheduled queries are made while the {dfeed} runs in real
 time. The default value is either the bucket span for short bucket spans, or,
@@ -668,6 +714,10 @@ tag::from[]
 Skips the specified number of {dfanalytics-jobs}. The default value is `0`.
 end::from[]
 
+tag::from-models[]
+Skips the specified number of models. The default value is `0`.
+end::from-models[]
+
 tag::function[]
 The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
 `max`, and `sum`. For more information, see
@@ -675,10 +725,10 @@ The analysis function that is used. For example, `count`, `rare`, `mean`, `min`,
 end::function[]
 
 tag::gamma[]
-Advanced configuration option. Regularization parameter to prevent overfitting 
-on the training data set. Multiplies a linear penalty associated with the size of 
-individual trees in the forest. The higher the value the more training will 
-prefer smaller trees. The smaller this parameter the larger individual trees 
+Advanced configuration option. Regularization parameter to prevent overfitting
+on the training data set. Multiplies a linear penalty associated with the size of
+individual trees in the forest. The higher the value the more training will
+prefer smaller trees. The smaller this parameter the larger individual trees
 will be and the longer training will take. By default, this value is calculated
 during hyperparameter optimization.
 end::gamma[]
@@ -714,6 +764,25 @@ For example:
 For more information about these options, see <<multi-index>>.
 --
 end::indices-options[]
+
+tag::runtime-mappings[]
+Specifies runtime fields for the datafeed search.
++
+--
+For example:
+```
+{
+  "day_of_week": {
+    "type": "keyword",
+    "script": {
+      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+    }
+  }
+}
+```
+
+--
+end::runtime-mappings[]
 
 tag::inference-config-classification-num-top-classes[]
 Specifies the number of top class predictions to return. Defaults to 0.
@@ -752,6 +821,23 @@ The field that is added to incoming documents to contain the inference
 prediction. Defaults to the `results_field` value of the {dfanalytics-job} that was
 used to train the model, which defaults to `<dependent_variable>_prediction`.
 end::inference-config-results-field-processor[]
+
+tag::inference-metadata-feature-importance-feature-name[]
+The feature for which this importance was calculated.
+end::inference-metadata-feature-importance-feature-name[]
+tag::inference-metadata-feature-importance-magnitude[]
+The average magnitude of this feature across all the training data.
+This value is the average of the absolute values of the importance
+for this feature.
+end::inference-metadata-feature-importance-magnitude[]
+tag::inference-metadata-feature-importance-max[]
+The maximum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-max[]
+tag::inference-metadata-feature-importance-min[]
+The minimum importance value across all the training data for this
+feature.
+end::inference-metadata-feature-importance-min[]
 
 tag::influencers[]
 A comma separated list of influencer field names. Typically these can be the by,
@@ -798,8 +884,8 @@ information for all {anomaly-jobs}.
 end::job-id-anomaly-detection-default[]
 
 tag::job-id-anomaly-detection-define[]
-Identifier for the {anomaly-job}. This identifier can contain lowercase 
-alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start 
+Identifier for the {anomaly-job}. This identifier can contain lowercase
+alphanumeric characters (a-z and 0-9), hyphens, and underscores. It must start
 and end with alphanumeric characters.
 end::job-id-anomaly-detection-define[]
 
@@ -843,12 +929,12 @@ For more information, see <<ml-jobstats>>.
 end::jobs-stats-anomaly-detection[]
 
 tag::lambda[]
-Advanced configuration option. Regularization parameter to prevent overfitting 
-on the training data set. Multiplies an L2 regularisation term which applies to 
-leaf weights of the individual trees in the forest. The higher the value the 
-more training will attempt to keep leaf weights small. This makes the prediction  
-function smoother at the expense of potentially not being able to capture 
-relevant relationships between the features and the {depvar}. The smaller this 
+Advanced configuration option. Regularization parameter to prevent overfitting
+on the training data set. Multiplies an L2 regularisation term which applies to
+leaf weights of the individual trees in the forest. The higher the value the
+more training will attempt to keep leaf weights small. This makes the prediction
+function smoother at the expense of potentially not being able to capture
+relevant relationships between the features and the {depvar}. The smaller this
 parameter the larger individual trees will be and the longer training will take.
 By default, this value is calculated during hyperparameter optimization.
 end::lambda[]
@@ -924,8 +1010,9 @@ There are three available modes:
 +
 --
 * `auto`: The chunk size is dynamically calculated. This is the default and
-recommended value.
-* `manual`: Chunking is applied according to the specified `time_span`.
+recommended value when the {dfeed} does not use aggregations.
+* `manual`: Chunking is applied according to the specified `time_span`. Use this
+mode when the {dfeed} uses aggregations.
 * `off`: No chunking is applied.
 --
 end::mode[]
@@ -942,7 +1029,7 @@ failure.
 end::model-bytes-exceeded[]
 
 tag::model-id[]
-The unique identifier of the trained {infer} model.
+The unique identifier of the trained model.
 end::model-id[]
 
 tag::model-memory-limit[]
@@ -979,7 +1066,8 @@ values:
 --
 * `ok`: The models stayed below the configured value.
 * `soft_limit`: The models used more than 60% of the configured memory limit
-and older unused models will be pruned to free up space.
+and older unused models will be pruned to free up space. Additionally, in
+categorization jobs no further category examples will be stored.
 * `hard_limit`: The models used more space than the configured memory limit.
 As a result, not all incoming data was processed.
 --
@@ -1098,8 +1186,8 @@ For open jobs only, the elapsed time for which the job has been open.
 end::open-time[]
 
 tag::outlier-fraction[]
-The proportion of the data set that is assumed to be outlying prior to 
-{oldetection}. For example, 0.05 means it is assumed that 5% of values are real 
+The proportion of the data set that is assumed to be outlying prior to
+{oldetection}. For example, 0.05 means it is assumed that 5% of values are real
 outliers and 95% are inliers.
 end::outlier-fraction[]
 
@@ -1185,7 +1273,7 @@ tag::randomize-seed[]
 Defines the seed to the random generator that is used to pick
 which documents will be used for training. By default it is randomly generated.
 Set it to a specific value to ensure the same documents are used for training
-assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are 
+assuming other related parameters (e.g. `source`, `analyzed_fields`, etc.) are
 the same.
 end::randomize-seed[]
 
@@ -1224,11 +1312,13 @@ Specifies scripts that evaluate custom expressions and returns script fields to
 the {dfeed}. The detector configuration objects in a job can contain functions
 that use these script fields. For more information, see
 {ml-docs}/ml-configuring-transform.html[Transforming data with script fields]
-and <<request-body-search-script-fields,Script fields>>.
+and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
-The `size` parameter that is used in {es} searches. The default value is `1000`.
+The `size` parameter that is used in {es} searches when the {dfeed} does not use
+aggregations. The default value is `1000`. The maximum value is the value of
+`index.max_result_window` which is 10,000 by default.
 end::scroll-size[]
 
 tag::search-bucket-avg[]
@@ -1252,6 +1342,11 @@ Specifies the maximum number of {dfanalytics-jobs} to obtain. The default value
 is `100`.
 end::size[]
 
+tag::size-models[]
+Specifies the maximum number of models to obtain. The default value
+is `100`.
+end::size-models[]
+
 tag::snapshot-id[]
 A numerical character string that uniquely identifies the model snapshot.
 end::snapshot-id[]
@@ -1264,8 +1359,8 @@ end::sparse-bucket-count[]
 
 tag::standardization-enabled[]
 If `true`, the following operation is performed on the columns before computing
-{olscores}: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For 
-more information about this concept, see 
+{olscores}: (x_i - mean(x_i)) / sd(x_i). Defaults to `true`. For
+more information about this concept, see
 https://en.wikipedia.org/wiki/Feature_scaling#Standardization_(Z-score_Normalization)[Wikipedia].
 end::standardization-enabled[]
 
@@ -1315,8 +1410,8 @@ function.
 end::summary-count-field-name[]
 
 tag::tags[]
-A comma delimited string of tags. A {infer} model can have many tags, or none.
-When supplied, only {infer} models that contain all the supplied tags are
+A comma delimited string of tags. A trained model can have many tags, or none.
+When supplied, only trained models that contain all the supplied tags are
 returned.
 end::tags[]
 
@@ -1340,12 +1435,12 @@ when the mode is set to `manual`. For example: `3h`.
 end::time-span[]
 
 tag::timeout-start[]
-Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults 
+Controls the amount of time to wait until the {dfanalytics-job} starts. Defaults
 to 20 seconds.
 end::timeout-start[]
 
 tag::timeout-stop[]
-Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults 
+Controls the amount of time to wait until the {dfanalytics-job} stops. Defaults
 to 20 seconds.
 end::timeout-stop[]
 

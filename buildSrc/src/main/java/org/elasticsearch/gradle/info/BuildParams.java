@@ -38,6 +38,7 @@ public class BuildParams {
     private static JavaVersion minimumRuntimeVersion;
     private static JavaVersion gradleJavaVersion;
     private static JavaVersion runtimeJavaVersion;
+    private static String runtimeJavaDetails;
     private static Boolean inFipsJvm;
     private static String gitRevision;
     private static String gitOrigin;
@@ -87,6 +88,10 @@ public class BuildParams {
 
     public static JavaVersion getRuntimeJavaVersion() {
         return value(runtimeJavaVersion);
+    }
+
+    public static String getRuntimeJavaDetails() {
+        return value(runtimeJavaDetails);
     }
 
     public static Boolean isInFipsJvm() {
@@ -149,6 +154,36 @@ public class BuildParams {
         return propertyName.substring(0, 1).toLowerCase() + propertyName.substring(1);
     }
 
+    public static InternalMarker withInternalBuild(Runnable configBlock) {
+        if (isInternal()) {
+            configBlock.run();
+            return InternalMarker.INTERNAL;
+        } else {
+            return InternalMarker.EXTERNAL;
+        }
+    }
+
+    public enum InternalMarker {
+        INTERNAL(true),
+        EXTERNAL(false);
+
+        private final boolean internal;
+
+        InternalMarker(boolean internal) {
+            this.internal = internal;
+        }
+
+        public void orElse(Runnable configBlock) {
+            if (internal == false) {
+                configBlock.run();
+            }
+        }
+
+        public boolean isInternal() {
+            return internal;
+        }
+    }
+
     public static class MutableBuildParams {
         private static MutableBuildParams INSTANCE = new MutableBuildParams();
 
@@ -196,6 +231,10 @@ public class BuildParams {
 
         public void setRuntimeJavaVersion(JavaVersion runtimeJavaVersion) {
             BuildParams.runtimeJavaVersion = requireNonNull(runtimeJavaVersion);
+        }
+
+        public void setRuntimeJavaDetails(String runtimeJavaDetails) {
+            BuildParams.runtimeJavaDetails = runtimeJavaDetails;
         }
 
         public void setInFipsJvm(boolean inFipsJvm) {

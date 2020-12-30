@@ -1017,6 +1017,120 @@ F       | 1997-05-19 00:00:00.000Z
 M       | 1996-11-05 00:00:00.000Z
 ;
 
+selectFormat
+schema::format_date:s|format_datetime:s|format_time:s
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::date, 'dd/MM/YYYY HH:mm:ss.fff') AS format_date,
+FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+FORMAT('11:22:33.123456789Z'::time, 'HH:mm:ss.ff') AS format_time;
+
+       format_date      |    format_datetime     |   format_time
+------------------------+------------------------+----------------
+05/04/2020 00:00:00.000 | 05/04/2020 11:22:33.12 | 11:22:33.12
+;
+
+selectFormatWithLength
+schema::format_datetime:s|length:i
+SELECT FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff') AS format_datetime,
+LENGTH(FORMAT('2020-04-05T11:22:33.123Z'::datetime, 'dd/MM/YYYY HH:mm:ss.ff')) AS length;
+
+    format_datetime     | length
+------------------------+----------------
+ 05/04/2020 11:22:33.12 | 22
+;
+
+selectFormatWithField
+schema::birth_date:ts|format_birth_date1:s|format_birth_date2:s|emp_no:i
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date1, FORMAT(birth_date, concat(gender, 'M/dd')) AS format_birth_date2, emp_no
+FROM test_emp WHERE gender = 'M' AND emp_no BETWEEN 10037 AND 10052 ORDER BY emp_no;
+
+       birth_date        | format_birth_date1 | format_birth_date2 | emp_no
+-------------------------+--------------------+--------------------+----------
+1963-07-22 00:00:00.000Z | 07/22/1963         | 07/22              | 10037
+1960-07-20 00:00:00.000Z | 07/20/1960         | 07/20              | 10038
+1959-10-01 00:00:00.000Z | 10/01/1959         | 10/01              | 10039
+null                     | null               | null               | 10043
+null                     | null               | null               | 10045
+null                     | null               | null               | 10046
+null                     | null               | null               | 10047
+null                     | null               | null               | 10048
+1958-05-21 00:00:00.000Z | 05/21/1958         | 05/21              | 10050
+1953-07-28 00:00:00.000Z | 07/28/1953         | 07/28              | 10051
+1961-02-26 00:00:00.000Z | 02/26/1961         | 02/26              | 10052
+;
+
+formatWhere
+schema::birth_date:ts|format_birth_date:s|emp_no:i
+SELECT birth_date, FORMAT(birth_date, 'MM') AS format_birth_date, emp_no FROM test_emp
+WHERE FORMAT(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
+
+       birth_date        | format_birth_date | emp_no
+-------------------------+-------------------+----------
+1959-12-03 00:00:00.000Z | 12                | 10003
+1953-11-07 00:00:00.000Z | 11                | 10011
+1952-12-24 00:00:00.000Z | 12                | 10020
+1963-11-26 00:00:00.000Z | 11                | 10028
+1956-12-13 00:00:00.000Z | 12                | 10029
+1956-11-14 00:00:00.000Z | 11                | 10033
+1962-12-29 00:00:00.000Z | 12                | 10034
+1961-11-02 00:00:00.000Z | 11                | 10062
+1952-11-13 00:00:00.000Z | 11                | 10066
+1962-11-26 00:00:00.000Z | 11                | 10068
+;
+
+formatOrderBy
+schema::birth_date:ts|format_birth_date:s
+SELECT birth_date, FORMAT(birth_date, 'MM/dd/YYYY') AS format_birth_date FROM test_emp ORDER BY 2 DESC NULLS LAST LIMIT 10;
+
+       birth_date        | format_birth_date
+-------------------------+---------------
+1962-12-29 00:00:00.000Z | 12/29/1962
+1959-12-25 00:00:00.000Z | 12/25/1959
+1952-12-24 00:00:00.000Z | 12/24/1952
+1960-12-17 00:00:00.000Z | 12/17/1960
+1956-12-13 00:00:00.000Z | 12/13/1956
+1959-12-03 00:00:00.000Z | 12/03/1959
+1957-12-03 00:00:00.000Z | 12/03/1957
+1963-11-26 00:00:00.000Z | 11/26/1963
+1962-11-26 00:00:00.000Z | 11/26/1962
+1962-11-19 00:00:00.000Z | 11/19/1962
+;
+
+formatGroupBy
+schema::count:l|format_birth_date:s
+SELECT count(*) AS count, FORMAT(birth_date, 'MM') AS format_birth_date FROM test_emp GROUP BY format_birth_date ORDER BY 1 DESC, 2 DESC;
+
+ count | format_birth_date
+-------+---------------
+10     | 09
+10     | 05
+10     | null
+9      | 10
+9      | 07
+8      | 11
+8      | 04
+8      | 02
+7      | 12
+7      | 06
+6      | 08
+6      | 01
+2      | 03
+;
+
+formatHaving
+schema::max:ts|format_birth_date:s
+SELECT MAX(birth_date) AS max, FORMAT(birth_date, 'MM') AS format_birth_date FROM test_emp GROUP BY format_birth_date
+HAVING FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
+
+          max            | format_birth_date
+-------------------------+---------------
+1963-11-26 00:00:00.000Z | 11
+1963-07-22 00:00:00.000Z | 07
+1963-03-21 00:00:00.000Z | 03
+1962-12-29 00:00:00.000Z | 12
+1961-05-30 00:00:00.000Z | 05
+1961-02-26 00:00:00.000Z | 02
+;
+
 //
 // Aggregate
 //

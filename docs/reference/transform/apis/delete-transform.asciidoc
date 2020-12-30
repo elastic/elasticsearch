@@ -41,7 +41,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-id]
 == {api-query-parms-title}
 
 `force`::
-(Optional, boolean) When `true`, the {transform} is deleted regardless of its
+(Optional, Boolean) When `true`, the {transform} is deleted regardless of its
 current state. The default value is `false`, meaning that the {transform} must be
 `stopped` before it can be deleted.
 

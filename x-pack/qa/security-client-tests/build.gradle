@@ -14,7 +14,7 @@ task copyXPackPluginProps(type: Copy) {
 }
 project.sourceSets.test.output.dir(outputDir, builtBy: copyXPackPluginProps)
 
-integTest.runner {
+integTest {
   systemProperty 'tests.security.manager', 'false'
 }
 

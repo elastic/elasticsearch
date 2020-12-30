@@ -189,6 +189,65 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    public void testWildcardField() throws IOException, SQLException {
+        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"text\":{\"type\":\"wildcard\"}}";
+        createIndex("test", Settings.EMPTY, mapping);
+        String text = randomAlphaOfLengthBetween(1, 10);
+
+        for (int i = 1; i <= 3; i++) {
+            int id = 1000 + i;
+            String valueToIndex = text + i;
+            index("test", "" + i, builder -> {
+                builder.field("id", id);
+                builder.field("text", valueToIndex);
+            });
+        }
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, text FROM test WHERE text = ?")) {
+                int randomDocumentIndex = randomIntBetween(1, 3);
+                String randomDocumentText = text + randomDocumentIndex;
+
+                statement.setString(1, randomDocumentText);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertTrue(results.next());
+                    assertEquals(1000 + randomDocumentIndex, results.getInt(1));
+                    assertEquals(randomDocumentText, results.getString(2));
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
+    public void testConstantKeywordField() throws IOException, SQLException {
+        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"text\":{\"type\":\"constant_keyword\"}}";
+        createIndex("test", Settings.EMPTY, mapping);
+        String text = randomAlphaOfLengthBetween(1, 10);
+
+        for (int i = 1; i <= 3; i++) {
+            int id = 1000 + i;
+            index("test", "" + i, builder -> {
+                builder.field("id", id);
+                builder.field("text", text);
+            });
+        }
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT id, text FROM test WHERE text = ? ORDER BY id")) {
+                statement.setString(1, text);
+
+                try (ResultSet results = statement.executeQuery()) {
+                    for (int i = 1; i <= 3; i++) {
+                        assertTrue(results.next());
+                        assertEquals(1000 + i, results.getInt(1));
+                        assertEquals(text, results.getString(2));
+                    }
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
     public void testUnsupportedParameterUse() throws IOException, SQLException {
         index("library", builder -> {
             builder.field("name", "Don Quixote");

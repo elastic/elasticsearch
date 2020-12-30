@@ -112,7 +112,7 @@ public class GetIndexTemplatesResponseTests extends ESTestCase {
                     assertThat(result.version(), equalTo(esIMD.version()));
 
                     assertThat(esIMD.mappings().size(), equalTo(1));
-                    BytesArray mappingSource = new BytesArray(esIMD.mappings().valuesIt().next().uncompressed());
+                    BytesReference mappingSource = esIMD.mappings().valuesIt().next().uncompressed();
                     Map<String, Object> expectedMapping =
                         XContentHelper.convertToMap(mappingSource, true, xContentBuilder.contentType()).v2();
                     assertThat(result.mappings().sourceAsMap(), equalTo(expectedMapping.get("_doc")));

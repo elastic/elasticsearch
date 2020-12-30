@@ -26,13 +26,13 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -49,11 +49,10 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
         BucketOrder order,
         boolean keyed,
         long minDocCount,
-        double minBound,
-        double maxBound,
+        DoubleBounds extendedBounds,
         DoubleBounds hardBounds,
         ValuesSourceConfig valuesSourceConfig,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -66,8 +65,7 @@ public class RangeHistogramAggregator extends AbstractHistogramAggregator {
             order,
             keyed,
             minDocCount,
-            minBound,
-            maxBound,
+            extendedBounds,
             hardBounds,
             valuesSourceConfig.format(),
             context,

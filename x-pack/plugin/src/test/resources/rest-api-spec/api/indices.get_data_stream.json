@@ -5,6 +5,10 @@
       "description":"Returns data streams."
     },
     "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {
@@ -28,6 +32,18 @@
       ]
     },
     "params":{
+      "expand_wildcards":{
+        "type":"enum",
+        "options":[
+          "open",
+          "closed",
+          "hidden",
+          "none",
+          "all"
+        ],
+        "default":"open",
+        "description":"Whether wildcard expressions should get expanded to open or closed indices (default: open)"
+      }
     }
   }
 }

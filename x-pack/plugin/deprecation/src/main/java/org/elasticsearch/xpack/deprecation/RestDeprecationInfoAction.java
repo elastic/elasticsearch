@@ -27,7 +27,7 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 public class RestDeprecationInfoAction extends BaseRestHandler {
 
     private static final Logger logger = LogManager.getLogger(RestDeprecationInfoAction.class);
-    private static final DeprecationLogger deprecationLogger = new DeprecationLogger(logger);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(logger.getName());
 
     @Override
     public List<Route> routes() {

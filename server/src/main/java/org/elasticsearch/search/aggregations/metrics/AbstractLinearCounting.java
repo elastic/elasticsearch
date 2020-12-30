@@ -35,33 +35,34 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
     private static final int P2 = 25;
 
     public AbstractLinearCounting(int precision) {
-       super(precision);
+        super(precision);
     }
 
     /**
      * Add encoded value to the linear counting. Implementor should only accept the value if it has not been
      * seen before.
      */
-    protected abstract int addEncoded(int encoded);
+    protected abstract int addEncoded(long bucketOrd, int encoded);
 
     /**
      * number of values in the counter.
      */
-    protected abstract int size();
+    protected abstract int size(long bucketOrd);
 
     /**
      * return the current values in the counter.
      */
-    protected abstract HashesIterator values();
+    protected abstract HashesIterator values(long bucketOrd);
 
-    public int collect(long hash) {
+    public int collect(long bucketOrd, long hash) {
         final int k = encodeHash(hash, p);
-        return addEncoded(k);
+        return addEncoded(bucketOrd, k);
     }
 
-    public long cardinality() {
+    @Override
+    public long cardinality(long bucketOrd) {
         final long m = 1 << P2;
-        final long v = m - size();
+        final long v = m - size(bucketOrd);
         return linearCounting(m, v);
     }
 
@@ -92,7 +93,7 @@ public abstract class AbstractLinearCounting extends AbstractCardinalityAlgorith
         /**
          * number of elements in the iterator
          */
-        long size();
+        int size();
 
         /**
          * Moves the iterator to the next element if it exists.

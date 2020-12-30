@@ -15,5 +15,9 @@ artifacts {
   restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
 }
 
+testClusters.all {
+  module ':modules:mapper-extras'
+}
+
 test.enabled = false
 jarHell.enabled = false

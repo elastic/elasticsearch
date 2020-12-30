@@ -20,12 +20,14 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
 
+import java.io.IOException;
+
 /**
  * Highlights a search result.
  */
 public interface Highlighter {
 
-    HighlightField highlight(FieldHighlightContext fieldContext);
+    HighlightField highlight(FieldHighlightContext fieldContext) throws IOException;
 
     boolean canHighlight(MappedFieldType fieldType);
 }

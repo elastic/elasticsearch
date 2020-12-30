@@ -201,7 +201,7 @@ public class DateUtils {
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead");
             return ZoneId.of(deprecatedId);
         }
-        return ZoneId.of(zoneId).normalized();
+        return ZoneId.of(zoneId)/*.normalized()*/;
     }
 
     static final Instant MAX_NANOSECOND_INSTANT = Instant.parse("2262-04-11T23:47:16.854775807Z");
@@ -395,4 +395,11 @@ public class DateUtils {
         Clock millisResolutionClock = Clock.tick(clock, Duration.ofMillis(1));
         return ZonedDateTime.now(millisResolutionClock);
     }
+
+//    public static boolean timeZonesEqual(ZoneId zone1, ZoneId zone2) {
+//        if (zone1 != null && zone2 != null) {
+//            return zone1.normalized().equals(zone2.normalized());
+//        }
+//        return zone1 == zone2;// check if both null
+//    }
 }

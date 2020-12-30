@@ -67,7 +67,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
 
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             (
                 String name,
                 int shardSize,

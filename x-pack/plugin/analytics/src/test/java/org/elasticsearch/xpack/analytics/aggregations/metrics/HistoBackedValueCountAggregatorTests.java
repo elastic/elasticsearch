@@ -118,7 +118,7 @@ public class HistoBackedValueCountAggregatorTests extends AggregatorTestCase {
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.IP,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,

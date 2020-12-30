@@ -153,7 +153,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
         builder.register(
             REGISTRY_KEY,
-            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            org.elasticsearch.common.collect.List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             (valuesSourceConfig, name, hasScript, format, missingBucket, order) -> new CompositeValuesSourceConfig(
                 name,
                 valuesSourceConfig.fieldType(),
@@ -201,7 +201,7 @@ public class TermsValuesSourceBuilder extends CompositeValuesSourceBuilder<Terms
 
     @Override
     protected ValuesSourceType getDefaultValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

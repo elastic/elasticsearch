@@ -29,6 +29,9 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -45,9 +48,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -102,7 +103,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             } else {
                 return new DocValueFormat.Decimal(format);
             }
-
         }
     },
     BYTES() {
@@ -264,7 +264,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             return new ValuesSource.Numeric.FieldData((IndexNumericFieldData) fieldContext.indexFieldData()) {
                 /**
                  * Proper dates get a real implementation of
-                 * {@link #roundingPreparer(IndexReader)}. If the field is
+                 * {@link #roundingPreparer()}. If the field is
                  * configured with a script or a missing value then we'll
                  * wrap this without delegating so those fields will ignore
                  * this implementation. Which is correct.
@@ -304,12 +304,12 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                     return QueryVisitor.EMPTY_VISITOR;
                                 }
                                 return this;
-                            };
+                            }
 
                             @Override
                             public boolean acceptField(String field) {
                                 return field.equals(fieldContext.fieldType().name());
-                            };
+                            }
 
                             @Override
                             public void visitLeaf(Query query) {
@@ -318,7 +318,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
                                     range[0] = Math.max(range[0], dft.resolution().parsePointAsMillis(prq.getLowerPoint()));
                                     range[1] = Math.min(range[1], dft.resolution().parsePointAsMillis(prq.getUpperPoint()));
                                 }
-                            };
+                            }
                         });
                     }
 
@@ -390,5 +390,63 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(values());
+
+    public enum ValueType implements Writeable {
+
+        STRING((byte) 1, CoreValuesSourceType.BYTES),
+        LONG((byte) 2, CoreValuesSourceType.NUMERIC),
+        DOUBLE((byte) 3, CoreValuesSourceType.NUMERIC),
+        NUMBER((byte) 4, CoreValuesSourceType.NUMERIC),
+        DATE((byte) 5, CoreValuesSourceType.DATE),
+        IP((byte) 6, CoreValuesSourceType.IP),
+        NUMERIC((byte) 7, CoreValuesSourceType.NUMERIC),
+        GEOPOINT((byte) 8, CoreValuesSourceType.GEOPOINT),
+        BOOLEAN((byte) 9, CoreValuesSourceType.BOOLEAN),
+        RANGE((byte) 10, CoreValuesSourceType.RANGE);
+
+        private final byte id;
+        private final CoreValuesSourceType coreValuesSourceType;
+
+        ValueType(byte id, CoreValuesSourceType coreValuesSourceType ) {
+            this.id = id;
+            this.coreValuesSourceType = coreValuesSourceType;
+        }
+
+        public byte getId(){
+            return id;
+        }
+
+        public static ValueType fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+
+        public static ValueType readFromStream(StreamInput in) throws IOException {
+            byte id = in.readByte();
+
+            for (ValueType valueType : ValueType.values()) {
+                if (id == valueType.id) {
+                    return valueType;
+                }
+            }
+            throw new IOException("No ValueType found for id [" + id + "]");
+        }
+
+        public CoreValuesSourceType getCoreValuesSourceType(){
+            return coreValuesSourceType;
+        }
+
+        public static List<ValueType> forCoreValuesSourceType(CoreValuesSourceType coreValuesSourceType) {
+            List<ValueType> valueTypes = new ArrayList<>();
+            for (ValueType valueType : values())
+                if (valueType.coreValuesSourceType == coreValuesSourceType)
+                    valueTypes.add(valueType);
+            return valueTypes;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
+    }
 }

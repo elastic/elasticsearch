@@ -73,7 +73,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 
@@ -734,7 +733,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
     public void testOrderByEmptyAggregation() throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("value", NumberFieldMapper.NumberType.INTEGER);
 
-        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.NUMERIC)
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC)
             .field("value")
             .order(BucketOrder.compound(BucketOrder.aggregation("filter>max", true)))
             .subAggregation(AggregationBuilders.filter("filter", termQuery("value", 100))
@@ -847,7 +846,7 @@ public class MaxAggregatorTests extends AggregatorTestCase {
             ValueCountAggregationBuilder countAggregationBuilder = new ValueCountAggregationBuilder("count")
                 .field("values");
             TermsAggregationBuilder termsAggregationBuilder = new TermsAggregationBuilder("terms")
-                .userValueTypeHint(ValueType.NUMERIC)
+                .userValueTypeHint(CoreValuesSourceType.ValueType.NUMERIC)
                 .field("value").collectMode(collectionMode)
                 .subAggregation(new MaxAggregationBuilder("sub_max").field("invalid"));
 

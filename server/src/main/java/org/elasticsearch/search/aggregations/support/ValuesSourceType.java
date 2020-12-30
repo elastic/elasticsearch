@@ -23,6 +23,7 @@ import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.time.ZoneId;
+import java.util.Locale;
 
 /**
  * {@link ValuesSourceType} represents a collection of fields that share a common set of operations, for example all numeric fields.
@@ -60,7 +61,7 @@ public interface ValuesSourceType {
      * @param scriptValueType - The expected output type of the script
      * @return - Script specialization of the base {@link ValuesSource}
      */
-    ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType);
+    ValuesSource getScript(AggregationScript.LeafFactory script, CoreValuesSourceType.ValueType scriptValueType);
 
     /**
      * Return a {@link ValuesSource} wrapping a field for the given type.  All {@link ValuesSource}s must implement this method.
@@ -104,4 +105,8 @@ public interface ValuesSourceType {
      * @return the name of the Values Source Type
      */
     String typeName();
+
+    default byte getId(String valueType) {
+        return CoreValuesSourceType.ValueType.valueOf(valueType.trim().toUpperCase(Locale.ROOT)).getId();
+    }
 }

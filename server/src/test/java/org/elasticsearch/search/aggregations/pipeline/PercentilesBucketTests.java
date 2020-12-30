@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -66,7 +66,7 @@ public class PercentilesBucketTests extends AbstractBucketMetricsTestCase<Percen
 
     public void testValidate() {
         AggregationBuilder singleBucketAgg = new GlobalAggregationBuilder("global");
-        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(ValueType.STRING);
+        AggregationBuilder multiBucketAgg = new TermsAggregationBuilder("terms").userValueTypeHint(CoreValuesSourceType.ValueType.STRING);
         final Set<AggregationBuilder> aggBuilders = new HashSet<>();
         aggBuilders.add(singleBucketAgg);
         aggBuilders.add(multiBucketAgg);

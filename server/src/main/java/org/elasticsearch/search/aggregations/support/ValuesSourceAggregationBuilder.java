@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -60,7 +61,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             ParseField.CommonFields.MISSING, ObjectParser.ValueType.VALUE);
 
         objectParser.declareField(ValuesSourceAggregationBuilder::userValueTypeHint, p -> {
-                ValueType type = ValueType.lenientParse(p.text());
+                CoreValuesSourceType.ValueType type = CoreValuesSourceType.ValueType.fromString(p.text());
                 if (type == null) {
                     throw new IllegalArgumentException("Unknown value type [" + p.text() + "]");
                 }
@@ -135,7 +136,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
 
     private String field = null;
     private Script script = null;
-    private ValueType userValueTypeHint = null;
+    private CoreValuesSourceType.ValueType userValueTypeHint = null;
     private String format = null;
     private Object missing = null;
     private ZoneId timeZone = null;
@@ -164,7 +165,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         throws IOException {
         super(in);
         if (serializeTargetValueType(in.getVersion())) {
-            ValueType valueType = in.readOptionalWriteable(ValueType::readFromStream);
+            CoreValuesSourceType.ValueType valueType = in.readOptionalWriteable(CoreValuesSourceType.ValueType::readFromStream);
             assert valueType == null;
         }
         read(in);
@@ -179,7 +180,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             script = new Script(in);
         }
         if (in.readBoolean()) {
-            userValueTypeHint = ValueType.readFromStream(in);
+            this.userValueTypeHint = CoreValuesSourceType.ValueType.readFromStream(in);
         }
         format = in.readOptionalString();
         missing = in.readGenericValue();
@@ -267,11 +268,11 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
      * This setter should only be used during parsing, to set the userValueTypeHint.  This is information the user provides in the json
      * query to indicate the output type of a script or the type of the 'missing' replacement value.
      *
-     * @param valueType - The parsed {@link ValueType} based on the string the user specified
+     * @param valueType - The parsed {@link CoreValuesSourceType.ValueType} based on the string the user specified
      * @return - The modified builder instance, for chaining.
      */
     @SuppressWarnings("unchecked")
-    public AB userValueTypeHint(ValueType valueType) {
+    public AB userValueTypeHint(CoreValuesSourceType.ValueType valueType) {
         if (valueType == null) {
             // TODO: This is nonsense.  We allow the value to be null (via constructor), but don't allow it to be set to null.  This means
             //       thing looking to copy settings (like RollupRequestTranslator) need to check if userValueTypeHint is not null, and then
@@ -282,7 +283,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
         return (AB) this;
     }
 
-    public ValueType userValueTypeHint() {
+    public CoreValuesSourceType.ValueType userValueTypeHint() {
         return userValueTypeHint;
     }
 
@@ -414,7 +415,7 @@ public abstract class ValuesSourceAggregationBuilder<AB extends ValuesSourceAggr
             builder.field("time_zone", timeZone.toString());
         }
         if (userValueTypeHint != null) {
-            builder.field("value_type", userValueTypeHint.getPreferredName());
+            builder.field("value_type", userValueTypeHint.getCoreValuesSourceType().typeName());
         }
         doXContentBody(builder, params);
         builder.endObject();

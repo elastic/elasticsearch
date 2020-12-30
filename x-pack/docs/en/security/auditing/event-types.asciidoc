@@ -24,24 +24,23 @@ The following is an exhaustive list of the events that can be generated:
                                         an action they have the necessary privilege to perform.
                                         When the `system_access_granted` event is included, all system
                                         (internal) actions are also logged. The default setting does
-                                        not log system actions to avoid cluttering the logs.                   | | Example: ``
+                                        not log system actions to avoid cluttering the logs.                   | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_granted", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:data/write/bulk", "request.name":"BulkRequest"}`
 | `run_as_granted`                  | | Logged when an authenticated user attempts to
                                         <<run-as-privilege, run as>> another user that they have
-                                        the necessary privileges to do.                                        | | example7
+                                        the necessary privileges to do.                                        | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:44:42,068+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"run_as_granted", "user.name":"elastic", "user.run_as.name":"user1", "user.realm":"reserved", "user.run_as.realm":"default_native", "user.roles":["superuser"], "origin.type":"rest", "origin.address":"[::1]:52623", "request.id":"dGqPTdEQSX2TAPS3cvc1qA", "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}`
 | `run_as_denied`                   | | Logged when an authenticated user attempts to
                                         <<run-as-privilege, run as>>
                                         another user action they do not have the necessary
-                                        <<security-privileges,privilege>> to do so.                            | | example8
+                                        <<security-privileges,privilege>> to do so.                            | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:49:34,859+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"run_as_denied", "user.name":"user1", "user.run_as.name":"user1", "user.realm":"default_native", "user.run_as.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52662", "request.id":"RcaSt872RG-R_WJBEGfYXA", "action":"indices:data/read/search", "request.name":"SearchRequest", "indices":["alias1"]}`
 | `tampered_request`                | | Logged when the {security-features} detect that the request has
                                         been tampered with. Typically relates to `search/scroll`
                                         requests when the scroll ID is believed to have been
-                                        tampered with.                                                         | | example9
+                                        tampered with.                                                         | | Example: `{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id": "0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action": "tampered_request", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
 | `connection_granted`              | | Logged when an incoming TCP connection passes the
                                         <<ip-filtering, IP Filter>> for a specific
-                                        profile.                                                               | | example10
+                                        profile.                                                               | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_granted", "origin.type":"rest", "origin.address":"::1", "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}`
 | `connection_denied`               | | Logged when an incoming TCP connection does not pass the
-                                        <<ip-filtering, IP Filter>> for a specific
-                                        profile.                                                               | | example11
+                                        <<ip-filtering, IP Filter>> for a specific profile.                    | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", "transport.profile":".http", "rule":"deny 10.10.0.0/16"}`
 | `put_user`                        | | Logged when the <<security-api-put-user, put user API>>
                                         is being invoked to create or
                                         update a native or built-in user. Note that user updates can
@@ -51,11 +50,11 @@ The following is an exhaustive list of the events that can be generated:
 | `change_password`                 | | Logged when the <<security-api-change-password, change password API>>
                                         is being invoked to change the password of a native or built-in user.  | | example13
 | `change_enable_user`              | | Logged when the <<security-api-enable-user, enable user API>>
-                                        is being invoked to enable a native or a built-in user.                | | example13bis
+                                        is being invoked to enable a native or a built-in user.                | | Example: `{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ", "change":{"enable":{"user":{"name":"user1"}}}}`
 | `change_disable_user`             | | Logged when the <<security-api-enable-user, enable user API>>
-                                        is being invoked to disable a native or a built-in user.               | | example13bis2
+                                        is being invoked to disable a native or a built-in user.               | | Example: `{"type":"audit", "timestamp":"2020-12-30T23:17:28,308+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_disable_user", "request.id":"qvLIgw_eTvyK3cgV-GaLVg", "change":{"disable":{"user":{"name":"user1"}}}}`
 | `put_role`                        | | Logged when the <<security-api-put-role, put role API>>
-                                        is being invoked to create or update a role.                           | | example14
+                                        is being invoked to create or update a role.                           | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ", "put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],"indices":[{"names":["apm*"],"privileges":["all"],"field_security":{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\": {\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}`
 | `delete_role`                     | | Logged when the <<security-api-delete-role, delete role API>>
                                         is being invoked to delete a role.                                     | | example18
 | `put_role_mapping`                | | Logged when the <<security-api-put-role-mapping, put role mapping API>>

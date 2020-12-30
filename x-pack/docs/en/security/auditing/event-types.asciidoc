@@ -17,14 +17,14 @@ The following is an exhaustive list of the events that can be generated:
 | `realm_authentication_failed`     | | Logged for every realm that fails to present a valid
                                         authentication token. `<realm>` represents the
                                         realm type.                                                            | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"realm_authentication_failed", "user.name":"elastic", "origin.type":"rest", "origin.address":"[::1]:51504", "realm":"reserved", "url.path":"/_security/user/user1", "url.query":"pretty", "request.method":"POST", "request.id":"POv8p_qeTl2tb5xoFl0HIg"}`
- `access_denied`                   | | Logged when an authenticated user attempts to execute
+| `access_denied`                   | | Logged when an authenticated user attempts to execute
                                         an action they do not have the necessary
-                                        <<security-privileges,privilege>> to perform.                          | | example5
+                                        <<security-privileges,privilege>> to perform.                          | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:30:06,949+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_denied", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:admin/auto_create", "request.name":"CreateIndexRequest", "indices":["<index-{now/d+1d}>"]}`
 | `access_granted`                  | | Logged when an authenticated user attempts to execute
                                         an action they have the necessary privilege to perform.
                                         When the `system_access_granted` event is included, all system
                                         (internal) actions are also logged. The default setting does
-                                        not log system actions to avoid cluttering the logs.                   | | example6
+                                        not log system actions to avoid cluttering the logs.                   | | Example: ``
 | `run_as_granted`                  | | Logged when an authenticated user attempts to
                                         <<run-as-privilege, run as>> another user that they have
                                         the necessary privileges to do.                                        | | example7
@@ -45,9 +45,9 @@ The following is an exhaustive list of the events that can be generated:
 | `put_user`                        | | Logged when the <<security-api-put-user, put user API>>
                                         is being invoked to create or
                                         update a native or built-in user. Note that user updates can
-                                        also change the user's password.                                       | | example12
+                                        also change the user's password.                                       | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA", "put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],"full_name":"Jack Sparrow","email":"jack@blackpearl.com","has_password":true,"metadata":{"cunning":10}}}}`
 | `delete_user`                     | | Logged when the <<security-api-delete-user, delete user API>>
-                                        is being invoked to delete a specific native user.                     | | example17
+                                        is being invoked to delete a specific native user.                     | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw", "delete":{"user":{"name":"jacknich"}}}`
 | `change_password`                 | | Logged when the <<security-api-change-password, change password API>>
                                         is being invoked to change the password of a native or built-in user.  | | example13
 | `change_enable_user`              | | Logged when the <<security-api-enable-user, enable user API>>

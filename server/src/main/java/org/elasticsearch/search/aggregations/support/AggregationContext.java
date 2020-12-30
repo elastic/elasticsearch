@@ -288,7 +288,7 @@ public abstract class AggregationContext implements Releasable {
                 this.breakerService = null;
                 this.bigArrays = context.bigArrays().withCircuitBreaking();
             } else {
-                this.breakerService = bytesToPreallocate == 0 ? null : new PreallocatedCircuitBreakerService(
+                this.breakerService = new PreallocatedCircuitBreakerService(
                     context.bigArrays().breakerService(),
                     CircuitBreaker.REQUEST,
                     bytesToPreallocate,

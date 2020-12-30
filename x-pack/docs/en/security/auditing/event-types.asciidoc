@@ -203,6 +203,33 @@ ones):
 `rule`                ::    The <<ip-filtering, IP filtering>> rule that denied
                             the request.
 
+==== Audit event attributes of the security_config_change event type
+
+The events with `event.type` equal to `security_config_change` have one of the following
+`event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`,
+`change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
+`delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
+These event types also have *one* of the following extra attributes (in addition to the common
+ones). The attributes' value is a nested JSON object, formatted depending on the target
+configuration type (i.e. the format is different for `user` than for `role`):
+
+`put`                 ::    The representation of the security config object that
+                            is being created, or the overwrite of an existing config.
+                            It can either be the config for a `user`, `role`, `role_mapping`, or
+                            `privileges`.
+`delete`              ::    The representation of the security config object that
+                            is being deleted. It can either be the config for a `user`, `role`,
+                            `role_mapping` or `privileges`.
+`change`              ::    The representation of the security config change that
+                            is being changed. It can either be `password`, `enable` or `disable`,
+                            config of native or built-in users.
+`create`              ::    The representation of the new security config that is being
+                            created. It can either be `apikey` or `grant`, for API keys created
+                            using the <<security-api-create-api-key, create API key>> or
+                            <<security-api-grant-api-key, grant API key>> APIs, respectively.
+`invalidate`          ::    The representation of the security configuration that is being invalidated.
+                            The only config currently supporting invalidation is `apikeys`.
+
 ==== Extra audit event attributes for specific events
 
 There are a few events that have some more attributes in addition to those

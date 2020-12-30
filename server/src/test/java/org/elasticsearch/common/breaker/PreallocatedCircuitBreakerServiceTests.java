@@ -138,6 +138,6 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
     }
 
     private PreallocatedCircuitBreakerService preallocateRequest(CircuitBreakerService real, long bytes) {
-        return new PreallocatedCircuitBreakerService(real, CircuitBreaker.REQUEST, bytes);
+        return new PreallocatedCircuitBreakerService(real, CircuitBreaker.REQUEST, bytes, "test");
     }
 }

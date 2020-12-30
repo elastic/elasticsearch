@@ -409,7 +409,8 @@ public class BigArraysTests extends ESTestCase {
                 PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
                     realBreakers,
                     CircuitBreaker.REQUEST,
-                    toPreallocate
+                    toPreallocate,
+                    "test"
                 )
             ) {
                 assertThat(realBreaker.getUsed(), equalTo(toPreallocate));

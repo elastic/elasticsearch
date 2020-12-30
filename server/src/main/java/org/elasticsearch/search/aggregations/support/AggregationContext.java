@@ -277,12 +277,25 @@ public abstract class AggregationContext implements Releasable {
             Supplier<Boolean> isCancelled
         ) {
             this.context = context;
-            this.breakerService = new PreallocatedCircuitBreakerService(
-                context.bigArrays().breakerService(),
-                CircuitBreaker.REQUEST,
-                bytesToPreallocate
-            );
-            this.bigArrays = context.bigArrays().withBreakerService(breakerService).withCircuitBreaking();
+            if (bytesToPreallocate == 0) {
+                /*
+                 * Its possible if a bit strange for the aggregations to ask
+                 * to preallocate 0 bytes. Mostly this is for testing other
+                 * things, but we should honor it and just not preallocate
+                 * anything. Setting the breakerService reference to null will
+                 * cause us to skip it when we close this context.
+                 */
+                this.breakerService = null;
+                this.bigArrays = context.bigArrays().withCircuitBreaking();
+            } else {
+                this.breakerService = bytesToPreallocate == 0 ? null : new PreallocatedCircuitBreakerService(
+                    context.bigArrays().breakerService(),
+                    CircuitBreaker.REQUEST,
+                    bytesToPreallocate,
+                    "aggregations"
+                );
+                this.bigArrays = context.bigArrays().withBreakerService(breakerService).withCircuitBreaking();
+            }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
             this.multiBucketConsumer = multiBucketConsumer;

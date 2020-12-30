@@ -176,7 +176,8 @@ public class AggConstructionContentionBenchmark {
                 breakerService = preallocated = new PreallocatedCircuitBreakerService(
                     AggConstructionContentionBenchmark.this.breakerService,
                     CircuitBreaker.REQUEST,
-                    bytesToPreallocate
+                    bytesToPreallocate,
+                    "aggregations"
                 );
             } else {
                 breakerService = AggConstructionContentionBenchmark.this.breakerService;

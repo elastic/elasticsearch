@@ -67,6 +67,9 @@ import java.util.function.LongUnaryOperator;
  * disk.
  */
 public class OnDiskGlobalOrdinalMap implements Closeable, Accountable, IndexOrdinalsFieldData {
+    /**
+     * The files this builds are named {@code $(FILE_PREFIX)_*.tmp}.
+     */
     public static final String FILE_PREFIX = "global_ords";
 
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(OnDiskGlobalOrdinalMap.class);

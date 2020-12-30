@@ -46,7 +46,24 @@ import java.util.function.LongBinaryOperator;
 import java.util.function.LongUnaryOperator;
 
 /**
- * Stores sequences of non-native {@code long}s to disk for easy reading later.
+ * Stores sequences of non-negative {@code long}s to disk for easy reading later.
+ * Its designed around writing global ordinals to disk which has to do a few
+ * things:
+ * <ul>
+ * <li>Write many sequences to the same file. The values all come from the same
+ *     thread but they don't show up in a predictable order.</li>
+ * <li>Encode the long we actually write using simple math against the index.
+ *     Fairly simple encoding can lead to times when the sequence is all 0s
+ *     which we have tricks for storing</li>
+ * <li>Don't write *anything* if the entire encoded sequence is 0s. We can even
+ *     skip creating the file entirely if all the sequences are all 0s.</li>
+ * <li>Some sequences never decrease ({@link GroupWriter#positiveDeltaWriter})
+ *     and will compress quite well using the monotonic compression tricks in
+ *     {@link DirectMonotonicWriter}.</li>
+ * <li>Other sequences don't have any guarantees about their shape and don't
+ *     know how many values they'll write. Lucene doesn't have any tools for
+ *     this so we have to roll our own.</li>
+ * </ul>
  * 
  * Write in a single thread like this:
  * <pre><code>
@@ -180,7 +197,7 @@ public class OrdinalSequence {
                 output.close();
             } finally {
                 if (finished) {
-                    // Finishing fetches a reader which now has owner ship of the files 
+                    // Finishing fetches a reader which now has owner ship of the files
                     return;
                 }
                 /*
@@ -349,6 +366,9 @@ public class OrdinalSequence {
         };
     }
 
+    /**
+     * Absorbs the {@code long}s and writes them to disk.
+     */
     private interface DelegateWriter {
         interface Builder {
             DelegateWriter build(long leadingZeros) throws IOException;
@@ -362,7 +382,8 @@ public class OrdinalSequence {
     }
 
     /**
-     * A sequence that where {@code f(i) == i}.
+     * A sequence that where the encoded value is always 0 so we never had to
+     * write to disk.
      */
     private static class Identity implements LongUnaryOperator {
         static final ReaderProvider readerProvider(LongBinaryOperator decode) {
@@ -394,6 +415,9 @@ public class OrdinalSequence {
         }
     }
 
+    /**
+     * A sequence where some bits are on disk.
+     */
     private static class ReadFromDisk implements LongUnaryOperator {
         static OrdinalSequence.ReaderProvider provider(
             LongBinaryOperator decode,
@@ -437,8 +461,9 @@ public class OrdinalSequence {
     }
 
     /**
-     * Write sequences of integers. This writer splits data into blocks and
-     * writes each block with a {@link DirectWriter} appropriate for the
+     * Write sequences of integers that have no particular shape. This writer
+     * splits data into blocks of at most {@link OrdinalSequence#BLOCK_SIZE}
+     * and writes each block with a {@link DirectWriter} appropriate for the
      * maximum value. Think of it like a simplistic {@link DirectMonotonicWriter}.
      */
     private static class DirectBlockWriter implements DelegateWriter {
@@ -450,6 +475,12 @@ public class OrdinalSequence {
         private int bufferIndex;
         private long bufferMax;
 
+        /**
+         * Builder for the readers. Populated when building the sequence
+         * and shared into the {@link #readerProvider}. The actual reading is
+         * either a simple "always 0" or a delegated to an appropriately
+         * sized {@link DirectReader}.
+         */
         private DelegateReaderProvider[] readerBuilders;
         private int currentBlock;
         private boolean finished;
@@ -589,8 +620,19 @@ public class OrdinalSequence {
         }
     }
 
+    /**
+     * Delegates to {@link DirectMonotonicWriter} to write blocks of {@code long}s
+     * that always increase.
+     */
     private static class MonotonicDelegateWriter implements DelegateWriter {
         private final long valueCount;
+        /**
+         * {@linkplain DirectMonotonicWriter} wants to write a metadata stream
+         * but we really would prefer that the metadata land in memory so we
+         * can build a reader immediately. This is the memory location where
+         * we land the metadata and we'll parse it as soon as we go to build
+         * the reader.
+         */
         private final ByteBuffersDataOutput meta;
         private final IndexOutput metaOut, dataOut;
         private final DirectMonotonicWriter writer;

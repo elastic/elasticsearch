@@ -884,7 +884,7 @@ public abstract class StreamInput extends InputStream {
      */
     public ZoneId readOptionalZoneId() throws IOException {
         if (readBoolean()) {
-            return ZoneId.of(readString());
+            return DateUtils.of(readString());
         }
         return null;
     }

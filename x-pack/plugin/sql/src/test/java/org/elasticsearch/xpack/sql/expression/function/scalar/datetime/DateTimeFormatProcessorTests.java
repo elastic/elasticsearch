@@ -150,31 +150,15 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
 
         siae = expectThrows(
             SqlIllegalArgumentException.class,
+            () -> new DateFormat(Source.EMPTY, l("2006-06-00"), randomStringLiteral(), randomZone()).makePipe().asProcessor().process(null)
+        );
+        assertEquals("A date/datetime/time is required; received [2006-06-00]", siae.getMessage());
+
+        siae = expectThrows(
+            SqlIllegalArgumentException.class,
             () -> new DateFormat(Source.EMPTY, randomDatetimeLiteral(), l(5), randomZone()).makePipe().asProcessor().process(null)
         );
         assertEquals("A string is required; received [5]", siae.getMessage());
-
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> new DateFormat(Source.EMPTY, l(dateTime(2020, 12, 6, 23, 44, 37, 0)), l("invalid"), randomZone())
-                .makePipe()
-                .asProcessor()
-                .process(null)
-        );
-        assertEquals("Invalid pattern [invalid] is received for formatting date/time [2020-12-06T23:44:37Z]; Unknown pattern letter: i",
-            siae.getMessage()
-        );
-
-        siae = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> new DateFormat(Source.EMPTY, l(time(23, 44, 37, 123000000)), l("MM/dd"), randomZone()).makePipe()
-                .asProcessor()
-                .process(null)
-        );
-        assertEquals(
-            "Invalid pattern [MM/dd] is received for formatting date/time [23:44:37.123Z]; Unsupported field: MonthOfYear",
-            siae.getMessage()
-        );
     }
 
     public void testWithNulls() {
@@ -627,13 +611,6 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateFormat(Source.EMPTY, dateTime, l("%X %V"), zoneId).makePipe().asProcessor().process(null)
         );
 
-/*     // day 0 is not supported in LocalTime
-        dateTime = l(date(2006, 6, 0, zoneId));
-        assertEquals(
-            "00",
-            new DateFormat(Source.EMPTY, dateTime, l("%d"), zoneId).makePipe().asProcessor().process(null)
-        );
-*/
         dateTime = l(date(2020, 12, 19, zoneId));
         assertEquals(
             "Year 2020",

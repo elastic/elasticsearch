@@ -19,7 +19,6 @@ import java.time.Instant;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Locale;
 
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
@@ -357,7 +356,7 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
 
         assertEquals(
-            "2019 36",
+            "2019 35",
             new DateFormat(Source.EMPTY, dateTime, l("%X %V"), zoneId).makePipe().asProcessor().process(null)
         );
 
@@ -504,24 +503,50 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateFormat(Source.EMPTY, dateTime, l("%T"), zoneId).makePipe().asProcessor().process(null)
         );
 
-/*
         assertEquals(
-            "48",// the actual value always be 49, why?
+            "00",
+            new DateFormat(Source.EMPTY, l(date(2020, 1, 1, zoneId)), l("%U"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "48",
             new DateFormat(Source.EMPTY, dateTime, l("%U"), zoneId).makePipe().asProcessor().process(null)
         );
-*/
+
+        assertEquals(
+            "52",
+            new DateFormat(Source.EMPTY, l(date(2020, 12, 31, zoneId)), l("%U"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "01",
+            new DateFormat(Source.EMPTY, l(date(2020, 1, 1, zoneId)), l("%u"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "53",
+            new DateFormat(Source.EMPTY, l(date(2020, 12, 31, zoneId)), l("%u"), zoneId).makePipe().asProcessor().process(null)
+        );
 
         assertEquals(
             "49",
             new DateFormat(Source.EMPTY, dateTime, l("%u"), zoneId).makePipe().asProcessor().process(null)
         );
 
-/*
         assertEquals(
-            "48", // the actual value always be 49, why?
+            "52",
+            new DateFormat(Source.EMPTY, l(date(2020,1,1, zoneId)), l("%V"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "48",
             new DateFormat(Source.EMPTY, dateTime, l("%V"), zoneId).makePipe().asProcessor().process(null)
         );
-*/
+
+        assertEquals(
+            "01",
+            new DateFormat(Source.EMPTY, l(date(2020, 1, 1, zoneId)), l("%v"), zoneId).makePipe().asProcessor().process(null)
+        );
 
         assertEquals(
             "49",
@@ -539,8 +564,18 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
 
         assertEquals(
+            "2019",
+            new DateFormat(Source.EMPTY, l(date(2020, 1, 1, zoneId)), l("%X"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
             "2020",
             new DateFormat(Source.EMPTY, dateTime, l("%X"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "2020",
+            new DateFormat(Source.EMPTY, l(date(2020, 1, 1, zoneId)), l("%x"), zoneId).makePipe().asProcessor().process(null)
         );
 
         assertEquals(
@@ -586,15 +621,11 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
             new DateFormat(Source.EMPTY, dateTime, l("%H %k %I %r %T %S %w"), zoneId).makePipe().asProcessor().process(null)
         );
 
-        // based on example at https://dev.mysql.com/doc/refman/8.0/en/date-and-time-functions.html#function_date-format
-        // the expected value is: 1998 52
         dateTime = l(date(1999, 1, 1, zoneId));
-/*
         assertEquals(
-            "1998 52", // Why the actual value always 1998 53
+            "1998 52",
             new DateFormat(Source.EMPTY, dateTime, l("%X %V"), zoneId).makePipe().asProcessor().process(null)
         );
-*/
 
 /*     // day 0 is not supported in LocalTime
         dateTime = l(date(2006, 6, 0, zoneId));

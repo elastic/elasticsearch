@@ -55,7 +55,8 @@ security_config_change`.
 // tag::xpack-sa-lf-events-exclude-tag[]
 `xpack.security.audit.logfile.events.exclude`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Excludes the specified kind of events from the include list. The default is the empty list.
+Excludes the specified kind of events from the include list. Useful in the case where
+the `events.include` setting contains the special value `_all`. The default is the empty list.
 // end::xpack-sa-lf-events-exclude-tag[]
 
 [[xpack-sa-lf-events-emit-request]]

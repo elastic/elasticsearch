@@ -10,7 +10,7 @@ The following is an exhaustive list of the events that can be generated:
 
 |======
 | `anonymous_access_denied`         | | Logged when a request is denied due to a missing
-                                        authentication token.                                                  | | example1
+                                        authentication token.                                                  | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"anonymous_access_denied", "origin.type":"rest", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
 | `authentication_success`          | | Logged when a user successfully authenticates.                         | | example2
 | `authentication_failed`           | | Logged when the authentication token cannot be
                                         matched to a known user.                                               | | example3

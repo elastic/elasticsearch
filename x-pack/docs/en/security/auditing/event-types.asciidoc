@@ -6,7 +6,6 @@ When you are <<enable-audit-logging,auditing security events>>, a single client 
 might generate multiple audit events, across multiple cluster nodes. The common
 `request.id` attribute can be used to correlate the associated events.
 
-
 The following is an exhaustive list of the events that can be generated:
 
 |======
@@ -44,37 +43,37 @@ The following is an exhaustive list of the events that can be generated:
                                         <<ip-filtering, IP Filter>> for a specific
                                         profile.                                                               | | example11
 | `put_user`                        | | Logged when the <<security-api-put-user, put user API>>
-                                        has been invoked to create or
+                                        is being invoked to create or
                                         update a native or built-in user. Note that user updates can
-                                        also change the password.                                              | | example12
+                                        also change the user's password.                                       | | example12
 | `delete_user`                     | | Logged when the <<security-api-delete-user, delete user API>>
-                                        has been invoked to delete a specific native user.                     | | example17
+                                        is being invoked to delete a specific native user.                     | | example17
 | `change_password`                 | | Logged when the <<security-api-change-password, change password API>>
-                                        has been invoked to change the password of a native or built-in user.  | | example13
+                                        is being invoked to change the password of a native or built-in user.  | | example13
 | `change_enable_user`              | | Logged when the <<security-api-enable-user, enable user API>>
-                                        has been invoked to enable a native or a built-in user.                | | example13bis
+                                        is being invoked to enable a native or a built-in user.                | | example13bis
 | `change_disable_user`             | | Logged when the <<security-api-enable-user, enable user API>>
-                                        has been invoked to disable a native or a built-in user.               | | example13bis2
+                                        is being invoked to disable a native or a built-in user.               | | example13bis2
 | `put_role`                        | | Logged when the <<security-api-put-role, put role API>>
-                                        has been invoked to create or update a role.                           | | example14
+                                        is being invoked to create or update a role.                           | | example14
 | `delete_role`                     | | Logged when the <<security-api-delete-role, delete role API>>
-                                        has been invoked to delete a role.                                     | | example18
+                                        is being invoked to delete a role.                                     | | example18
 | `put_role_mapping`                | | Logged when the <<security-api-put-role-mapping, put role mapping API>>
-                                        has been invoked to create or update a role mapping.                   | | example15
+                                        is being invoked to create or update a role mapping.                   | | example15
 | `delete_role_mapping`             | | Logged when the
                                         <<security-api-delete-role-mapping, delete role mapping API>>
-                                        has been invoked to delete a role mapping.                             | | example19
+                                        is being invoked to delete a role mapping.                             | | example19
 | `create_apikey`                   | | Logged when the <<security-api-create-api-key, create API key>>
-                                        or the <<security-api-grant-api-key, grant API key>> APIs have
-                                        been invoked to create a new API key.                                  | | example16
+                                        or the <<security-api-grant-api-key, grant API key>> APIs are
+                                        being invoked to create a new API key.                                 | | example16
 | `invalidate_apikeys`              | | Logged when the
-                                        <<security-api-invalidate-api-key, invalidate API Key API>> has been
-                                        invoked to invalidate one or more API Keys.                            | | example20
+                                        <<security-api-invalidate-api-key, invalidate API Key API>>
+                                        is being invoked to invalidate one or more API Keys.                   | | example20
 | `put_privileges`                  | | Logged when the <<security-api-put-privileges, put privileges API>>
-                                        has been invoked to add or update one or more application privileges.  | | example15
+                                        is being invoked to add or update one or more application privileges.  | | example15
 | `delete_privileges`               | | Logged when the
                                         <<security-api-delete-privilege, delete application privileges API>>
-                                        has been invoked to remove one or more application privileges.         | | example21
+                                        is being invoked to remove one or more application privileges.         | | example21
 |======
 
 [discrete]
@@ -91,7 +90,7 @@ structured columnar aspect, similar to a CSV, that can be more easily inspected 
 There are however a few attributes that are exceptions to the above format. The `put`,
 `delete`, `change`, `create` and `invalidate` attributes, which are only present for
 events with the `event.type: "security_config_change"` attribute, contain the *nested JSON*
-representation of the security change taking effect. The contents of security config change
+representation of the security change taking effect. The contents of the security config change
 are hence not splayed as top-level dot-named fields in the audit event document. That's because
 the fields are specific to the particular kind of the security change and do not show up in
 any other audit events, and so the benefits of a columnar format are much more limited; the
@@ -127,9 +126,9 @@ The following list shows attributes that are common to all audit event types:
 `request.id`      ::    A synthetic identifier that can be used to correlate the events
                         associated with a particular REST request.
 
-In addition, all the events with types `rest`, `transport` and `ip_filter` (but not
-`security_config_change`) contain the following extra attributes, which
-show details on the requesting client:
+In addition, all the events of types `rest`, `transport` and `ip_filter` (but not
+`security_config_change`) have the following extra attributes, which
+show more details on the requesting client:
 
 `origin.address`  ::    The source IP address of the request associated with
                         this event. This could be the address of the remote client,
@@ -162,7 +161,7 @@ show details on the requesting client:
 The events with `event.type` equal to `rest` have one of the following `event.action`
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
 `realm_authentication_failed`, `tampered_request` or `run_as_denied`.
-These event types also have the following extra attributes (in addition to the
+These events also have the following extra attributes (in addition to the
 common ones):
 
 `url.path`        ::    The path part of the URL (between the port and the query
@@ -183,7 +182,7 @@ The events with `event.type` equal to `transport` have one of the following `eve
 attribute values: `authentication_success`, `anonymous_access_denied`, `authentication_failed`,
 `realm_authentication_failed`, `access_granted`, `access_denied`, `run_as_granted`,
 `run_as_denied`, or `tampered_request`.
-These event types also have the following extra attributes (in addition to the common
+These events also have the following extra attributes (in addition to the common
 ones):
 
 `action`              ::    The name of the transport action that was executed.
@@ -196,7 +195,7 @@ ones):
 
 The events with `event.type` equal to `ip_filter` have one of the following `event.action`
 attribute values: `connection_granted` or `connection_denied`.
-These event types also have the following extra attributes (in addition to the common
+These events also have the following extra attributes (in addition to the common
 ones):
 
 `transport_profile`   ::    The transport profile the request targeted.
@@ -205,30 +204,49 @@ ones):
 
 ==== Audit event attributes of the security_config_change event type
 
-The events with `event.type` equal to `security_config_change` have one of the following
+The events with the `event.type` attribute equal to `security_config_change` have one of the following
 `event.action` attribute values: `put_user`, `change_password`, `put_role`, `put_role_mapping`,
 `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
 `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
-These event types also have *one* of the following extra attributes (in addition to the common
-ones). The attributes' value is a nested JSON object, formatted depending on the target
-configuration type (i.e. the format is different for `user` than for `role`):
+These events also have *one* of the following extra attributes (in addition to the common
+ones); the attributes' value is a nested JSON object (that is not escaped):
 
-`put`                 ::    The representation of the security config object that
+`put`                 ::    The object representation of the security config that
                             is being created, or the overwrite of an existing config.
-                            It can either be the config for a `user`, `role`, `role_mapping`, or
-                            `privileges`.
-`delete`              ::    The representation of the security config object that
+                            It contains the config for a `user`, `role`, `role_mapping`, or
+                            for application `privileges`.
+`delete`              ::    The object representation of the security config that
                             is being deleted. It can either be the config for a `user`, `role`,
-                            `role_mapping` or `privileges`.
-`change`              ::    The representation of the security config change that
-                            is being changed. It can either be `password`, `enable` or `disable`,
-                            config of native or built-in users.
-`create`              ::    The representation of the new security config that is being
-                            created. It can either be `apikey` or `grant`, for API keys created
+                            `role_mapping` or for application `privileges`.
+`change`              ::    The object representation of the security config that
+                            is being changed. It can either be the `password`, `enable` or `disable`,
+                            config object for native or built-in users.
+`create`              ::    The object representation of the new security config that is being
+                            created. It can either be the `apikey` or `grant` config for API keys created
                             using the <<security-api-create-api-key, create API key>> or
                             <<security-api-grant-api-key, grant API key>> APIs, respectively.
-`invalidate`          ::    The representation of the security configuration that is being invalidated.
-                            The only config currently supporting invalidation is `apikeys`.
+`invalidate`          ::    The object representation of the security configuration that is being invalidated.
+                            The only config currently supporting invalidation is of `apikeys`, through
+                            the <<security-api-invalidate-api-key, invalidate API key API>>.
+
+The schemas of the security config objects mentioned above are:
+
+`user`                ::     `{"name": <string>, "enabled": <boolean>, "roles": <string_list>,
+                             "full_name": <string>, "email": <string>, "has_password": <boolean>,
+                             "metadata": <object>}`
+                             The `full_name`, `email` and `metadata` fields are omitted if empty.
+`role`                ::     `{"name": <string>, "role_descriptor": {"cluster": <string_list>, "global":
+                             {"application":{"manage":{<string>:<string_list>}}}, "indices": [
+                             {"names": <string_list>, "privileges": <string_list>, "field_security":
+                             {"grant": <string_list>, "except": <string_list>}, "query": <string>,
+                             "allow_restricted_indices": <boolean>}], "applications":[{"application": <string>,
+                             "privileges": <string_list>, "resources": <string_list>}], "run_as": <string_list>,
+                             "metadata": <object>}}`
+                             The `global`, `field_security`, `except`, `query`, `allow_restricted_indices` and
+                             `metadata` fields are omitted if empty.
+`role_mapping`        ::     `{"name": <string>, "roles": <string_list>, "role_templates": [{"template": <string>,
+                             "format": <string>}], "rules": <object>, "enabled": <boolean>, "metadata": <object>}`
+                             The 
 
 ==== Extra audit event attributes for specific events
 

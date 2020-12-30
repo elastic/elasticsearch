@@ -107,17 +107,6 @@ The following list shows attributes that are common to all audit event types:
 `host.ip`         ::    The bound IP address of the node, with which the node
                         can be communicated with.
 `host.name`       ::    The unresolved node's hostname.
-`origin.address`  ::    The source IP address of the request associated with
-                        this event. This could be the address of the remote client,
-                        the address of another cluster node, or the local node's
-                        bound address, if the request originated locally. Unless
-                        the remote client connects directly to the cluster, the
-                        _client  address_ will actually be the address of the first
-                        OSI layer 3 proxy in front of the cluster.
-`origin.type`     ::    The origin type of the request associated with this event:
-                        `rest` (request originated from a REST API request),
-                        `transport` (request was received on the transport channel),
-                        or `local_node` (the local node issued the request).
 `event.type`      ::    The internal processing layer that generated the event:
                         `rest`, `transport`, `ip_filter` or `security_config_change`.
                         This is different from `origin.type` because a request
@@ -135,6 +124,24 @@ The following list shows attributes that are common to all audit event types:
                         `change_enable_user`, `change_disable_user`, `put_privileges`,
                         `create_apikey`, `delete_user`, `delete_role`,
                         `delete_role_mapping`, `invalidate_apikeys` or `delete_privileges`.
+`request.id`      ::    A synthetic identifier that can be used to correlate the events
+                        associated with a particular REST request.
+
+In addition, all the events with types `rest`, `transport` and `ip_filter` (but not
+`security_config_change`) contain the following extra attributes, which
+show details on the requesting client:
+
+`origin.address`  ::    The source IP address of the request associated with
+                        this event. This could be the address of the remote client,
+                        the address of another cluster node, or the local node's
+                        bound address, if the request originated locally. Unless
+                        the remote client connects directly to the cluster, the
+                        _client  address_ will actually be the address of the first
+                        OSI layer 3 proxy in front of the cluster.
+`origin.type`     ::    The origin type of the request associated with this event:
+                        `rest` (request originated from a REST API request),
+                        `transport` (request was received on the transport channel),
+                        or `local_node` (the local node issued the request).
 `opaque_id`       ::    The value of the `X-Opaque-Id` HTTP header (if present) of
                         the request associated with this event. This header can
                         be used freely by the client to mark API calls, as it has

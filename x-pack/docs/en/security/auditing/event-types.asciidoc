@@ -56,23 +56,23 @@ The following is an exhaustive list of the events that can be generated:
 | `put_role`                        | | Logged when the <<security-api-put-role, put role API>>
                                         is being invoked to create or update a role.                           | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:27:01,978+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role", "request.id":"tDYQhv5CRMWM4Sc5Zkk2cQ", "put":{"role":{"name":"test_role","role_descriptor":{"cluster":["all"],"indices":[{"names":["apm*"],"privileges":["all"],"field_security":{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}"},{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\": {\"service.name\": \"bar2\"}}"}],"applications":[],"run_as":[]}}}}`
 | `delete_role`                     | | Logged when the <<security-api-delete-role, delete role API>>
-                                        is being invoked to delete a role.                                     | | example18
+                                        is being invoked to delete a role.                                     | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:08:11,678+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role", "request.id":"155IKq3zQdWq-12dgKZRnw", "delete":{"role":{"name":"my_admin_role"}}}`
 | `put_role_mapping`                | | Logged when the <<security-api-put-role-mapping, put role mapping API>>
-                                        is being invoked to create or update a role mapping.                   | | example15
+                                        is being invoked to create or update a role mapping.                   | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:11:13,932+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_role_mapping", "request.id":"kg4h1l_kTDegnLC-0A-XxA", "put":{"role_mapping":{"name":"mapping1","roles":["user"],"rules":{"field":{"username":"*"}},"enabled":true,"metadata":{"version":1}}}}`
 | `delete_role_mapping`             | | Logged when the
                                         <<security-api-delete-role-mapping, delete role mapping API>>
-                                        is being invoked to delete a role mapping.                             | | example19
+                                        is being invoked to delete a role mapping.                             | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:12:09,349+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_role_mapping", "request.id":"Stim-DuoSTCWom0S_xhf8g", "delete":{"role_mapping":{"name":"mapping1"}}}`
 | `create_apikey`                   | | Logged when the <<security-api-create-api-key, create API key>>
                                         or the <<security-api-grant-api-key, grant API key>> APIs are
-                                        being invoked to create a new API key.                                 | | example16
+                                        being invoked to create a new API key.                                 | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:33:52,521+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"create_apikey", "request.id":"9FteCmovTzWHVI-9Gpa_vQ", "create":{"apikey":{"name":"test-api-key-1","expiration":"10d","role_descriptors":[{"cluster":["monitor","manage_ilm"],"indices":[{"names":["index-a*"],"privileges":["read","maintenance"]},{"names":["in*","alias*"],"privileges":["read"],"field_security":{"grant":["field1*","@timestamp"],"except":["field11"]}}],"applications":[],"run_as":[]},{"cluster":["all"],"indices":[{"names":["index-b*"],"privileges":["all"]}],"applications":[],"run_as":[]}]}}}`
 | `invalidate_apikeys`              | | Logged when the
                                         <<security-api-invalidate-api-key, invalidate API Key API>>
-                                        is being invoked to invalidate one or more API Keys.                   | | example20
+                                        is being invoked to invalidate one or more API Keys.                   | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:36:30,247+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"invalidate_apikeys", "request.id":"7lyIQU9QTFqSrTxD0CqnTQ", "invalidate":{"apikeys":{"owned_by_authenticated_user":false,"user":{"name":"myuser","realm":"native1"}}}}`
 | `put_privileges`                  | | Logged when the <<security-api-put-privileges, put privileges API>>
-                                        is being invoked to add or update one or more application privileges.  | | example15
+                                        is being invoked to add or update one or more application privileges.  | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:39:07,779+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"put_privileges", "request.id":"1X2VVtNgRYO7FmE0nR_BGA", "put":{"privileges":[{"application":"myapp","name":"read","actions":["data:read/*","action:login"],"metadata":{"description":"Read access to myapp"}}]}}`
 | `delete_privileges`               | | Logged when the
                                         <<security-api-delete-privilege, delete application privileges API>>
-                                        is being invoked to remove one or more application privileges.         | | example21
+                                        is being invoked to remove one or more application privileges.         | | Example: `{"type":"audit", "timestamp":"2020-12-31T00:39:30,246+0200", "node.id":"9clhpgjJRR-iKzOw20xBNQ", "event.type":"security_config_change", "event.action":"delete_privileges", "request.id":"7wRWVxxqTzCKEspeSP7J8g", "delete":{"privileges":{"application":"myapp","privileges":["read"]}}}`
 |======
 
 [discrete]

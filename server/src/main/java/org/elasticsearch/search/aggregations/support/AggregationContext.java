@@ -65,6 +65,11 @@ import java.util.function.Supplier;
  * In production we always use the {@link ProductionAggregationContext} but
  * this is {@code abstract} so that tests can build it without creating the
  * massing {@link QueryShardContext}.
+ * <p>
+ * {@linkplain AggregationContext}s are {@link Releasable} because they track
+ * the {@link Aggregator}s they build and {@link Aggregator#close} them when
+ * the request is done. {@linkplain AggregationContext} may also preallocate
+ * bytes on the "REQUEST" breaker and is responsible for releasing those bytes. 
  */
 public abstract class AggregationContext implements Releasable {
     /**

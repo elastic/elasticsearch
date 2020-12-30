@@ -55,6 +55,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -202,7 +203,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
-     * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
+     * Create a {@linkplain AggregationContext} for testing an {@link Aggregator}.
+     * While {@linkplain AggregationContext} is {@link Releasable} the caller is
+     * not responsible for releasing it. Instead, it is released automatically in
+     * in {@link #cleanupReleasables()}.
      */
     protected AggregationContext createAggregationContext(
         IndexSearcher indexSearcher,
@@ -220,6 +224,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
     }
 
+    /**
+     * Create a {@linkplain AggregationContext} for testing an {@link Aggregator}.
+     * While {@linkplain AggregationContext} is {@link Releasable} the caller is
+     * not responsible for releasing it. Instead, it is released automatically in
+     * in {@link #cleanupReleasables()}.
+     */
     protected AggregationContext createAggregationContext(IndexSearcher indexSearcher,
                                                 IndexSettings indexSettings,
                                                 Query query,

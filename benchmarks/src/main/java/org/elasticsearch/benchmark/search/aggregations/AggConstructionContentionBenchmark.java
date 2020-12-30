@@ -319,6 +319,11 @@ public class AggConstructionContentionBenchmark {
         }
 
         @Override
+        public boolean isCacheable() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
         public void close() {
             Releasables.close(releaseMe);
         }

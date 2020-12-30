@@ -22,7 +22,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ArrayValuesSourceParser.NumericValuesSourceParser;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -50,7 +50,7 @@ public class MatrixStatsParser extends NumericValuesSourceParser {
 
     @Override
     protected MatrixStatsAggregationBuilder createFactory(String aggregationName, ValuesSourceType valuesSourceType,
-                                                          ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+                                                          CoreValuesSourceType.ValueType targetValueType, Map<ParseField, Object> otherOptions) {
         MatrixStatsAggregationBuilder builder = new MatrixStatsAggregationBuilder(aggregationName);
         String mode = (String)otherOptions.get(MULTIVALUE_MODE_FIELD);
         if (mode != null) {

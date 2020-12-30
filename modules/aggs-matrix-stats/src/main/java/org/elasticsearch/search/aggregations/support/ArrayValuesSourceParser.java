@@ -38,29 +38,29 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     public abstract static class NumericValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Numeric> {
 
         protected NumericValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(formattable, CoreValuesSourceType.NUMERIC, CoreValuesSourceType.ValueType.NUMERIC);
         }
     }
 
     public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Bytes> {
 
         protected BytesValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.BYTES, ValueType.STRING);
+            super(formattable, CoreValuesSourceType.BYTES, CoreValuesSourceType.ValueType.STRING);
         }
     }
 
     public abstract static class GeoPointValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.GeoPoint> {
 
         protected GeoPointValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+            super(formattable, CoreValuesSourceType.GEOPOINT, CoreValuesSourceType.ValueType.GEOPOINT);
         }
     }
 
     private boolean formattable = false;
     private ValuesSourceType valuesSourceType = null;
-    private ValueType targetValueType = null;
+    private CoreValuesSourceType.ValueType targetValueType = null;
 
-    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    private ArrayValuesSourceParser(boolean formattable, ValuesSourceType valuesSourceType, CoreValuesSourceType.ValueType targetValueType) {
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;
         this.formattable = formattable;
@@ -188,13 +188,13 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      */
     protected abstract ArrayValuesSourceAggregationBuilder<?> createFactory(String aggregationName,
                                                                             ValuesSourceType valuesSourceType,
-                                                                            ValueType targetValueType,
+                                                                            CoreValuesSourceType.ValueType targetValueType,
                                                                             Map<ParseField, Object> otherOptions);
 
     /**
      * Allows subclasses of {@link ArrayValuesSourceParser} to parse extra
      * parameters and store them in a {@link Map} which will later be passed to
-     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
+     * {@link #createFactory(String, ValuesSourceType, CoreValuesSourceType.ValueType, Map)}.
      *
      * @param aggregationName
      *            the name of the aggregation
@@ -207,7 +207,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
      * @param otherOptions
      *            a {@link Map} of options to be populated by successive calls
      *            to this method which will then be passed to the
-     *            {@link #createFactory(String, ValuesSourceType, ValueType, Map)}
+     *            {@link #createFactory(String, ValuesSourceType, CoreValuesSourceType.ValueType, Map)}
      *            method
      * @return <code>true</code> if the current token was correctly parsed,
      *         <code>false</code> otherwise

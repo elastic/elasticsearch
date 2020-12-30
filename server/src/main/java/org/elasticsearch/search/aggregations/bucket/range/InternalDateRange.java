@@ -22,7 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -82,8 +82,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
 
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
         @Override
-        public ValueType getValueType() {
-            return ValueType.DATE;
+        public CoreValuesSourceType.ValueType getValueType() {
+            return CoreValuesSourceType.ValueType.DATE;
         }
 
         @Override

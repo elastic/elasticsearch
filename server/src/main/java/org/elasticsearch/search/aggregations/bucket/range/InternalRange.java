@@ -26,7 +26,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -190,8 +189,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
             return CoreValuesSourceType.NUMERIC;
         }
 
-        public ValueType getValueType() {
-            return ValueType.NUMERIC;
+        public CoreValuesSourceType.ValueType getValueType() {
+            return CoreValuesSourceType.ValueType.NUMERIC;
         }
 
         @SuppressWarnings("unchecked")

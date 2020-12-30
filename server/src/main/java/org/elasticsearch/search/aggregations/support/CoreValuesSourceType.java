@@ -29,6 +29,9 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
@@ -45,9 +48,7 @@ import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
+import java.util.*;
 import java.util.function.Function;
 
 /**
@@ -102,7 +103,6 @@ public enum CoreValuesSourceType implements ValuesSourceType {
             } else {
                 return new DocValueFormat.Decimal(format);
             }
-
         }
     },
     BYTES() {
@@ -376,6 +376,20 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
     ;
 
+    /*public static final Map<ValueType, CoreValuesSourceType> valueTypeMap = new EnumMap<>(ValueType.class);
+    static {
+        valueTypeMap.put(ValueType.STRING, BYTES);
+        valueTypeMap.put(ValueType.LONG, NUMERIC);
+        valueTypeMap.put(ValueType.DOUBLE, NUMERIC);
+        valueTypeMap.put(ValueType.NUMBER, NUMERIC);
+        valueTypeMap.put(ValueType.DATE, DATE);
+        valueTypeMap.put(ValueType.IP, IP);
+        valueTypeMap.put(ValueType.NUMERIC, NUMERIC);
+        valueTypeMap.put(ValueType.GEOPOINT, GEOPOINT);
+        valueTypeMap.put(ValueType.BOOLEAN, BOOLEAN);
+        valueTypeMap.put(ValueType.RANGE, RANGE);
+    }*/
+
     public static ValuesSourceType fromString(String name) {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
@@ -390,5 +404,63 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     }
 
     /** List containing all members of the enumeration. */
-    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(CoreValuesSourceType.values());
+    public static List<ValuesSourceType> ALL_CORE = Arrays.asList(values());
+
+    public enum ValueType implements Writeable {
+
+        STRING((byte) 1, CoreValuesSourceType.BYTES),
+        LONG((byte) 2, CoreValuesSourceType.NUMERIC),
+        DOUBLE((byte) 3, CoreValuesSourceType.NUMERIC),
+        NUMBER((byte) 4, CoreValuesSourceType.NUMERIC),
+        DATE((byte) 5, CoreValuesSourceType.DATE),
+        IP((byte) 6, CoreValuesSourceType.IP),
+        NUMERIC((byte) 7, CoreValuesSourceType.NUMERIC),
+        GEOPOINT((byte) 8, CoreValuesSourceType.GEOPOINT),
+        BOOLEAN((byte) 9, CoreValuesSourceType.BOOLEAN),
+        RANGE((byte) 10, CoreValuesSourceType.RANGE);
+
+        private final byte id;
+        private final CoreValuesSourceType coreValuesSourceType;
+
+        ValueType(byte id, CoreValuesSourceType coreValuesSourceType ) {
+            this.id = id;
+            this.coreValuesSourceType = coreValuesSourceType;
+        }
+
+        public byte getId(){
+            return id;
+        }
+
+        public static ValueType fromString(String name) {
+            return valueOf(name.trim().toUpperCase(Locale.ROOT));
+        }
+
+        public static ValueType readFromStream(StreamInput in) throws IOException {
+            byte id = in.readByte();
+
+            for (ValueType valueType : ValueType.values()) {
+                if (id == valueType.id) {
+                    return valueType;
+                }
+            }
+            throw new IOException("No ValueType found for id [" + id + "]");
+        }
+
+        public CoreValuesSourceType getCoreValuesSourceType(){
+            return coreValuesSourceType;
+        }
+
+        public static List<ValueType> forCoreValuesSourceType(CoreValuesSourceType coreValuesSourceType) {
+            List<ValueType> valueTypes = new ArrayList<>();
+            for (ValueType valueType : values())
+                if (valueType.coreValuesSourceType == coreValuesSourceType)
+                    valueTypes.add(valueType);
+            return valueTypes;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeByte(id);
+        }
+    }
 }

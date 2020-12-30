@@ -33,37 +33,48 @@ The following is an exhaustive list of the events that can be generated:
                                         <<run-as-privilege, run as>>
                                         another user action they do not have the necessary
                                         <<security-privileges,privilege>> to do so.                            | | example8
-| `tampered_request`                | | Logged when the {security-features} detect that the request has        | | example9
+| `tampered_request`                | | Logged when the {security-features} detect that the request has
                                         been tampered with. Typically relates to `search/scroll`
                                         requests when the scroll ID is believed to have been
-                                        tampered with.
-| `connection_granted`              | | Logged when an incoming TCP connection passes the                      | | example10
+                                        tampered with.                                                         | | example9
+| `connection_granted`              | | Logged when an incoming TCP connection passes the
                                         <<ip-filtering, IP Filter>> for a specific
-                                        profile.
-| `connection_denied`               | | Logged when an incoming TCP connection does not pass the               | | example11
+                                        profile.                                                               | | example10
+| `connection_denied`               | | Logged when an incoming TCP connection does not pass the
                                         <<ip-filtering, IP Filter>> for a specific
-                                        profile.
-| `put_user`                        | | Logged when the put user API has been invoked to create or             | | example12
-                                        update a native or built-in user. Note that updates can
-                                        also change the password.
-| `change_password`                 | | Logged when the change password API has been used to                   | | example13
-                                        change the password of native or built-in users.
-| `put_role`                        | | Logged when the put role API has been invoked to create                | | example14
-                                        or update a role.
-| `put_role_mapping`                | | Logged when the put role mapping API has been invoked to
-                                        create or update a role mapping.                                       | | example14
-| `put_privileges`                  | | Logged when the <<security-api-put-privileges, put privileges API>>    | | example15
-                                        has been invoked to add or update application privileges.
-| `create_apikey`                   | | Logged when the <<security-api-create-api-key, create API key>>        | | example16
-                                        or the <<security-api-grant-api-key, grant API key>> APIs have
-                                        been invoked to create a new API key.
-| `delete_user`                     | | Logged when the <<security-api-delete-user, delete user API>>          | | example17
-                                        has been invoked to delete a specific native user.
-| `delete_role`                     | | Logged when the <<security-api-delete-role, delete role API>>          | | example18
-                                        has been invoked to delete a role.
-| `delete_role_mapping`             | | Logged when the                                                        | | example19
+                                        profile.                                                               | | example11
+| `put_user`                        | | Logged when the <<security-api-put-user, put user API>>
+                                        has been invoked to create or
+                                        update a native or built-in user. Note that user updates can
+                                        also change the password.                                              | | example12
+| `delete_user`                     | | Logged when the <<security-api-delete-user, delete user API>>
+                                        has been invoked to delete a specific native user.                     | | example17
+| `change_password`                 | | Logged when the <<security-api-change-password, change password API>>
+                                        has been invoked to change the password of a native or built-in user.  | | example13
+| `change_enable_user`              | | Logged when the <<security-api-enable-user, enable user API>>
+                                        has been invoked to enable a native or a built-in user.                | | example13bis
+| `change_disable_user`             | | Logged when the <<security-api-enable-user, enable user API>>
+                                        has been invoked to disable a native or a built-in user.               | | example13bis2
+| `put_role`                        | | Logged when the <<security-api-put-role, put role API>>
+                                        has been invoked to create or update a role.                           | | example14
+| `delete_role`                     | | Logged when the <<security-api-delete-role, delete role API>>
+                                        has been invoked to delete a role.                                     | | example18
+| `put_role_mapping`                | | Logged when the <<security-api-put-role-mapping, put role mapping API>>
+                                        has been invoked to create or update a role mapping.                   | | example15
+| `delete_role_mapping`             | | Logged when the
                                         <<security-api-delete-role-mapping, delete role mapping API>>
-                                        has been invoked to delete a role mapping.
+                                        has been invoked to delete a role mapping.                             | | example19
+| `create_apikey`                   | | Logged when the <<security-api-create-api-key, create API key>>
+                                        or the <<security-api-grant-api-key, grant API key>> APIs have
+                                        been invoked to create a new API key.                                  | | example16
+| `invalidate_apikeys`              | | Logged when the
+                                        <<security-api-invalidate-api-key, invalidate API Key API>> has been
+                                        invoked to invalidate one or more API Keys.                            | | example20
+| `put_privileges`                  | | Logged when the <<security-api-put-privileges, put privileges API>>
+                                        has been invoked to add or update one or more application privileges.  | | example15
+| `delete_privileges`               | | Logged when the
+                                        <<security-api-delete-privilege, delete application privileges API>>
+                                        has been invoked to remove one or more application privileges.         | | example21
 |======
 
 [discrete]

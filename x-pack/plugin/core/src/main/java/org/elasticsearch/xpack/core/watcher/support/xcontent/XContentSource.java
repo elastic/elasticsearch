@@ -21,6 +21,7 @@ import org.elasticsearch.common.xcontent.XContentUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -76,8 +77,8 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a map
      */
-    public Map<String, Object> getAsMap() {
-        return (Map<String, Object>) data();
+    public Map<?, ?> getAsMap() {
+        return (Map<?, ?>) data();
     }
 
     /**
@@ -90,8 +91,7 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a list
      */
-    public List<Object> getAsList() {
-        return (List<Object>) data();
+    public List<?> getAsList() { return ((List<?>) data());
     }
 
     /**

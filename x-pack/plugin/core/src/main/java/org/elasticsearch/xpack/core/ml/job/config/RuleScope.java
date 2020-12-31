@@ -31,6 +31,7 @@ import java.util.stream.Collectors;
 
 public class RuleScope implements ToXContentObject, Writeable {
 
+    @SuppressWarnings("unchecked")
     public static ContextParser<Void, RuleScope> parser(boolean ignoreUnknownFields) {
         return (p, c) -> {
             Map<String, Object> unparsedScope = p.map();
@@ -42,7 +43,7 @@ public class RuleScope implements ToXContentObject, Writeable {
             Map<String, FilterRef> scope = new HashMap<>();
             for (Map.Entry<String, Object> entry : unparsedScope.entrySet()) {
                 try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                    builder.map((Map<String, ?>) entry.getValue());
+                    builder.map((Map<String, Object>) entry.getValue());
                     try (XContentParser scopeParser = XContentFactory.xContent(builder.contentType()).createParser(
                             NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, Strings.toString(builder))) {
                         scope.put(entry.getKey(), filterRefParser.parse(scopeParser, null));

@@ -37,9 +37,8 @@ public final class ObjectPath {
      * Return the value within a given object at the specified path, or
      * {@code null} if the path does not exist
      */
-    @SuppressWarnings("unchecked")
-    public static <T> T eval(String path, Object object) {
-        return (T) evalContext(path, object);
+    public static Object eval(String path, Object object) {
+        return evalContext(path, object);
     }
 
     private static Object evalContext(String path, Object ctx) {

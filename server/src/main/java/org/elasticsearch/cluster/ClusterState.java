@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.block.ClusterBlock;
@@ -323,7 +322,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         ROUTING_NODES("routing_nodes"),
         CUSTOMS("customs");
 
-        private static Map<String, Metric> valueToEnum;
+        private static final Map<String, Metric> valueToEnum;
 
         static {
             valueToEnum = new HashMap<>();
@@ -365,7 +364,6 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         EnumSet<Metric> metrics = Metric.parseString(params.param("metric", "_all"), true);
 
@@ -646,19 +644,7 @@ public class ClusterState implements ToXContentFragment, Diffable<ClusterState> 
         routingTable.writeTo(out);
         nodes.writeTo(out);
         blocks.writeTo(out);
-        // filter out custom states not supported by the other node
-        int numberOfCustoms = 0;
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
-                numberOfCustoms++;
-            }
-        }
-        out.writeVInt(numberOfCustoms);
-        for (final ObjectCursor<Custom> cursor : customs.values()) {
-            if (VersionedNamedWriteable.shouldSerialize(out, cursor.value)) {
-                out.writeNamedWriteable(cursor.value);
-            }
-        }
+        VersionedNamedWriteable.writeVersionedWritables(out, customs);
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }

@@ -24,11 +24,13 @@
     forwardable = true
     ignore_acceptor_hostname = true
     rdns = false
-    default_tgs_enctypes = rc4-hmac
-    default_tkt_enctypes = rc4-hmac
-    permitted_enctypes = rc4-hmac
+    # des3-cbc-sha1-kd is the only enctype available in fips 140-2
+    default_tgs_enctypes = des3-cbc-sha1-kd
+    default_tkt_enctypes = des3-cbc-sha1-kd
+    permitted_enctypes = des3-cbc-sha1-kd
     # udp_preference_limit = 1
     kdc_timeout = 3000
+    allow_weak_enctypes = false
 
 [realms]
     ${REALM_NAME} = {

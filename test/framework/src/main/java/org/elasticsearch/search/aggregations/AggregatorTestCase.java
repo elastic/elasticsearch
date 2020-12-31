@@ -736,7 +736,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             }
             doc.add(new SortedNumericDocValuesField(fieldName, v));
 
-        } else if (vst.equals(CoreValuesSourceType.BYTES)) {
+        } else if (vst.equals(CoreValuesSourceType.KEYWORD)) {
             if (typeName.equals(BinaryFieldMapper.CONTENT_TYPE)) {
                 doc.add(new BinaryFieldMapper.CustomBinaryDocValuesField(fieldName, new BytesRef("a").bytes));
                 json = "{ \"" + fieldName + "\" : \"a\" }";

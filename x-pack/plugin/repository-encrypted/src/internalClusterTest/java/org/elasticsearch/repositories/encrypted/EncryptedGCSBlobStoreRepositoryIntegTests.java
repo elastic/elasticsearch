@@ -31,7 +31,8 @@ public final class EncryptedGCSBlobStoreRepositoryIntegTests extends GoogleCloud
     private static List<String> repositoryNames;
 
     @BeforeClass
-    private static void preGenerateRepositoryNames() {
+    public static void preGenerateRepositoryNames() {
+        assumeFalse("Should only run when encrypted repo is enabled", EncryptedRepositoryPlugin.isDisabled());
         List<String> names = new ArrayList<>();
         for (int i = 0; i < 32; i++) {
             names.add("test-repo-" + i);

@@ -410,19 +410,7 @@ public class AzureBlobStore implements BlobStore {
             final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blobName);
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
 
-            final Flux<ByteBuffer> byteBufferFlux =
-                convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE).doOnComplete(() -> {
-                    try {
-                        if (inputStream.available() > 0) {
-                            long totalLength = blobSize + inputStream.available();
-                            throw new IllegalStateException(
-                                    "InputStream provided " + totalLength + " bytes, more than the expected " + totalLength + " bytes"
-                            );
-                        }
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-            });
+            final Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
             final BlockBlobSimpleUploadOptions options = new BlockBlobSimpleUploadOptions(byteBufferFlux, blobSize);
             BlobRequestConditions requestConditions = new BlobRequestConditions();
             if (failIfAlreadyExists) {
@@ -450,20 +438,6 @@ public class AzureBlobStore implements BlobStore {
             for (int i = 0; i < nbParts; i++) {
                 final long length = i < nbParts - 1 ? partSize : lastPartSize;
                 Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
-                if (i == nbParts - 1) {
-                    byteBufferFlux.doOnComplete(() -> {
-                        try {
-                            if (inputStream.available() > 0) {
-                                long totalLength = blobSize + inputStream.available();
-                                throw new IllegalStateException(
-                                        "InputStream provided " + totalLength + " bytes, more than the expected " + totalLength + " bytes"
-                                );
-                            }
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    });
-                }
 
                 final String blockId = UUIDs.base64UUID();
                 blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();

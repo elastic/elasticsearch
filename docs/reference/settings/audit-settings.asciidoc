@@ -13,6 +13,10 @@ as creating, updating and removing <<native-realm, native>> and
 <<built-in-users, built-in>> users, <<security-api-put-role, roles>>,
 <<security-api-put-role-mapping, role mappings>> and
 <<security-api-create-api-key, API keys>> are also recorded.
+--
+TIP: Audit logs are only available on certain subscription levels.
+For more information, see https://www.elastic.co/subscriptions.
+--
 
 If configured, auditing settings must be set on every node in the cluster.
 Static settings, such as `xpack.security.audit.enabled`, must be configured in

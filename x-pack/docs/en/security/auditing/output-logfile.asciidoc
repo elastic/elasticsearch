@@ -13,19 +13,28 @@ by default points to the `elasticsearch.log` file.
 [[audit-log-entry-format]]
 === Log entry format
 
-The log entries in the `<clustername>_audit.json` file have the following format:
+The audit events are formatted as JSON documents, and each event is printed on a separate
+line in the `<clustername>_audit.json` file (the entries themselves do not contain the
+end-of-line delimiter).
+The audit event JSON format is somewhat particular, as *most* fields follow a dotted
+name syntax, are ordered, and contain non-null string values. This format creates a
+structured columnar aspect, similar to a CSV, that can be more easily inspected visually
+(compared to an equivalent nested JSON document).
 
-- Each log entry is a one line JSON document and each one is printed on a separate line.
-- The fields of a log entry are ordered. However, if a field does not have a value it
-  will not be printed. The precise line pattern, together with the complete field
-  order, are specified in the `log4j2.properties` config file.
-- The log entry does not contain nested inner JSON objects, i.e. the doc is flat.
-- The field names follow a dotted notation to flatten inner objects.
-- A field's value can be a string, a number or an array of strings.
-- A field's value, a request body as well, will be escaped as per the JSON RFC 4627.
+There are however a few attributes that are exceptions to the above format. The `put`,
+`delete`, `change`, `create` and `invalidate` attributes, which are only present for
+events with the `event.type: "security_config_change"` attribute, contain the *nested JSON*
+representation of the security change taking effect. The contents of the security config change
+are hence not splayed as top-level dot-named fields in the audit event document. That's because
+the fields are specific to the particular kind of the security change and do not show up in
+any other audit events, and so the benefits of a columnar format are much more limited; the
+space-saving benefits of the nested structure is the favoured trade-off in this case.
+
+When the `request.body` attribute is present (see <<auditing-search-queries>>), it contains a
+string value containing the full HTTP request body, ascaped as per the JSON RFC 4677.
 
 There is a list of <<audit-event-types, audit event types>> specifying the
-set of fields for each sog entry type.
+set of fields, as well as examples, for each entry type.
 
 [discrete]
 [[audit-log-settings]]
@@ -64,6 +73,9 @@ Sometimes the verbosity of the audit trail may become a problem that the event t
 These policies define rules that match audit events which will be _ignored_ (read as: not printed).
 Rules match on the values of attributes of audit events and complement the <<audit-log-settings, include/exclude>> method.
 Imagine the corpus of audit events and the policies chopping off unwanted events.
+With a sole exception, all audit events are subject to the ignore policies.
+The exception are events of type `security_config_change`, which cannot be filtered out,
+unless excluded altogether.
 
 IMPORTANT: When utilizing audit events ignore policies you are acknowledging potential
 accountability gaps that could render illegitimate actions undetectable.

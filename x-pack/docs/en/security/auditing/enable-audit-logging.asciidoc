@@ -24,10 +24,7 @@ To enable enable audit logging:
 
 When audit logging is enabled, <<audit-event-types, security events>> are persisted to 
 a dedicated `<clustername>_audit.json` file on the host's file system, on every cluster node.
-The file is rotated and archived daily or upon reaching the 1GB file size limit.
-For more details, check out the
-https://github.com/elastic/elasticsearch/blob/{branch}/x-pack/plugin/core/src/main/config/log4j2.properties[log4j2.properties]
-for the security audit logger.
+For more information, see <<audit-log-output>>.
 
 You can configure additional options to control what events are logged and 
 what information is included in the audit log. 

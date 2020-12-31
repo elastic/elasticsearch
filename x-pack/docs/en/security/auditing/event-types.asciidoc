@@ -81,19 +81,7 @@ The following is an exhaustive list of the events that can be generated:
 
 The audit events are formatted as JSON documents, and each event is printed on a separate
 line in the audit log (the entries themselves do not contain the end-of-line delimiter).
-The audit event JSON format is somewhat particular, as *most* fields follow a dotted
-name syntax, are ordered, and contain non-null string values. This format creates a
-structured columnar aspect, similar to a CSV, that can be more easily inspected visually
-(compared to an equivalent nested JSON document).
-
-There are however a few attributes that are exceptions to the above format. The `put`,
-`delete`, `change`, `create` and `invalidate` attributes, which are only present for
-events with the `event.type: "security_config_change"` attribute, contain the *nested JSON*
-representation of the security change taking effect. The contents of the security config change
-are hence not splayed as top-level dot-named fields in the audit event document. That's because
-the fields are specific to the particular kind of the security change and do not show up in
-any other audit events, and so the benefits of a columnar format are much more limited; the
-space-saving benefits of the nested structure is the favoured trade-off in this case.
+For more details, see <<audit-log-entry-format>>.
 
 The following list shows attributes that are common to all audit event types:
 

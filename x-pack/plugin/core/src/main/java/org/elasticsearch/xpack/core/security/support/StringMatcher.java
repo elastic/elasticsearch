@@ -162,7 +162,7 @@ public class StringMatcher implements Predicate<String> {
                 if (description.length() > 80) {
                     description = Strings.cleanTruncate(description, 80) + "...";
                 }
-                throw new ElasticsearchSecurityException("The set patterns [{}] is too complex to evaluate", e, description);
+                throw new ElasticsearchSecurityException("The set of patterns [{}] is too complex to evaluate", e, description);
             }
         }
     }

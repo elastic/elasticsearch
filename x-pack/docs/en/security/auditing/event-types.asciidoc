@@ -48,7 +48,7 @@ The following is an exhaustive list of the events that can be generated:
 | `delete_user`                     | | Logged when the <<security-api-delete-user, delete user API>>
                                         is being invoked to delete a specific native user.                     | | Example: `{"type":"audit", "timestamp":"2020-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"delete_user", "request.id":"au5a1Cc3RrebDMitMGGNCw", "delete":{"user":{"name":"jacknich"}}}`
 | `change_password`                 | | Logged when the <<security-api-change-password, change password API>>
-                                        is being invoked to change the password of a native or built-in user.  | | example13
+                                        is being invoked to change the password of a native or built-in user.  | | Example: `{"type":"audit", "timestamp":"2019-12-30T22:19:41,345+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_password", "request.id":"bz5a1Cc3RrebDMitMGGNCw", "change":{"password":{"user":{"name":"user1"}}}}`
 | `change_enable_user`              | | Logged when the <<security-api-enable-user, enable user API>>
                                         is being invoked to enable a native or a built-in user.                | | Example: `{"type":"audit", "timestamp":"2020-12-30T23:17:34,843+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"change_enable_user", "request.id":"BO3QU3qeTb-Ei0G0rUOalQ", "change":{"enable":{"user":{"name":"user1"}}}}`
 | `change_disable_user`             | | Logged when the <<security-api-enable-user, enable user API>>
@@ -260,7 +260,7 @@ request bodies of the corresponding security APIs.
 `disable`             ::     A simple object like `{"user":{"name": <string>}}`.
 `apikey`              ::     An object like `{"name": <string>, "expiration": <string>, "role_descriptors" [<object>]}`.
                              The `role_descriptors` objects have the same schema as the `role_descriptor` object that
-                             is part of the `role` config object, from the above.
+                             is part of the above `role` config object.
 `grant`               ::     An object like `{"type": <string>, "user": {"name": <string>, "has_password": <boolean>},
                              "has_access_token": <boolean>}`
 `apikeys`             ::     An object like `{"ids": <string_list>, "name": <string>, "owned_by_authenticated_user":

@@ -48,6 +48,7 @@ public class HasPasswordKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testFailsWhenKeystoreLacksPassword() throws Exception {
+        assumeFalse("Cannot create unprotected keystores in FIPS mode", inFipsJvm());
         createKeystore("");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals("Unexpected exit code", HasPasswordKeyStoreCommand.NO_PASSWORD_EXIT_CODE, e.exitCode);

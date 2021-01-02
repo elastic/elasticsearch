@@ -33,7 +33,7 @@ public final class DestructiveOperations {
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
-        Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
+        Setting.boolSetting("action.destructive_requires_name", true, Property.Dynamic, Property.NodeScope);
     private volatile boolean destructiveRequiresName;
 
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {

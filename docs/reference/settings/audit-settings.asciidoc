@@ -15,7 +15,7 @@ as creating, updating and removing <<native-realm, native>> and
 <<security-api-create-api-key, API keys>> are also recorded.
 --
 TIP: Audit logs are only available on certain subscription levels.
-For more information, see https://www.elastic.co/subscriptions.
+For more information, see {subscriptions}.
 --
 
 If configured, auditing settings must be set on every node in the cluster.

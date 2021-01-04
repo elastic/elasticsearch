@@ -23,27 +23,76 @@ Other versions:
 | {ref-bare}/7.1/release-highlights-7.1.0.html[7.1]
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
-
-
-// Use the notable-highlights tag to mark entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
+[discrete]
+=== Add support for runtime fields
+
+Typically, you index data into {es} to promote faster search.
+However, indexing can be slow and requires more disk space, and you have to
+reindex your data to add fields to existing documents. With runtime fields,
+you can add fields to documents already indexed to {es} without
+reindexing your data.
+
+You access runtime fields from the search API like any other field, and
+{es} sees runtime fields no differently. You can define runtime fields in
+the index mapping or in the search request. It's your choice, which is part
+of the inherent flexibility of runtime fields.
+
+See the {ref}/runtime.html[runtime fields documentation] to read more about
+their benefits and how to use them.
 // end::notable-highlights[]
 
-// Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete]
-// === Heading
-//
-// Description.
-
+[discrete]
 === Speed up Date histogram
 
 In 7.10 we {es-pull}61467[managed] an 11% speed improvement in
 <<search-aggregations-bucket-datehistogram-aggregation>>. In 7.11 we've
 {es-pull}63643[sped] it up an additional 85% in some common cases - most
-noteably when the date_histogram is a top level aggregation and there aren't
+noteably when the `date_histogram` is a top level aggregation and there aren't
 sub-aggregations. Kibana uses Date histogram in this form very very frequently.
+
+[discrete]
+=== Cross-cluster replication (CCR) now supports data streams
+
+{ref}/xpack-ccr.html[CCR] is now aware of {ref}/data-streams.html[data streams],
+so that full data streams are replicated on followers, and not just their
+backing indices.
+
+
+[discrete]
+=== Introduce new audit record for security configuration changes via API
+
+This PR introduces a new `event.type` category for audit records, namely
+the `security_config_change`, in the existing audit trail. Events in this
+category indicate that a security configuration has been _set_ (eg
+user/role created/updated) or _cleared_ (eg user/role deleted). The events
+are emitted by default, but can be explicitly toggled by the
+`security_config_change` handler. The record contains all the change
+details, e.g. the rules of the particular role mapping that has been
+created or updated, but all credentials are redacted out. The change
+details are formatted as a JSON object and are part of audit record
+structure. They are not JSON-escaped and put in a string field.
+
+Sample audit log output:
+
+[source,js]
+----
+{"type":"audit", "timestamp":"2020-09-26T12:58:13,369+0300", "node.id":"6BXu_9j6QPK7jvmOwzxqLQ", "event.type":"transport", "event.action":"access_granted", "user.name":"elastic", "user.realm":"reserved", "user.roles":["superuser"], "origin.type":"rest", "authentication.type":"REALM", "origin.address":"[::1]:50481", "request.id":"JLr1ftaoTuODAUZl-8g4Bg", "request.name":"PutUserRequest"}
+{"type":"audit", "timestamp":"2020-09-26T12:58:13,370+0300", "node.id":"6BXu_9j6QPK7jvmOwzxqLQ", "event.type":"security_config_change", "event.action":"put", "request.id":"JLr1ftaoTuODAUZl-8g4Bg", "config_change":{"put_user":{"username":"test_user2","roles":["superuser"],"full_name":"Joe Average","email":"joe.average@example.com","metadata":{"intelligence":7},"enabled":true,"password_hash":"<redacted>"}}}
+{"type":"audit", "timestamp":"2020-09-26T12:58:52,954+0300", "node.id":"6BXu_9j6QPK7jvmOwzxqLQ", "event.type":"transport", "event.action":"access_granted", "user.name":"elastic", "user.realm":"reserved", "user.roles":["superuser"], "origin.type":"rest", "authentication.type":"REALM", "origin.address":"[::1]:50482", "request.id":"i2XtJLCoRheGuwUdCXjDJw", "request.name":"PutRoleRequest"}
+{"type":"audit", "timestamp":"2020-09-26T12:58:52,955+0300", "node.id":"6BXu_9j6QPK7jvmOwzxqLQ", "event.type":"security_config_change", "event.action":"put", "request.id":"i2XtJLCoRheGuwUdCXjDJw", "config_change":{"put_role":{"name":"role_fls","cluster_privileges":["all"],"run_as":[],"indices_privileges":[{"names":["apm*"],"privileges":["read"],"field_security":{"grant":["granted"]},"query":"{\"term\": {\"service.name\": \"bar\"}}","allow_restricted_indices":false},{"names":["apm-all*"],"privileges":["all"],"query":"{\"term\": {\"service.name\": \"bar2\"}}","allow_restricted_indices":false}],"application_privileges":[],"metadata":{},"configurable_cluster_privileges":{}}}}
+----
+
+[discrete]
+=== Add support for the `?` character to the `:` EQL operator
+
+TODO
+
+[discrete]
+=== Use different G1GC options for small heaps
+
+Our benchmarks have demonstrated that when {es} is using a smaller heap
+size, it performs better with an alternative set of garbage collection
+options.  {es} now ergonomically chooses different G1GC options for heap
+sizes smaller than, but not including, 8GB.
+

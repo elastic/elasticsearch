@@ -1388,7 +1388,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 IndexAbstraction.Index index;
                 DataStream parent = indexToDataStreamLookup.get(indexMetadata.getIndex().getName());
                 if (parent != null) {
-                    assert parent.getIndices().contains(indexMetadata.getIndex());
+                    assert parent.getIndices().contains(indexMetadata.getIndex()) :
+                        "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                     index = new IndexAbstraction.Index(indexMetadata, (IndexAbstraction.DataStream) indicesLookup.get(parent.getName()));
                 } else {
                     index = new IndexAbstraction.Index(indexMetadata);

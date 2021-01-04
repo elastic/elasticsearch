@@ -6,7 +6,6 @@ When you are <<enable-audit-logging,auditing security events>>, a single client 
 might generate multiple audit events, across multiple cluster nodes. The common
 `request.id` attribute can be used to correlate the associated events.
 
-The following is an exhaustive list of the events that can be generated:
 
 |======
 | `anonymous_access_denied`         | | Logged when a request is denied due to a missing
@@ -336,4 +335,3 @@ that have been previously described:
                             This attribute is only provided for authentication using an API key.
   `api_key.name`       ::   API key name provided in the <<security-api-create-api-key,create API key>> request.
                             This attribute is only provided for authentication using an API key.
-

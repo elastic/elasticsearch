@@ -62,6 +62,8 @@ public class XPackLicenseState {
         MONITORING_CLUSTER_ALERTS(OperationMode.STANDARD, true),
         MONITORING_UPDATE_RETENTION(OperationMode.STANDARD, false),
 
+        ENCRYPTED_SNAPSHOT(OperationMode.PLATINUM, true),
+
         CCR(OperationMode.PLATINUM, true),
 
         GRAPH(OperationMode.PLATINUM, true),

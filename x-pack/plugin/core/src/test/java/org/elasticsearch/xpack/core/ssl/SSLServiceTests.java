@@ -315,6 +315,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testThatHttpClientAuthDefaultsToNone() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         secureSettings.setString("xpack.security.http.ssl.keystore.secure_password", "testnode");
@@ -338,6 +339,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testThatTruststorePasswordIsRequired() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("xpack.security.transport.ssl.keystore.secure_password", "testnode");
         Settings settings = Settings.builder()
@@ -354,6 +356,7 @@ public class SSLServiceTests extends ESTestCase {
     }
 
     public void testThatKeystorePasswordIsRequired() throws Exception {
+        assumeFalse("Can't run in a FIPS JVM, uses JKS/PKCS12 keystores", inFipsJvm());
         Settings settings = Settings.builder()
             .put("xpack.security.transport.ssl.keystore.path", testnodeStore)
             .put("xpack.security.transport.ssl.keystore.type", testnodeStoreType)

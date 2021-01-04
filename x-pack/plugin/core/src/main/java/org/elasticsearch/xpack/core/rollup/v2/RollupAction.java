@@ -6,17 +6,20 @@
 package org.elasticsearch.xpack.core.rollup.v2;
 
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.support.broadcast.BroadcastRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
+import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 
@@ -25,7 +28,6 @@ import java.util.Map;
 import java.util.Objects;
 
 public class RollupAction extends ActionType<RollupAction.Response> {
-
     public static final RollupAction INSTANCE = new RollupAction();
     public static final String NAME = "cluster:admin/xpack/rollup/action";
 
@@ -33,7 +35,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         super(NAME, RollupAction.Response::new);
     }
 
-    public static class Request extends ActionRequest implements ToXContentObject {
+    public static class Request extends BroadcastRequest<Request> implements ToXContentObject {
         private String sourceIndex;
         private String rollupIndex;
         private RollupActionConfig rollupConfig;
@@ -44,7 +46,8 @@ public class RollupAction extends ActionType<RollupAction.Response> {
             this.rollupConfig = rollupConfig;
         }
 
-        public Request() {}
+        public Request() {
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -120,8 +123,7 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         }
     }
 
-    public static class Response extends ActionResponse implements Writeable, ToXContentObject {
-
+    public static class Response extends BroadcastResponse implements Writeable, ToXContentObject {
         private final boolean created;
 
         public Response(boolean created) {
@@ -161,6 +163,40 @@ public class RollupAction extends ActionType<RollupAction.Response> {
         @Override
         public int hashCode() {
             return Objects.hash(created);
+        }
+    }
+
+    public static class ShardRequest extends BroadcastShardRequest {
+        private final Request request;
+
+        public ShardRequest(StreamInput in) throws IOException {
+            super(in);
+            this.request = new Request(in);
+        }
+
+        public ShardRequest(ShardId shardId, Request request) {
+            super(shardId, request);
+            this.request = request;
+        }
+
+        public RollupActionConfig getRollupConfig() {
+            return request.getRollupConfig();
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            request.writeTo(out);
+        }
+    }
+
+    public static class ShardResponse extends BroadcastShardResponse {
+        public ShardResponse(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        public ShardResponse(ShardId shardId) {
+            super(shardId);
         }
     }
 }

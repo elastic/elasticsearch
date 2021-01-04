@@ -75,7 +75,7 @@ public abstract class AbstractEC2MockAPITestCase extends ESTestCase {
         final String endpoint = "http://" + InetAddresses.toUriString(address.getAddress()) + ":" + address.getPort();
         final MockSecureSettings mockSecure = new MockSecureSettings();
         mockSecure.setString(Ec2ClientSettings.ACCESS_KEY_SETTING.getKey(), accessKey);
-        mockSecure.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret");
+        mockSecure.setString(Ec2ClientSettings.SECRET_KEY_SETTING.getKey(), "ec2_secret_key");
         return Settings.builder().put(Ec2ClientSettings.ENDPOINT_SETTING.getKey(), endpoint).setSecureSettings(mockSecure).build();
     }
 

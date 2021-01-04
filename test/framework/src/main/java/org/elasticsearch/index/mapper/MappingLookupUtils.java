@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *    http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,28 +17,20 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.util.ports;
+package org.elasticsearch.index.mapper;
 
-public interface PortAllocator {
-    /**
-     * Assign and reserve a port
-     *
-     * @return the port assigned
-     */
-    int assignPort();
+import java.util.Arrays;
+import java.util.List;
 
-    /**
-     * Release a previously assigned port
-     *
-     * @param port the port to deallocate
-     */
-    void releasePort(int port);
+import static java.util.stream.Collectors.toList;
 
-    /**
-     * Assign a range of ports
-     *
-     * @return a new range of Ports
-     * */
-    ReservedPortRange reservePortRange();
+public class MappingLookupUtils {
+    public static MappingLookup fromTypes(MappedFieldType... types) {
+        return fromTypes(Arrays.asList(types), List.of());
+    }
 
+    public static MappingLookup fromTypes(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
+        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(toList());
+        return new MappingLookup("_doc", mappers, List.of(), List.of(), runtimeFields, 0, souceToParse -> null, true);
+    }
 }

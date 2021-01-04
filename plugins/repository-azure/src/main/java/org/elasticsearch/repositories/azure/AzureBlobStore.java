@@ -31,11 +31,12 @@ import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
 import com.azure.storage.blob.models.BlobListDetails;
 import com.azure.storage.blob.models.BlobRange;
+import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 import com.azure.storage.blob.models.DownloadRetryOptions;
 import com.azure.storage.blob.models.ListBlobsOptions;
-import com.azure.storage.blob.models.ParallelTransferOptions;
-import com.azure.storage.blob.options.BlobParallelUploadOptions;
+import com.azure.storage.blob.options.BlockBlobSimpleUploadOptions;
+import com.azure.storage.blob.specialized.BlockBlobAsyncClient;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.util.ReferenceCountUtil;
@@ -44,17 +45,20 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetadata;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.repositories.azure.AzureRepository.Repository;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.scheduler.Schedulers;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -80,6 +84,7 @@ import java.util.function.BiPredicate;
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
     private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
+    private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
 
     private final AzureStorageService service;
 
@@ -380,17 +385,11 @@ public class AzureBlobStore implements BlobStore {
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         try {
-            final BlobServiceClient client = client();
-            SocketAccess.doPrivilegedVoidException(() -> {
-                final BlobClient blob = client.getBlobContainerClient(container)
-                    .getBlobClient(blobName);
-
-                ParallelTransferOptions parallelTransferOptions = getParallelTransferOptions();
-                BlobParallelUploadOptions blobParallelUploadOptions =
-                    new BlobParallelUploadOptions(inputStream, blobSize)
-                        .setParallelTransferOptions(parallelTransferOptions);
-                blob.uploadWithResponse(blobParallelUploadOptions, null, null);
-            });
+            if (blobSize <= getLargeBlobThresholdInBytes()) {
+                executeSingleUpload(blobName, inputStream, blobSize, failIfAlreadyExists);
+            } else {
+                executeMultipartUpload(blobName, inputStream, blobSize, failIfAlreadyExists);
+            }
         } catch (final BlobStorageException e) {
             if (failIfAlreadyExists && e.getStatusCode() == HttpURLConnection.HTTP_CONFLICT &&
                 BlobErrorCode.BLOB_ALREADY_EXISTS.equals(e.getErrorCode())) {
@@ -404,12 +403,156 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 
-    private ParallelTransferOptions getParallelTransferOptions() {
-        ParallelTransferOptions parallelTransferOptions = new ParallelTransferOptions();
-        parallelTransferOptions.setBlockSizeLong(service.getUploadBlockSize())
-            .setMaxSingleUploadSizeLong(service.getSizeThresholdForMultiBlockUpload())
-            .setMaxConcurrency(service.getMaxUploadParallelism());
-        return parallelTransferOptions;
+    private void executeSingleUpload(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+        SocketAccess.doPrivilegedVoidException(() -> {
+            final BlobServiceAsyncClient asyncClient = asyncClient();
+
+            final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blobName);
+            final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
+
+            final Flux<ByteBuffer> byteBufferFlux =
+                convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
+            final BlockBlobSimpleUploadOptions options = new BlockBlobSimpleUploadOptions(byteBufferFlux, blobSize);
+            BlobRequestConditions requestConditions = new BlobRequestConditions();
+            if (failIfAlreadyExists) {
+                requestConditions.setIfNoneMatch("*");
+            }
+            options.setRequestConditions(requestConditions);
+            blockBlobAsyncClient.uploadWithResponse(options).block();
+        });
+    }
+
+    private void executeMultipartUpload(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+        SocketAccess.doPrivilegedVoidException(() -> {
+            final BlobServiceAsyncClient asyncClient = asyncClient();
+            final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container)
+                .getBlobAsyncClient(blobName);
+            final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
+
+            final long partSize = getUploadBlockSize();
+            final Tuple<Long, Long> multiParts = numberOfMultiparts(blobSize, partSize);
+            final int nbParts = multiParts.v1().intValue();
+            final long lastPartSize = multiParts.v2();
+            assert blobSize == (((nbParts - 1) * partSize) + lastPartSize) : "blobSize does not match multipart sizes";
+
+            final List<String> blockIds = new ArrayList<>(nbParts);
+            for (int i = 0; i < nbParts; i++) {
+                final long length = i < nbParts - 1 ? partSize : lastPartSize;
+                final Flux<ByteBuffer> byteBufferFlux =
+                    convertStreamToByteBuffer(inputStream, length, DEFAULT_UPLOAD_BUFFERS_SIZE);
+
+                final String blockId = UUIDs.base64UUID();
+                blockBlobAsyncClient.stageBlock(blockId, byteBufferFlux, length).block();
+                blockIds.add(blockId);
+            }
+
+            blockBlobAsyncClient.commitBlockList(blockIds, failIfAlreadyExists == false).block();
+        });
+    }
+
+    /**
+     * Converts the provided input stream into a Flux of ByteBuffer. To avoid having large amounts of outstanding
+     * memory this Flux reads the InputStream into ByteBuffers of {@code chunkSize} size.
+     * @param inputStream the InputStream to convert
+     * @param length the InputStream length
+     * @param chunkSize the chunk size in bytes
+     * @return a Flux of ByteBuffers
+     */
+    private Flux<ByteBuffer> convertStreamToByteBuffer(InputStream inputStream, long length, int chunkSize) {
+        assert inputStream.markSupported() : "An InputStream with mark support was expected";
+        // We need to mark the InputStream as it's possible that we need to retry for the same chunk
+        inputStream.mark(Integer.MAX_VALUE);
+        return Flux.defer(() -> {
+            final AtomicLong currentTotalLength = new AtomicLong(0);
+            try {
+                inputStream.reset();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+            // This flux is subscribed by a downstream operator that finally queues the
+            // buffers into netty output queue. Sadly we are not able to get a signal once
+            // the buffer has been flushed, so we have to allocate those and let the GC to
+            // reclaim them (see MonoSendMany). Additionally, that very same operator requests
+            // 128 elements (that's hardcoded) once it's subscribed (later on, it requests
+            // by 64 elements), that's why we provide 64kb buffers.
+            return Flux.range(0, (int) Math.ceil((double) length / (double) chunkSize))
+                .map(i -> i * chunkSize)
+                .concatMap(pos -> Mono.fromCallable(() -> {
+                    long count = pos + chunkSize > length ? length - pos : chunkSize;
+                    int numOfBytesRead = 0;
+                    int offset = 0;
+                    int len = (int) count;
+                    final byte[] buffer = new byte[len];
+                    while (numOfBytesRead != -1 && offset < count) {
+                        numOfBytesRead = inputStream.read(buffer, offset, len);
+                        offset += numOfBytesRead;
+                        len -= numOfBytesRead;
+                        if (numOfBytesRead != -1) {
+                            currentTotalLength.addAndGet(numOfBytesRead);
+                        }
+                    }
+                    if (numOfBytesRead == -1 && currentTotalLength.get() < length) {
+                        throw new IllegalStateException(
+                            "InputStream provided" + currentTotalLength + " bytes, less than the expected" + length + " bytes"
+                        );
+                    }
+                    return ByteBuffer.wrap(buffer);
+                }))
+                .doOnComplete(() -> {
+                    try {
+                        if (inputStream.available() > 0) {
+                            long totalLength = currentTotalLength.get() + inputStream.available();
+                            throw new IllegalStateException(
+                                "InputStream provided " + totalLength + " bytes, more than the expected " + length + " bytes"
+                            );
+                        } else if (currentTotalLength.get() > length) {
+                            throw new IllegalStateException(
+                                "Read more data than was requested. Size of data read: " + currentTotalLength.get() + "." +
+                                    " Size of data requested: " + length
+                            );
+                        }
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+        }).subscribeOn(Schedulers.elastic()); // We need to subscribe on a different scheduler to avoid blocking the io threads when
+                                              // we read the input stream (i.e. when it's rate limited)
+    }
+
+    /**
+     * Returns the number parts of size of {@code partSize} needed to reach {@code totalSize},
+     * along with the size of the last (or unique) part.
+     *
+     * @param totalSize the total size
+     * @param partSize  the part size
+     * @return a {@link Tuple} containing the number of parts to fill {@code totalSize} and
+     * the size of the last part
+     */
+    static Tuple<Long, Long> numberOfMultiparts(final long totalSize, final long partSize) {
+        if (partSize <= 0) {
+            throw new IllegalArgumentException("Part size must be greater than zero");
+        }
+
+        if ((totalSize == 0L) || (totalSize <= partSize)) {
+            return Tuple.tuple(1L, totalSize);
+        }
+
+        final long parts = totalSize / partSize;
+        final long remaining = totalSize % partSize;
+
+        if (remaining == 0) {
+            return Tuple.tuple(parts, partSize);
+        } else {
+            return Tuple.tuple(parts + 1, remaining);
+        }
+    }
+
+    long getLargeBlobThresholdInBytes() {
+        return service.getSizeThresholdForMultiBlockUpload();
+    }
+
+    long getUploadBlockSize() {
+        return service.getUploadBlockSize();
     }
 
     private BlobServiceClient client() {

@@ -235,6 +235,10 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        return loadSecureSettings(initialEnv, System.in);
+    }
+
+    static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -245,7 +249,7 @@ final class Bootstrap {
         SecureString password;
         try {
             if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+                password = readPassphrase(stdin, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
             } else {
                 password = new SecureString(new char[0]);
             }

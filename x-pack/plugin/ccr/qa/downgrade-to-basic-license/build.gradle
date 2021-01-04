@@ -10,13 +10,24 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task "leader-cluster"(type: RestIntegTestTask) {
+
+testClusters {
+  "leader-cluster" {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+
+  "follow-cluster" {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.monitoring.collection.enabled', 'true'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
+  }
+}
+
+tasks.register("leader-cluster", RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
-}
-testClusters."leader-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
 }
 
 File policyFile = file("${buildDir}/tmp/java.policy")
@@ -35,7 +46,7 @@ tasks.register("writeJavaPolicy") {
   }
 }
 
-task "follow-cluster"(type: RestIntegTestTask) {
+tasks.register("follow-cluster", RestIntegTestTask) {
   dependsOn 'writeJavaPolicy', "leader-cluster"
     useCluster testClusters."leader-cluster"
     systemProperty 'java.security.policy', "file://${policyFile}"
@@ -43,14 +54,6 @@ task "follow-cluster"(type: RestIntegTestTask) {
     nonInputProperties.systemProperty 'tests.leader_host', "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'log', "${-> testClusters."follow-cluster".getFirstNode().getServerLog()}"
 }
-
-testClusters."follow-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.monitoring.collection.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds', { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
-}
-
 
 tasks.named("check").configure { dependsOn "follow-cluster" }
 // no unit tests for multi-cluster-search, only the rest integration test

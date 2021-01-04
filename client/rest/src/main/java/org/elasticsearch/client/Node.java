@@ -184,19 +184,63 @@ public class Node {
         }
 
         /**
-         * Teturns whether or not the node <strong>could</strong> be elected master.
+         * Returns whether or not the node <strong>could</strong> be elected master.
          */
         public boolean isMasterEligible() {
             return roles.contains("master");
         }
         /**
-         * Teturns whether or not the node stores data.
+         * Returns whether or not the node stores data.
+         * @Deprecrated use {@link #hasDataRole()} or {@link #containsData()}
          */
+        @Deprecated
         public boolean isData() {
             return roles.contains("data");
         }
+
         /**
-         * Teturns whether or not the node runs ingest pipelines.
+         * @return true if node has the "data" role
+         */
+        public boolean hasDataRole() {
+            return roles.contains("data");
+        }
+
+        /**
+         * @return true if node has the "data_content" role
+         */
+        public boolean hasDataContentRole() {
+            return roles.contains("data_content");
+        }
+
+        /**
+         * @return true if node has the "data_hot" role
+         */
+        public boolean hasDataHotRole() {
+            return roles.contains("data_hot");
+        }
+
+        /**
+         * @return true if node has the "data_warm" role
+         */
+        public boolean hasDataWarmRole() {
+            return roles.contains("data_warm");
+        }
+
+        /**
+         * @return true if node has the "data_cold" role
+         */
+        public boolean hasDataColdRole() {
+            return roles.contains("data_cold");
+        }
+
+        /**
+         * @return true if node stores any type of data
+         */
+        public boolean containsData() {
+            return hasDataRole() || hasDataContentRole() || hasDataHotRole() || hasDataWarmRole() || hasDataColdRole();
+        }
+        /**
+         * Returns whether or not the node runs ingest pipelines.
          */
         public boolean isIngest() {
             return roles.contains("ingest");

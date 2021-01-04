@@ -81,7 +81,7 @@ might generate multiple audit events, across multiple cluster nodes. The common
 === Audit event attributes
 
 The audit events are formatted as JSON documents, and each event is printed on a separate
-line in the audit log (the entries themselves do not contain the end-of-line delimiter).
+line in the audit log. The entries themselves do not contain an end-of-line delimiter.
 For more details, see <<audit-log-entry-format>>.
 
 The following list shows attributes that are common to all audit event types:

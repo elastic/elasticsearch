@@ -197,7 +197,7 @@ The events with the `event.type` attribute equal to `security_config_change` hav
 `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
 `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
 These events also have *one* of the following extra attributes (in addition to the common
-ones); the attributes' value is a nested JSON object (that is not escaped):
+ones). The attributes' value is a nested JSON object:
 
 `put`                 ::    The object representation of the security config that
                             is being created, or the overwrite of an existing config.
@@ -207,13 +207,13 @@ ones); the attributes' value is a nested JSON object (that is not escaped):
                             is being deleted. It can be the config for a `user`, `role`,
                             `role_mapping` or for application `privileges`.
 `change`              ::    The object representation of the security config that
-                            is being changed. It can either be the `password`, `enable` or `disable`,
+                            is being changed. It can be the `password`, `enable` or `disable`,
                             config object for native or built-in users.
 `create`              ::    The object representation of the new security config that is being
-                            created. It contains the `apikey` config object, if the API key is
-                            created using the <<security-api-create-api-key, create API key API>>,
-                            and, in addition, if the API key is created using the
-                            <<security-api-grant-api-key, grant API key API>>, it also contains
+                            created. If the API key is created using the
+                            <<security-api-create-api-key, create API key API>> it only contains
+                            an `apikey` config object. If the API key is created using the
+                            <<security-api-grant-api-key, grant API key API>> it also contains
                             a `grant` config object.
 `invalidate`          ::    The object representation of the security configuration that is being invalidated.
                             The only config currently supporting invalidation is of `apikeys`, through

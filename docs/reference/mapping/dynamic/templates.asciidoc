@@ -141,16 +141,18 @@ to `runtime`.
 
 [source,console]
 ----
-PUT my-index/_mappings
+PUT my-index-000001/
 {
-  "dynamic_templates": [
-    {
-      "dayOfWeek": {
-        "match_mapping_type": "string",
-        "runtime": {}
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "dayOfWeek": {
+          "match_mapping_type": "string",
+          "runtime": {}
+        }
       }
-    }
-  ]
+    ]
+  }
 }
 ----
 

@@ -96,7 +96,7 @@ The script in the following request extracts the day of the week from the
 
 [source,console]
 ----
-PUT /my-index
+PUT my-index/
 {
   "mappings": {
     "runtime": {

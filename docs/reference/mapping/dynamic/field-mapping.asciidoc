@@ -25,7 +25,7 @@ h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
  |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`
- |`string` that passes <<numeric-detection,numeric detection>> | `double` or `long` | `double`
+ |`string` that passes <<numeric-detection,numeric detection>> | `double` or `long` | `float`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
 3+| [[dynamic-object-footnote]] ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
 |===

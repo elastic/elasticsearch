@@ -216,7 +216,7 @@ ones). The attributes' value is a nested JSON object:
                             <<security-api-grant-api-key, grant API key API>> it also contains
                             a `grant` config object.
 `invalidate`          ::    The object representation of the security configuration that is being invalidated.
-                            The only config currently supporting invalidation is of `apikeys`, through
+                            The only config that currently supports invalidation is `apikeys`, through
                             the <<security-api-invalidate-api-key, invalidate API key API>>.
 
 The schemas of the security config objects mentioned above are as follows. They are very similar to the

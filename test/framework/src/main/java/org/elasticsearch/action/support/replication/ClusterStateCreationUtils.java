@@ -98,7 +98,7 @@ public class ClusterStateCreationUtils {
                 .put(SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)
                 .put(SETTING_CREATION_DATE, System.currentTimeMillis())).primaryTerm(0, primaryTerm)
-                .timestampMillisRange(primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
+                .timestampRange(primaryState == ShardRoutingState.STARTED || primaryState == ShardRoutingState.RELOCATING
                         ? IndexLongFieldRange.UNKNOWN : IndexLongFieldRange.NO_SHARDS)
             .build();
 
@@ -303,7 +303,7 @@ public class ClusterStateCreationUtils {
             IndexMetadata indexMetadata = IndexMetadata.builder(index)
                     .settings(Settings.builder().put(SETTING_VERSION_CREATED, Version.CURRENT).put(SETTING_NUMBER_OF_SHARDS, numberOfShards)
                             .put(SETTING_NUMBER_OF_REPLICAS, numberOfReplicas).put(SETTING_CREATION_DATE, System.currentTimeMillis()))
-                    .timestampMillisRange(IndexLongFieldRange.UNKNOWN)
+                    .timestampRange(IndexLongFieldRange.UNKNOWN)
                     .build();
             metadataBuilder.put(indexMetadata, false).generateClusterUuidIfNeeded();
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexMetadata.getIndex());

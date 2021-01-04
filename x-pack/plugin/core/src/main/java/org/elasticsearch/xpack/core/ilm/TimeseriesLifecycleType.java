@@ -41,13 +41,12 @@ public class TimeseriesLifecycleType implements LifecycleType {
     static final String COLD_PHASE = "cold";
     static final String DELETE_PHASE = "delete";
     static final List<String> VALID_PHASES = Arrays.asList(HOT_PHASE, WARM_PHASE, COLD_PHASE, DELETE_PHASE);
-    static final List<String> ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
-        ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
+    static final List<String> ORDERED_VALID_HOT_ACTIONS;
     static final List<String> ORDERED_VALID_WARM_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, ReadOnlyAction.NAME,
         AllocateAction.NAME, MigrateAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME);
     static final List<String> ORDERED_VALID_COLD_ACTIONS;
     static final List<String> ORDERED_VALID_DELETE_ACTIONS = Arrays.asList(WaitForSnapshotAction.NAME, DeleteAction.NAME);
-    static final Set<String> VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
+    static final Set<String> VALID_HOT_ACTIONS;
     static final Set<String> VALID_WARM_ACTIONS = Sets.newHashSet(ORDERED_VALID_WARM_ACTIONS);
     static final Set<String> VALID_COLD_ACTIONS;
     static final Set<String> VALID_DELETE_ACTIONS = Sets.newHashSet(ORDERED_VALID_DELETE_ACTIONS);
@@ -61,12 +60,17 @@ public class TimeseriesLifecycleType implements LifecycleType {
 
     static {
         if (RollupV2.isEnabled()) {
+            ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
+                ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
             ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
                 MigrateAction.NAME, FreezeAction.NAME, RollupILMAction.NAME, SearchableSnapshotAction.NAME);
         } else {
+            ORDERED_VALID_HOT_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, RolloverAction.NAME,
+                ReadOnlyAction.NAME, ShrinkAction.NAME, ForceMergeAction.NAME, SearchableSnapshotAction.NAME);
             ORDERED_VALID_COLD_ACTIONS = Arrays.asList(SetPriorityAction.NAME, UnfollowAction.NAME, AllocateAction.NAME,
                 MigrateAction.NAME, FreezeAction.NAME, SearchableSnapshotAction.NAME);
         }
+        VALID_HOT_ACTIONS = Sets.newHashSet(ORDERED_VALID_HOT_ACTIONS);
         VALID_COLD_ACTIONS = Sets.newHashSet(ORDERED_VALID_COLD_ACTIONS);
         ALLOWED_ACTIONS = new HashMap<>();
         ALLOWED_ACTIONS.put(HOT_PHASE, VALID_HOT_ACTIONS);

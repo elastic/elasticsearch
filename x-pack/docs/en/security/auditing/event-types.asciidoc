@@ -116,7 +116,7 @@ The following list shows attributes that are common to all audit event types:
 
 In addition, all the events of types `rest`, `transport` and `ip_filter` (but not
 `security_config_change`) have the following extra attributes, which
-show more details on the requesting client:
+show more details about the requesting client:
 
 `origin.address`  ::    The source IP address of the request associated with
                         this event. This could be the address of the remote client,

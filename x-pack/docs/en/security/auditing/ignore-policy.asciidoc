@@ -32,7 +32,7 @@ non-matching events are printed as usual.
 
 All policies are defined under the `xpack.security.audit.logfile.events.ignore_filters`
 settings namespace. For example, the following policy named _example1_ matches
-events from the _kibana_system_ or _admin_user_ principals **and** operating over indices of the
+events from the _kibana_system_ or _admin_user_ principals that operate over indices of the
 wildcard form _app-logs*_:
 
 [source,yaml]

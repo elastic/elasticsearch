@@ -27,7 +27,7 @@ events with the `event.type: "security_config_change"` attribute, contain the *n
 representation of the security change taking effect. The contents of the security config change
 are hence not splayed as top-level dot-named fields in the audit event document. That's because
 the fields are specific to the particular kind of security change and do not show up in
-any other audit events, and so the benefits of a columnar format are much more limited; the
+any other audit events. The benefits of a columnar format are therefore much more limited; the
 space-saving benefits of the nested structure is the favoured trade-off in this case.
 
 When the `request.body` attribute is present (see <<auditing-search-queries>>), it contains a

@@ -118,16 +118,14 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                 throw new IllegalStateException("already closed");
             }
             if (preallocationUsed == preallocated) {
+                // Preallocation buffer was full before this request
                 return next.addEstimateBytesAndMaybeBreak(bytes, label);
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
+                // This request filled up the buffer
                 preallocationUsed = preallocated;
-                long toAllocate = newUsed - preallocated;
-                if (toAllocate > 0) {
-                    return next.addEstimateBytesAndMaybeBreak(toAllocate, label);
-                }
-                return 0;
+                return next.addEstimateBytesAndMaybeBreak(newUsed - preallocated, label);
             }
             // This is the fast case. No volatile reads or writes here, ma!
             preallocationUsed = newUsed;
@@ -141,16 +139,14 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                 throw new IllegalStateException("already closed");
             }
             if (preallocationUsed == preallocated) {
+                // Preallocation buffer was full before this request
                 return next.addWithoutBreaking(bytes);
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
+                // This request filled up the buffer
                 preallocationUsed = preallocated;
-                long toAllocate = newUsed - preallocated;
-                if (toAllocate > 0) {
-                    return next.addWithoutBreaking(toAllocate);
-                }
-                return 0;
+                return next.addWithoutBreaking(newUsed - preallocated);
             }
             // This is the fast case. No volatile reads or writes here, ma!
             preallocationUsed = newUsed;
@@ -165,10 +161,22 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
 
         @Override
         public void close() {
-            if (preallocationUsed < preallocated && closed == false) {
-                next.addWithoutBreaking(-preallocated);
-                closed = true;
+            if (closed) {
+                return;
             }
+            if (preallocationUsed < preallocated) {
+                /*
+                 * We only need to give bytes back if we haven't used up
+                 * all of our preallocated bytes. This is because if we
+                 * *have* used up all of our preallcated bytes then all
+                 * operations hit the underlying breaker directly, including
+                 * deallocations. This is using up the bytes is a one way
+                 * transition - as soon as we transition we know all
+                 * deallocations will go directly to the underlying breaker.
+                 */
+                next.addWithoutBreaking(-preallocated);
+            }
+            closed = true;
         }
 
         @Override

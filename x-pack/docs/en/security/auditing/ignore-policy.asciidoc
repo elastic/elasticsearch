@@ -51,7 +51,7 @@ match the _indices_ filter) will not match this policy either.
 Audit events of different types may have <<audit-event-attributes, different attributes>>.
 If an event does not contain an attribute for which some policy defines filters, the
 event will not match the policy.
-For example, the following policy named _example2_, will never match `authentication_success` or
+For example, the following policy will never match `authentication_success` or
 `authentication_failed` events, irrespective of the user's roles, because these
 event schemas do not contain the `role` attribute:
 

@@ -1,7 +1,7 @@
 {
   "resources": [
     {
-      "url": "https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${version}-linux-x86_64.tar.gz",
+      "url": "<artifact_path>/elasticsearch-${version}-linux-x86_64.tar.gz",
       "filename": "elasticsearch-${version}-linux-x86_64.tar.gz",
       "validation": {
         "type": "sha512",

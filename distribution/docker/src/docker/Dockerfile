@@ -50,6 +50,11 @@ RUN set -eux ; \\
     chmod +x /bin/tini
 
 <% } else if (docker_base == 'iron_bank') { %>
+################################################################################
+# Build stage 0 `builder`:
+# Extract Elasticsearch artifact
+################################################################################
+
 ${build_args}
 
 FROM ${base_image} AS builder
@@ -217,7 +222,7 @@ FROM ${base_image} AS builder
 RUN mkdir /usr/share/elasticsearch
 WORKDIR /usr/share/elasticsearch
 
-# Fetch the appropriate Elasticsearch distribution for this architecture
+<% /* Fetch or copy the appropriate Elasticsearch distribution for this architecture */ %>
 ${source_elasticsearch}
 
 RUN tar -zxf /opt/elasticsearch.tar.gz --strip-components=1
@@ -363,6 +368,9 @@ LABEL name="Elasticsearch" \\
 
 RUN mkdir /licenses && \\
     cp LICENSE.txt /licenses/LICENSE
+<% } %>
+<% if (docker_base == 'iron_bank') { %>
+COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 
 USER elasticsearch:root

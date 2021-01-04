@@ -420,7 +420,7 @@ public class IndexingIT extends ESRestTestCase {
         return nodes;
     }
 
-    final static class Nodes extends HashMap<String, Node> {
+    static final class Nodes extends HashMap<String, Node> {
 
         private String masterNodeId = null;
 
@@ -473,7 +473,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
-    final static class Node {
+    static final class Node {
         private final String id;
         private final String nodeName;
         private final Version version;

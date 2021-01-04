@@ -26,7 +26,9 @@ import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 
 /**
  * {@link CircuitBreakerService} that preallocates some bytes on construction.
- * Use this when you know you'll be allocating many small
+ * Use this when you know you'll be allocating many small things on a
+ * {@link CircuitBreaker} quickly and there is a definite "finished" time, like
+ * when aggregations are built.
  */
 public class PreallocatedCircuitBreakerService extends CircuitBreakerService implements Releasable {
     private final CircuitBreakerService next;

@@ -266,15 +266,18 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    // A utility class for use with highlighters where the content being highlighted
-    // needs plain text format for highlighting but marked-up format for token discovery.
-    // The class takes markedup format field values and returns plain text versions.
-    // When asked to tokenize plain-text versions by the highlighter it tokenizes the
-    // original markup form in order to inject annotations.
-    // Unlike other Analyzers, which tend to be single-instance, this class has
-    // instances created per search request and field being highlighted. This allows us to keep
-    // state about the annotations being processed and pass them into token streams
-    // being highlighted.
+    /**
+     * A utility class for use with highlighters where the content being highlighted
+     * needs plain text format for highlighting but marked-up format for token discovery.
+     * The class takes marked up format field values and returns plain text versions.
+     * When asked to tokenize plain-text versions by the highlighter it tokenizes the
+     * original markup form in order to inject annotations.
+     * WARNING - not thread safe.
+     * Unlike other Analyzers, which tend to be single-instance, this class has
+     * instances created per search request and field being highlighted. This allows us to 
+     * keep state about the annotations being processed and pass them into token streams
+     * being highlighted.
+     */
     public static final class AnnotatedHighlighterAnalyzer extends AnalyzerWrapper {
         private final Analyzer delegate;
         private AnnotatedText[] annotations;

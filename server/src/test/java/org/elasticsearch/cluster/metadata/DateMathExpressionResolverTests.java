@@ -120,10 +120,10 @@ public class DateMathExpressionResolverTests extends ESTestCase {
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0), equalTo("name1"));
         assertThat(result.get(1),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("xxxx.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
         assertThat(result.get(2), equalTo("name2"));
         assertThat(result.get(3), equalTo(".logstash-" +
-            DateTimeFormat.forPattern("YYYY.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
+            DateTimeFormat.forPattern("xxxx.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
     }
 
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {

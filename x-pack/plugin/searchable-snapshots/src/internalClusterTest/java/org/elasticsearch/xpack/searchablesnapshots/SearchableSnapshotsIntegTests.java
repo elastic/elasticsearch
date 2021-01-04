@@ -154,7 +154,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .getState()
                 .metadata()
                 .index(indexName)
-                .getTimestampMillisRange(),
+                .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
@@ -251,7 +251,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .getState()
                 .metadata()
                 .index(restoredIndexName)
-                .getTimestampMillisRange(),
+                .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
@@ -768,7 +768,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
         ensureGreen(indexName);
 
-        final IndexLongFieldRange timestampMillisRange = client().admin()
+        final IndexLongFieldRange timestampRange = client().admin()
             .cluster()
             .prepareState()
             .clear()
@@ -778,19 +778,19 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getState()
             .metadata()
             .index(indexName)
-            .getTimestampMillisRange();
+            .getTimestampRange();
 
-        assertTrue(timestampMillisRange.isComplete());
-        assertThat(timestampMillisRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertTrue(timestampRange.isComplete());
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         if (docCount == 0) {
-            assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
         } else {
-            assertThat(timestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
             DateFieldMapper.Resolution resolution = dateType.equals("date")
                 ? DateFieldMapper.Resolution.MILLISECONDS
                 : DateFieldMapper.Resolution.NANOSECONDS;
-            assertThat(timestampMillisRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
-            assertThat(timestampMillisRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
         }
     }
 

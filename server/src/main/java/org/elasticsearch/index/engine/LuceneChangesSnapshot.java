@@ -37,7 +37,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.translog.Translog;
@@ -47,7 +46,6 @@ import java.io.IOException;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 /**
  * A {@link Translog.Snapshot} from changes in a Lucene index
@@ -62,7 +60,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
     private final boolean requiredFullRange;
 
     private final IndexSearcher indexSearcher;
-    private final Function<String, MappedFieldType> fieldTypeLookup;
     private int docIndex = 0;
     private final int totalHits;
     private ScoreDoc[] scoreDocs;
@@ -73,13 +70,12 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
      * Creates a new "translog" snapshot from Lucene for reading operations whose seq# in the specified range.
      *
      * @param engineSearcher    the internal engine searcher which will be taken over if the snapshot is opened successfully
-     * @param fieldTypeLookup   the lookup function used to resolve field types by name
      * @param searchBatchSize   the number of documents should be returned by each search
      * @param fromSeqNo         the min requesting seq# - inclusive
      * @param toSeqNo           the maximum requesting seq# - inclusive
      * @param requiredFullRange if true, the snapshot will strictly check for the existence of operations between fromSeqNo and toSeqNo
      */
-    LuceneChangesSnapshot(Engine.Searcher engineSearcher, Function<String, MappedFieldType> fieldTypeLookup, int searchBatchSize,
+    LuceneChangesSnapshot(Engine.Searcher engineSearcher, int searchBatchSize,
                           long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         if (fromSeqNo < 0 || toSeqNo < 0 || fromSeqNo > toSeqNo) {
             throw new IllegalArgumentException("Invalid range; from_seqno [" + fromSeqNo + "], to_seqno [" + toSeqNo + "]");
@@ -93,7 +89,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
                 IOUtils.close(engineSearcher);
             }
         };
-        this.fieldTypeLookup = fieldTypeLookup;
         final long requestingSize = (toSeqNo - fromSeqNo) == Long.MAX_VALUE ? Long.MAX_VALUE : (toSeqNo - fromSeqNo + 1L);
         this.searchBatchSize = requestingSize < searchBatchSize ? Math.toIntExact(requestingSize) : searchBatchSize;
         this.fromSeqNo = fromSeqNo;
@@ -235,7 +230,6 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
         leaf.reader().document(segmentDocID, fields);
-        fields.postProcess(fieldTypeLookup);
 
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];

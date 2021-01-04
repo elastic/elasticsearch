@@ -138,7 +138,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .build());
 
         final NumShards numShards = getNumShards(indexName);
@@ -201,7 +201,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .build());
 
         final NumShards numShards = getNumShards(indexName);

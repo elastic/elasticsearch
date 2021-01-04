@@ -43,7 +43,7 @@ might generate multiple audit events, across multiple cluster nodes. The common
                                         <<ip-filtering, IP filter>> for a specific
                                         profile.                                                               | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_granted", "origin.type":"rest", "origin.address":"::1", "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}`
 | `connection_denied`               | | Logged when an incoming TCP connection does not pass the
-                                        <<ip-filtering, IP Filter>> for a specific profile.                    | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", "transport.profile":".http", "rule":"deny 10.10.0.0/16"}`
+                                        <<ip-filtering, IP filter>> for a specific profile.                    | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", "transport.profile":".http", "rule":"deny 10.10.0.0/16"}`
 | `put_user`                        | | Logged when the <<security-api-put-user, put user API>>
                                         is being invoked to create or
                                         update a native or built-in user. Note that user updates can

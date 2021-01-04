@@ -1023,7 +1023,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 ConfigurableClusterPrivileges.toXContent(builder, ToXContent.EMPTY_PARAMS,
                         Arrays.asList(roleDescriptor.getConditionalClusterPrivileges()));
             }
-            builder.startArray(RoleDescriptor.Fieldst.INDICES.getPreferredName());
+            builder.startArray(RoleDescriptor.Fields.INDICES.getPreferredName());
             for (RoleDescriptor.IndicesPrivileges indicesPrivileges : roleDescriptor.getIndicesPrivileges()) {
                 withIndicesPrivileges(builder, indicesPrivileges);
             }

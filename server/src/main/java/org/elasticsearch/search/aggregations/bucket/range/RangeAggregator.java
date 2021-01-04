@@ -312,7 +312,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             /*
              * Looks like it'd be more expensive to use the filter-by-filter
              * aggregator. Oh well. Snapshot the the filter-by-filter
-             * aggregator's debug information if we're profiling bececause it
+             * aggregator's debug information if we're profiling because it
              * is useful even if the aggregator isn't. 
              */
             if (context.profiling()) {
@@ -356,7 +356,6 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
             return null;
         }
-        // TODO bail here for runtime fields. We should check the cost estimates on the Scorer.
         if (valuesSourceConfig.fieldType() instanceof DateFieldType
             && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
@@ -393,37 +392,33 @@ public abstract class RangeAggregator extends BucketsAggregator {
             builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
             filters[i] = context.buildQuery(builder);
         }
-        FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
-            name,
-            factories,
-            keys,
-            filters,
-            false,
-            null,
-            context,
-            parent,
-            cardinality,
-            metadata
-        );
-        if (delegate == null) {
-            return null;
-        }
         RangeAggregator.FromFilters<?> fromFilters = new RangeAggregator.FromFilters<>(
             parent,
             factories,
-            subAggregators -> {
-                if (subAggregators.countAggregators() > 0) {
-                    throw new IllegalStateException("didn't expect to have a delegate if there are child aggs");
-                }
-                return delegate;
-            },
+            subAggregators -> FiltersAggregator.buildFilterOrderOrNull(
+                name,
+                subAggregators,
+                keys,
+                filters,
+                false,
+                null,
+                context,
+                parent,
+                cardinality,
+                metadata
+            ),
             valuesSourceConfig.format(),
             ranges,
             keyed,
             rangeFactory,
             averageDocsPerRange
         );
-        return fromFilters;
+        /*
+         * A null delegate means we weren't able to run the aggregation
+         * filter by filter so we have to give up and go back to the
+         * standard range aggregator.
+         */
+        return fromFilters.delegate() == null ? null : fromFilters;
     }
 
     public static Aggregator buildWithoutAttemptedToAdaptToFilters(

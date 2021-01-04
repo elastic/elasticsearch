@@ -51,7 +51,11 @@ public abstract class AdaptingAggregator extends Aggregator {
          * agg tree. Thisis how it has always been and some aggs rely on it.
          */
         this.delegate = delegate.apply(subAggregators.fixParent(this));
-        assert this.delegate.parent() == parent : "invalid parent set on delegate";
+        /*
+         * Sometimes the delegateBuilder will return `null` to signal that this
+         * strategy is not valid.
+         */
+        assert this.delegate == null || this.delegate.parent() == parent : "invalid parent set on delegate";
     }
 
     /**

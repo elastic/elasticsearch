@@ -26,9 +26,11 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
@@ -203,19 +205,16 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         if (parent != null) {
             return null;
         }
-        if (factories.countAggregators() != 0) {
-            return null;
-        }
         if (otherBucketKey != null) {
             return null;
         }
         return new FiltersAggregator.FilterByFilter(
             name,
+            factories,
             keys,
             filters,
             keyed,
             context,
-            parent,
             cardinality,
             metadata
         );
@@ -289,15 +288,15 @@ public abstract class FiltersAggregator extends BucketsAggregator {
 
         private FilterByFilter(
             String name,
+            AggregatorFactories factories,
             String[] keys,
             Query[] filters,
             boolean keyed,
             AggregationContext context,
-            Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, AggregatorFactories.EMPTY, keys, keyed, null, context, parent, cardinality, metadata);
+            super(name, factories, keys, keyed, null, context, null, cardinality, metadata);
             this.filters = filters;
             this.profiling = context.profiling();
         }
@@ -378,9 +377,22 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                     // the filter doesn't match any docs
                     continue;
                 }
-                TotalHitCountCollector collector = new TotalHitCountCollector();
-                scorer.score(collector, live);
-                incrementBucketDocCount(filterOrd, collector.getTotalHits());
+                if (sub == LeafBucketCollector.NO_OP_COLLECTOR) {
+                    TotalHitCountCollector collector = new TotalHitCountCollector();
+                    scorer.score(collector, live);
+                    incrementBucketDocCount(filterOrd, collector.getTotalHits());
+                } else {
+                    /*
+                     * We can use the pre-constructed leaf collected for the first
+                     * filter. But it almost certainly not going to work for the
+                     * second one because it'll try to "go backwards". So we build
+                     * a new one for each subsequent filter.
+                     */
+                    LeafBucketCollector filterLeafCollector = filterOrd == 0 ? sub : collectableSubAggregators.getLeafCollector(ctx);
+                    SubCollector collector = new SubCollector(filterOrd, filterLeafCollector);
+                    scorer.score(collector, live);
+                    incrementBucketDocCount(filterOrd, collector.total);
+                }
             }
             // Throwing this exception is how we communicate to the collection mechanism that we don't need the segment.
             throw new CollectionTerminatedException();
@@ -395,6 +407,31 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                 add.accept("estimated_cost", estimatedCost);
                 add.accept("max_cost", maxCost);
                 add.accept("estimate_cost_time", estimateCostTime);
+            }
+        }
+
+        /**
+         * Adapts filter-by-filter hit collection into sub-aggregations.
+         */
+        private static class SubCollector implements LeafCollector {
+            private final int filterOrd;
+            private final LeafBucketCollector sub;
+            private int total;
+
+            SubCollector(int filterOrd, LeafBucketCollector sub) {
+                this.filterOrd = filterOrd;
+                this.sub = sub;
+            }
+
+            @Override
+            public void setScorer(Scorable scorer) throws IOException {
+                sub.setScorer(scorer);
+            }
+
+            @Override
+            public void collect(int doc) throws IOException {
+                total++;
+                sub.collect(doc, filterOrd);
             }
         }
     }

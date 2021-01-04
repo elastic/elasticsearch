@@ -216,8 +216,10 @@ public class OnDiskGlobalOrdinalMap implements Accountable, IndexOrdinalsFieldDa
             success = true;
         } finally {
             if (success) {
+                // We've made it! Clean up our state when the reader closes.
                 reader.getReaderCacheHelper().addClosedListener(cacheKey -> close());
             } else {
+                // Failure! Clean up everything now.
                 logger.debug("failed to load global ords for [{}]", indexed.getFieldName());
                 close();
             }

@@ -44,7 +44,6 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 
-import java.io.Closeable;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -98,13 +97,6 @@ public class IndicesFieldDataCache implements RemovalListener<IndicesFieldDataCa
             } catch (Exception e) {
                 // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
-            }
-        }
-        if (value instanceof Closeable) {
-            try {
-                ((Closeable) value).close();
-            } catch (Exception e) {
-                logger.error("Failed to close value", e);
             }
         }
     }

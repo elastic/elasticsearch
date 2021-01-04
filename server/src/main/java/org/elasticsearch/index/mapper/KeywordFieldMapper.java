@@ -235,7 +235,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk.Builder(name(), CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override

@@ -185,7 +185,7 @@ public class NodeRestUsageIT extends ESRestTestCase {
 
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "numeric", 1L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "date", 1L);
-        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "bytes", 2L);
+        assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "terms", "keyword", 2L);
         assertDiff(beforeCombinedAggsUsage, afterCombinedAggsUsage, "avg", "numeric", 3L);
     }
 

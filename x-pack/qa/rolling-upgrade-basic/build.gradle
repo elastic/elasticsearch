@@ -9,6 +9,10 @@ apply from : "$rootDir/gradle/bwc-test.gradle"
 dependencies {
   testImplementation project(':x-pack:qa')
 }
+if (BuildParams.inFipsJvm){
+  // This test is testing rolling upgrades with a BASIC license and FIPS 140 mode is not available in BASIC
+  tasks.withType(Test).configureEach{ enabled = false }
+}
 
 for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   String baseName = "v${bwcVersion}"
@@ -78,4 +82,13 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
   tasks.register(bwcTaskName(bwcVersion)) {
     dependsOn "${baseName}#upgradedClusterTest"
   }
+}
+
+
+// Security is explicitly disabled, do not run tests in FIPS mode
+tasks.withType(Test).configureEach {
+  onlyIf { BuildParams.inFipsJvm == false}
+}
+tasks.getByName("testingConventions") {
+  onlyIf { BuildParams.inFipsJvm == false }
 }

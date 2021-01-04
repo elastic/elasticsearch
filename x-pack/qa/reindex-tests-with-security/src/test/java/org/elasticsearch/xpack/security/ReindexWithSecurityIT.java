@@ -42,20 +42,20 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
     private static final String USER = "test_admin";
     private static final String PASS = "x-pack-test-password";
 
-    private static Path httpTrustStore;
+    private static Path httpCertificateAuthority;
 
     @BeforeClass
     public static void findTrustStore( ) throws Exception {
-        final URL resource = ReindexWithSecurityClientYamlTestSuiteIT.class.getResource("/ssl/ca.p12");
+        final URL resource = ReindexWithSecurityClientYamlTestSuiteIT.class.getResource("/ssl/ca.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.p12");
+            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
         }
-        httpTrustStore = PathUtils.get(resource.toURI());
+        httpCertificateAuthority = PathUtils.get(resource.toURI());
     }
 
     @AfterClass
     public static void cleanupStatics() {
-        httpTrustStore = null;
+        httpCertificateAuthority = null;
     }
 
     @Override
@@ -71,8 +71,7 @@ public class ReindexWithSecurityIT extends ESRestTestCase {
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(TRUSTSTORE_PATH , httpTrustStore)
-            .put(TRUSTSTORE_PASSWORD, "password")
+            .put(CERTIFICATE_AUTHORITIES , httpCertificateAuthority)
             .build();
     }
 

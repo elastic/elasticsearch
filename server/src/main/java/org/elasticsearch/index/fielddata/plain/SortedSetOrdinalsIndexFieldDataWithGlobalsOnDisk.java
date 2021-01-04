@@ -99,7 +99,7 @@ public class SortedSetOrdinalsIndexFieldDataWithGlobalsOnDisk extends SortedSetO
         /*
          * This will only be called if this is a single segment index. If this
          * *isn't* a single segment index then the caller should have ended up
-         * getting back a forked OnDiskOrdinalMap. 
+         * getting back a forked OnDiskGlobalOrdinalMap. 
          */
         assert context.ordInParent == 0; 
         return LongUnaryOperator.identity();

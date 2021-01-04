@@ -57,6 +57,6 @@ public class StringScriptFieldData extends BinaryScriptFieldData {
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 }

@@ -144,7 +144,7 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
 
         final MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString(ACCOUNT_SETTING.getConcreteSettingForNamespace(clientName).getKey(), "account");
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(UTF_8));
+        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(UTF_8));
         secureSettings.setString(KEY_SETTING.getConcreteSettingForNamespace(clientName).getKey(), key);
         clientSettings.setSecureSettings(secureSettings);
 

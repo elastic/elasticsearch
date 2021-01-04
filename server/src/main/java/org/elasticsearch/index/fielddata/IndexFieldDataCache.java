@@ -24,8 +24,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.io.Closeable;
-
 /**
  * A simple field data cache abstraction on the *index* level.
  */
@@ -71,18 +69,7 @@ public interface IndexFieldDataCache {
         @SuppressWarnings("unchecked")
         public <FD extends LeafFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader,
                                                                                           IFD indexFieldData) throws Exception {
-            IFD global = (IFD) indexFieldData.loadGlobalDirect(indexReader);
-            if (global instanceof Closeable) {
-                /*
-                 * If the field data is closeable then we have to close it
-                 * when the reader closes. The real cache does this by closing
-                 * the global when it is cleared from the cache but we don't
-                 * have a cache so we just remove every copy we build.
-                 */
-                Closeable closeable = (Closeable) global;
-                indexReader.getReaderCacheHelper().addClosedListener(key -> closeable.close());
-            }
-            return global;
+            return (IFD) indexFieldData.loadGlobalDirect(indexReader);
         }
 
         @Override

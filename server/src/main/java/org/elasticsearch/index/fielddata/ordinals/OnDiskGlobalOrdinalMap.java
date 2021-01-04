@@ -66,7 +66,7 @@ import java.util.function.LongUnaryOperator;
  * Builds a mapping from segment ordinals to global ordinals and stores it on
  * disk.
  */
-public class OnDiskGlobalOrdinalMap implements Closeable, Accountable, IndexOrdinalsFieldData {
+public class OnDiskGlobalOrdinalMap implements Accountable, IndexOrdinalsFieldData {
     /**
      * The files this builds are named {@code $(FILE_PREFIX)_*.tmp}.
      */
@@ -117,6 +117,9 @@ public class OnDiskGlobalOrdinalMap implements Closeable, Accountable, IndexOrdi
         IndexReader reader,
         CircuitBreakerService breakerService
     ) throws IOException {
+        if (reader.getReaderCacheHelper() == null) {
+            throw new IllegalArgumentException("OnDiskGlobalOrdMap doesn't support readers that don't support caching");
+        }
         logger.trace("loading global ords for [{}]", indexed.getFieldName());
 
         this.indexed = indexed;
@@ -212,7 +215,9 @@ public class OnDiskGlobalOrdinalMap implements Closeable, Accountable, IndexOrdi
             }
             success = true;
         } finally {
-            if (false == success) {
+            if (success) {
+                reader.getReaderCacheHelper().addClosedListener(cacheKey -> close());
+            } else {
                 logger.debug("failed to load global ords for [{}]", indexed.getFieldName());
                 close();
             }
@@ -500,8 +505,7 @@ public class OnDiskGlobalOrdinalMap implements Closeable, Accountable, IndexOrdi
         return groupReader == null ? 0 : groupReader.diskBytesUsed();
     }
 
-    @Override
-    public void close() throws IOException {
+    private void close() throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "closing global ords for [{}] with [{}] values releasing [{}] on heap and [{}] on disk",

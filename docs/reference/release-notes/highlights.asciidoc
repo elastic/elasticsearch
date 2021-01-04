@@ -39,3 +39,11 @@ Other versions:
 // === Heading
 //
 // Description.
+
+=== Speed up Date histogram
+
+In 7.10 we {es-pull}61467[managed] an 11% speed improvement in
+<<search-aggregations-bucket-datehistogram-aggregation>>. In 7.11 we've
+{es-pull}63643[sped] it up an additional 85% in some common cases - most
+noteably when the date_histogram is a top level aggregation and there aren't
+sub-aggregations. Kibana uses Date histogram in this form very very frequently.

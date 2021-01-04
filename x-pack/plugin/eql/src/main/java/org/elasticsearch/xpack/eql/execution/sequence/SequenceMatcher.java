@@ -239,6 +239,14 @@ public class SequenceMatcher {
         return false;
     }
 
+    Set<SequenceKey> keys(int stage) {
+        return stageToKeys.keys(stage);
+    }
+
+    Set<SequenceKey> keys() {
+        return stageToKeys.keys();
+    }
+
     List<Sequence> completed() {
         List<Sequence> asList = new ArrayList<>(completed);
         return limit != null ? limit.view(asList) : asList;

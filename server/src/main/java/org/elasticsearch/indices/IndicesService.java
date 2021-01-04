@@ -101,6 +101,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -1410,12 +1411,18 @@ public class IndicesService extends AbstractLifecycleComponent
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
-        BytesReference bytesReference = cacheShardLevelResult(context.indexShard(), directoryReader, request.cacheKey(),
+        BytesReference cacheKey = request.cacheKey();
+        BytesReference bytesReference = cacheShardLevelResult(
+            context.indexShard(),
+            context.getQueryShardContext().mappingCacheKey(),
+            directoryReader,
+            cacheKey,
             out -> {
-            queryPhase.execute(context);
-            context.queryResult().writeToNoId(out);
-            loadedFromCache[0] = false;
-        });
+                queryPhase.execute(context);
+                context.queryResult().writeToNoId(out);
+                loadedFromCache[0] = false;
+            }
+        );
 
         if (loadedFromCache[0]) {
             // restore the cached query result into the context
@@ -1431,7 +1438,12 @@ public class IndicesService extends AbstractLifecycleComponent
             // key invalidate the result in the thread that caused the timeout. This will end up to be simpler and eventually correct since
             // running a search that times out concurrently will likely timeout again if it's run while we have this `stale` result in the
             // cache. One other option is to not cache requests with a timeout at all...
-            indicesRequestCache.invalidate(new IndexShardCacheEntity(context.indexShard()), directoryReader, request.cacheKey());
+            indicesRequestCache.invalidate(
+                new IndexShardCacheEntity(context.indexShard()),
+                context.getQueryShardContext().mappingCacheKey(),
+                directoryReader,
+                cacheKey
+            );
             if (logger.isTraceEnabled()) {
                 logger.trace("Query timed out, invalidating cache entry for request on shard [{}]:\n {}", request.shardId(),
                         request.source());
@@ -1451,8 +1463,13 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param loader loads the data into the cache if needed
      * @return the contents of the cache or the result of calling the loader
      */
-    private BytesReference cacheShardLevelResult(IndexShard shard, DirectoryReader reader, BytesReference cacheKey,
-            CheckedConsumer<StreamOutput, IOException> loader) throws Exception {
+    private BytesReference cacheShardLevelResult(
+        IndexShard shard,
+        MappingLookup.CacheKey mappingCacheKey,
+        DirectoryReader reader,
+        BytesReference cacheKey,
+        CheckedConsumer<StreamOutput, IOException> loader
+    ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
             /* BytesStreamOutput allows to pass the expected size but by default uses
@@ -1470,7 +1487,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {

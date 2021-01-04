@@ -12,6 +12,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -61,6 +62,10 @@ import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
     private static final Logger logger = LogManager.getLogger(OpenJobPersistentTasksExecutor.class);
+
+    // Resuming a job with a running datafeed from its current snapshot was added in 7.11 and
+    // can only be done if the master node is on or after that version.
+    private static final Version MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT = Version.V_7_11_0;
 
     public static String[] indicesOfInterest(String resultsIndex) {
         if (resultsIndex == null) {
@@ -205,7 +210,9 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
 
         ActionListener<Boolean> hasRunningDatafeedTaskListener = ActionListener.wrap(
             hasRunningDatafeed -> {
-                if (hasRunningDatafeed) {
+                if (hasRunningDatafeed && clusterState.nodes().getMasterNode().getVersion().onOrAfter(
+                    MIN_MASTER_NODE_VERSION_FOR_REVERTING_TO_CURRENT_SNAPSHOT)) {
+
                     // This job has a running datafeed attached to it.
                     // In order to prevent gaps in the model we revert to the current snapshot deleting intervening results.
                     revertToCurrentSnapshot(jobTask.getJobId(), ActionListener.wrap(response -> openJob(jobTask), jobTask::markAsFailed));

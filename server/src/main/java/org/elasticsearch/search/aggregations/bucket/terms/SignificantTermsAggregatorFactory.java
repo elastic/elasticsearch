@@ -49,7 +49,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,
-            Arrays.asList(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            Arrays.asList(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             SignificantTermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(SignificantTermsAggregationBuilder.REGISTRY_KEY,

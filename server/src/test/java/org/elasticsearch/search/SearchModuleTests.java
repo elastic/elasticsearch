@@ -381,7 +381,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected ValuesSourceType defaultValueSourceType() {
-            return CoreValuesSourceType.BYTES;
+            return CoreValuesSourceType.KEYWORD;
         }
 
         @Override

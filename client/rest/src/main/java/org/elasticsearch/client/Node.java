@@ -191,7 +191,7 @@ public class Node {
         }
         /**
          * Returns whether or not the node stores data.
-         * @Deprecrated use {@link #hasDataRole()} or {@link #containsData()}
+         * @deprecated use {@link #hasDataRole()} or {@link #containsData()}
          */
         @Deprecated
         public boolean isData() {

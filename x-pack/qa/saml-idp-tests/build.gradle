@@ -39,7 +39,7 @@ tasks.register("setupPorts") {
   }
 }
 
-integTest.dependsOn "setupPorts"
+tasks.named("integTest").configure {dependsOn "setupPorts" }
 
 testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'

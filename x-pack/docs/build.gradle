@@ -5,14 +5,16 @@ apply plugin: 'elasticsearch.rest-resources'
  * `// CONSOLE` and `// TESTRESPONSE` but have yet to be converted. Try and
  * only remove entries from this list. When it is empty we'll remove it
  * entirely and have a party! There will be cake and everything.... */
-buildRestTests.expectedUnconvertedCandidates = [
-  'en/rest-api/watcher/put-watch.asciidoc',
-  'en/security/authentication/user-cache.asciidoc',
-  'en/security/authorization/run-as-privilege.asciidoc',
-  'en/security/ccs-clients-integrations/http.asciidoc',
-  'en/rest-api/watcher/stats.asciidoc',
-  'en/watcher/example-watches/watching-time-series-data.asciidoc',
-]
+tasks.named("buildRestTests").configure {
+  expectedUnconvertedCandidates = [
+          'en/rest-api/watcher/put-watch.asciidoc',
+          'en/security/authentication/user-cache.asciidoc',
+          'en/security/authorization/run-as-privilege.asciidoc',
+          'en/security/ccs-clients-integrations/http.asciidoc',
+          'en/rest-api/watcher/stats.asciidoc',
+          'en/watcher/example-watches/watching-time-series-data.asciidoc',
+  ]
+}
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'default')

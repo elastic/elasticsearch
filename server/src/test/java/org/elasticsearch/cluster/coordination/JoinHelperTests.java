@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.MembershipAction;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -46,6 +47,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
@@ -167,7 +169,9 @@ public class JoinHelperTests extends ESTestCase {
         TransportService transportService = mockTransport.createTransportService(Settings.EMPTY,
             deterministicTaskQueue.getThreadPool(), TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode, null, Collections.emptySet());
-        new JoinHelper(Settings.EMPTY, null, null, transportService, () -> 0L, () -> localClusterState,
+        final String dataPath = "/my/data/path";
+        new JoinHelper(Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build(),
+                null, null, transportService, () -> 0L, () -> localClusterState,
             (joinRequest, joinCallback) -> { throw new AssertionError(); }, startJoinRequest -> { throw new AssertionError(); },
             Collections.emptyList(), (s, p, r) -> {}, null); // registers request handler
         transportService.start();
@@ -184,9 +188,12 @@ public class JoinHelperTests extends ESTestCase {
 
         final CoordinationStateRejectedException coordinationStateRejectedException
             = expectThrows(CoordinationStateRejectedException.class, future::actionGet);
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(expectedMessage));
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(localClusterState.metadata().clusterUUID()));
-        assertThat(coordinationStateRejectedException.getMessage(), containsString(otherClusterState.metadata().clusterUUID()));
+        assertThat(coordinationStateRejectedException.getMessage(), allOf(
+                containsString("This node previously joined a cluster with UUID"),
+                containsString("and is now trying to join a different cluster"),
+                containsString(localClusterState.metadata().clusterUUID()),
+                containsString(otherClusterState.metadata().clusterUUID()),
+                containsString("data path [" + dataPath + "]")));
     }
 
     public void testJoinFailureOnUnhealthyNodes() {

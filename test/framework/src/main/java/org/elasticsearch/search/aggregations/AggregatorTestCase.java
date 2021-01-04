@@ -55,6 +55,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -155,7 +156,7 @@ import static org.mockito.Mockito.when;
  * {@link AggregationBuilder} instance.
  */
 public abstract class AggregatorTestCase extends ESTestCase {
-    private List<Aggregator> releasables = new ArrayList<>();
+    private List<AggregationContext> releasables = new ArrayList<>();
     protected ValuesSourceRegistry valuesSourceRegistry;
 
     // A list of field types that should not be tested, or are not currently supported
@@ -202,21 +203,38 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     /**
-     * Create a {@linkplain SearchContext} for testing an {@link Aggregator}.
+     * Create a {@linkplain AggregationContext} for testing an {@link Aggregator}.
+     * While {@linkplain AggregationContext} is {@link Releasable} the caller is
+     * not responsible for releasing it. Instead, it is released automatically in
+     * in {@link #cleanupReleasables()}.
      */
     protected AggregationContext createAggregationContext(
         IndexSearcher indexSearcher,
         Query query,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        return createAggregationContext(indexSearcher, createIndexSettings(), query, breakerService, DEFAULT_MAX_BUCKETS, fieldTypes);
+        return createAggregationContext(
+            indexSearcher,
+            createIndexSettings(),
+            query,
+            new NoneCircuitBreakerService(),
+            AggregationBuilder.DEFAULT_PREALLOCATION * 5, // We don't know how many bytes to preallocate so we grab a hand full
+            DEFAULT_MAX_BUCKETS,
+            fieldTypes
+        );
     }
 
+    /**
+     * Create a {@linkplain AggregationContext} for testing an {@link Aggregator}.
+     * While {@linkplain AggregationContext} is {@link Releasable} the caller is
+     * not responsible for releasing it. Instead, it is released automatically in
+     * in {@link #cleanupReleasables()}.
+     */
     protected AggregationContext createAggregationContext(IndexSearcher indexSearcher,
                                                 IndexSettings indexSettings,
                                                 Query query,
                                                 CircuitBreakerService breakerService,
+                                                long bytesToPreallocate,
                                                 int maxBucket,
                                                 MappedFieldType... fieldTypes) throws IOException {
         /*
@@ -275,18 +293,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
-        return new ProductionAggregationContext(
+        AggregationContext context = new ProductionAggregationContext(
             queryShardContext,
+            bytesToPreallocate,
             query,
             null,
             consumer,
             () -> buildSubSearchContext(indexSettings, queryShardContext, bitsetFilterCache),
-            releasables::add,
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
             () -> false
         );
+        releasables.add(context);
+        return context;
     }
 
     /**
@@ -411,7 +431,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
         List<InternalAggregation> aggs = new ArrayList<>();
         Query rewritten = searcher.rewrite(query);
         CircuitBreakerService breakerService = new NoneCircuitBreakerService();
-        AggregationContext context = createAggregationContext(searcher, indexSettings, query, breakerService, maxBucket, fieldTypes);
+        AggregationContext context = createAggregationContext(
+            searcher,
+            indexSettings,
+            query,
+            breakerService,
+            builder.bytesToPreallocate(),
+            maxBucket,
+            fieldTypes
+        );
         C root = createAggregator(builder, context);
 
         if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {

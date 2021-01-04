@@ -29,10 +29,10 @@ import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -332,26 +332,7 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
         // Build a "simple" circuit breaker that trips at 20k
         CircuitBreakerService breaker = mock(CircuitBreakerService.class);
         ByteSizeValue max = new ByteSizeValue(20, ByteSizeUnit.KB);
-        when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
-            private long total = 0;
-
-            @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-                logger.debug("Used {} grabbing {} for {}", total, bytes, label);
-                total += bytes;
-                if (total > max.getBytes()) {
-                    throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
-                }
-                return total;
-            }
-
-            @Override
-            public long addWithoutBreaking(long bytes) {
-                logger.debug("Used {} grabbing {}", total, bytes);
-                total += bytes;
-                return total;
-            }
-        });
+        when(breaker.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new MockBigArrays.LimitedBreaker(CircuitBreaker.REQUEST, max));
 
         // Collect some buckets with it
         try (Directory directory = newDirectory()) {
@@ -361,15 +342,16 @@ public class TopMetricsAggregatorTests extends AggregatorTestCase {
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = newSearcher(indexReader, false, false);
+                TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 AggregationContext context = createAggregationContext(
                     indexSearcher,
                     createIndexSettings(),
                     new MatchAllDocsQuery(),
                     breaker,
+                    builder.bytesToPreallocate(),
                     MultiBucketConsumerService.DEFAULT_MAX_BUCKETS,
                     doubleFields()
                 );
-                TopMetricsAggregationBuilder builder = simpleBuilder(new FieldSortBuilder("s").order(SortOrder.ASC));
                 Aggregator aggregator = builder.build(context, null).create(null, CardinalityUpperBound.ONE);
                 aggregator.preCollection();
                 assertThat(indexReader.leaves(), hasSize(1));

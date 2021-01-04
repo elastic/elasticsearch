@@ -25,7 +25,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -69,7 +68,6 @@ public class TestSearchContext extends SearchContext {
     public static final SearchShardTarget SHARD_TARGET =
         new SearchShardTarget("test", new ShardId("test", "test", 0), null, OriginalIndices.NONE);
 
-    final BigArrays bigArrays;
     final IndexService indexService;
     final BitsetFilterCache fixedBitSetFilterCache;
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -94,20 +92,15 @@ public class TestSearchContext extends SearchContext {
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
 
-    public TestSearchContext(BigArrays bigArrays, IndexService indexService) {
-        this.bigArrays = bigArrays.withCircuitBreaking();
+    public TestSearchContext(IndexService indexService) {
         this.indexService = indexService;
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext(0, null, () -> 0L, null, emptyMap());
+        queryShardContext = indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap());
     }
 
     public TestSearchContext(QueryShardContext queryShardContext) {
-        this(queryShardContext, null);
-    }
-
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard) {
-        this(queryShardContext, indexShard, null);
+        this(queryShardContext, null, null, null);
     }
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {
@@ -116,7 +109,6 @@ public class TestSearchContext extends SearchContext {
 
     public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard,
                              ContextIndexSearcher searcher, ScrollContext scrollContext) {
-        this.bigArrays = null;
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
@@ -275,11 +267,6 @@ public class TestSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return indexShard;
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return bigArrays;
     }
 
     @Override

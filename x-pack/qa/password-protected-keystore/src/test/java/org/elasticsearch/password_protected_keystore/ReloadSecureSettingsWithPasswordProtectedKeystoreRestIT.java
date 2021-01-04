@@ -23,7 +23,7 @@ import java.util.Map;
 
 public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESRestTestCase {
     // From build.gradle
-    private final String KEYSTORE_PASSWORD = "s3cr3t";
+    private final String KEYSTORE_PASSWORD = "keystore-password";
     private final int NUM_NODES = 2;
 
     @SuppressWarnings("unchecked")
@@ -86,7 +86,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test-user", new SecureString("test-password".toCharArray()));
+        String token = basicAuthHeaderValue("test-user", new SecureString("test-user-password".toCharArray()));
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .build();

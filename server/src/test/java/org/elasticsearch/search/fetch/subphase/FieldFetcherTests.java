@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -658,6 +659,32 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         assertThat(fields.get("unmapped_object.b").getValue(), equalTo("bar"));
     }
 
+    public void testLastFormatWins() throws IOException {
+        MapperService mapperService = createMapperService();
+
+        XContentBuilder source = XContentFactory.jsonBuilder().startObject()
+            .startArray("date_field")
+                .value("2011-11-11T11:11:11")
+                .value("2012-12-12T12:12:12")
+            .endArray()
+            .endObject();
+
+        List<FieldAndFormat> ff = new ArrayList<>();
+        ff.add(new FieldAndFormat("date_field", "year", false));
+        Map<String, DocumentField> fields = fetchFields(mapperService, source, ff, null);
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get("date_field").getValues().size(), equalTo(2));
+        assertThat(fields.get("date_field").getValues().get(0), equalTo("2011"));
+        assertThat(fields.get("date_field").getValues().get(1), equalTo("2012"));
+
+        ff.add(new FieldAndFormat("date_field", "hour", false));
+        fields = fetchFields(mapperService, source, ff, null);
+        assertThat(fields.size(), equalTo(1));
+        assertThat(fields.get("date_field").getValues().size(), equalTo(2));
+        assertThat(fields.get("date_field").getValues().get(0), equalTo("11"));
+        assertThat(fields.get("date_field").getValues().get(1), equalTo("12"));
+    }
+
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
         return Collections.singletonList(new FieldAndFormat(name, format, includeUnmapped));
     }
@@ -710,7 +737,27 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        return new QueryShardContext(0, indexSettings, null, null, null, mapperService, null, null, null, null, null, null, null, null,
-            null, null, null, emptyMap());
+        return new QueryShardContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mapperService,
+            mapperService.mappingLookup(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            emptyMap()
+        );
     }
 }

@@ -86,7 +86,8 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      * naming conventions. Prefer using {@link #isDataNode(Settings)} if possible.
      */
     public static boolean isDataNodeBasedOnNamingConvention(final Settings settings) {
-        return settings.getAsList("node.roles").stream().anyMatch(DiscoveryNodeRole::isDataRoleBasedOnNamingConvention);
+        return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) ||
+            settings.getAsList("node.roles").stream().anyMatch(DiscoveryNodeRole::isDataRoleBasedOnNamingConvention);
     }
 
     public static boolean isIngestNode(final Settings settings) {

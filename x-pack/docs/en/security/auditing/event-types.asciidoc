@@ -210,7 +210,8 @@ ones). The attributes' value is a nested JSON object:
                             is being changed. It can be the `password`, `enable` or `disable`,
                             config object for native or built-in users.
 `create`              ::    The object representation of the new security config that is being
-                            created. If the API key is created using the
+                            created. This is currently only used for API keys auditing.
+                            If the API key is created using the
                             <<security-api-create-api-key, create API key API>> it only contains
                             an `apikey` config object. If the API key is created using the
                             <<security-api-grant-api-key, grant API key API>> it also contains

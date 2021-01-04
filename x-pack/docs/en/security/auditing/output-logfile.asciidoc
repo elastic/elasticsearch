@@ -15,7 +15,7 @@ by default points to the `elasticsearch.log` file.
 
 The audit events are formatted as JSON documents, and each event is printed on a separate
 line in the `<clustername>_audit.json` file. The entries themselves do not contain the
-end-of-line delimiter).
+end-of-line delimiter.
 The audit event JSON format is somewhat particular, as *most* fields follow a dotted
 name syntax, are ordered, and contain non-null string values. This format creates a
 structured columnar aspect, similar to a CSV, that can be more easily inspected visually

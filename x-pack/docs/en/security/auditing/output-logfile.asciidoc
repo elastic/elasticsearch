@@ -31,7 +31,7 @@ any other audit events, and so the benefits of a columnar format are much more l
 space-saving benefits of the nested structure is the favoured trade-off in this case.
 
 When the `request.body` attribute is present (see <<auditing-search-queries>>), it contains a
-string value containing the full HTTP request body, ascaped as per the JSON RFC 4677.
+string value containing the full HTTP request body, escaped as per the JSON RFC 4677.
 
 There is a list of <<audit-event-types, audit event types>> specifying the
 set of fields, as well as examples, for each entry type.
@@ -56,4 +56,3 @@ By default, audit information is appended to the
 `<clustername>_audit.json` file located in the standard Elasticsearch `logs` directory
 (typically located at `$ES_HOME/logs`).
 The file is also rotated and archived daily or upon reaching the 1GB file size limit.
-

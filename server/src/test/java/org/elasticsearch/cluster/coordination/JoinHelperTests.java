@@ -40,7 +40,9 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -148,16 +150,14 @@ public class JoinHelperTests extends ESTestCase {
     }
 
     public void testZen1JoinValidationRejectsMismatchedClusterUUID() {
-        assertJoinValidationRejectsMismatchedClusterUUID(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME,
-            "mixed-version cluster join validation on cluster state with a different cluster uuid");
+        assertJoinValidationRejectsMismatchedClusterUUID(MembershipAction.DISCOVERY_JOIN_VALIDATE_ACTION_NAME);
     }
 
     public void testJoinValidationRejectsMismatchedClusterUUID() {
-        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.VALIDATE_JOIN_ACTION_NAME,
-            "join validation on cluster state with a different cluster uuid");
+        assertJoinValidationRejectsMismatchedClusterUUID(JoinHelper.VALIDATE_JOIN_ACTION_NAME);
     }
 
-    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName, String expectedMessage) {
+    private void assertJoinValidationRejectsMismatchedClusterUUID(String actionName) {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
             Settings.builder().put(NODE_NAME_SETTING.getKey(), "node0").build(), random());
         MockTransport mockTransport = new MockTransport();
@@ -193,7 +193,31 @@ public class JoinHelperTests extends ESTestCase {
                 containsString("and is now trying to join a different cluster"),
                 containsString(localClusterState.metadata().clusterUUID()),
                 containsString(otherClusterState.metadata().clusterUUID()),
-                containsString("data path [" + dataPath + "]")));
+                containsString(JoinHelper.getClusterUuidMismatchExplanation(Collections.singletonList(dataPath), 1))));
+    }
+
+    public void testGetClusterUuidMismatchExplanation() {
+        final List<String> paths = new ArrayList<>();
+        paths.add("/foo/bar");
+
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, 1), equalTo("This is forbidden and usually indicates an incorrect " +
+                "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and can only be " +
+                "changed by deleting the contents of the node's data path [/foo/bar] which will also remove any data held by this node."));
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, between(2, 10)), equalTo("This is forbidden and usually indicates " +
+                "an incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                "can only be changed by deleting the contents of the node's data path [/foo/bar] which will also remove any data held by " +
+                "all nodes that use this data path."));
+
+        paths.add("/baz/quux");
+
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, 1), equalTo("This is forbidden and usually indicates an " +
+                "incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and can " +
+                "only be changed by deleting the contents of the node's data paths [/foo/bar, /baz/quux] which will also remove any data " +
+                "held by this node."));
+        assertThat(JoinHelper.getClusterUuidMismatchExplanation(paths, between(2, 10)), equalTo("This is forbidden and usually indicates " +
+                "an incorrect discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                "can only be changed by deleting the contents of the node's data paths [/foo/bar, /baz/quux] which will also remove any " +
+                "data held by all nodes that use these data paths."));
     }
 
     public void testJoinFailureOnUnhealthyNodes() {

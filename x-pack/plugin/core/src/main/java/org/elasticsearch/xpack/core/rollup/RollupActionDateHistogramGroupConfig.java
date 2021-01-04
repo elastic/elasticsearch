@@ -39,8 +39,7 @@ import static org.elasticsearch.common.xcontent.ObjectParser.ValueType;
  *     "groups": [
  *        "date_histogram": {
  *            "field" : "foo",
- *            "interval" : "1d",
- *            "delay": "30d",
+ *            "calendar_interval" : "1d",
  *            "time_zone" : "EST"
  *        }
  *     ]
@@ -149,7 +148,6 @@ public abstract class RollupActionDateHistogramGroupConfig implements Writeable,
      * Create a new {@link RollupActionDateHistogramGroupConfig} using the given configuration parameters.
      * <p>
      *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
-     *     The {@code delay} is optional and can be set to {@code null}. It defines how long to wait before rolling up new documents.
      *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
      *     ({@link ZoneId#of(String)} and must match a time zone identifier.
      * </p>

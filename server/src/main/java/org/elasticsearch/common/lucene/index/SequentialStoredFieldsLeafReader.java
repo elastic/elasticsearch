@@ -24,8 +24,6 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FilterLeafReader;
 import org.apache.lucene.index.LeafReader;
 
-import java.io.IOException;
-
 /**
  * A {@link FilterLeafReader} that exposes a {@link StoredFieldsReader}
  * optimized for sequential access. This class should be used by custom

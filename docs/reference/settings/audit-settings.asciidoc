@@ -48,8 +48,10 @@ by using the following settings:
 // tag::xpack-sa-lf-events-include-tag[]
 `xpack.security.audit.logfile.events.include`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Specifies the kind of events to print in the auditing output. The default list value
-contains:
+Specifies the <<audit-event-types, kind of events>> to print in the auditing output.
+In addition, `_all` can be used to exhaustively audit all the events, but this is usually
+discouraged since it will get very verbose.
+The default list value contains:
 `access_denied, access_granted, anonymous_access_denied, authentication_failed,
 connection_denied, tampered_request, run_as_denied, run_as_granted,
 security_config_change`.
@@ -59,8 +61,9 @@ security_config_change`.
 // tag::xpack-sa-lf-events-exclude-tag[]
 `xpack.security.audit.logfile.events.exclude`::
 (<<dynamic-cluster-setting,Dynamic>>)
-Excludes the specified kind of events from the include list. Useful in the case where
-the `events.include` setting contains the special value `_all`. The default is the empty list.
+Excludes the specified <<audit-event-types, kind of events>> from the include list.
+This is useful in the case where the `events.include` setting contains the special value `_all`.
+The default is the empty list.
 // end::xpack-sa-lf-events-exclude-tag[]
 
 [[xpack-sa-lf-events-emit-request]]

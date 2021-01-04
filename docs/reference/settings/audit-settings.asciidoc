@@ -71,12 +71,8 @@ The default is the empty list.
 `xpack.security.audit.logfile.events.emit_request_body`::
 (<<dynamic-cluster-setting,Dynamic>>)
 Specifies whether to include the full request body from REST requests as an
-attribute of certain kinds of audit events. The request body is printed as an
-escaped JSON string value to the `request.body` attribute.
-These events that contain the `request.body` attribute are `authentication_success`,
-`authentication_failed`, `realm_authentication_failed`, `tampered_request`, `run_as_denied`,
-and `anonymous_access_denied` that are printed on the coordinating node only
-(the node that handles the REST request).
+attribute of certain kinds of audit events. This setting can be used to
+<<auditing-search-queries, audit search queries>>.
 +
 The default value is `false`, so request bodies are not printed.
 +

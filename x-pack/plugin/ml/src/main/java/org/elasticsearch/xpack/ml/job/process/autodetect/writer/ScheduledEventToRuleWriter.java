@@ -13,7 +13,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import java.io.IOException;
 import java.util.Objects;
 
-public class DetectionRuleWriter implements ToXContentObject {
+public class ScheduledEventToRuleWriter implements ToXContentObject {
 
     public static final ParseField DESCRIPTION = new ParseField("description");
     public static final ParseField RULES = new ParseField("rules");
@@ -21,7 +21,7 @@ public class DetectionRuleWriter implements ToXContentObject {
     private final String description;
     private final DetectionRule detectionRule;
 
-    public DetectionRuleWriter(String description, DetectionRule detectionRule) {
+    public ScheduledEventToRuleWriter(String description, DetectionRule detectionRule) {
         this.description = Objects.requireNonNull(description);
         this.detectionRule = Objects.requireNonNull(detectionRule);
     }

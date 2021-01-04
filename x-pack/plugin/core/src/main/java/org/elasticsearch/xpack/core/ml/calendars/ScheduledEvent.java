@@ -33,7 +33,6 @@ import java.util.Objects;
 public class ScheduledEvent implements ToXContentObject, Writeable {
 
     public static final ParseField DESCRIPTION = new ParseField("description");
-    public static final ParseField RULES = new ParseField("rules");
     public static final ParseField START_TIME = new ParseField("start_time");
     public static final ParseField END_TIME = new ParseField("end_time");
     public static final ParseField TYPE = new ParseField("type");

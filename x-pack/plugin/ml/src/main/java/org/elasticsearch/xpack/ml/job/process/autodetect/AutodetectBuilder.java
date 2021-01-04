@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
-import org.elasticsearch.xpack.ml.job.process.autodetect.writer.DetectionRuleWriter;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventToRuleWriter;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -379,15 +379,15 @@ public class AutodetectBuilder {
         Path eventsConfigFile = Files.createTempFile(env.tmpFile(), "eventsConfig", JSON_EXTENSION);
         filesToDelete.add(eventsConfigFile);
 
-        List<DetectionRuleWriter> detectionRuleWriters = scheduledEvents.stream()
-            .map(x -> new DetectionRuleWriter(x.getDescription(), x.toDetectionRule(job.getAnalysisConfig().getBucketSpan())))
+        List<ScheduledEventToRuleWriter> scheduledEventToRuleWriters = scheduledEvents.stream()
+            .map(x -> new ScheduledEventToRuleWriter(x.getDescription(), x.toDetectionRule(job.getAnalysisConfig().getBucketSpan())))
             .collect(Collectors.toList());
 
         try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile),StandardCharsets.UTF_8);
              XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
             osw.write(Strings.toString(
                 jsonBuilder.startObject()
-                    .field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), detectionRuleWriters)
+                    .field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), scheduledEventToRuleWriters)
                     .endObject()));
         }
 

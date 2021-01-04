@@ -204,7 +204,7 @@ ones); the attributes' value is a nested JSON object (that is not escaped):
                             It contains the config for a `user`, `role`, `role_mapping`, or
                             for application `privileges`.
 `delete`              ::    The object representation of the security config that
-                            is being deleted. It can either be the config for a `user`, `role`,
+                            is being deleted. It can be the config for a `user`, `role`,
                             `role_mapping` or for application `privileges`.
 `change`              ::    The object representation of the security config that
                             is being changed. It can either be the `password`, `enable` or `disable`,

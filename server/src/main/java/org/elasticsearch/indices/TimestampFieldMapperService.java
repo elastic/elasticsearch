@@ -144,8 +144,8 @@ public class TimestampFieldMapperService extends AbstractLifecycleComponent impl
         if (indexMetadata == null) {
             return false;
         }
-        final IndexLongFieldRange timestampMillisRange = indexMetadata.getTimestampMillisRange();
-        return timestampMillisRange.isComplete() && timestampMillisRange != IndexLongFieldRange.UNKNOWN;
+        final IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
+        return timestampRange.isComplete() && timestampRange != IndexLongFieldRange.UNKNOWN;
     }
 
     private static DateFieldMapper.DateFieldType fromMapperService(MapperService mapperService) {

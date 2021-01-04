@@ -4,7 +4,7 @@ import org.elasticsearch.gradle.Architecture
 apply plugin: 'elasticsearch.test.fixtures'
 apply plugin: 'elasticsearch.internal-distribution-download'
 
-task copyKeystore(type: Sync) {
+tasks.register("copyKeystore", Sync) {
   from project(':x-pack:plugin:core')
     .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
   into "${buildDir}/certs"
@@ -24,8 +24,8 @@ elasticsearch_distributions {
   }
 }
 
-preProcessFixture {
-  dependsOn copyKeystore, elasticsearch_distributions.docker
+tasks.named("preProcessFixture").configure {
+  dependsOn "copyKeystore", elasticsearch_distributions.docker
   doLast {
     File file = file("${buildDir}/logs/node1")
     file.mkdirs()

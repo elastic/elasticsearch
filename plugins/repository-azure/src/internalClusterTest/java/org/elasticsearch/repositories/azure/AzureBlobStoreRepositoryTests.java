@@ -59,12 +59,15 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
     }
 
     @Override
-    protected Settings repositorySettings() {
-        return Settings.builder()
-            .put(super.repositorySettings())
-            .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
-            .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test")
-            .build();
+    protected Settings repositorySettings(String repoName) {
+        Settings.Builder settingsBuilder = Settings.builder()
+                .put(super.repositorySettings(repoName))
+                .put(AzureRepository.Repository.CONTAINER_SETTING.getKey(), "container")
+                .put(AzureStorageSettings.ACCOUNT_SETTING.getKey(), "test");
+        if (randomBoolean()) {
+            settingsBuilder.put(AzureRepository.Repository.BASE_PATH_SETTING.getKey(), randomFrom("test", "test/1"));
+        }
+        return settingsBuilder.build();
     }
 
     @Override
@@ -85,7 +88,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(10).getBytes(StandardCharsets.UTF_8));
+        final String key = Base64.getEncoder().encodeToString(randomAlphaOfLength(14).getBytes(StandardCharsets.UTF_8));
         final MockSecureSettings secureSettings = new MockSecureSettings();
         String accountName = DEFAULT_ACCOUNT_NAME;
         secureSettings.setString(AzureStorageSettings.ACCOUNT_SETTING.getConcreteSettingForNamespace("test").getKey(), accountName);

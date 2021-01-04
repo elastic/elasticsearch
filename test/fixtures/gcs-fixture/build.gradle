@@ -26,8 +26,10 @@ dependencies {
   api project(':server')
 }
 
-preProcessFixture {
-  dependsOn jar, configurations.runtimeClasspath
+def jarTask = tasks.named("jar")
+tasks.named("preProcessFixture").configure {
+  dependsOn jarTask, configurations.runtimeClasspath
+  inputs.files(jarTask, configurations.runtimeClasspath)
   doLast {
     file("${testFixturesDir}/shared").mkdirs()
     project.copy {

@@ -113,18 +113,17 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'yyyy").print(new DateTime(context.getStartTime(), UTC))));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/66914")
     public void testExpression_MixedArray() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList(
-                "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{YYYY.MM}}>"
+                "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{uuuu.MM}}>"
         ));
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0), equalTo("name1"));
         assertThat(result.get(1),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
         assertThat(result.get(2), equalTo("name2"));
         assertThat(result.get(3), equalTo(".logstash-" +
-            DateTimeFormat.forPattern("YYYY.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
+            DateTimeFormat.forPattern("yyyy.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
     }
 
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {

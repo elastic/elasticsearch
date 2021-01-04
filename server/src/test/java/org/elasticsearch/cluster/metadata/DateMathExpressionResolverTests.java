@@ -113,6 +113,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             equalTo(".marvel-" + DateTimeFormat.forPattern("'{year}'yyyy").print(new DateTime(context.getStartTime(), UTC))));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/66914")
     public void testExpression_MixedArray() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList(
                 "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{YYYY.MM}}>"

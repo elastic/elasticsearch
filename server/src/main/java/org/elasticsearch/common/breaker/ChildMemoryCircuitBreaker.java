@@ -82,10 +82,9 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * memory limit is set to 0. Will never trip the breaker if the limit is
      * set &lt; 0, but can still be used to aggregate estimations.
      * @param bytes number of bytes to add to the breaker
-     * @return number of "used" bytes so far
      */
     @Override
-    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+    public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         final LimitAndOverhead limitAndOverhead = this.limitAndOverhead;
         final long memoryBytesLimit = limitAndOverhead.limit;
         final double overheadConstant = limitAndOverhead.overhead;
@@ -115,7 +114,6 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
             throw e;
         }
         assert newUsed >= 0 : "Used bytes: [" + newUsed + "] must be >= 0";
-        return newUsed;
     }
 
     private long noLimit(long bytes, String label) {
@@ -163,14 +161,12 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * has been exceeded.
      *
      * @param bytes number of bytes to add to the breaker
-     * @return number of "used" bytes so far
      */
     @Override
-    public long addWithoutBreaking(long bytes) {
+    public void addWithoutBreaking(long bytes) {
         long u = used.addAndGet(bytes);
         logger.trace(() -> new ParameterizedMessage("[{}] Adjusted breaker by [{}] bytes, now [{}]", this.name, bytes, u));
         assert u >= 0 : "Used bytes: [" + u + "] must be >= 0";
-        return u;
     }
 
     /**

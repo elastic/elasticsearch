@@ -65,6 +65,7 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
     }
 
     @SuppressWarnings("unchecked")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66951")
     public void testReloadSecureSettingsWithEmptyPassword() throws Exception {
         final Request request = new Request("POST", "_nodes/reload_secure_settings");
         final Response response = client().performRequest(request);

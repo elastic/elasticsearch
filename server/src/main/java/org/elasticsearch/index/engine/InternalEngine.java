@@ -75,7 +75,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -87,8 +86,8 @@ import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
-import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -2542,14 +2541,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup,
+    public Translog.Snapshot newChangesSnapshot(String source,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, fieldTypeLookup, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
+                searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
         } catch (Exception e) {

@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -132,7 +131,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     public boolean hasNested() {
-        return this.mapper != null && this.mapper.hasNestedObjects();
+        return mappingLookup().hasNested();
     }
 
     public IndexAnalyzers getIndexAnalyzers() {
@@ -399,10 +398,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * Given the full name of a field, returns its {@link MappedFieldType}.
      */
     public MappedFieldType fieldType(String fullName) {
-        if (fullName.equals(TypeFieldType.NAME)) {
-            return new TypeFieldType(this.mapper == null ? "_doc" : this.mapper.type());
-        }
-        return this.mapper == null ? null : this.mapper.mappers().fieldTypes().get(fullName);
+        return mappingLookup().fieldTypes().get(fullName);
     }
 
     /**
@@ -410,19 +406,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      * then the fields will be returned with a type prefix.
      */
     public Set<String> simpleMatchToFullName(String pattern) {
-        if (Regex.isSimpleMatchPattern(pattern) == false) {
-            // no wildcards
-            return Collections.singleton(pattern);
-        }
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().simpleMatchToFullName(pattern);
+        return mappingLookup().simpleMatchToFullName(pattern);
     }
 
     /**
-     * Given a field name, returns its possible paths in the _source. For example,
-     * the 'source path' for a multi-field is the path to its parent field.
+     * {@code volatile} read a (mostly) immutable snapshot current mapping.
      */
-    public Set<String> sourcePath(String fullName) {
-        return this.mapper == null ? Collections.emptySet() : this.mapper.mappers().fieldTypes().sourcePaths(fullName);
+    public MappingLookup mappingLookup() {
+        DocumentMapper mapper = this.mapper;
+        return mapper == null ? MappingLookup.EMPTY : mapper.mappers();
     }
 
     /**
@@ -444,18 +436,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
      *                                  directly associated index-time analyzer
      */
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
-        if (this.mapper == null) {
-            return unindexedFieldAnalyzer.apply(field);
-        }
-        return this.mapper.mappers().indexAnalyzer(field, unindexedFieldAnalyzer);
-    }
-
-    public boolean containsBrokenAnalysis(String field) {
-        NamedAnalyzer a = indexAnalyzer(field, f -> null);
-        if (a == null) {
-            return false;
-        }
-        return a.containsBrokenAnalysis();
+        return mappingLookup().indexAnalyzer(field, unindexedFieldAnalyzer);
     }
 
     @Override
@@ -504,6 +485,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 reloadedAnalyzers.add(analyzerName);
             }
         }
+        // TODO this should bust the cache somehow. Tracked in https://github.com/elastic/elasticsearch/issues/66722
         return reloadedAnalyzers;
     }
 }

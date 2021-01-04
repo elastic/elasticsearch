@@ -31,13 +31,17 @@ dependencies {
   testImplementation project(':client:rest-high-level')
 }
 
-tasks.register("copyKeystore", Sync) {
+tasks.register("copyNodeKeyMaterial", Sync) {
   from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
   into "${buildDir}/certs"
   doLast {
     file("${buildDir}/certs").setReadable(true, false)
-    file("${buildDir}/certs/testnode.jks").setReadable(true, false)
+    file("${buildDir}/certs/testnode.pem").setReadable(true, false)
+    file("${buildDir}/certs/testnode.crt").setReadable(true, false)
   }
 }
 
@@ -52,7 +56,7 @@ elasticsearch_distributions {
 }
 
 tasks.named("preProcessFixture").configure {
-  dependsOn "copyKeystore", elasticsearch_distributions.docker
+  dependsOn "copyNodeKeyMaterial", elasticsearch_distributions.docker
   doLast {
     // tests expect to have an empty repo
     project.delete(
@@ -89,7 +93,10 @@ def createAndSetWritable(Object... locations) {
 
 tasks.named("processTestResources").configure {
   from project(':x-pack:plugin:core')
-    .file('src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.jks')
+    .files(
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem',
+      'src/test/resources/org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt'
+    )
 }
 
 tasks.register("integTest", Test) {

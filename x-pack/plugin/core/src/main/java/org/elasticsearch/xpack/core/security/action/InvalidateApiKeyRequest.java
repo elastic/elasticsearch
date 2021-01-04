@@ -55,30 +55,6 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
         }
     }
 
-    @Deprecated
-    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
-                                   @Nullable String name, boolean ownedByAuthenticatedUser) {
-        this(realmName, userName, name, ownedByAuthenticatedUser, Strings.hasText(id) ? new String[] { id } : null);
-    }
-
-    @Deprecated
-    public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName, @Nullable String id,
-                                   @Nullable String name, boolean ownedByAuthenticatedUser, @Nullable String[] ids) {
-        if (id != null && ids != null) {
-            throw new IllegalArgumentException("Must use either [id] or [ids], not both at the same time");
-        }
-        this.realmName = textOrNull(realmName);
-        this.userName = textOrNull(userName);
-        if (Strings.hasText(id)) {
-            this.ids = new String[]{id};
-        } else {
-            this.ids = ids;
-        }
-        validateIds(this.ids);
-        this.name = textOrNull(name);
-        this.ownedByAuthenticatedUser = ownedByAuthenticatedUser;
-    }
-
     public InvalidateApiKeyRequest(@Nullable String realmName, @Nullable String userName,
                                    @Nullable String name, boolean ownedByAuthenticatedUser, @Nullable String[] ids) {
         validateIds(ids);
@@ -145,7 +121,7 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
     }
 
     /**
-     * Creates invalidate API key request for given api key id
+     * Creates invalidate API key request for given api key ids
      *
      * @param id api key id
      * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
@@ -154,6 +130,18 @@ public final class InvalidateApiKeyRequest extends ActionRequest {
      */
     public static InvalidateApiKeyRequest usingApiKeyId(String id, boolean ownedByAuthenticatedUser) {
         return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser, new String[]{ id });
+    }
+
+    /**
+     * Creates invalidate API key request for given api key id
+     *
+     * @param ids array of api key ids
+     * @param ownedByAuthenticatedUser set {@code true} if the request is only for the API keys owned by current authenticated user else
+     * {@code false}
+     * @return {@link InvalidateApiKeyRequest}
+     */
+    public static InvalidateApiKeyRequest usingApiKeyIds(String[] ids, boolean ownedByAuthenticatedUser) {
+        return new InvalidateApiKeyRequest(null, null, null, ownedByAuthenticatedUser, ids);
     }
 
     /**

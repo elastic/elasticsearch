@@ -1,7 +1,6 @@
 import org.elasticsearch.gradle.ExportElasticsearchBuildResourcesTask
 import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
-import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
+import org.elasticsearch.gradle.testclusters.TestDistribution
 
 // Common config when running with a FIPS-140 runtime JVM
 if (BuildParams.inFipsJvm) {
@@ -44,6 +43,7 @@ if (BuildParams.inFipsJvm) {
           }
         }
         testClusters.all {
+          setTestDistribution(TestDistribution.DEFAULT)
           extraConfigFile "fips_java.security", fipsSecurity
           extraConfigFile "fips_java.policy", fipsPolicy
           extraConfigFile "cacerts.bcfks", fipsTrustStore
@@ -53,6 +53,10 @@ if (BuildParams.inFipsJvm) {
           systemProperty 'javax.net.ssl.trustStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStorePassword', 'password'
           systemProperty 'javax.net.ssl.keyStoreType', 'BCFKS'
+          systemProperty 'org.bouncycastle.fips.approved_only', 'true'
+          setting 'xpack.security.fips_mode.enabled', 'true'
+          setting 'xpack.license.self_generated.type', 'trial'
+          keystorePassword 'keystore-password'
         }
       }
       project.tasks.withType(Test).configureEach { Test task ->
@@ -65,6 +69,7 @@ if (BuildParams.inFipsJvm) {
         task.systemProperty('java.security.properties', String.format(Locale.ROOT, "=%s", fipsSecurity))
         task.systemProperty('java.security.policy', String.format(Locale.ROOT, "=%s", fipsPolicy))
         task.systemProperty('javax.net.ssl.trustStore', fipsTrustStore)
+        task.systemProperty('org.bouncycastle.fips.approved_only', 'true')
       }
     }
   }

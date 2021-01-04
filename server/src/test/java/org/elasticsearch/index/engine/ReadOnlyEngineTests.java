@@ -20,6 +20,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.UUIDs;
@@ -41,6 +42,7 @@ import static org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 
 public class ReadOnlyEngineTests extends EngineTestCase {
 
@@ -291,6 +293,42 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 assertThat(readOnlyEngine.getTranslogStats().getTranslogSizeInBytes(), greaterThan(0L));
                 assertThat(readOnlyEngine.getTranslogStats().getUncommittedSizeInBytes(), greaterThan(0L));
                 assertThat(readOnlyEngine.getTranslogStats().getEarliestLastModifiedAge(), greaterThan(0L));
+            }
+        }
+    }
+
+    public void testSearcherId() throws Exception {
+        IOUtils.close(engine, store);
+        AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+        try (Store store = createStore()) {
+            final EngineConfig config =
+                config(defaultSettings, store, createTempDir(), NoMergePolicy.INSTANCE, null, null, globalCheckpoint::get);
+            String lastSearcherId;
+            try (InternalEngine engine = createEngine(config)) {
+                lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
+                assertNotNull(lastSearcherId);
+                int iterations = randomIntBetween(0, 10);
+                for (int i = 0; i < iterations; i++) {
+                    assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(lastSearcherId));
+                    final List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100),
+                        engine.getProcessedLocalCheckpoint() + 1L, false, randomBoolean(), randomBoolean());
+                    applyOperations(engine, operations);
+                    engine.flush(randomBoolean(), true);
+                    final String newCommitId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
+                    assertThat(newCommitId, not(equalTo(lastSearcherId)));
+                    if (randomBoolean()) {
+                        engine.flush(true, true);
+                        assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(newCommitId));
+                    }
+                    lastSearcherId = newCommitId;
+                }
+                globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
+            }
+            try (ReadOnlyEngine readOnlyEngine = new ReadOnlyEngine(config, null, null, true, Function.identity(), true)) {
+                try (Engine.SearcherSupplier searcher =
+                         readOnlyEngine.acquireSearcherSupplier(Function.identity(), randomFrom(Engine.SearcherScope.values()))) {
+                    assertThat(searcher.getSearcherId(), equalTo(lastSearcherId));
+                }
             }
         }
     }

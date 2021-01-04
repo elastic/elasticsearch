@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
-import org.junit.Before;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -28,29 +26,19 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class TransformInfoTransportActionTests extends ESTestCase {
-    private XPackLicenseState licenseState;
-
-    @Before
-    public void init() {
-        licenseState = mock(XPackLicenseState.class);
-    }
 
     public void testAvailable() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
+            mock(ActionFilters.class)
         );
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.TRANSFORM)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        assertThat(featureSet.available(), is(true));
     }
 
     public void testEnabledDefault() {
         TransformInfoTransportAction featureSet = new TransformInfoTransportAction(
             mock(TransportService.class),
-            mock(ActionFilters.class),
-            licenseState
+            mock(ActionFilters.class)
         );
         assertTrue(featureSet.enabled());
     }

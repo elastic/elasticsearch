@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInputTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TargetType;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TrainedModelMetadata;
 import org.elasticsearch.xpack.ml.MlSingleNodeTestCase;
 import org.elasticsearch.xpack.ml.dataframe.process.ChunkedTrainedModelPersister;
@@ -94,7 +95,10 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         ModelMetadata modelMetadata = new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
             .limit(randomIntBetween(1, 10))
             .collect(Collectors.toList()),
-            FeatureImportanceBaselineTests.randomInstance());
+            FeatureImportanceBaselineTests.randomInstance(), 
+            Stream.generate(HyperparametersTests::randomInstance)
+            .limit(randomIntBetween(1, 10))
+            .collect(Collectors.toList()));
         persister.createAndIndexInferenceModelMetadata(modelMetadata);
 
         PlainActionFuture<Tuple<Long, Set<String>>> getIdsFuture = new PlainActionFuture<>();
@@ -112,6 +116,7 @@ public class ChunkedTrainedModelPersisterIT extends MlSingleNodeTestCase {
         assertThat(storedConfig.getEstimatedHeapMemory(), equalTo(modelSizeInfo.ramBytesUsed()));
         assertThat(storedConfig.getMetadata(), hasKey("total_feature_importance"));
         assertThat(storedConfig.getMetadata(), hasKey("feature_importance_baseline"));
+        assertThat(storedConfig.getMetadata(), hasKey("hyperparameters"));
 
         PlainActionFuture<Map<String, TrainedModelMetadata>> getTrainedMetadataFuture = new PlainActionFuture<>();
         trainedModelProvider.getTrainedModelMetadata(Collections.singletonList(inferenceModelId), getTrainedMetadataFuture);

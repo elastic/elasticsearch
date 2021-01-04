@@ -33,6 +33,7 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -477,7 +478,7 @@ public class MockRepository extends FsRepository {
             }
 
             @Override
-            public void writeBlobAtomic(final String blobName, final InputStream inputStream, final long blobSize,
+            public void writeBlobAtomic(final String blobName, final BytesReference bytes,
                                         final boolean failIfAlreadyExists) throws IOException {
                 final Random random = RandomizedContext.current().getRandom();
                 if (failOnIndexLatest && BlobStoreRepository.INDEX_LATEST_BLOB.equals(blobName)) {
@@ -493,7 +494,7 @@ public class MockRepository extends FsRepository {
                 if ((delegate() instanceof FsBlobContainer) && (random.nextBoolean())) {
                     // Simulate a failure between the write and move operation in FsBlobContainer
                     final String tempBlobName = FsBlobContainer.tempBlobName(blobName);
-                    super.writeBlob(tempBlobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlob(tempBlobName, bytes, failIfAlreadyExists);
                     maybeIOExceptionOrBlock(blobName);
                     final FsBlobContainer fsBlobContainer = (FsBlobContainer) delegate();
                     fsBlobContainer.moveBlobAtomic(tempBlobName, blobName, failIfAlreadyExists);
@@ -501,7 +502,7 @@ public class MockRepository extends FsRepository {
                     // Atomic write since it is potentially supported
                     // by the delegating blob container
                     maybeIOExceptionOrBlock(blobName);
-                    super.writeBlobAtomic(blobName, inputStream, blobSize, failIfAlreadyExists);
+                    super.writeBlobAtomic(blobName, bytes, failIfAlreadyExists);
                 }
             }
         }

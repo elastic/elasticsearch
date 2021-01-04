@@ -148,7 +148,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .missing("192.168.100.42"); // Apparently we expect a string here
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
+                InternalBinaryRange range = searchAndReduce(searcher, new MatchAllDocsQuery(), builder);
                 assertEquals(1, range.getBuckets().size());
             }
         }
@@ -168,9 +168,7 @@ public class IpRangeAggregatorTests extends AggregatorTestCase {
                 .missing(1234);
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(searcher, new MatchAllDocsQuery(), builder, (MappedFieldType) null);
-                });
+                expectThrows(IllegalArgumentException.class, () -> searchAndReduce(searcher, new MatchAllDocsQuery(), builder));
             }
         }
     }

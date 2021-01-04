@@ -97,7 +97,7 @@ public class ElasticsearchMappings {
     private ElasticsearchMappings() {
     }
 
-    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) throws IOException {
+    static String[] mappingRequiresUpdate(ClusterState state, String[] concreteIndices, Version minVersion) {
         List<String> indicesToUpdate = new ArrayList<>();
 
         ImmutableOpenMap<String, MappingMetadata> currentMapping = state.metadata().findMappings(concreteIndices,
@@ -156,14 +156,7 @@ public class ElasticsearchMappings {
         String[] concreteIndices = indexAbstraction.getIndices().stream().map(IndexMetadata::getIndex).map(Index::getName)
             .toArray(String[]::new);
 
-        String[] indicesThatRequireAnUpdate;
-        try {
-            indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
-
+        final String[] indicesThatRequireAnUpdate = mappingRequiresUpdate(state, concreteIndices, Version.CURRENT);
         if (indicesThatRequireAnUpdate.length > 0) {
             try {
                 String mapping = mappingSupplier.get();

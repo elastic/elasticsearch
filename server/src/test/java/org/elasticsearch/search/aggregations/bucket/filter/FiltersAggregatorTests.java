@@ -252,7 +252,16 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
     }
 
     public void testFilterByFilterCost() throws IOException {
-        MappedFieldType ft = new DateFieldMapper.DateFieldType("test", Resolution.MILLISECONDS);
+        MappedFieldType ft = new DateFieldMapper.DateFieldType(
+            "test",
+            true,
+            false,
+            false,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            Resolution.MILLISECONDS,
+            null,
+            null
+        );
         AggregationBuilder builder = new FiltersAggregationBuilder(
             "test",
             new KeyedFilter("q1", new RangeQueryBuilder("test").from("2020-01-01").to("2020-03-01").includeUpper(false))

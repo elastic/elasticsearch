@@ -76,7 +76,7 @@ template is used for data streams.
 ====
 {es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and
 `synthetics-*-*` index patterns, each with a priority of `100`.
-{ingest-guide}/fleet-overview.html[{agent}] uses these templates to
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
 create data streams.
 
 If you use {agent}, assign your index templates a priority lower than `100` to

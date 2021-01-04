@@ -45,7 +45,7 @@ public class SecurityIndexManagerIntegTests extends SecurityIntegTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     final List<PutUserRequestBuilder> requests = new ArrayList<>(numRequests);
-                    final SecureString password = new SecureString("password".toCharArray());
+                    final SecureString password = new SecureString("test-user-password".toCharArray());
                     for (int i = 0; i < numRequests; i++) {
                         requests.add(new PutUserRequestBuilder(client())
                             .username("user" + userNumber.getAndIncrement())

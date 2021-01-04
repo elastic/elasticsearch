@@ -74,7 +74,7 @@ public class ParentAggregationBuilder extends ValuesSourceAggregationBuilder<Par
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

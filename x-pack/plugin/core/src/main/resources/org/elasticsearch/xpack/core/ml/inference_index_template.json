@@ -127,6 +127,27 @@
               }
             }
           }
+        },
+        "hyperparameters": {
+          "type": "nested",
+          "dynamic": "false",
+          "properties": {
+            "name": {
+              "type": "keyword"
+            },
+            "value": {
+              "type": "double"
+            },
+            "absolute_importance": {
+              "type": "double"
+            },
+            "relative_importance": {
+              "type": "double"
+            },
+            "supplied": {
+              "type": "boolean"
+            }
+          } 
         }
       }
     }

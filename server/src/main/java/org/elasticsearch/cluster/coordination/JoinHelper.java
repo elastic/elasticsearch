@@ -41,6 +41,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.MembershipAction;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -152,15 +154,18 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
+        final int maxLocalStorageNodes = NodeEnvironment.MAX_LOCAL_STORAGE_NODES_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
-                    localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID() + ", rejecting");
+                        localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "]. " +
+                            getClusterUuidMismatchExplanation(dataPaths, maxLocalStorageNodes));
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -172,10 +177,10 @@ public class JoinHelper {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
                     localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("mixed-version cluster join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID()
-                        + ", rejecting");
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "] and a mix of versions. " +
+                            getClusterUuidMismatchExplanation(dataPaths, maxLocalStorageNodes));
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -188,6 +193,14 @@ public class JoinHelper {
         transportService.registerRequestHandler(
             MembershipAction.DISCOVERY_LEAVE_ACTION_NAME, ThreadPool.Names.SAME, MembershipAction.LeaveRequest::new,
             (request, channel, task) -> channel.sendResponse(Empty.INSTANCE)); // TODO: do we need to implement anything here?
+    }
+
+    static String getClusterUuidMismatchExplanation(List<String> dataPaths, int maxLocalStorageNodes) {
+        return "This is forbidden and usually indicates an incorrect discovery or cluster bootstrapping configuration. Note that the " +
+                "cluster UUID persists across restarts and can only be changed by deleting the contents of the node's data " +
+                (dataPaths.size() == 1 ? "path " : "paths ") + dataPaths + " which will also remove any data held by " +
+                (maxLocalStorageNodes == 1 ? "this node." : "all nodes that use " +
+                (dataPaths.size() == 1 ? "this data path." : "these data paths."));
     }
 
     private JoinCallback transportJoinCallback(TransportRequest request, TransportChannel channel) {

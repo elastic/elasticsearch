@@ -32,7 +32,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     setting 'xpack.license.self_generated.type', 'trial'
   }
 
-  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.all {
+  tasks.withType(StandaloneRestIntegTestTask).matching { it.name.startsWith("${baseName}#") }.configureEach {
     useCluster testClusters."${baseName}-leader"
     useCluster testClusters."${baseName}-follower"
     systemProperty 'tests.upgrade_from_version', bwcVersion.toString().replace('-SNAPSHOT', '')
@@ -51,9 +51,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
     }
   }
 
-  for (kind in ["follower", "leader"]) {
-    // Attention!! Groovy trap: do not pass `kind` to a closure
-
+  ["follower", "leader"].each { kind ->
     tasks.register("${baseName}#${kind}#clusterTest", StandaloneRestIntegTestTask) {
       systemProperty 'tests.rest.upgrade_state', 'none'
       systemProperty 'tests.rest.cluster_name', kind

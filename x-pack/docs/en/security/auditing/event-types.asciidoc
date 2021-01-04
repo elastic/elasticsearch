@@ -40,7 +40,7 @@ might generate multiple audit events, across multiple cluster nodes. The common
                                         requests when the scroll ID is believed to have been
                                         tampered with.                                                         | | Example: `{"type":"audit", "timestamp":"2019-11-27T22:00:00,947+0200", "node.id": "0RMNyghkQYCc_gVd1G6tZQ", "event.type": "rest", "event.action": "tampered_request", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
 | `connection_granted`              | | Logged when an incoming TCP connection passes the
-                                        <<ip-filtering, IP Filter>> for a specific
+                                        <<ip-filtering, IP filter>> for a specific
                                         profile.                                                               | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_granted", "origin.type":"rest", "origin.address":"::1", "transport.profile":".http", "rule":"allow ::1,127.0.0.1"}`
 | `connection_denied`               | | Logged when an incoming TCP connection does not pass the
                                         <<ip-filtering, IP Filter>> for a specific profile.                    | | Example: `{"type":"audit", "timestamp":"2020-12-30T21:47:31,526+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"ip_filter", "event.action":"connection_denied", "origin.type":"rest", "origin.address":"10.10.0.20", "transport.profile":".http", "rule":"deny 10.10.0.0/16"}`

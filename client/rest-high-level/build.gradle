@@ -75,14 +75,14 @@ File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security
 tasks.named("integTest").configure {
   systemProperty 'tests.rest.async', 'false'
   systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+  systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-user-password')
 }
 
 // Requires https://github.com/elastic/elasticsearch/pull/64403 to have this moved to task avoidance api.
 TaskProvider<RestIntegTestTask> asyncIntegTest = tasks.register("asyncIntegTest", RestIntegTestTask) {
     systemProperty 'tests.rest.async', 'true'
     systemProperty 'tests.rest.cluster.username', System.getProperty('tests.rest.cluster.username', 'test_user')
-    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-password')
+    systemProperty 'tests.rest.cluster.password', System.getProperty('tests.rest.cluster.password', 'test-user-password')
 }
 
 tasks.named("check").configure {
@@ -113,7 +113,7 @@ testClusters.all {
   keystore 'xpack.security.transport.ssl.truststore.secure_password', 'testnode'
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: System.getProperty('tests.rest.cluster.username', 'test_user'),
-    password: System.getProperty('tests.rest.cluster.password', 'test-password'),
+    password: System.getProperty('tests.rest.cluster.password', 'test-user-password'),
     role: System.getProperty('tests.rest.cluster.role', 'admin')
   user username: 'admin_user', password: 'admin-password'
 

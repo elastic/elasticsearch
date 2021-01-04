@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfigTests;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
@@ -76,7 +77,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         switch (randomIntBetween(0, 1)) {
             case 0:
                 List<MetricConfig> metricConfigs = rollupILMAction.config().getMetricsConfig();
-                metricConfigs.add(new MetricConfig(randomAlphaOfLength(4), Collections.singletonList("max")));
+                metricConfigs.add(new MetricConfig(randomAlphaOfLength(4), new ArrayList<>(Collections.singletonList("max"))));
                 newConfig = new RollupActionConfig(rollupILMAction.config().getGroupConfig(), metricConfigs,
                     rollupILMAction.config().getTimeout());
                 break;

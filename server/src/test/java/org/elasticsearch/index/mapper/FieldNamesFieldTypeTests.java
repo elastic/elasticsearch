@@ -24,7 +24,6 @@ import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESTestCase;
@@ -44,7 +43,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         MappingLookup mappingLookup = MappingLookupUtils.fromTypes(fieldNamesFieldType, fieldType);
 
         QueryShardContext queryShardContext = new QueryShardContext(0, 0,
-                indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, mappingLookup,
+                indexSettings, null, null, null, mappingLookup,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
                 Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);

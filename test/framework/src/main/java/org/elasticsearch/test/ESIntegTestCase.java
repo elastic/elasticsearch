@@ -1512,14 +1512,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .setPersistentSettings(settings).setTransientSettings(settings).get());
     }
 
-    /** Sets or unsets the cluster read_only_allow_delete mode **/
-    public static void setClusterReadOnlyAllowDelete(boolean value) {
-        Settings settings = value ? Settings.builder().put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), value).build() :
-            Settings.builder().putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()).build()  ;
-        assertAcked(client().admin().cluster().prepareUpdateSettings()
-            .setPersistentSettings(settings).setTransientSettings(settings).get());
-    }
-
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
         CountDownLatch l = new CountDownLatch(1);
         latches.add(l);

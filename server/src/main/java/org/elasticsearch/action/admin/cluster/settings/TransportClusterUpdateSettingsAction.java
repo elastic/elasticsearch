@@ -81,24 +81,8 @@ public class TransportClusterUpdateSettingsAction extends
         Map<String, String> clearedBlockAndArchivedSettings = new HashMap<>();
         if (checkClearedBlockAndArchivedSettings(request.transientSettings(), clearedBlockAndArchivedSettings)
             && checkClearedBlockAndArchivedSettings(request.persistentSettings(), clearedBlockAndArchivedSettings)) {
-            boolean clearBlockSettings = false;
-            boolean clearArchivedSettings = false;
-            for (String key : clearedBlockAndArchivedSettings.keySet()) {
-                if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)
-                    || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(key)) {
-                    clearBlockSettings = true;
-                }
-                if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
-                    clearArchivedSettings = true;
-                }
-                if (clearArchivedSettings && clearBlockSettings) {
-                    logger.debug("clear archived settings and cluster blocks together, skip checking current blocks.");
-                    return null;
-                }
-            }
-            if (clearBlockSettings) {
-                logger.debug("clear cluster blocks[{}][{}], skip checking current blocks.",
-                    request.transientSettings(), request.persistentSettings());
+            if (clearedBlockAndArchivedSettings.containsKey(Metadata.SETTING_READ_ONLY_SETTING.getKey())
+                || clearedBlockAndArchivedSettings.containsKey(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey())) {
                 return null;
             }
         }

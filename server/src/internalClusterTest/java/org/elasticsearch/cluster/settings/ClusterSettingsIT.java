@@ -290,111 +290,125 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testRemoveArchiveSettingsWithBlocks() throws Exception {
-        // set cluster read only or read only allow delete
-        if (randomBoolean()) {
-            setClusterReadOnly(true);
-        } else {
-            setClusterReadOnlyAllowDelete(true);
+        testRemoveArchiveSettingsWithBlocks(true, false);
+        testRemoveArchiveSettingsWithBlocks(false, true);
+        testRemoveArchiveSettingsWithBlocks(true, true);
+    }
+
+    private void testRemoveArchiveSettingsWithBlocks(boolean readOnly, boolean readOnlyAllowDelete) throws Exception {
+        Settings.Builder settingsBuilder = Settings.builder();
+        if (readOnly) {
+            settingsBuilder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
         }
+        if (readOnlyAllowDelete) {
+            settingsBuilder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
+        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(settingsBuilder).setTransientSettings(settingsBuilder).get());
+
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        assertTrue(state.getMetadata().transientSettings().getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false)
-            || state.getMetadata().transientSettings().getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
+        if (readOnly) {
+            assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
+        }
+        if (readOnlyAllowDelete) {
+            assertTrue(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().transientSettings()));
+        }
 
         // create archived setting
         final Metadata metadata = state.getMetadata();
         final Metadata brokenMeta = Metadata.builder(metadata).persistentSettings(Settings.builder()
             .put(metadata.persistentSettings()).put("this.is.unknown", true).build()).build();
-        logger.info("brokenMeta[{}]", brokenMeta.persistentSettings());
         restartNodesOnBrokenClusterState(ClusterState.builder(state).metadata(brokenMeta));
         ensureGreen(); // wait for state recovery
         state = client().admin().cluster().prepareState().get().getState();
         assertTrue(state.getMetadata().persistentSettings().getAsBoolean("archived.this.is.unknown", false));
 
         // cannot remove read only block due to archived settings
-        try {
-            setClusterReadOnly(false);
-            setClusterReadOnlyAllowDelete(false);
-            fail("should be blocked by archived settings.");
-        } catch (IllegalArgumentException ex) {
-            assertTrue(ex.getMessage().contains("unknown setting [archived.this.is.unknown]"));
-        }
+        final IllegalArgumentException e1 =
+            expectThrows(
+                IllegalArgumentException.class,
+                () -> {
+                    Settings.Builder builder = Settings.builder();
+                    if (readOnly) {
+                        builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "false");
+                    }
+                    if (readOnlyAllowDelete) {
+                        builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "false");
+                    }
+                    assertAcked(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(builder).setTransientSettings(builder).get());
+                });
+        assertTrue(e1.getMessage().contains("unknown setting [archived.this.is.unknown]"));
 
         // fail to clear archived settings with non-archived settings
-        try {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
-                .setTransientSettings(Settings.builder().putNull("archived.*")).get());
-            fail("should only can remove archived settings.");
-        } catch (ClusterBlockException ex) {
-            assertTrue(ex.getMessage().contains("cluster read-only"));
-        }
+        final ClusterBlockException e2 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> assertAcked(client().admin().cluster().prepareUpdateSettings()
+                        .setPersistentSettings(Settings.builder().putNull("cluster.routing.allocation.enable"))
+                        .setTransientSettings(Settings.builder().putNull("archived.*")).get()));
+        assertTrue(e2.getMessage().contains("cluster read-only"));
 
         // fail to clear archived settings due to cluster read only block
-        try {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder().putNull("archived.*")).get());
-            fail("should fail due to cluster read only block.");
-        } catch (ClusterBlockException ex) {
-            assertTrue(ex.getMessage().contains("cluster read-only"));
-        }
+        final ClusterBlockException e3 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> assertAcked(client().admin().cluster().prepareUpdateSettings()
+                    .setPersistentSettings(Settings.builder().putNull("archived.*")).get()));
+        assertTrue(e3.getMessage().contains("cluster read-only"));
 
         // fail to clear archived settings with adding cluster block
-        try {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .putNull("archived.*")
-                    .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true")).get());
-            fail("should fail due to cluster read only block.");
-        } catch (ClusterBlockException ex) {
-            assertTrue(ex.getMessage().contains("cluster read-only"));
-        }
+        final ClusterBlockException e4 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> {
+                    Settings.Builder builder = Settings.builder().putNull("archived.*");
+                    if (readOnly) {
+                        builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
+                    }
+                    if (readOnlyAllowDelete) {
+                        builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
+                    }
+                    assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+                });
+        assertTrue(e4.getMessage().contains("cluster read-only"));
 
         // fail to set archived settings to non-null value even with clearing blocks together
-        try {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .put("archived.this.is.unknown", "false")
-                    .putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())
-                    .putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey())).get());
-            fail("should fail due to cluster read only block.");
-        } catch (ClusterBlockException ex) {
-            assertTrue(ex.getMessage().contains("cluster read-only"));
-        }
+        final ClusterBlockException e5 =
+            expectThrows(
+                ClusterBlockException.class,
+                () -> {
+                    Settings.Builder builder = Settings.builder().put("archived.this.is.unknown", "false");
+                    if (readOnly) {
+                        builder.putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey());
+                    }
+                    if (readOnlyAllowDelete) {
+                        builder.putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey());
+                    }
+                    assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
+                });
+        assertTrue(e5.getMessage().contains("cluster read-only"));
 
         // we can clear read-only block with archived settings together
-        if (randomBoolean()) {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .putNull("archived.*")
-                    .putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())
-                    .putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey()))
-                .setTransientSettings(Settings.builder()
-                    .putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey())
-                    .putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey())).get());
-        } else {
-            assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(Settings.builder()
-                    .putNull("archived.*")
-                    .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "false")
-                    .put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "false"))
-                .setTransientSettings(Settings.builder()
-                    .put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "false")
-                    .put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "false")).get());
+        Settings.Builder builder = Settings.builder().putNull("archived.*");
+        if (readOnly) {
+            builder.putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey());
         }
+        if (readOnlyAllowDelete) {
+            builder.putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey());
+        }
+        assertAcked(client().admin().cluster().prepareUpdateSettings()
+            .setPersistentSettings(builder).setTransientSettings(builder).get());
 
         state = client().admin().cluster().prepareState().get().getState();
-        assertFalse(state.getMetadata().transientSettings()
-            .getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false));
-        assertFalse(state.getMetadata().transientSettings()
-            .getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
-        assertFalse(state.getMetadata().persistentSettings()
-            .getAsBoolean(Metadata.SETTING_READ_ONLY_SETTING.getKey(), false));
-        assertFalse(state.getMetadata().persistentSettings()
-            .getAsBoolean(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), false));
+        assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().transientSettings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
+        assertFalse(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().persistentSettings()));
         assertNull(state.getMetadata().persistentSettings().get("archived.this.is.unknown"));
     }
 
-    public void testClusterUpdateSettingsWithBlocks() throws Exception {
+    public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
         Settings transientSettings = Settings.builder().put(key1, EnableAllocationDecider.Allocation.NONE.name()).build();
 

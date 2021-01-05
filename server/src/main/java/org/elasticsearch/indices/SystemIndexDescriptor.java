@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.MapperService;
 
 import java.util.Objects;
 
@@ -73,6 +74,9 @@ public class SystemIndexDescriptor {
     /** For internally-managed indices, specifies the origin to use when creating or updating the index */
     private final String origin;
 
+    /** The index type to use when creating an index. */
+    private final String indexType;
+
     /**
      * Creates a descriptor for system indices matching the supplied pattern. These indices will not be managed
      * by Elasticsearch internally.
@@ -80,7 +84,7 @@ public class SystemIndexDescriptor {
      * @param description The name of the plugin responsible for this system index.
      */
     public SystemIndexDescriptor(String indexPattern, String description) {
-        this(indexPattern, null, description, null, null, null, 0, null, null);
+        this(indexPattern, null, description, null, null, null, 0, null, null, MapperService.SINGLE_MAPPING_NAME);
     }
 
     /**
@@ -88,6 +92,7 @@ public class SystemIndexDescriptor {
      * by Elasticsearch internally if mappings or settings are provided.
      *
      * @param indexPattern The pattern of index names that this descriptor will be used for. Must start with a '.' character.
+     * @param primaryIndex The name of the concrete index to create, if Elasticsearch is managing this index.
      * @param description The name of the plugin responsible for this system index.
      * @param mappings The mappings to apply to this index when auto-creating, if appropriate
      * @param settings The settings to apply to this index when auto-creating, if appropriate
@@ -96,8 +101,9 @@ public class SystemIndexDescriptor {
      * @param versionMetaKey a mapping key under <code>_meta</code> where a version can be found, which indicates the
      *                       Elasticsearch version when the index was created.
      * @param origin the client origin to use when creating this index.
+     * @param indexType the index type. Should be {@link MapperService#SINGLE_MAPPING_NAME} for any new system indices.
      */
-    private SystemIndexDescriptor(
+    SystemIndexDescriptor(
         String indexPattern,
         String primaryIndex,
         String description,
@@ -106,7 +112,8 @@ public class SystemIndexDescriptor {
         String aliasName,
         int indexFormat,
         String versionMetaKey,
-        String origin
+        String origin,
+        String indexType
     ) {
         Objects.requireNonNull(indexPattern, "system index pattern must not be null");
         if (indexPattern.length() < 2) {
@@ -138,6 +145,8 @@ public class SystemIndexDescriptor {
                     "system primary index provided as [" + primaryIndex + "] but cannot contain special characters or patterns"
                 );
             }
+
+            Strings.requireNonEmpty(indexType, "Index type cannot be null or empty if primaryIndex is supplied");
         }
 
         if (indexFormat < 0) {
@@ -165,6 +174,7 @@ public class SystemIndexDescriptor {
         this.indexFormat = indexFormat;
         this.versionMetaKey = versionMetaKey;
         this.origin = origin;
+        this.indexType = indexType;
     }
 
     /**
@@ -207,6 +217,15 @@ public class SystemIndexDescriptor {
         return mappings;
     }
 
+    /**
+     * Returns this descriptor's mappings JSON nested under the type. This is necessary as this is the expected format
+     * when creating an index, even though it can be retrieved again without the nesting.
+     */
+    public String getMappingsWithType() {
+        // don't reference mappings directly as a test class exists that customises the mappings returned.
+        return "{\"" + indexType + "\": " + getMappings() + "}";
+    }
+
     public Settings getSettings() {
         return settings;
     }
@@ -231,6 +250,10 @@ public class SystemIndexDescriptor {
         return this.origin;
     }
 
+    public String getIndexType() {
+        return indexType;
+    }
+
     // TODO: getThreadpool()
     // TODO: Upgrade handling (reindex script?)
 
@@ -248,6 +271,7 @@ public class SystemIndexDescriptor {
         private int indexFormat = 0;
         private String versionMetaKey = null;
         private String origin = null;
+        private String indexType = MapperService.SINGLE_MAPPING_NAME;
 
         private Builder() {}
 
@@ -296,6 +320,16 @@ public class SystemIndexDescriptor {
             return this;
         }
 
+        /**
+         * @deprecated Index types are going away over the next two major releases. New system indices should accept the default,
+         * which is {@link MapperService#SINGLE_MAPPING_NAME}.
+         */
+        @Deprecated
+        public Builder setIndexType(String indexType) {
+            this.indexType = indexType;
+            return this;
+        }
+
         public SystemIndexDescriptor build() {
             String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
@@ -308,7 +342,8 @@ public class SystemIndexDescriptor {
                 aliasName,
                 indexFormat,
                 versionMetaKey,
-                origin
+                origin,
+                indexType
             );
         }
     }

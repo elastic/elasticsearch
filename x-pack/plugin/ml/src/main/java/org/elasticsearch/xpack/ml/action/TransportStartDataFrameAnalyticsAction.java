@@ -531,8 +531,6 @@ public class TransportStartDataFrameAnalyticsAction
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
             switch (analyticsState) {
                 case STARTED:
-                case REINDEXING:
-                case ANALYZING:
                     node = persistentTask.getExecutorNode();
                     return true;
                 case STOPPING:
@@ -586,7 +584,6 @@ public class TransportStartDataFrameAnalyticsAction
     public static class TaskExecutor extends AbstractJobPersistentTasksExecutor<TaskParams> {
 
         private final Client client;
-        private final ClusterService clusterService;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
         private final IndexTemplateConfig inferenceIndexTemplate;
@@ -603,7 +600,6 @@ public class TransportStartDataFrameAnalyticsAction
                 memoryTracker,
                 resolver);
             this.client = Objects.requireNonNull(client);
-            this.clusterService = Objects.requireNonNull(clusterService);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
             this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
@@ -616,7 +612,7 @@ public class TransportStartDataFrameAnalyticsAction
             PersistentTasksCustomMetadata.PersistentTask<TaskParams> persistentTask,
             Map<String, String> headers) {
             return new DataFrameAnalyticsTask(
-                id, type, action, parentTaskId, headers, client, clusterService, manager, auditor, persistentTask.getParams());
+                id, type, action, parentTaskId, headers, client, manager, auditor, persistentTask.getParams());
         }
 
         @Override
@@ -651,7 +647,8 @@ public class TransportStartDataFrameAnalyticsAction
         @Override
         protected void nodeOperation(AllocatedPersistentTask task, TaskParams params, PersistentTaskState state) {
             DataFrameAnalyticsTaskState analyticsTaskState = (DataFrameAnalyticsTaskState) state;
-            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? null : analyticsTaskState.getState();
+            DataFrameAnalyticsState analyticsState = analyticsTaskState == null ? DataFrameAnalyticsState.STOPPED
+                : analyticsTaskState.getState();
             logger.info("[{}] Starting data frame analytics from state [{}]", params.getId(), analyticsState);
 
             // If we are "stopping" there is nothing to do and we should stop
@@ -666,7 +663,7 @@ public class TransportStartDataFrameAnalyticsAction
             }
 
             ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
-                ok -> executeTask(analyticsTaskState, task),
+                ok -> executeTask(task),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(
@@ -682,16 +679,12 @@ public class TransportStartDataFrameAnalyticsAction
             MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
         }
 
-        private void executeTask(DataFrameAnalyticsTaskState analyticsTaskState, AllocatedPersistentTask task) {
-            if (analyticsTaskState == null) {
-                DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
-                    task.getAllocationId(), null);
-                task.updatePersistentTaskState(startedState, ActionListener.wrap(
-                    response -> manager.execute((DataFrameAnalyticsTask) task, DataFrameAnalyticsState.STARTED, clusterState),
-                    task::markAsFailed));
-            } else {
-                manager.execute((DataFrameAnalyticsTask) task, analyticsTaskState.getState(), clusterState);
-            }
+        private void executeTask(AllocatedPersistentTask task) {
+            DataFrameAnalyticsTaskState startedState = new DataFrameAnalyticsTaskState(DataFrameAnalyticsState.STARTED,
+                task.getAllocationId(), null);
+            task.updatePersistentTaskState(startedState, ActionListener.wrap(
+                response -> manager.execute((DataFrameAnalyticsTask) task, clusterState),
+                task::markAsFailed));
         }
 
         public static String nodeFilter(DiscoveryNode node, TaskParams params) {

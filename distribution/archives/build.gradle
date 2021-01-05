@@ -115,10 +115,24 @@ distribution_archives {
     }
   }
 
+  darwinAarch64Tar {
+    archiveClassifier = 'darwin-aarch64'
+    content {
+      archiveFiles(modulesFiles(false, 'darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, true)
+    }
+  }
+
   ossDarwinTar {
     archiveClassifier = 'darwin-x86_64'
     content {
       archiveFiles(modulesFiles(true, 'darwin-x86_64'), 'tar', 'darwin', 'x64', true, true)
+    }
+  }
+
+  ossDarwinAarch64Tar {
+    archiveClassifier = 'darwin-aarch64'
+    content {
+      archiveFiles(modulesFiles(false, 'darwin-aarch64'), 'tar', 'darwin', 'aarch64', false, true)
     }
   }
 

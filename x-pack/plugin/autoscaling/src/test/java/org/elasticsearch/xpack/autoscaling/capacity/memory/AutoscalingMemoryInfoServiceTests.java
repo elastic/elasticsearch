@@ -139,7 +139,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             service.onClusterChanged(new ClusterChangedEvent("test", state, previousState));
             client.assertNoResponder();
 
-            assertMatchesResponse(succeedingNodes, response, service);
+            assertMatchesResponse(succeedingNodes, response);
             failingNodes.forEach(n -> { assertThat(service.snapshot().get(n), nullValue()); });
 
             previousNodes.clear();
@@ -177,7 +177,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         service.onClusterChanged(new ClusterChangedEvent("test", masterState, ClusterState.EMPTY_STATE));
         client.assertNoResponder();
 
-        assertMatchesResponse(nodes, response, service);
+        assertMatchesResponse(nodes, response);
 
         ClusterState notMasterState = ClusterState.builder(masterState)
             .nodes(DiscoveryNodes.builder(masterState.nodes()).masterNodeId(null))
@@ -193,7 +193,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         Set<DiscoveryNode> nodes = IntStream.range(0, between(1, 10)).mapToObj(n -> newNode("test_" + n)).collect(Collectors.toSet());
         ClusterState state = ClusterState.builder(ClusterName.DEFAULT).nodes(discoveryNodesBuilder(nodes, true)).metadata(metadata).build();
 
-        client.respond((r, l) -> { l.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())); });
+        client.respond((r, listener) -> listener.onFailure(randomFrom(new IllegalStateException(), new RejectedExecutionException())));
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
 
         nodes.forEach(n -> assertThat(service.snapshot().get(n), nullValue()));
@@ -224,7 +224,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         service.onClusterChanged(new ClusterChangedEvent("test", state, ClusterState.EMPTY_STATE));
         client.assertNoResponder();
 
-        assertMatchesResponse(nodes, response, service);
+        assertMatchesResponse(nodes, response);
 
         Set<DiscoveryNode> restartedNodes = randomValueOtherThan(
             nodes,
@@ -246,8 +246,8 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         service.onClusterChanged(new ClusterChangedEvent("test", restartedState, state));
         client.assertNoResponder();
 
-        assertMatchesResponse(Sets.intersection(restartedNodes, nodes), response, service);
-        assertMatchesResponse(Sets.difference(restartedNodes, nodes), restartedStatsResponse, service);
+        assertMatchesResponse(Sets.intersection(restartedNodes, nodes), response);
+        assertMatchesResponse(Sets.difference(restartedNodes, nodes), restartedStatsResponse);
 
         Sets.difference(nodes, restartedNodes).forEach(n -> assertThat(service.snapshot().get(n), nullValue()));
     }
@@ -263,7 +263,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         );
 
         List<Thread> threads = new ArrayList<>();
-        client.respond((r, l) -> {
+        client.respond((request, listener) -> {
             CountDownLatch latch = new CountDownLatch(1);
             threads.add(startThread(() -> {
                 try {
@@ -271,7 +271,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
                 } catch (InterruptedException e) {
                     throw new AssertionError(e);
                 }
-                l.onResponse(response);
+                listener.onResponse(response);
             }));
             threads.add(startThread(() -> {
                 // we do not register a new responder, so this will fail if it calls anything on client.
@@ -325,8 +325,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
             .collect(Collectors.toSet());
     }
 
-    // todo: remove service arg.
-    public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response, AutoscalingMemoryInfoService service) {
+    public void assertMatchesResponse(Set<DiscoveryNode> nodes, NodesStatsResponse response) {
         nodes.forEach(
             n -> {
                 assertThat(
@@ -379,9 +378,9 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
         }
 
         public void respond(NodesStatsResponse response, Runnable whileFetching) {
-            respond((r, l) -> {
+            respond((request, listener) -> {
                 assertThat(
-                    Set.of(r.nodesIds()),
+                    Set.of(request.nodesIds()),
                     Matchers.equalTo(
                         Stream.concat(
                             response.getNodesMap().keySet().stream(),
@@ -390,7 +389,7 @@ public class AutoscalingMemoryInfoServiceTests extends AutoscalingTestCase {
                     )
                 );
                 whileFetching.run();
-                l.onResponse(response);
+                listener.onResponse(response);
             });
         }
 

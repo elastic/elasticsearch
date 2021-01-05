@@ -5,6 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -43,21 +58,6 @@ import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
-import static org.elasticsearch.test.NodeRoles.addRoles;
-import static org.elasticsearch.test.NodeRoles.onlyRole;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasEntry;
 
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
@@ -193,6 +193,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63980")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)

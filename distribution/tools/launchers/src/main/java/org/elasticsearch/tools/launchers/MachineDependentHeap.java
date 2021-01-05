@@ -142,7 +142,7 @@ public final class MachineDependentHeap {
                         return MachineNodeRole.DATA;
                     } else if (containsOnly(roles, "master")) {
                         return MachineNodeRole.MASTER_ONLY;
-                    } else if (containsOnly(roles, "ml")) {
+                    } else if (roles.contains("ml") && containsOnly(roles, "ml", "remote_cluster_client")) {
                         return MachineNodeRole.ML_ONLY;
                     } else {
                         return MachineNodeRole.DATA;

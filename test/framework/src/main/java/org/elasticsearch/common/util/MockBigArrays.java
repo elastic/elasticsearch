@@ -628,11 +628,11 @@ public class MockBigArrays extends BigArrays {
         }
     }
 
-    private static class LimitedBreaker extends NoopCircuitBreaker {
+    public static class LimitedBreaker extends NoopCircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final ByteSizeValue max;
 
-        LimitedBreaker(String name, ByteSizeValue max) {
+        public LimitedBreaker(String name, ByteSizeValue max) {
             super(name);
             this.max = max;
         }

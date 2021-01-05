@@ -116,7 +116,6 @@ Features/ILM+SLM::
 * Allow readonly in the hot phase for ILM policies {es-pull}64381[#64381] (issues: {es-issue}52073[#52073], {es-issue}58289[#58289], {es-issue}64008[#64008])
 * Allow shrink in the hot phase for ILM policies {es-pull}64008[#64008] (issues: {es-issue}52073[#52073], {es-issue}56377[#56377])
 * Add support for the `searchable_snapshot` action in the hot phase {es-pull}64883[#64883] (issue: {es-issue}64656[#64656])
-* Make the unfollow action and CCR related steps retryable [OPEN] {es-pull}66356[#66356] (issue: {es-issue}48183[#48183])
 * Validate policy and actions against current license {es-pull}65412[#65412] (issue: {es-issue}60208[#60208])
 * Make SLM Run Snapshot Deletes in Parallel {es-pull}62284[#62284] (issue: {es-issue}59655[#59655])
 * Use data stream for ILM history {es-pull}64521[#64521]

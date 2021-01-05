@@ -109,12 +109,12 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
                         assertThat(realBreaker.getUsed(), equalTo(preallocatedBytes));
                     }
                     if (current > 0 && randomBoolean()) {
-                        long delta = randomLongBetween(Math.max(-current, -realBreaker.getLimit() / 100), 0);
+                        long delta = randomLongBetween(-Math.min(current, limit / 100), 0);
                         b.addWithoutBreaking(delta);
                         current += delta;
                         continue;
                     }
-                    long delta = randomLongBetween(0, realBreaker.getLimit() / 100);
+                    long delta = randomLongBetween(0, limit / 100);
                     if (randomBoolean()) {
                         b.addWithoutBreaking(delta);
                         current += delta;

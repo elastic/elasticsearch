@@ -730,14 +730,12 @@ public class ApiKeyService {
     }
 
     private boolean isEnabled() {
-        return enabled && licenseState.isSecurityEnabled() &&
-            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE);
+        return enabled && licenseState.isSecurityEnabled();
     }
 
     public void ensureEnabled() {
-        if (licenseState.isSecurityEnabled() == false ||
-            licenseState.checkFeature(XPackLicenseState.Feature.SECURITY_API_KEY_SERVICE) == false) {
-            throw LicenseUtils.newComplianceException("api keys");
+        if (licenseState.isSecurityEnabled() == false) {
+            throw LicenseUtils.newComplianceException("security is not enabled");
         }
         if (enabled == false) {
             throw new FeatureNotEnabledException(Feature.API_KEY_SERVICE, "api keys are not enabled");

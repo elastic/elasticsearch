@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ml.autoscaling;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
@@ -15,6 +16,13 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.ml.autoscaling.MlScalingReason.CONFIGURATION;
+import static org.elasticsearch.xpack.ml.autoscaling.MlScalingReason.CURRENT_CAPACITY;
+import static org.elasticsearch.xpack.ml.autoscaling.MlScalingReason.REASON;
+import static org.elasticsearch.xpack.ml.autoscaling.MlScalingReason.WAITING_ANALYTICS_JOBS;
+import static org.elasticsearch.xpack.ml.autoscaling.MlScalingReason.WAITING_ANOMALY_JOBS;
+import static org.hamcrest.Matchers.containsString;
 
 public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScalingReason> {
 
@@ -55,4 +63,13 @@ public class MlScalingReasonTests extends AbstractWireSerializingTestCase<MlScal
         return builder.build();
     }
 
+    public void testToXContent() throws Exception {
+        MlScalingReason reason = createTestInstance();
+        String xcontentString = Strings.toString(reason);
+        assertThat(xcontentString, containsString(WAITING_ANALYTICS_JOBS));
+        assertThat(xcontentString, containsString(WAITING_ANOMALY_JOBS));
+        assertThat(xcontentString, containsString(CONFIGURATION));
+        assertThat(xcontentString, containsString(CURRENT_CAPACITY));
+        assertThat(xcontentString, containsString(REASON));
+    }
 }

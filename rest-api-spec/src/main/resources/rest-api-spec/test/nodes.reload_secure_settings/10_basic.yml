@@ -24,7 +24,9 @@ setup:
 
 ---
 "node_reload_secure_settings test correct(empty) password":
-
+  - skip:
+      features: fips_140
+      reason: "In FIPS 140 mode, we use a password protected elasticsearch keystore"
   - do:
       nodes.reload_secure_settings: {}
 

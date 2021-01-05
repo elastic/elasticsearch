@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.TimeValue;
@@ -34,6 +35,8 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
 
     protected String[] indices;
     private IndicesOptions indicesOptions;
+
+    @Nullable // if timeout is infinite
     private TimeValue timeout;
 
     public BroadcastRequest(StreamInput in) throws IOException {
@@ -41,9 +44,9 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            timeout = in.readTimeValue();
+            timeout = in.readOptionalTimeValue();
         } else {
-            timeout = TimeValue.MINUS_ONE;
+            timeout = null;
         }
     }
 
@@ -52,10 +55,10 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
     }
 
     protected BroadcastRequest(String[] indices, IndicesOptions indicesOptions) {
-        this(indices, indicesOptions, TimeValue.MINUS_ONE);
+        this(indices, indicesOptions, null);
     }
 
-    protected BroadcastRequest(String[] indices, IndicesOptions indicesOptions, TimeValue timeout) {
+    protected BroadcastRequest(String[] indices, IndicesOptions indicesOptions, @Nullable TimeValue timeout) {
         this.indices = indices;
         this.indicesOptions = indicesOptions;
         this.timeout = timeout;
@@ -89,12 +92,13 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         return (Request) this;
     }
 
+    @Nullable // if timeout is infinite
     public TimeValue timeout() {
         return timeout;
     }
 
     @SuppressWarnings("unchecked")
-    public final Request timeout(TimeValue timeout) {
+    public final Request timeout(@Nullable TimeValue timeout) {
         this.timeout = timeout;
         return (Request) this;
     }
@@ -110,7 +114,7 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeTimeValue(timeout);
+            out.writeOptionalTimeValue(timeout);
         }
     }
 }

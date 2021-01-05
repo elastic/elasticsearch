@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.NodeShouldNotConnectException;
 import org.elasticsearch.transport.TransportChannel;
@@ -318,13 +317,12 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void sendNodeRequest(final DiscoveryNode node, List<ShardRouting> shards, final int nodeIndex) {
             try {
-                NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
+                final NodeRequest nodeRequest = new NodeRequest(node.getId(), request, shards);
                 if (task != null) {
                     nodeRequest.setParentTask(clusterService.localNode().getId(), task.getId());
                 }
 
-                final TransportRequestOptions transportRequestOptions = request.timeout().equals(TimeValue.MINUS_ONE)
-                        ? TransportRequestOptions.EMPTY : TransportRequestOptions.timeout(request.timeout());
+                final TransportRequestOptions transportRequestOptions = TransportRequestOptions.timeout(request.timeout());
 
                 transportService.sendRequest(node, transportNodeBroadcastAction, nodeRequest, transportRequestOptions,
                         new TransportResponseHandler<NodeResponse>() {

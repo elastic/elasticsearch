@@ -41,6 +41,7 @@ import java.util.Locale;
 import java.util.Map;
 
 import static java.util.Collections.singletonList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
@@ -132,7 +133,10 @@ public class SystemIndexManagerIT extends ESIntegTestCase {
         );
         final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).get(MapperService.SINGLE_MAPPING_NAME).getSourceAsMap();
         try {
-            assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
+            assertThat(
+                convertToXContent(singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap), XContentType.JSON).utf8ToString(),
+                equalTo(expectedMappings)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

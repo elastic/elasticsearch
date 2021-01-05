@@ -76,8 +76,8 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         String newRollupPolicy = rollupILMAction.rollupPolicy();
         switch (randomIntBetween(0, 1)) {
             case 0:
-                List<MetricConfig> metricConfigs = rollupILMAction.config().getMetricsConfig();
-                metricConfigs.add(new MetricConfig(randomAlphaOfLength(4), new ArrayList<>(Collections.singletonList("max"))));
+                List<MetricConfig> metricConfigs = new ArrayList<>(rollupILMAction.config().getMetricsConfig());
+                metricConfigs.add(new MetricConfig(randomAlphaOfLength(4), Collections.singletonList("max")));
                 newConfig = new RollupActionConfig(rollupILMAction.config().getGroupConfig(), metricConfigs,
                     rollupILMAction.config().getTimeout());
                 break;

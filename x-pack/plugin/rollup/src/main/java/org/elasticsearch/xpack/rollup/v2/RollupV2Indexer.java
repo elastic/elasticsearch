@@ -55,15 +55,15 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.indexing.IterationResult;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.RollupField;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.RollupIndexerJobStats;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -130,7 +130,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
     }
 
     XContentBuilder getMapping() throws IOException {
-        GroupConfig groupConfig = request.getRollupConfig().getGroupConfig();
+        RollupActionGroupConfig groupConfig = request.getRollupConfig().getGroupConfig();
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("properties");
         String dateField = groupConfig.getDateHistogram().getField();
         HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
@@ -303,7 +303,7 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
      * @return The composite aggregation that creates the rollup buckets
      */
     private CompositeAggregationBuilder createCompositeBuilder(RollupActionConfig config) {
-        final GroupConfig groupConfig = config.getGroupConfig();
+        final RollupActionGroupConfig groupConfig = config.getGroupConfig();
         List<CompositeValuesSourceBuilder<?>> builders = createValueSourceBuilders(groupConfig);
 
         CompositeAggregationBuilder composite = new CompositeAggregationBuilder(AGGREGATION_NAME, builders);
@@ -320,11 +320,11 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
         return composite;
     }
 
-    static Map<String, Object> createMetadata(final GroupConfig groupConfig) {
+    static Map<String, Object> createMetadata(final RollupActionGroupConfig groupConfig) {
         final Map<String, Object> metadata = new HashMap<>();
         if (groupConfig != null) {
             // Add all the metadata in order: date_histo -> histo
-            final DateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
+            final RollupActionDateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
             metadata.put(RollupField.formatMetaField(RollupField.INTERVAL), dateHistogram.getInterval().toString());
 
             final HistogramGroupConfig histogram = groupConfig.getHistogram();
@@ -335,11 +335,11 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
         return metadata;
     }
 
-    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final GroupConfig groupConfig) {
+    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final RollupActionGroupConfig groupConfig) {
         final List<CompositeValuesSourceBuilder<?>> builders = new ArrayList<>();
         // Add all the agg builders to our request in order: date_histo -> histo -> terms
         if (groupConfig != null) {
-            final DateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
+            final RollupActionDateHistogramGroupConfig dateHistogram = groupConfig.getDateHistogram();
             builders.addAll(createValueSourceBuilders(dateHistogram));
 
             final HistogramGroupConfig histogram = groupConfig.getHistogram();
@@ -351,15 +351,16 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
         return Collections.unmodifiableList(builders);
     }
 
-    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(final DateHistogramGroupConfig dateHistogram) {
+    public static List<CompositeValuesSourceBuilder<?>> createValueSourceBuilders(
+            final RollupActionDateHistogramGroupConfig dateHistogram) {
         final String dateHistogramField = dateHistogram.getField();
         final DateHistogramValuesSourceBuilder dateHistogramBuilder = new DateHistogramValuesSourceBuilder(dateHistogramField);
-        if (dateHistogram instanceof DateHistogramGroupConfig.FixedInterval) {
+        if (dateHistogram instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
             dateHistogramBuilder.fixedInterval(dateHistogram.getInterval());
-        } else if (dateHistogram instanceof DateHistogramGroupConfig.CalendarInterval) {
+        } else if (dateHistogram instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
             dateHistogramBuilder.calendarInterval(dateHistogram.getInterval());
         } else {
-            dateHistogramBuilder.dateHistogramInterval(dateHistogram.getInterval());
+            throw new IllegalStateException("invalid RollupActionDateHistogramGroupConfig [" + dateHistogram.getClass() + "]");
         }
         dateHistogramBuilder.field(dateHistogramField);
         dateHistogramBuilder.timeZone(ZoneId.of(dateHistogram.getTimeZone()));

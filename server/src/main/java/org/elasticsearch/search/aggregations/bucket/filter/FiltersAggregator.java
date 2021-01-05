@@ -314,6 +314,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             long limit = profiling ? Long.MAX_VALUE : maxCost;
             long start = profiling ? System.nanoTime() : 0;
             estimatedCost = 0;
+            System.err.println("top: " + topLevelQuery());
             weights = buildWeights(topLevelQuery(), filters);
             List<LeafReaderContext> leaves = searcher().getIndexReader().leaves();
             /*
@@ -471,6 +472,8 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         }
         return weights;
     }
+
+//    protected abstract Query correctForNested(Query query);
 
     /**
      * Make a filter that matches both queries, merging the

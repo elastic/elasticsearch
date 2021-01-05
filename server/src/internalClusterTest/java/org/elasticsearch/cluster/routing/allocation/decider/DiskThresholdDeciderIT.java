@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -83,7 +84,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         final InternalClusterInfoService clusterInfoService
                 = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(
+                event -> ClusterInfoServiceUtils.refresh(clusterInfoService));
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
 
@@ -119,7 +121,8 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
         final InternalClusterInfoService clusterInfoService
             = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(event -> clusterInfoService.refresh());
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class).addListener(
+                event -> ClusterInfoServiceUtils.refresh(clusterInfoService));
 
         final String dataNode0Id = internalCluster().getInstance(NodeEnvironment.class, dataNodeName).nodeId();
 
@@ -211,7 +214,7 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
 
     private void refreshDiskUsage() {
         final ClusterInfoService clusterInfoService = internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
-        ((InternalClusterInfoService) clusterInfoService).refresh();
+        ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         // if the nodes were all under the low watermark already (but unbalanced) then a change in the disk usage doesn't trigger a reroute
         // even though it's now possible to achieve better balance, so we have to do an explicit reroute. TODO fix this?
         if (StreamSupport.stream(clusterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().values().spliterator(), false)

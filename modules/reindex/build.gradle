@@ -21,6 +21,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.test.AntFixture
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.jdk-download'
@@ -111,12 +112,12 @@ jdks {
 
 if (Os.isFamily(Os.FAMILY_WINDOWS)) {
   logger.warn("Disabling reindex-from-old tests because we can't get the pid file on windows")
-  javaRestTest {
+  tasks.named("javaRestTest").configure {
     systemProperty "tests.fromOld", "false"
   }
 } else if (rootProject.rootDir.toString().contains(" ")) {
   logger.warn("Disabling reindex-from-old tests because Elasticsearch 1.7 won't start with spaces in the path")
-  javaRestTest {
+  tasks.named("javaRestTest").configure {
     systemProperty "tests.fromOld", "false"
   }
 } else {
@@ -128,7 +129,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
     // see: https://github.com/elastic/elasticsearch/issues/51202
     versions = ['2', '1']
   }
-  for (String version : versions) {
+  versions.each { version ->
     // TODO Rene: we should be able to replace these unzip tasks with gradle artifact transforms
     TaskProvider<Sync> unzip = tasks.register("unzipEs${version}", Sync) {
       Configuration oldEsDependency = configurations['es' + version]
@@ -141,7 +142,7 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       into temporaryDir
     }
 
-    Task fixture = task("oldEs${version}Fixture", type: org.elasticsearch.gradle.test.AntFixture) {
+    TaskProvider<AntFixture> fixture = tasks.register("oldEs${version}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy
       dependsOn unzip
       executable = "${BuildParams.runtimeJavaHome}/bin/java"
@@ -158,13 +159,13 @@ if (Os.isFamily(Os.FAMILY_WINDOWS)) {
       }
     }
 
-    javaRestTest {
+    tasks.named("javaRestTest").configure {
       dependsOn fixture
         systemProperty "tests.fromOld", "true"
         /* Use a closure on the string to delay evaluation until right before we
          * run the integration tests so that we can be sure that the file is
          * ready. */
-        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.addressAndPort}"
+        nonInputProperties.systemProperty "es${version}.port", "${-> fixture.get().addressAndPort}"
     }
   }
 }

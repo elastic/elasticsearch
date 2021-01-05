@@ -38,7 +38,7 @@ import java.util.Set;
 @Deprecated
 public enum ValueType implements Writeable {
 
-    STRING((byte) 1, "string", "string", CoreValuesSourceType.BYTES,
+    STRING((byte) 1, "string", "string", CoreValuesSourceType.KEYWORD,
         DocValueFormat.RAW),
 
     LONG((byte) 2, "byte|short|integer|long", "long", CoreValuesSourceType.NUMERIC, DocValueFormat.RAW),

@@ -67,6 +67,15 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal))
+            // prevent shards to move around after they got assigned the first time
+            .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+            .build();
+    }
+
     public void testListenersInvokedWhenIndexIsDeleted() throws Exception {
         final String masterNode = internalCluster().startMasterOnlyNode();
         internalCluster().startDataOnlyNodes(2);
@@ -74,8 +83,8 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2 * between(1, 2))
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .build());
 
         final NumShards numShards = getNumShards(indexName);
@@ -128,7 +137,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4 * between(1, 2))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .build());
 
@@ -191,7 +200,7 @@ public class IndexFoldersDeletionListenerIT extends ESIntegTestCase {
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, Settings.builder()
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4 * between(1, 2))
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 4)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .build());
 

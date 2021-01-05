@@ -53,7 +53,7 @@ public class TopMetricsAggregationBuilder extends AbstractAggregationBuilder<Top
         );
         registry.register(
             REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             TopMetricsAggregator.GlobalOrdsValues::new,
             false
         );

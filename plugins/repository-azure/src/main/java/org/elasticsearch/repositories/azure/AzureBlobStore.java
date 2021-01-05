@@ -52,6 +52,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -381,13 +382,21 @@ public class AzureBlobStore implements BlobStore {
         return Collections.unmodifiableMap(childrenBuilder);
     }
 
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) {
+        Flux<ByteBuffer> byteBufferFlux =
+            Flux.fromArray(BytesReference.toByteBuffers(bytes));
+        executeSingleUpload(blobName, byteBufferFlux, bytes.length(), failIfAlreadyExists);
+    }
+
     public void writeBlob(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) throws IOException {
         assert inputStream.markSupported()
             : "Should not be used with non-mark supporting streams as their retry handling in the SDK is broken";
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {})", blobName, blobSize));
         try {
             if (blobSize <= getLargeBlobThresholdInBytes()) {
-                executeSingleUpload(blobName, inputStream, blobSize, failIfAlreadyExists);
+                final Flux<ByteBuffer> byteBufferFlux =
+                    convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
+                executeSingleUpload(blobName, byteBufferFlux, blobSize, failIfAlreadyExists);
             } else {
                 executeMultipartUpload(blobName, inputStream, blobSize, failIfAlreadyExists);
             }
@@ -404,14 +413,13 @@ public class AzureBlobStore implements BlobStore {
         logger.trace(() -> new ParameterizedMessage("writeBlob({}, stream, {}) - done", blobName, blobSize));
     }
 
-    private void executeSingleUpload(String blobName, InputStream inputStream, long blobSize, boolean failIfAlreadyExists) {
+    private void executeSingleUpload(String blobName, Flux<ByteBuffer> byteBufferFlux, long blobSize, boolean failIfAlreadyExists) {
         SocketAccess.doPrivilegedVoidException(() -> {
             final BlobServiceAsyncClient asyncClient = asyncClient();
 
             final BlobAsyncClient blobAsyncClient = asyncClient.getBlobContainerAsyncClient(container).getBlobAsyncClient(blobName);
             final BlockBlobAsyncClient blockBlobAsyncClient = blobAsyncClient.getBlockBlobAsyncClient();
 
-            final Flux<ByteBuffer> byteBufferFlux = convertStreamToByteBuffer(inputStream, blobSize, DEFAULT_UPLOAD_BUFFERS_SIZE);
             final BlockBlobSimpleUploadOptions options = new BlockBlobSimpleUploadOptions(byteBufferFlux, blobSize);
             BlobRequestConditions requestConditions = new BlobRequestConditions();
             if (failIfAlreadyExists) {

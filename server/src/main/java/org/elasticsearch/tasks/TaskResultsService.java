@@ -47,7 +47,6 @@ import java.util.Iterator;
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 /**
  * Service that can store task results.
@@ -134,14 +133,13 @@ public class TaskResultsService {
 
             builder.startObject();
             {
-                builder.startObject(SINGLE_MAPPING_NAME);
+                builder.startObject(TASK_TYPE);
                 builder.field("dynamic", "strict");
                 {
                     builder.startObject("_meta");
                     builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
                     builder.endObject();
 
-                    builder.field("dynamic", "strict");
                     builder.startObject("properties");
                     {
                         builder.startObject("completed");

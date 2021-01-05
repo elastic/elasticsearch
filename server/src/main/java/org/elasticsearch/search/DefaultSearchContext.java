@@ -241,9 +241,7 @@ final class DefaultSearchContext extends SearchContext {
         if (queryBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new BoostQuery(query(), queryBoost), parsedQuery()));
         }
-        System.err.println("ADSFADSF before: " + query);
         this.query = buildFilteredQuery(query);
-        System.err.println("ADSFADSF after1: " + query);
         if (rewrite) {
             try {
                 this.query = searcher.rewrite(query);
@@ -251,7 +249,6 @@ final class DefaultSearchContext extends SearchContext {
                 throw new QueryPhaseExecutionException(shardTarget, "Failed to rewrite main query", e);
             }
         }
-        System.err.println("ADSFADSF after2: " + query);
     }
 
     @Override

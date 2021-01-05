@@ -36,7 +36,7 @@ public class NoHandlerIT extends HttpSmokeTestCase {
     public void testNoHandlerRespectsAcceptHeader() throws IOException {
         runTestNoHandlerRespectsAcceptHeader(
                 "application/json",
-                "application/json; charset=UTF-8",
+                "application/json",
                 "\"error\":\"no handler found for uri [/foo/bar/baz/qux/quux] and method [GET]\"");
         runTestNoHandlerRespectsAcceptHeader(
                 "application/yaml",

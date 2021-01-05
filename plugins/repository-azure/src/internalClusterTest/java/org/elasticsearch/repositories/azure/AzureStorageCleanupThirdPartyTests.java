@@ -122,11 +122,4 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         }));
         future.actionGet();
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66633")
-    @Override
-    // This override is only here so we can mute the test without muting the whole suite, remove it when the test is fixed
-    public void testCleanup() throws Exception {
-        super.testCleanup();
-    }
 }

@@ -200,7 +200,7 @@ public abstract class ArrayValuesSourceAggregationBuilder<AB extends ArrayValues
         HashMap<String, ValuesSourceConfig> configs = new HashMap<>();
         for (String field : fields) {
             ValuesSourceConfig config = ValuesSourceConfig.resolveUnregistered(context, userValueTypeHint, field, null,
-                missingMap.get(field), null, format, CoreValuesSourceType.BYTES);
+                missingMap.get(field), null, format, CoreValuesSourceType.KEYWORD);
             configs.put(field, config);
         }
         return configs;

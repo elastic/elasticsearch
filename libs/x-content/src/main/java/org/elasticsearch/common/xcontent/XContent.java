@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.xcontent;
 
+import org.elasticsearch.common.xcontent.cbor.CborXContent;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -84,4 +86,13 @@ public interface XContent {
      */
     XContentParser createParser(NamedXContentRegistry xContentRegistry,
             DeprecationHandler deprecationHandler, Reader reader) throws IOException;
+
+    default XContentBuilder createContentBuilder(OutputStream outputStream) throws IOException {
+         return new XContentBuilder(this, outputStream);
+    }
+
+    default XContentBuilder createContentBuilder() throws IOException {
+        return XContentBuilder.builder(this);
+    }
+
 }

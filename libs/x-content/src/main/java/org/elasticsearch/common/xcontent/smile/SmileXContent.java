@@ -42,6 +42,7 @@ import java.util.Set;
  * A Smile based content implementation using Jackson.
  */
 public class SmileXContent implements XContent {
+    private XContentType xContentType;
 
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(smileXContent);
@@ -58,15 +59,16 @@ public class SmileXContent implements XContent {
         // Do not automatically close unclosed objects/arrays in com.fasterxml.jackson.dataformat.smile.SmileGenerator#close() method
         smileFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         smileFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        smileXContent = new SmileXContent();
+        smileXContent = new SmileXContent(XContentType.SMILE);
     }
 
-    private SmileXContent() {
+    public SmileXContent(XContentType xContentType) {
+        this.xContentType = xContentType;
     }
 
     @Override
     public XContentType type() {
-        return XContentType.SMILE;
+        return xContentType;
     }
 
     @Override
@@ -76,7 +78,7 @@ public class SmileXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+        return new SmileXContentGenerator(smileFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes,xContentType);
     }
 
     @Override

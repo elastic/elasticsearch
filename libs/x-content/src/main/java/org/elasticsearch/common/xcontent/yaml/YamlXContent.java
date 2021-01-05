@@ -40,6 +40,7 @@ import java.util.Set;
  * A YAML based content implementation using Jackson.
  */
 public class YamlXContent implements XContent {
+    private XContentType xContentType;
 
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(yamlXContent);
@@ -51,15 +52,16 @@ public class YamlXContent implements XContent {
     static {
         yamlFactory = new YAMLFactory();
         yamlFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
-        yamlXContent = new YamlXContent();
+        yamlXContent = new YamlXContent(XContentType.YAML);
     }
 
-    private YamlXContent() {
+    public YamlXContent(XContentType xContentType) {
+        this.xContentType = xContentType;
     }
 
     @Override
     public XContentType type() {
-        return XContentType.YAML;
+        return xContentType;
     }
 
     @Override
@@ -69,7 +71,7 @@ public class YamlXContent implements XContent {
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, Set<String> includes, Set<String> excludes) throws IOException {
-        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes);
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), os, includes, excludes,xContentType);
     }
 
     @Override

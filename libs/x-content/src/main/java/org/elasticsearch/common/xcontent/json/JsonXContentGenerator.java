@@ -71,8 +71,10 @@ public class JsonXContentGenerator implements XContentGenerator {
     private static final SerializedString LF = new SerializedString("\n");
     private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
     private boolean prettyPrint = false;
+    private XContentType xContentType;
 
-    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes, XContentType xContentType) {
+        this.xContentType = xContentType;
         Objects.requireNonNull(includes, "Including filters must not be null");
         Objects.requireNonNull(excludes, "Excluding filters must not be null");
         this.os = os;
@@ -104,7 +106,7 @@ public class JsonXContentGenerator implements XContentGenerator {
 
     @Override
     public XContentType contentType() {
-        return XContentType.JSON;
+        return xContentType;
     }
 
     @Override

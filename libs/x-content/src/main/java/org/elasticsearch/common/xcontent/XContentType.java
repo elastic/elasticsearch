@@ -53,7 +53,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public XContent xContent() {
-            return JsonXContent.jsonXContent;
+            return new JsonXContent(this);
         }
 
         @Override
@@ -84,7 +84,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public XContent xContent() {
-            return SmileXContent.smileXContent;
+            return new SmileXContent(this);
         }
 
         @Override
@@ -111,15 +111,13 @@ public enum XContentType implements MediaType {
 
         @Override
         public XContent xContent() {
-            return YamlXContent.yamlXContent;
+            return new YamlXContent(this);
         }
 
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/yaml"),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue("application/yaml"));
         }
     },
     /**
@@ -138,7 +136,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public XContent xContent() {
-            return CborXContent.cborXContent;
+            return new CborXContent(this);
         }
 
         @Override
@@ -146,6 +144,34 @@ public enum XContentType implements MediaType {
             return Set.of(
                 new HeaderValue("application/cbor"),
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+    },
+    VND_YAML(4) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return "application/vnd.elasticsearch+yaml";
+        }
+
+        @Override
+        public String mediaType() {
+            return "application/vnd.elasticsearch+yaml;compatible-with=7";
+        }
+
+        @Override
+        public String queryParameter() {
+            return "yaml";
+        }
+
+        @Override
+        public XContent xContent() {
+            return new YamlXContent(this);
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
         }
     };

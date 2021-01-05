@@ -28,14 +28,11 @@ import java.util.Set;
 
 public class YamlXContentGenerator extends JsonXContentGenerator {
 
-    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes) {
-        super(jsonGenerator, os, includes, excludes);
+    public YamlXContentGenerator(JsonGenerator jsonGenerator, OutputStream os, Set<String> includes, Set<String> excludes, XContentType xContentType) {
+        super(jsonGenerator, os, includes, excludes, xContentType);
     }
 
-    @Override
-    public XContentType contentType() {
-        return XContentType.YAML;
-    }
+
 
     @Override
     public void usePrintLineFeedAtEnd() {

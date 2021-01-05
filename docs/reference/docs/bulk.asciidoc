@@ -224,7 +224,20 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_excludes]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source_includes]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
++
+--
+(Optional, <<time-units, time units>>)
+Period each action waits for the following operations:
+
+* <<index-creation,Automatic index creation>>
+* <<dynamic-mapping,Dynamic mapping>> updates
+* <<index-wait-for-active-shards,Waiting for active shards>>
+
+Defaults to `1m` (one minute). This guarantees {es} waits for at least the
+timeout before failing. The actual wait time could be longer, particularly when
+multiple waits occur.
+--
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=wait_for_active_shards]
 

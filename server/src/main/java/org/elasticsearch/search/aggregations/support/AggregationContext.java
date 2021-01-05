@@ -24,6 +24,9 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -48,9 +51,9 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
@@ -62,8 +65,13 @@ import java.util.function.Supplier;
  * In production we always use the {@link ProductionAggregationContext} but
  * this is {@code abstract} so that tests can build it without creating the
  * massing {@link QueryShardContext}.
+ * <p>
+ * {@linkplain AggregationContext}s are {@link Releasable} because they track
+ * the {@link Aggregator}s they build and {@link Aggregator#close} them when
+ * the request is done. {@linkplain AggregationContext} may also preallocate
+ * bytes on the "REQUEST" breaker and is responsible for releasing those bytes. 
  */
-public abstract class AggregationContext {
+public abstract class AggregationContext implements Releasable {
     /**
      * The query at the top level of the search in which these aggregations are running.
      */
@@ -243,36 +251,55 @@ public abstract class AggregationContext {
      */
     public static class ProductionAggregationContext extends AggregationContext {
         private final QueryShardContext context;
+        private final PreallocatedCircuitBreakerService breakerService;
         private final BigArrays bigArrays;
         private final Query topLevelQuery;
         private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
         private final Supplier<SubSearchContext> subSearchContextBuilder;
-        private final Consumer<Aggregator> addReleasable;
         private final BitsetFilterCache bitsetFilterCache;
         private final int randomSeed;
         private final LongSupplier relativeTimeInMillis;
         private final Supplier<Boolean> isCancelled;
 
+        private final List<Aggregator> releaseMe = new ArrayList<>();
+
         public ProductionAggregationContext(
             QueryShardContext context,
+            long bytesToPreallocate,
             Query topLevelQuery,
             @Nullable AggregationProfiler profiler,
             MultiBucketConsumer multiBucketConsumer,
             Supplier<SubSearchContext> subSearchContextBuilder,
-            Consumer<Aggregator> addReleasable,
             BitsetFilterCache bitsetFilterCache,
             int randomSeed,
             LongSupplier relativeTimeInMillis,
             Supplier<Boolean> isCancelled
         ) {
             this.context = context;
-            this.bigArrays = context.bigArrays().withCircuitBreaking();  // We can break in searches.
+            if (bytesToPreallocate == 0) {
+                /*
+                 * Its possible if a bit strange for the aggregations to ask
+                 * to preallocate 0 bytes. Mostly this is for testing other
+                 * things, but we should honor it and just not preallocate
+                 * anything. Setting the breakerService reference to null will
+                 * cause us to skip it when we close this context.
+                 */
+                this.breakerService = null;
+                this.bigArrays = context.bigArrays().withCircuitBreaking();
+            } else {
+                this.breakerService = new PreallocatedCircuitBreakerService(
+                    context.bigArrays().breakerService(),
+                    CircuitBreaker.REQUEST,
+                    bytesToPreallocate,
+                    "aggregations"
+                );
+                this.bigArrays = context.bigArrays().withBreakerService(breakerService).withCircuitBreaking();
+            }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
             this.multiBucketConsumer = multiBucketConsumer;
             this.subSearchContextBuilder = subSearchContextBuilder;
-            this.addReleasable = addReleasable;
             this.bitsetFilterCache = bitsetFilterCache;
             this.randomSeed = randomSeed;
             this.relativeTimeInMillis = relativeTimeInMillis;
@@ -374,7 +401,7 @@ public abstract class AggregationContext {
 
         @Override
         public void addReleasable(Aggregator aggregator) {
-            addReleasable.accept(aggregator);
+            releaseMe.add(aggregator);
         }
 
         @Override
@@ -420,6 +447,17 @@ public abstract class AggregationContext {
         @Override
         public boolean isCacheable() {
             return context.isCacheable();
+        }
+
+        @Override
+        public void close() {
+            /*
+             * Add the breakerService to the end of the list so we release it
+             * after all the aggregations that allocate bytes on it.
+             */
+            List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
+            releaseMe.add(breakerService);
+            Releasables.close(releaseMe);
         }
     }
 }

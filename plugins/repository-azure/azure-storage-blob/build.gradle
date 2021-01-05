@@ -29,7 +29,7 @@ List<String> classesToRewrite = ['com/azure/storage/blob/implementation/AppendBl
                                  'com/azure/storage/blob/implementation/PageBlobsImpl$PageBlobsService.class',
                                  'com/azure/storage/blob/implementation/ServicesImpl$ServicesService.class']
 
-tasks.create('extractClientClasses', Copy).configure {
+tasks.register('extractClientClasses', Copy).configure {
   from({ zipTree(configurations.originalJar.singleFile) }) {
     include "com/azure/storage/blob/implementation/**"
   }
@@ -37,8 +37,7 @@ tasks.create('extractClientClasses', Copy).configure {
 }
 
 def modifiedOutput = project.layout.buildDirectory.dir('modified')
-def makePublic = tasks.create('makeClientClassesPublic', JavaClassPublicifier)
-makePublic.configure {
+def makePublic = tasks.register('makeClientClassesPublic', JavaClassPublicifier) {
   dependsOn 'extractClientClasses'
   classFiles = classesToRewrite
   inputDir = project.layout.buildDirectory.dir('original')

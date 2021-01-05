@@ -1145,11 +1145,16 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private void ensureClusterInfoServiceRunning() {
         if (cluster() != null && cluster().size() > 0) {
-            final ClusterInfoService clusterInfoService = internalCluster().getMasterNodeInstance(ClusterInfoService.class);
-            if (clusterInfoService instanceof InternalClusterInfoService) {
-                // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
-                ((InternalClusterInfoService) clusterInfoService).refresh();
-            }
+            // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
+            refreshClusterInfo();
+        }
+    }
+
+    public static void refreshClusterInfo() {
+        final ClusterInfoService clusterInfoService
+                = internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        if (clusterInfoService instanceof InternalClusterInfoService) {
+            ((InternalClusterInfoService) clusterInfoService).refresh();
         }
     }
 

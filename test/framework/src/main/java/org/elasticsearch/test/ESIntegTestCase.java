@@ -1145,7 +1145,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     private void ensureClusterInfoServiceRunning() {
-        if (cluster() != null && cluster().size() > 0) {
+        if (isInternalCluster() && cluster().size() > 0) {
             // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
             refreshClusterInfo();
         }

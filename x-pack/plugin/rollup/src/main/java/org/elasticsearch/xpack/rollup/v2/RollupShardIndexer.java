@@ -51,11 +51,11 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -133,6 +133,7 @@ class RollupShardIndexer {
             };
             this.queryShardContext = indexService.newQueryShardContext(
                 indexShard.shardId().id(),
+                0,
                 searcher,
                 () -> 0L,
                 null,
@@ -172,6 +173,9 @@ class RollupShardIndexer {
     }
 
     private void verifyTimestampField(MappedFieldType fieldType) {
+        if (fieldType == null) {
+            throw new IllegalArgumentException("fieldType is null");
+        }
         if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
             throw new IllegalArgumentException("Wrong type for the timestamp field, " +
                 "expected [date], got [" + fieldType.name()  + "]");
@@ -238,18 +242,17 @@ class RollupShardIndexer {
             .build();
     }
 
-    private Rounding createRounding(DateHistogramGroupConfig config) {
+    private Rounding createRounding(RollupActionDateHistogramGroupConfig config) {
         DateHistogramInterval interval = config.getInterval();
         ZoneId zoneId = config.getTimeZone() != null ? ZoneId.of(config.getTimeZone()) : null;
         Rounding.Builder tzRoundingBuilder;
-        if (config instanceof DateHistogramGroupConfig.FixedInterval) {
+        if (config instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
             TimeValue timeValue = TimeValue.parseTimeValue(interval.toString(), null, getClass().getSimpleName() + ".interval");
             tzRoundingBuilder = Rounding.builder(timeValue);
-        } else if (config instanceof DateHistogramGroupConfig.CalendarInterval) {
+        } else if (config instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
             Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
             tzRoundingBuilder = Rounding.builder(dateTimeUnit);
         } else {
-            // TODO(talevy): remove support for legacy interval in RollupAction
             throw new IllegalStateException("unsupported interval type");
         }
         return tzRoundingBuilder.timeZone(zoneId).build();

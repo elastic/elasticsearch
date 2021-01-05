@@ -15,6 +15,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.ql.index.IndexResolver;
 import java.util.function.Function;
 
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termsQuery;
 import static org.elasticsearch.xpack.ql.util.ActionListeners.map;
 
@@ -102,7 +104,8 @@ public class PITAwareQueryClient extends BasicQueryClient {
         String[] indices = request.indices();
         if (CollectionUtils.isEmpty(indices) == false) {
             request.indices(Strings.EMPTY_ARRAY);
-            RuntimeUtils.addFilter(termsQuery(GetResult._INDEX, indices), source);
+            QueryBuilder indexQuery = indices.length == 1 ? termQuery(GetResult._INDEX, indices[0]) : termsQuery(GetResult._INDEX, indices);
+            RuntimeUtils.addFilter(indexQuery, source);
         }
     }
 

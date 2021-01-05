@@ -41,9 +41,9 @@ import static org.hamcrest.Matchers.notNullValue;
 public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
 
     private static final String SYSTEM_USER = "system_user";
-    private static final SecureString SYSTEM_USER_PASSWORD = new SecureString("sys-pass".toCharArray());
+    private static final SecureString SYSTEM_USER_PASSWORD = new SecureString("system-user-password".toCharArray());
     private static final String END_USER = "end_user";
-    private static final SecureString END_USER_PASSWORD = new SecureString("user-pass".toCharArray());
+    private static final SecureString END_USER_PASSWORD = new SecureString("end-user-password".toCharArray());
 
     @Before
     public void createUsers() throws IOException {

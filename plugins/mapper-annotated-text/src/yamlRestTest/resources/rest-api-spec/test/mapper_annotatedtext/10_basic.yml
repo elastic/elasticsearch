@@ -144,6 +144,36 @@
   - match: {_shards.failed: 0}
 
 ---
+"issue 66535 array index out of bounds issue -requires multiple docs":
+  - do:
+      indices.create:
+        index: annotated
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: annotated_text
+
+  - do:
+      index:
+        index: annotated
+        id: 1
+        body:
+            "my_field" : "[Jeff Beck](Beck) plays a strat"
+  - do:
+      index:
+        index: annotated
+        id: 2
+        body:
+            "my_field" : "[Kimchy](Beck) plays a strat"
+        refresh: true
+  - do:
+      search:
+        request_cache: false
+        body: {"query": {"term": {"my_field": "Beck"}  }, "highlight": {"fields": {"my_field": {"type": "annotated", "require_field_match": false }}}}
+  - match: {_shards.failed: 0}
+
+---
 "Signficant text support":
   - do:
       indices.create:

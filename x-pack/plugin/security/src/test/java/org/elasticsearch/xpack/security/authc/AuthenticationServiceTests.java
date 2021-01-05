@@ -204,7 +204,6 @@ public class AuthenticationServiceTests extends ESTestCase {
         XPackLicenseState licenseState = mock(XPackLicenseState.class);
         when(licenseState.checkFeature(Feature.SECURITY_ALL_REALMS)).thenReturn(true);
         when(licenseState.isSecurityEnabled()).thenReturn(true);
-        when(licenseState.checkFeature(Feature.SECURITY_API_KEY_SERVICE)).thenReturn(true);
         when(licenseState.checkFeature(Feature.SECURITY_TOKEN_SERVICE)).thenReturn(true);
         when(licenseState.copyCurrentLicenseState()).thenReturn(licenseState);
         when(licenseState.checkFeature(Feature.SECURITY_AUDITING)).thenReturn(true);

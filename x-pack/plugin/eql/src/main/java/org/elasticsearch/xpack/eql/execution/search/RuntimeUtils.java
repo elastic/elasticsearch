@@ -185,4 +185,35 @@ public final class RuntimeUtils {
         }
         return source;
     }
+
+    public static SearchSourceBuilder replaceFilter(List<QueryBuilder> oldFilters,
+                                                    List<QueryBuilder> newFilters,
+                                                    SearchSourceBuilder source) {
+        BoolQueryBuilder bool = null;
+        QueryBuilder query = source.query();
+
+        if (query instanceof BoolQueryBuilder) {
+            bool = (BoolQueryBuilder) query;
+            if (oldFilters != null) {
+                bool.filter().removeAll(oldFilters);
+            }
+
+            if (newFilters != null) {
+                bool.filter().addAll(newFilters);
+            }
+        }
+        // no bool query means no old filters
+        else {
+            bool = boolQuery();
+            if (query != null) {
+                bool.filter(query);
+            }
+            if (newFilters != null) {
+                bool.filter().addAll(newFilters);
+            }
+
+            source.query(bool);
+        }
+        return source;
+    }
 }

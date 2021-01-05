@@ -136,7 +136,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
@@ -177,7 +177,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         ensureGreen(searchableSnapshotIndexOutsideSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
@@ -222,6 +222,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66774")
     public void testQueryPhaseIsExecutedInAnAvailableNodeWhenAllShardsCanBeSkipped() throws Exception {
         internalCluster().startMasterOnlyNode();
         internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
@@ -271,7 +272,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         final int searchableSnapshotShardCount = indexOutsideSearchRangeShardCount;
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
@@ -302,7 +303,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         ensureGreen(searchableSnapshotIndexOutsideSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexOutsideSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();
@@ -378,7 +379,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         client().execute(MountSearchableSnapshotAction.INSTANCE, mountRequest).actionGet();
 
         final IndexMetadata indexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
-        assertThat(indexMetadata.getTimestampMillisRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
 
         DateFieldMapper.DateFieldType timestampFieldType = indicesService.getTimestampFieldType(indexMetadata.getIndex());
         assertThat(timestampFieldType, nullValue());
@@ -402,7 +403,7 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
         ensureGreen(searchableSnapshotIndexWithinSearchRange);
 
         final IndexMetadata updatedIndexMetadata = getIndexMetadata(searchableSnapshotIndexWithinSearchRange);
-        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampMillisRange();
+        final IndexLongFieldRange updatedTimestampMillisRange = updatedIndexMetadata.getTimestampRange();
         final DateFieldMapper.DateFieldType dateFieldType = indicesService.getTimestampFieldType(updatedIndexMetadata.getIndex());
         assertThat(dateFieldType, notNullValue());
         final DateFieldMapper.Resolution resolution = dateFieldType.resolution();

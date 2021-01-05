@@ -48,12 +48,12 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -228,7 +228,7 @@ public class TransportRollupAction
     private static XContentBuilder getProperties(XContentBuilder builder, RollupActionConfig config) throws IOException {
         builder.startObject("properties");
 
-        GroupConfig groupConfig = config.getGroupConfig();
+        RollupActionGroupConfig groupConfig = config.getGroupConfig();
         String dateField = groupConfig.getDateHistogram().getField();
         HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
         List<MetricConfig> metricConfigs = config.getMetricsConfig();
@@ -305,7 +305,7 @@ public class TransportRollupAction
                 } else {
                     rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                 }
-                DateHistogramGroupConfig dateConfig = request.getRollupConfig().getGroupConfig().getDateHistogram();
+                RollupActionDateHistogramGroupConfig dateConfig = request.getRollupConfig().getGroupConfig().getDateHistogram();
                 WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
                 if (rollupGroups.containsKey(rollupGroupKeyName)) {
                     RollupGroup group = rollupGroups.get(rollupGroupKeyName);

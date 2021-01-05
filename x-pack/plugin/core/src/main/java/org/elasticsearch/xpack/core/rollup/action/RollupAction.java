@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rollup.v2;
+package org.elasticsearch.xpack.core.rollup.action;
 
 
 import org.elasticsearch.action.ActionRequestBuilder;
@@ -22,6 +22,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
 import java.util.Map;

@@ -59,7 +59,7 @@ set of large shards uses fewer resources than many small shards.
 
 Segments play a big role in a shard's resource usage. Most shards contain
 several segments, which store its index data. {es} keeps segment metadata in
-<<heap-size,heap memory>> so it can be quickly retrieved for searches. As a
+JVM heap memory so it can be quickly retrieved for searches. As a
 shard grows, its segments are <<index-modules-merge,merged>> into fewer, larger
 segments. This decreases the number of segments, which means less metadata is
 kept in heap memory.
@@ -141,22 +141,28 @@ and may tax node resources.
 ==== Aim for 20 shards or fewer per GB of heap memory
 
 The number of shards a node can hold is proportional to the node's
-<<heap-size,heap memory>>. For example, a node with 30GB of heap memory should
+heap memory. For example, a node with 30GB of heap memory should
 have at most 600 shards. The further below this limit you can keep your nodes,
 the better. If you find your nodes exceeding more than 20 shards per GB,
-consider adding another node. You can use the <<cat-shards,cat shards API>> to
-check the number of shards per node.
+consider adding another node.
+
+To check the current size of each node's heap, use the <<cat-nodes,cat nodes
+API>>.
+
+[source,console]
+----
+GET _cat/nodes?v&h=heap.current
+----
+// TEST[setup:my_index]
+
+You can use the <<cat-shards,cat shards API>> to check the number of shards per
+node.
 
 [source,console]
 ----
 GET _cat/shards
 ----
 // TEST[setup:my_index]
-
-To use compressed pointers and save memory, we
-recommend each node have a maximum heap size of 32GB or 50% of the node's
-available memory, whichever is lower. See <<heap-size>>.
-
 
 [discrete]
 [[avoid-node-hotspots]]

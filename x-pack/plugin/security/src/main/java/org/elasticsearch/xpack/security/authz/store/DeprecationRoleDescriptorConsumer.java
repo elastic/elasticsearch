@@ -18,8 +18,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.permission.IndicesPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -41,7 +41,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.function.Consumer;
-import java.util.function.Predicate;
 
 /**
  * Inspects all aliases that have greater privileges than the indices that they point to and logs the role descriptor, granting privileges
@@ -163,10 +162,10 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();
         // collate privileges by index and by alias separately
         for (final IndicesPrivileges indexPrivilege : roleDescriptor.getIndicesPrivileges()) {
-            final Predicate<String> namePatternPredicate = IndicesPermission.indexMatcher(Arrays.asList(indexPrivilege.getIndices()));
+            final StringMatcher matcher = StringMatcher.of(Arrays.asList(indexPrivilege.getIndices()));
             for (final Map.Entry<String, IndexAbstraction> aliasOrIndex : aliasOrIndexMap.entrySet()) {
                 final String aliasOrIndexName = aliasOrIndex.getKey();
-                if (namePatternPredicate.test(aliasOrIndexName)) {
+                if (matcher.test(aliasOrIndexName)) {
                     if (aliasOrIndex.getValue().getType() == IndexAbstraction.Type.ALIAS) {
                         final Set<String> privilegesByAlias = privilegesByAliasMap.computeIfAbsent(aliasOrIndexName,
                                 k -> new HashSet<>());

@@ -3,12 +3,11 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rollup.v2;
+package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
@@ -28,7 +27,7 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public static RollupActionConfig randomConfig(Random random) {
-        final GroupConfig groupConfig = ConfigTestHelpers.randomGroupConfig(random);
+        final RollupActionGroupConfig groupConfig = ConfigTestHelpers.randomRollupActionGroupConfig(random);
         final List<MetricConfig> metricConfigs = ConfigTestHelpers.randomMetricsConfigs(random);
         return new RollupActionConfig(groupConfig, metricConfigs);
     }
@@ -50,7 +49,7 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public void testEmptyMetrics() {
-        final GroupConfig groupConfig = ConfigTestHelpers.randomGroupConfig(random());
+        final RollupActionGroupConfig groupConfig = ConfigTestHelpers.randomRollupActionGroupConfig(random());
         Exception e = expectThrows(IllegalArgumentException.class, () ->
             new RollupActionConfig(groupConfig, randomBoolean() ? null : emptyList()));
         assertThat(e.getMessage(), equalTo("At least one metric must be configured"));

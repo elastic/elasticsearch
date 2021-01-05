@@ -88,7 +88,7 @@ Sample audit log output:
 
 EQL's case-insensitive `:` operator now supports the `*` and `?` wildcards. The
 `*` wildcard matches zero or more characters. The `?` wildcard matches exactly
-one character. You can now also use `:` as a lookup operator to compare a string
+one character. You can also now use `:` as a lookup operator to compare a string
 value to a list of strings.
 
 See the

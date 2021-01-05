@@ -19,11 +19,11 @@
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Uid;
 
@@ -45,10 +45,10 @@ final class IdStoredFieldLoader {
     }
 
     private static CheckedBiConsumer<Integer, StoredFieldVisitor, IOException> getStoredFieldsReader(LeafReader in) {
-        if (in instanceof CodecReader) {
-            return (((CodecReader)in).getFieldsReader().getMergeInstance())::visitDocument;
+        if (in instanceof SequentialStoredFieldsLeafReader) {
+            return (((SequentialStoredFieldsLeafReader)in).getSequentialStoredFieldsReader())::visitDocument;
         }
-        return in::document;
+        throw new IllegalArgumentException("Requires a SequentialStoredFieldsReader, got " + in.getClass());
     }
 
     /**

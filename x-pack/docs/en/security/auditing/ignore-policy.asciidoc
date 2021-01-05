@@ -12,7 +12,7 @@ Sometimes the verbosity of the audit trail may become a problem that the event t
 
 *Audit events ignore policies* are a finer way to tune the verbosity of the audit trail.
 These policies define rules that match audit events which will be _ignored_ (read as: not printed).
-Rules match on the values of attributes of audit events and complement the <<audit-log-settings, include/exclude>> method.
+Rules match on the values of attributes of audit events and complement the `include` or `exclude` method.
 Imagine the corpus of audit events and the policies chopping off unwanted events.
 With a sole exception, all audit events are subject to the ignore policies.
 The exception are events of type `security_config_change`, which cannot be filtered out,

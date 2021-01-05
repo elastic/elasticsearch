@@ -275,24 +275,25 @@ public class AzureBlobStore implements BlobStore {
                 List<Mono<Void>> deleteTasks = new ArrayList<>(blobs.size());
                 final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
                 for (String blob : blobs) {
-                    deleteTasks.add(blobContainerClient.getBlobAsyncClient(blob).delete());
+                    final Mono<Void> deleteTask = blobContainerClient.getBlobAsyncClient(blob)
+                        .delete()
+                        // Ignore not found blobs
+                        .onErrorResume(e -> (e instanceof BlobStorageException) && ((BlobStorageException) e).getStatusCode() == 404,
+                            throwable -> Mono.empty());
+                    deleteTasks.add(deleteTask);
                 }
 
                 executeDeleteTasks(deleteTasks);
             });
-        } catch (BlobStorageException e) {
-            if (e.getStatusCode() != 404) {
-                throw new IOException("Unable to delete blobs " + blobs, e);
-            }
         } catch (Exception e) {
             throw new IOException("Unable to delete blobs " + blobs, e);
         }
     }
 
     private void executeDeleteTasks(List<Mono<Void>> deleteTasks) {
-        Flux.merge(deleteTasks)
-            .collectList()
-            .block();
+        // zipDelayError executes all tasks in parallel and delays
+        // error propagation until all tasks have finished.
+        Mono.zipDelayError(deleteTasks, results -> null).block();
     }
 
     public InputStream getInputStream(String blob, long position, final @Nullable Long length) throws IOException {

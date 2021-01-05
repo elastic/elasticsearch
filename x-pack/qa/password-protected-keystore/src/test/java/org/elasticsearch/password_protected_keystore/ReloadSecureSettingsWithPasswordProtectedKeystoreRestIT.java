@@ -15,6 +15,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
@@ -65,7 +66,6 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
     }
 
     @SuppressWarnings("unchecked")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66951")
     public void testReloadSecureSettingsWithEmptyPassword() throws Exception {
         final Request request = new Request("POST", "_nodes/reload_secure_settings");
         final Response response = client().performRequest(request);
@@ -80,8 +80,13 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
             assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
                 equalTo("Provided keystore password was incorrect"),
-                equalTo("Keystore has been corrupted or tampered with")));
-            assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("security_exception"));
+                equalTo("Keystore has been corrupted or tampered with"),
+                containsString("Error generating an encryption key from the provided password") // FIPS
+            ));
+            assertThat(ObjectPath.eval("reload_exception.type", node), 
+                // Depends on exact security provider (eg Sun vs BCFIPS)
+                anyOf(equalTo("security_exception"), equalTo("general_security_exception"))
+            );
         }
     }
 

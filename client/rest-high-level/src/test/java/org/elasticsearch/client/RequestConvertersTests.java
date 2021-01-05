@@ -1191,8 +1191,6 @@ public class RequestConvertersTests extends ESTestCase {
             });
             // scroll is not supported in the current msearch api, so unset it:
             searchRequest.scroll((Scroll) null);
-            // min_compatible_shard_node is unsupported in msearch api, so unset it
-            searchRequest.setMinCompatibleShardNode(null);
             // only expand_wildcards, ignore_unavailable and allow_no_indices can be
             // specified from msearch api, so unset other options:
             IndicesOptions randomlyGenerated = searchRequest.indicesOptions();

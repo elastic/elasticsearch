@@ -95,7 +95,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private Integer preFilterShardSize;
 
-    private boolean ccsMinimizeRoundtrips = true;
+    private Boolean ccsMinimizeRoundtrips;
 
     @Nullable
     private Version minCompatibleShardNode;
@@ -106,9 +106,15 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     private IndicesOptions indicesOptions = DEFAULT_INDICES_OPTIONS;
 
     public SearchRequest() {
+        this((Version) null);
+    }
+
+    public SearchRequest(Version minCompatibleShardNode) {
         this.localClusterAlias = null;
         this.absoluteStartMillis = DEFAULT_ABSOLUTE_START_MILLIS;
         this.finalReduce = true;
+        this.minCompatibleShardNode = minCompatibleShardNode;
+        this.ccsMinimizeRoundtrips = minCompatibleShardNode == null;
     }
 
     /**
@@ -363,10 +369,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return minCompatibleShardNode;
     }
 
-    public void setMinCompatibleShardNode(Version minCompatibleShardNode) {
-        this.minCompatibleShardNode = minCompatibleShardNode;
-    }
-
     /**
      * Sets the indices the search will be executed on.
      */
@@ -401,7 +403,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     /**
      * Returns whether network round-trips should be minimized when executing cross-cluster search requests.
-     * Defaults to <code>true</code>.
+     * Defaults to <code>true</code>, unless <code>minCompatibleShardNode</code> is set in which case it's set to <code>false</code>.
      */
     public boolean isCcsMinimizeRoundtrips() {
         return ccsMinimizeRoundtrips;

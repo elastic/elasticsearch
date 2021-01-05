@@ -342,9 +342,6 @@ public class MultiSearchRequestTests extends ESTestCase {
                 msearchDefault.ignoreThrottled()
             ));
 
-            // min_compatible_shard_node is unsupported in msearch api, so unset it
-            searchRequest.setMinCompatibleShardNode(null);
-
             request.add(searchRequest);
         }
         return request;

@@ -90,7 +90,12 @@ public class RestSearchAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        SearchRequest searchRequest = new SearchRequest();
+        SearchRequest searchRequest;
+        if (request.hasParam("min_compatible_shard_node")) {
+            searchRequest = new SearchRequest(Version.fromString(request.param("min_compatible_shard_node")));
+        } else {
+            searchRequest = new SearchRequest();
+        }
         /*
          * We have to pull out the call to `source().size(size)` because
          * _update_by_query and _delete_by_query uses this same parsing
@@ -172,10 +177,6 @@ public class RestSearchAction extends BaseRestHandler {
         searchRequest.routing(request.param("routing"));
         searchRequest.preference(request.param("preference"));
         searchRequest.indicesOptions(IndicesOptions.fromRequest(request, searchRequest.indicesOptions()));
-
-        if (request.hasParam("min_compatible_shard_node")) {
-            searchRequest.setMinCompatibleShardNode(Version.fromString(request.param("min_compatible_shard_node")));
-        }
 
         checkRestTotalHits(request, searchRequest);
 

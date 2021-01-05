@@ -249,12 +249,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
         
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
-        final SearchRequest searchRequest = new SearchRequest();
+        final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.setMaxConcurrentShardRequests(numConcurrent);
         searchRequest.setBatchedReduceSize(2);
         searchRequest.source(new SearchSourceBuilder().size(1));
         searchRequest.allowPartialSearchResults(false);
-        searchRequest.setMinCompatibleShardNode(minVersion);
 
         Executor executor = EsExecutors.newDirectExecutorService();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null);
@@ -318,12 +317,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
         
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
-        final SearchRequest searchRequest = new SearchRequest();
+        final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder()
             .size(1)
             .sort(SortBuilders.fieldSort("timestamp")));
-        searchRequest.setMinCompatibleShardNode(minVersion);
 
         Executor executor = EsExecutors.newDirectExecutorService();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
@@ -420,12 +418,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingNewVersionShard2), idx));
         
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
-        final SearchRequest searchRequest = new SearchRequest();
+        final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
         searchRequest.source(new SearchSourceBuilder()
             .size(1)
             .sort(SortBuilders.fieldSort("timestamp")));
-        searchRequest.setMinCompatibleShardNode(minVersion);
 
         Executor executor = EsExecutors.newDirectExecutorService();
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {

@@ -9,51 +9,53 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
-task "leader-cluster"(type: RestIntegTestTask) {
+testClusters {
+  'leader-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+  }
+  'middle-cluster' {
+    testDistribution = 'DEFAULT'
+    setting 'xpack.license.self_generated.type', 'trial'
+    setting 'cluster.remote.leader_cluster.seeds',
+            { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
+  }
+}
+
+tasks.register("leader-cluster", RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
 }
 
-testClusters."leader-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-}
-
-
-task "middle-cluster"(type: RestIntegTestTask) {
+tasks.register("middle-cluster", RestIntegTestTask) {
   dependsOn "leader-cluster"
   useCluster testClusters."leader-cluster"
   systemProperty 'tests.target_cluster', 'middle'
   nonInputProperties.systemProperty 'tests.leader_host',
-    "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
-}
-testClusters."middle-cluster" {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'trial'
-  setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
+    "${-> testClusters.named('leader-cluster').get().getAllHttpSocketURI().get(0)}"
 }
 
-task 'follow-cluster'(type: RestIntegTestTask) {
+
+tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn "leader-cluster", "middle-cluster"
     useCluster testClusters."leader-cluster"
     useCluster testClusters."middle-cluster"
     systemProperty 'tests.target_cluster', 'follow'
     nonInputProperties.systemProperty 'tests.leader_host',
-      "${-> testClusters."leader-cluster".getAllHttpSocketURI().get(0)}"
+      "${-> testClusters.named('leader-cluster').get().getAllHttpSocketURI().get(0)}"
     nonInputProperties.systemProperty 'tests.middle_host',
-      "${-> testClusters."middle-cluster".getAllHttpSocketURI().get(0)}"
+      "${-> testClusters.named('middle-cluster').get().getAllHttpSocketURI().get(0)}"
 }
 
-testClusters."follow-cluster" {
+testClusters.matching { it.name == "follow-cluster" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.monitoring.collection.enabled', 'true'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'cluster.remote.leader_cluster.seeds',
-    { "\"${testClusters."leader-cluster".getAllTransportPortURI().join(",")}\"" }
+    { "\"${testClusters.named('leader-cluster').get().getAllTransportPortURI().join(",")}\"" }
   setting 'cluster.remote.middle_cluster.seeds',
-    { "\"${testClusters."middle-cluster".getAllTransportPortURI().join(",")}\"" }
+    { "\"${testClusters.named('middle-cluster').get().getAllTransportPortURI().join(",")}\"" }
 }
 
-check.dependsOn "follow-cluster"
+tasks.named("check").configure { dependsOn "follow-cluster" }
 tasks.named("test").configure { enabled = false } // no unit tests for multi-cluster-search, only the rest integration test

@@ -604,7 +604,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                     .addAggregation(AggregationBuilders.terms("foo_terms").field("foo.keyword")).get());
         logger.info("--> got an expected exception", e);
         assertThat(e.getCause(), notNullValue());
-        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [<agg [foo_terms]>]"));
+        assertThat(e.getCause().getMessage(), containsString("[parent] Data too large, data for [preallocate[aggregations]]"));
 
         client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()

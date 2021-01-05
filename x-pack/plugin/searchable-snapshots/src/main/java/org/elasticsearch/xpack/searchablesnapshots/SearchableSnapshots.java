@@ -339,7 +339,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public List<RestHandler> getRestHandlers(
-        Settings settings,
+        Settings nodeSettings,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,
@@ -347,6 +347,13 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
+        indexScopedSettings.addSettingsUpdateConsumer(s -> {}, List.of(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING), settings -> {
+            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(settings)) {
+                if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(settings) == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
+                }
+            }
+        });
         return List.of(
             new RestSearchableSnapshotsStatsAction(),
             new RestClearSearchableSnapshotsCacheAction(),

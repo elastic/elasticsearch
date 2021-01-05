@@ -24,7 +24,7 @@ might want to derive from this eCommerce data.
 --
 
 . Choose the `pivot` type of {transform} and play with various options for
-grouping and aggregating the data. 
+grouping and aggregating the data.
 +
 --
 There are two types of {transforms}, but first we'll try out _pivoting_ your
@@ -126,7 +126,7 @@ POST _transform/_preview
 --
 
 . When you are satisfied with what you see in the preview, create the
-{transform}. 
+{transform}.
 +
 --
 .. Supply a job ID and the name of the target (or _destination_) index. If the
@@ -139,7 +139,7 @@ target index does not exist, it will be created automatically.
 Since this sample data index is unchanging, let's use the default behavior and
 just run the {transform} once.
 
-If you want to try it out, however, go ahead and click on *Continuous mode*. 
+If you want to try it out, however, go ahead and click on *Continuous mode*.
 You must choose a field that the {transform} can use to check which
 entities have changed. In general, it's a good idea to use the ingest timestamp
 field. In this example, however, you can use the `order_date` field.
@@ -256,6 +256,8 @@ image::images/ecommerce-results.png["Exploring the new index in {kib}"]
 . Optional: Create another {transform}, this time using the `latest` method.
 +
 --
+beta::[]
+
 This method populates the destination index with the latest documents for each
 unique key value. For example, you might want to find the latest orders (sorted
 by the `order_date` field) for each customer or for each country and region.
@@ -288,7 +290,7 @@ POST _transform/_preview
 --
 
 . If you do not want to keep a {transform}, you can delete it in
-{kib} or use the <<delete-transform,delete {transform} API>>. By default, when 
+{kib} or use the <<delete-transform,delete {transform} API>>. By default, when
 you delete a  {transform}, its destination index and {kib} index patterns remain.
 
 Now that you've created simple {transforms} for {kib} sample data, consider

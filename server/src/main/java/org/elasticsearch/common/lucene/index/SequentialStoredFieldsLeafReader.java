@@ -59,7 +59,7 @@ public abstract class SequentialStoredFieldsLeafReader extends FilterLeafReader 
             SequentialStoredFieldsLeafReader reader = (SequentialStoredFieldsLeafReader) in;
             return doGetSequentialStoredFieldsReader(reader.getSequentialStoredFieldsReader());
         } else {
-            throw new IllegalArgumentException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());
+            throw new IllegalStateException("requires a CodecReader or a SequentialStoredFieldsLeafReader, got " + in.getClass());
         }
     }
 

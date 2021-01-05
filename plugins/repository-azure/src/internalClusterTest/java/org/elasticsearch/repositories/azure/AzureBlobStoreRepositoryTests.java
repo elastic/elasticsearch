@@ -49,7 +49,9 @@ import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -253,7 +255,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
             Randomness.shuffle(blobsToDelete);
             container.deleteBlobsIgnoringIfNotExists(blobsToDelete);
-            assertThat(container.listBlobs().size(), equalTo(0));
+            assertThat(container.listBlobs(), is(anEmptyMap()));
         }
     }
 }

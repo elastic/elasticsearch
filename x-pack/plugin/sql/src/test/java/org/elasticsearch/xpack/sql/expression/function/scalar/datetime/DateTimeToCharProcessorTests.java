@@ -20,7 +20,6 @@ import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
@@ -28,10 +27,10 @@ import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static java.util.Arrays.asList;
 import static java.util.regex.Pattern.quote;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
@@ -39,10 +38,10 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 public class DateTimeToCharProcessorTests extends ESTestCase {
 
     private static class TestCase {
-        private static final AtomicInteger COUNTER = new AtomicInteger(0);
+        private static int COUNTER = 0;
         
         // timezones that are valid both in Java and in Postgres
-        public static final List<String> POSTGRES_TEST_ZONE_LIST = List.of(
+        public static final List<String> POSTGRES_TEST_ZONE_LIST = asList(
             // location-based and long-names
             "US/Samoa", "Pacific/Honolulu", "Pacific/Marquesas", "Pacific/Gambier", "America/Juneau", "Canada/Yukon", "America/Vancouver",
             "Pacific/Easter", "US/Mountain", "America/Chicago", "US/Michigan", "Atlantic/Bermuda", "Canada/Newfoundland",
@@ -61,7 +60,8 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         private final String zoneId;
         
         TestCase(BigDecimal secondsAndFractionsSinceEpoch, String formatString) {
-            this.id = COUNTER.incrementAndGet();
+            COUNTER += 1;
+            this.id = COUNTER;
             this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
             this.formatString = formatString;
             this.zoneId = TestGenerator.randomFromCollection(POSTGRES_TEST_ZONE_LIST);
@@ -94,14 +94,9 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         // accept the output of Elasticsearch as is
         private static final Set<String> NOT_FULLY_MATCHABLE_PATTERNS = Set.of("TZ", "tz");
         private static final Set<String> UNSUPPORTED_PATTERN_MODIFIERS = Set.of("FX", "TM", "SP");
-        private static final String[] PATTERNS = new String[] {
-            "HH", "HH12", "HH24", "MI", "SS", "MS", "US", "FF1", "FF2", "FF3", "FF4", "FF5", "FF6", "SSSS", "SSSSS", "AM", "am", "PM",
-            "pm", "A.M.", "a.m.", "P.M.", "p.m.", "Y,YYY", "YYYY", "YYY", "YY", "Y", "IYYY", "IYY", "IY", "I", "BC", "bc", "AD", "ad",
-            "B.C.", "b.c.", "A.D.", "a.d.", "MONTH", "Month", "month", "MON", "Mon", "mon", "MM", "DAY", "Day", "day", "DY", "Dy",
-            "dy", "DDD", "IDDD", "DD", "D", "ID", "W", "WW", "IW", "CC", "J", "Q", "RM", "rm", "TZ", "tz", "TZH", "TZM", "OF"
-        };
-        private static final List<String> FILL_MODIFIERS = List.of("FM", "fm", "");
-        private static final List<String> ORDINAL_SUFFIX_MODIFIERS = List.of("TH", "th", "");
+        private static final List<String> PATTERNS = new ArrayList<>(ToCharFormatter.FORMATTER_MAP.keySet());
+        private static final List<String> FILL_MODIFIERS = asList("FM", "fm", "");
+        private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
 
         @SuppressForbidden(reason = "It is ok to use ThreadLocalRandom outside of an actual test")
         private static Random rnd() {
@@ -148,14 +143,14 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             
             // let's check all of the format strings with a non-ambiguous format string
             for (BigDecimal es : testEpochSeconds) {
-                testCases.add(new TestCase(es, IntStream.range(0, PATTERNS.length)
-                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(PATTERNS[idx]))
+                testCases.add(new TestCase(es, IntStream.range(0, PATTERNS.size())
+                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx)))
                     .collect(Collectors.joining(PATTERN_DELIMITER))));
             }
     
             // check the lowercase versions of the format strings
-            testCases.add(new TestCase(randomFromCollection(testEpochSeconds), IntStream.range(0, PATTERNS.length)
-                .mapToObj(idx -> (idx + ":" + patternWithRandomModifiers(PATTERNS[idx])).toLowerCase(Locale.ROOT))
+            testCases.add(new TestCase(randomFromCollection(testEpochSeconds), IntStream.range(0, PATTERNS.size())
+                .mapToObj(idx -> (idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx))).toLowerCase(Locale.ROOT))
                 .collect(Collectors.joining(PATTERN_DELIMITER))));
     
             // potentially ambiguous format string test cases, to check if our format string parsing is in-sync with PostgreSQL
@@ -172,7 +167,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             
             // random strings made out of template patterns and random characters
             final String randomCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy _-.:;";
-            final List<String> formatStringsToRandomTest = Arrays.stream(PATTERNS)
+            final List<String> formatStringsToRandomTest = PATTERNS.stream()
                 .filter(s -> NOT_FULLY_MATCHABLE_PATTERNS.contains(s) == false)
                 .collect(Collectors.toList());
             
@@ -282,9 +277,9 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                 .makePipe()
                 .asProcessor()
                 .process(null);
-        List<String> expectedResultSplitted = List.of(expectedResult.split(quote(TestGenerator.PATTERN_DELIMITER)));
-        List<String> resultSplitted = List.of(actualResult.split(quote(TestGenerator.PATTERN_DELIMITER)));
-        List<String> formatStringSplitted = List.of(formatString.split(TestGenerator.PATTERN_DELIMITER));
+        List<String> expectedResultSplitted = asList(expectedResult.split(quote(TestGenerator.PATTERN_DELIMITER)));
+        List<String> resultSplitted = asList(actualResult.split(quote(TestGenerator.PATTERN_DELIMITER)));
+        List<String> formatStringSplitted = asList(formatString.split(TestGenerator.PATTERN_DELIMITER));
         assertEquals(formatStringSplitted.size(), resultSplitted.size());
         assertEquals(formatStringSplitted.size(), expectedResultSplitted.size());
         for (int i = 0; i < formatStringSplitted.size(); i++) {
@@ -297,7 +292,8 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             try {
                 assertEquals(
                     String.format(Locale.ROOT, 
-                        "\nTest id:                            %s\n" +
+                        "\n" + 
+                        "Test id:                            %s\n" +
                         "zone:                               %s\n" +
                         "timestamp (as epoch):               %s\n" +
                         "timestamp (java, UTC):              %s\n" +

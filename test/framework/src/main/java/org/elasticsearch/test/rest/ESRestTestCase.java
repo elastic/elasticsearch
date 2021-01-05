@@ -1464,7 +1464,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return minVersion;
     }
 
-    protected static Response performSyncedFlush(String indexName) throws IOException {
+    protected static void performSyncedFlush(String indexName, boolean retryOnConflict) throws Exception {
         final Request request = new Request("POST", indexName + "/_flush/synced");
         final List<String> expectedWarnings = Collections.singletonList(SyncedFlushService.SYNCED_FLUSH_DEPRECATION_MESSAGE);
         if (nodeVersions.stream().allMatch(version -> version.onOrAfter(Version.V_7_6_0))) {
@@ -1476,7 +1476,22 @@ public abstract class ESRestTestCase extends ESTestCase {
             options.setWarningsHandler(warnings -> warnings.isEmpty() == false && warnings.equals(expectedWarnings) == false);
             request.setOptions(options);
         }
-        return client().performRequest(request);
+        // We have to spin a synced-flush request because we fire the global checkpoint sync for the last write operation.
+        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
+        assertBusy(() -> {
+            try {
+                Response resp = client().performRequest(request);
+                if (retryOnConflict) {
+                    Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
+                    assertThat(result.get("failed"), equalTo(0));
+                }
+            } catch (ResponseException ex) {
+                assertThat(ex.getResponse().getStatusLine(), equalTo(HttpStatus.SC_CONFLICT));
+                if (retryOnConflict) {
+                    throw new AssertionError(ex); // cause assert busy to retry
+                }
+            }
+        });
     }
 
     /**

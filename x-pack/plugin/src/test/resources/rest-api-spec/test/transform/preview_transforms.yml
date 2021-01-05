@@ -170,7 +170,7 @@ setup:
 
   - do:
       ingest.put_pipeline:
-        id: "data_frame_simple_pipeline"
+        id: "transform_latest_simple_pipeline"
         body:  >
           {
             "processors": [
@@ -188,6 +188,7 @@ setup:
         body: >
           {
             "source": { "index": "airline-data" },
+            "dest": { "pipeline": "transform_latest_simple_pipeline" },
             "latest": {
               "unique_key": ["airline"],
               "sort": "time"
@@ -195,8 +196,10 @@ setup:
           }
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - match: { preview.0.my_field: 42 }
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - match: { preview.1.my_field: 42 }
   - match: { generated_dest_index.mappings.properties: {} }
 
 ---

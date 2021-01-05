@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A raw result of parsing media types from Accept or Content-Type headers.
@@ -44,7 +45,7 @@ public class ParsedMediaType {
         this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = Collections.unmodifiableMap(parameters);
+        this.parameters = parameters;
     }
 
     /**
@@ -55,7 +56,7 @@ public class ParsedMediaType {
     }
 
     public Map<String, String> getParameters() {
-        return parameters;
+        return Collections.unmodifiableMap(parameters);
     }
 
     /**
@@ -81,7 +82,7 @@ public class ParsedMediaType {
                 throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
             if (elements.length == 1) {
-                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), new HashMap<>());
             } else {
                 Map<String, String> parameters = new HashMap<>();
                 for (int i = 1; i < elements.length; i++) {
@@ -103,6 +104,12 @@ public class ParsedMediaType {
             }
         }
         return null;
+    }
+
+    public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
+        ParsedMediaType parsedMediaType = parseMediaType(requestContentType.mediaTypeWithoutParameters());
+        parsedMediaType.parameters.putAll(parameters);
+        return parsedMediaType;
     }
 
     // simplistic check for media ranges. do not validate if this is a correct header
@@ -127,9 +134,11 @@ public class ParsedMediaType {
         T type = mediaTypeRegistry.typeWithSubtypeToMediaType(mediaTypeWithoutParameters());
         if (type != null) {
 
+            //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
+            // iterating over registered params only at the moment.
             Map<String, Pattern> registeredParams = mediaTypeRegistry.parametersFor(mediaTypeWithoutParameters());
-            for (Map.Entry<String, String> givenParamEntry : parameters.entrySet()) {
-                if (isValidParameter(givenParamEntry.getKey(), givenParamEntry.getValue(), registeredParams) == false) {
+            for (Map.Entry<String, Pattern> registeredParam : registeredParams.entrySet()) {
+                if (isValidParameter(registeredParam.getKey(), registeredParam.getValue(), parameters) == false) {
                     return null;
                 }
             }
@@ -138,17 +147,31 @@ public class ParsedMediaType {
         return null;
     }
 
-    private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
-        if (registeredParams.containsKey(paramName)) {
-            Pattern regex = registeredParams.get(paramName);
-            return regex.matcher(value).matches();
+    private boolean isValidParameter(String paramName, Pattern regex, Map<String, String> parameters) {
+        if (parameters.containsKey(paramName)) {
+            String givenValue = parameters.get(paramName);
+            return regex.matcher(givenValue).matches();
         }
-        //TODO undefined parameters are allowed until https://github.com/elastic/elasticsearch/issues/63080
-        return true;
+        return false;
     }
 
     @Override
     public String toString() {
         return originalHeaderValue;
     }
+
+    public String responseContentTypeHeader() {
+        return this.mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+    public String responseContentTypeHeader(Map<String,String> parameters) {
+        return this.mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    private String formatParameters(Map<String, String> parameters) {
+        String joined = parameters.entrySet().stream()
+            .map(e -> e.getKey() + "=" + e.getValue())
+            .collect(Collectors.joining(";"));
+        return joined.isEmpty() ? "" : ";" + joined;
+    }
+
 }

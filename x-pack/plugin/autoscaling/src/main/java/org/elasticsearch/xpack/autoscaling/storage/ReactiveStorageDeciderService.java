@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -435,14 +436,11 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
-                dataStream = dataStream.rollover(Version.CURRENT);
+                final String uuid = UUIDs.randomBase64UUID();
+                dataStream = dataStream.rollover(uuid, Version.CURRENT);
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
                     .index(dataStream.getWriteIndex().getName())
-                    .settings(
-                        Settings.builder()
-                            .put(writeIndex.getSettings())
-                            .put(IndexMetadata.SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID())
-                    )
+                    .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
                     .build();
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
                 assert size > 0;

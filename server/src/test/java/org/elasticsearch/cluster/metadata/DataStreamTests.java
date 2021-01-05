@@ -53,7 +53,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(DataStream.NEW_FEATURES_VERSION);
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
@@ -65,7 +65,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRolloverWithLegacyBackingIndexNames() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        DataStream rolledDs = ds.rollover(Version.V_7_10_0);
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));

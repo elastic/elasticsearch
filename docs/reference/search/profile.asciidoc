@@ -891,7 +891,9 @@ The `breakdown` component lists detailed statistics about low-level execution:
   "collect": 45786,
   "collect_count": 4,
   "build_leaf_collector": 18211,
-  "build_leaf_collector_count": 1
+  "build_leaf_collector_count": 1,
+  "post_collection": 929,
+  "post_collection_count": 1
 }
 --------------------------------------------------
 // NOTCONSOLE

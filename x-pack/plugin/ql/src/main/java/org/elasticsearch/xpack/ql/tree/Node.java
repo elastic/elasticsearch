@@ -218,16 +218,10 @@ public abstract class Node<T extends Node<T>> {
             transformedChildren.add(next);
         }
 
-        return (childrenChanged ? replaceEachChild(transformedChildren) : (T) this);
+        return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
     }
 
-    /**
-     * Replaces each child of the current node and validates that the number of children before 
-     * and after this operation will stay the same (default invariant property of node transformations).
-     */
-    public final T replaceEachChild(List<T> newChildren) {
-        // check for the invariant here once, instead of checking within every class
-        // invariant: before and after any transform the number of children should not change
+     public final T replaceChildrenSameSize(List<T> newChildren) {
         if (newChildren.size() != children.size()) {
             throw new QlIllegalArgumentException(
                 "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]");
@@ -235,10 +229,6 @@ public abstract class Node<T extends Node<T>> {
         return replaceChildren(newChildren);
     }
 
-    /**
-     * Constructs a new node, keeping the current properties of the node, but changing the list of 
-     * the children.
-     */
     public abstract T replaceChildren(List<T> newChildren);
 
     //

@@ -789,7 +789,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             // LeafPlans are tables and BinaryPlans are joins so pushing can only happen on unary
             if (plan instanceof UnaryPlan) {
-                return plan.replaceEachChild(singletonList(propagateMissing(((UnaryPlan) plan).child(), missing, failed)));
+                return plan.replaceChildrenSameSize(singletonList(propagateMissing(((UnaryPlan) plan).child(), missing, failed)));
             }
 
             failed.addAll(missing);
@@ -1212,7 +1212,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     left = l == common ? left : new Cast(left.source(), left, common);
                     right = r == common ? right : new Cast(right.source(), right, common);
-                    return e.replaceEachChild(Arrays.asList(left, right));
+                    return e.replaceChildrenSameSize(Arrays.asList(left, right));
                 }
             }
 

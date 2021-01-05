@@ -10,9 +10,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -499,17 +499,18 @@ public class HttpRequest implements ToXContentObject {
      * Write a request via toXContent, but filter certain parts of it - this is needed to not expose secrets
      *
      * @param request        The HttpRequest object to serialize
-     * @param xContent       The xContent from the parent outputstream builder
+     * @param xContentType   The XContentType from the parent outputstream builder
      * @param params         The ToXContentParams from the parent write
      * @param excludeField   The field to exclude
      * @return               A bytearrayinputstream that contains the serialized request
      * @throws IOException   if an IOException is triggered in the underlying toXContent method
      */
-    public static InputStream filterToXContent(HttpRequest request, XContent xContent, ToXContent.Params params,
+    public static InputStream filterToXContent(HttpRequest request, XContentType xContentType, Params params,
                                                String excludeField) throws IOException {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
-             XContentBuilder filteredBuilder = new XContentBuilder(xContent, bos,
-                     Collections.emptySet(), Collections.singleton(excludeField))) {
+             XContentBuilder filteredBuilder = new XContentBuilder(xContentType.xContent(), bos,
+                 Collections.emptySet(), Collections.singleton(excludeField),
+                 ParsedMediaType.parseMediaType(xContentType.mediaType()))) {
             request.toXContent(filteredBuilder, params);
             filteredBuilder.flush();
             return new ByteArrayInputStream(bos.toByteArray());

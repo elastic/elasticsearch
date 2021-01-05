@@ -28,11 +28,13 @@ import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext.InnerHitSubContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -203,5 +205,24 @@ public class FetchContext {
 
     public QueryShardContext getQueryShardContext() {
         return searchContext.getQueryShardContext();
+    }
+
+    /**
+     * For a hit document that's being processed, return the source lookup representing the
+     * root document. This method is used to pass down the root source when processing this
+     * document's nested inner hits.
+     *
+     * @param hitContext The context of the hit that's being processed.
+     */
+    public SourceLookup getRootSourceLookup(FetchSubPhase.HitContext hitContext) {
+        // Usually the root source simply belongs to the hit we're processing. But if
+        // there are multiple layers of inner hits and we're in a nested context, then
+        // the root source is found on the inner hits context.
+        if (searchContext instanceof InnerHitSubContext && hitContext.hit().getNestedIdentity() != null) {
+            InnerHitSubContext innerHitsContext = (InnerHitSubContext) searchContext;
+            return innerHitsContext.getRootLookup();
+        } else {
+            return hitContext.sourceLookup();
+        }
     }
 }

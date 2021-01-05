@@ -31,6 +31,7 @@ import java.io.UncheckedIOException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 
 /**
  * A special kind of {@link SystemIndexDescriptor} that can toggle what kind of mappings it
@@ -80,16 +81,20 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
 
             builder.startObject();
             {
-                final Version previousMajor = Version.fromId((Version.CURRENT.major - 1) * 1000000 + 99);
-
-                builder.startObject("_meta");
-                builder.field("version", previousMajor.toString());
-                builder.endObject();
-
-                builder.startObject("properties");
+                builder.startObject(SINGLE_MAPPING_NAME);
                 {
-                    builder.startObject("foo");
-                    builder.field("type", "text");
+                    final Version previousMajor = Version.fromId((Version.CURRENT.major - 1) * 1000000 + 99);
+
+                    builder.startObject("_meta");
+                    builder.field("version", previousMajor.toString());
+                    builder.endObject();
+
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("foo");
+                        builder.field("type", "text");
+                        builder.endObject();
+                    }
                     builder.endObject();
                 }
                 builder.endObject();
@@ -98,7 +103,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build .test-index-1 index mappings", e);
+            throw new UncheckedIOException("Failed to build old .test-index-1 index mappings", e);
         }
     }
 
@@ -108,17 +113,21 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
 
             builder.startObject();
             {
-                builder.startObject("_meta");
-                builder.field("version", Version.CURRENT.toString());
-                builder.endObject();
-
-                builder.startObject("properties");
+                builder.startObject(SINGLE_MAPPING_NAME);
                 {
-                    builder.startObject("bar");
-                    builder.field("type", "text");
+                    builder.startObject("_meta");
+                    builder.field("version", Version.CURRENT.toString());
                     builder.endObject();
-                    builder.startObject("foo");
-                    builder.field("type", "text");
+
+                    builder.startObject("properties");
+                    {
+                        builder.startObject("bar");
+                        builder.field("type", "text");
+                        builder.endObject();
+                        builder.startObject("foo");
+                        builder.field("type", "text");
+                        builder.endObject();
+                    }
                     builder.endObject();
                 }
                 builder.endObject();
@@ -127,7 +136,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             builder.endObject();
             return Strings.toString(builder);
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build .test-index-1 index mappings", e);
+            throw new UncheckedIOException("Failed to build new .test-index-1 index mappings", e);
         }
     }
 }

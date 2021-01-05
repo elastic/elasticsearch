@@ -217,15 +217,6 @@ public class SystemIndexDescriptor {
         return mappings;
     }
 
-    /**
-     * Returns this descriptor's mappings JSON nested under the type. This is necessary as this is the expected format
-     * when creating an index, even though it can be retrieved again without the nesting.
-     */
-    public String getMappingsWithType() {
-        // don't reference mappings directly as a test class exists that customises the mappings returned.
-        return "{\"" + indexType + "\": " + getMappings() + "}";
-    }
-
     public Settings getSettings() {
         return settings;
     }

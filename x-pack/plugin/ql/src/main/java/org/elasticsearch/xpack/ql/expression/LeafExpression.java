@@ -18,7 +18,7 @@ public abstract class LeafExpression extends Expression {
     }
 
     @Override
-    protected final Expression replaceChildren(List<Expression> newChildren) {
+    public final Expression replaceChildren(List<Expression> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 

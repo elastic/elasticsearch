@@ -24,7 +24,7 @@ public class Percentiles extends PercentileCompoundAggregate {
     }
 
     @Override
-    protected Percentiles replaceChildren(List<Expression> newChildren) {
+    public Percentiles replaceChildren(List<Expression> newChildren) {
         return new Percentiles(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), percentilesConfig());
     }
 

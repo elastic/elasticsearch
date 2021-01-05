@@ -70,7 +70,7 @@ public class SequenceExec extends PhysicalPlan {
     }
 
     @Override
-    protected PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
+    public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
         return new SequenceExec(source(), newChildren, keys, timestamp, tiebreaker, limit, direction, maxSpan);
     }
 

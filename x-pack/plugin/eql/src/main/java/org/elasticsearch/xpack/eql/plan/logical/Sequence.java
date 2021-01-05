@@ -50,7 +50,7 @@ public class Sequence extends Join {
     }
 
     @Override
-    protected Join replaceChildren(List<LogicalPlan> newChildren) {
+    public Join replaceChildren(List<LogicalPlan> newChildren) {
         int lastIndex = newChildren.size() - 1;
         return new Sequence(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), maxSpan, timestamp(), tiebreaker(),
                 direction());

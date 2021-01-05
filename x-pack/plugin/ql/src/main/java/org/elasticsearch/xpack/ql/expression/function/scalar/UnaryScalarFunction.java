@@ -32,7 +32,7 @@ public abstract class UnaryScalarFunction extends ScalarFunction {
     }
 
     @Override
-    protected final UnaryScalarFunction replaceChildren(List<Expression> newChildren) {
+    public final UnaryScalarFunction replaceChildren(List<Expression> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 

@@ -48,7 +48,7 @@ public class Wildcard extends BaseSurrogateFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Wildcard(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 

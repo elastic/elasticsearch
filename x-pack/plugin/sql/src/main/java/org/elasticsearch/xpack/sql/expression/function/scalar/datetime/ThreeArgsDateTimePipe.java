@@ -45,7 +45,7 @@ public abstract class ThreeArgsDateTimePipe extends Pipe {
     }
 
     @Override
-    protected final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final Pipe replaceChildren(List<Pipe> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 

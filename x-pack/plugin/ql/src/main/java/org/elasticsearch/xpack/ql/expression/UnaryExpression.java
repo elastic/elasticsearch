@@ -23,7 +23,7 @@ public abstract class UnaryExpression extends Expression {
     }
 
     @Override
-    protected final UnaryExpression replaceChildren(List<Expression> newChildren) {
+    public final UnaryExpression replaceChildren(List<Expression> newChildren) {
         return replaceChild(newChildren.get(0));
     }
     protected abstract UnaryExpression replaceChild(Expression newChild);

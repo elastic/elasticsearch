@@ -23,7 +23,7 @@ public class Skewness extends NumericAggregate implements MatrixStatsEnclosed {
     }
 
     @Override
-    protected Skewness replaceChildren(List<Expression> newChildren) {
+    public Skewness replaceChildren(List<Expression> newChildren) {
         return new Skewness(source(), newChildren.get(0));
     }
 

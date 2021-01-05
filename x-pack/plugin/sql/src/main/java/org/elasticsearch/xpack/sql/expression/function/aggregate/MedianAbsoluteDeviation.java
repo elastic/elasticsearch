@@ -26,7 +26,7 @@ public class MedianAbsoluteDeviation extends NumericAggregate {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new MedianAbsoluteDeviation(source(), newChildren.get(0));
     }
 

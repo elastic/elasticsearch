@@ -56,7 +56,7 @@ public class Alias extends NamedExpression {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Alias(source(), name(), qualifier, newChildren.get(0), id(), synthetic());
     }
 

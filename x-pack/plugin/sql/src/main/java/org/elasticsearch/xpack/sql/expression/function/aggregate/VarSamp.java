@@ -23,7 +23,7 @@ public class VarSamp extends NumericAggregate implements ExtendedStatsEnclosed {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new VarSamp(source(), newChildren.get(0));
     }
 

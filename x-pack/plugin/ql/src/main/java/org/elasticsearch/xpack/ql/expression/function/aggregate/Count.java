@@ -34,7 +34,7 @@ public class Count extends AggregateFunction {
     }
 
     @Override
-    protected Count replaceChildren(List<Expression> newChildren) {
+    public Count replaceChildren(List<Expression> newChildren) {
         return new Count(source(), newChildren.get(0), distinct);
     }
 

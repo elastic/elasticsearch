@@ -29,7 +29,7 @@ public class MatchQueryPredicate extends FullTextPredicate {
     }
 
     @Override
-    protected MatchQueryPredicate replaceChildren(List<Expression> newChildren) {
+    public MatchQueryPredicate replaceChildren(List<Expression> newChildren) {
         return new MatchQueryPredicate(source(), newChildren.get(0), query(), options());
     }
 

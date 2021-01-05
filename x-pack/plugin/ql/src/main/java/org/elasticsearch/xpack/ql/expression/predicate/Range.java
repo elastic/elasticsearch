@@ -55,7 +55,7 @@ public class Range extends ScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Range(source(), newChildren.get(0), newChildren.get(1), includeLower, newChildren.get(2), includeUpper, zoneId);
     }
 

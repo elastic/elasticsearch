@@ -77,7 +77,7 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        protected ChildrenAreAProperty replaceChildren(List<Dummy> newChildren) {
+        public ChildrenAreAProperty replaceChildren(List<Dummy> newChildren) {
             return new ChildrenAreAProperty(source(), newChildren, thing());
         }
     }
@@ -93,7 +93,7 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        protected AChildIsAProperty replaceChildren(List<Dummy> newChildren) {
+        public AChildIsAProperty replaceChildren(List<Dummy> newChildren) {
             return new AChildIsAProperty(source(), newChildren.get(0), thing());
         }
 
@@ -113,7 +113,7 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        protected Dummy replaceChildren(List<Dummy> newChildren) {
+        public Dummy replaceChildren(List<Dummy> newChildren) {
             throw new UnsupportedOperationException("no children to replace");
         }
     }

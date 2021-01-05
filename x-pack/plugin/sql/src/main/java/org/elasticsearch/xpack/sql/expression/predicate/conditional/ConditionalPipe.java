@@ -32,7 +32,7 @@ public class ConditionalPipe extends MultiPipe {
     }
 
     @Override
-    protected Pipe replaceChildren(List<Pipe> newChildren) {
+    public Pipe replaceChildren(List<Pipe> newChildren) {
         return new ConditionalPipe(source(), expression(), newChildren, operation);
     }
 

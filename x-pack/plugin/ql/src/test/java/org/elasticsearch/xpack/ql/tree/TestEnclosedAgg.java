@@ -26,7 +26,7 @@ public class TestEnclosedAgg extends AggregateFunction implements EnclosedAgg {
     }
 
     @Override
-    protected TestEnclosedAgg replaceChildren(List<Expression> newChildren) {
+    public TestEnclosedAgg replaceChildren(List<Expression> newChildren) {
         return new TestEnclosedAgg(source(), newChildren.get(0));
     }
 

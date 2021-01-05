@@ -17,7 +17,7 @@ public abstract class LeafExec extends PhysicalPlan {
     }
 
     @Override
-    protected final LeafExec replaceChildren(List<PhysicalPlan> newChildren) {
+    public final LeafExec replaceChildren(List<PhysicalPlan> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 }

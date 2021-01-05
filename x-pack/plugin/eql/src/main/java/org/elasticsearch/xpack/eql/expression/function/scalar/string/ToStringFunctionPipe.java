@@ -25,7 +25,7 @@ public class ToStringFunctionPipe extends Pipe {
     }
 
     @Override
-    protected final ToStringFunctionPipe replaceChildren(List<Pipe> newChildren) {
+    public final ToStringFunctionPipe replaceChildren(List<Pipe> newChildren) {
         return new ToStringFunctionPipe(source(), expression(), newChildren.get(0));
     }
 

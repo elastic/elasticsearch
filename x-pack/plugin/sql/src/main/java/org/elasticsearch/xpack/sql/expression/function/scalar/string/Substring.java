@@ -117,7 +117,7 @@ public class Substring extends ScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Substring(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 }

@@ -23,7 +23,7 @@ public class PercentileRank extends PercentileAggregate {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new PercentileRank(source(), newChildren.get(0), newChildren.get(1), method(), methodParameter());
     }
 

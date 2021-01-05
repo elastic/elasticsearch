@@ -28,7 +28,7 @@ public class Sum extends NumericAggregate implements EnclosedAgg {
     }
 
     @Override
-    protected Sum replaceChildren(List<Expression> newChildren) {
+    public Sum replaceChildren(List<Expression> newChildren) {
         return new Sum(source(), newChildren.get(0));
     }
 

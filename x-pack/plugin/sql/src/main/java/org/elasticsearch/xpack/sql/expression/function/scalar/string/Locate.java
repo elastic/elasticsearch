@@ -135,7 +135,7 @@ public class Locate extends ScalarFunction implements OptionalArgument {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Locate(source(), newChildren.get(0), newChildren.get(1), start == null ? null : newChildren.get(2));
     }
 }

@@ -35,7 +35,7 @@ public class NullIf extends ConditionalFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new NullIf(source(), newChildren.get(0), newChildren.get(1));
     }
 

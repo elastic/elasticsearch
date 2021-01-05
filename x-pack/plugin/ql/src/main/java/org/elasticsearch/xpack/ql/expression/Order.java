@@ -57,7 +57,7 @@ public class Order extends Expression {
     }
 
     @Override
-    protected Order replaceChildren(List<Expression> newChildren) {
+    public Order replaceChildren(List<Expression> newChildren) {
         return new Order(source(), newChildren.get(0), direction, nulls);
     }
 

@@ -23,7 +23,7 @@ public class StddevPop extends NumericAggregate implements ExtendedStatsEnclosed
     }
 
     @Override
-    protected StddevPop replaceChildren(List<Expression> newChildren) {
+    public StddevPop replaceChildren(List<Expression> newChildren) {
         return new StddevPop(source(), newChildren.get(0));
     }
 

@@ -26,7 +26,7 @@ public class First extends TopHits {
     }
 
     @Override
-    protected First replaceChildren(List<Expression> newChildren) {
+    public First replaceChildren(List<Expression> newChildren) {
         return new First(source(), newChildren.get(0), newChildren.size() > 1 ? newChildren.get(1) : null);
     }
 }

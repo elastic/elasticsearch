@@ -51,7 +51,7 @@ public class Match extends BaseSurrogateFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Match(source(), newChildren);
     }
 

@@ -23,7 +23,7 @@ public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
     }
 
     @Override
-    protected VarPop replaceChildren(List<Expression> newChildren) {
+    public VarPop replaceChildren(List<Expression> newChildren) {
         return new VarPop(source(), newChildren.get(0));
     }
 

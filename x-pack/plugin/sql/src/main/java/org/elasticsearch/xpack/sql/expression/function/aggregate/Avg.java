@@ -29,7 +29,7 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
     }
 
     @Override
-    protected Avg replaceChildren(List<Expression> newChildren) {
+    public Avg replaceChildren(List<Expression> newChildren) {
         return new Avg(source(), newChildren.get(0));
     }
 

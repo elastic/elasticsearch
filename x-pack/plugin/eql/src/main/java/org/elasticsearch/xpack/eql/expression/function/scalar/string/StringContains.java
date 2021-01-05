@@ -118,7 +118,7 @@ public class StringContains extends CaseSensitiveScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new StringContains(source(), newChildren.get(0), newChildren.get(1), eqlConfiguration());
     }
 

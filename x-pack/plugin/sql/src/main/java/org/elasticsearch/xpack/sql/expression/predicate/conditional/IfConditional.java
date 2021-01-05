@@ -49,7 +49,7 @@ public class IfConditional extends Expression {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new IfConditional(source(), newChildren.get(0), newChildren.get(1));
     }
 

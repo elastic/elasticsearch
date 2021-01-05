@@ -23,7 +23,7 @@ public class MatrixStats extends CompoundNumericAggregate {
     }
 
     @Override
-    protected MatrixStats replaceChildren(List<Expression> newChildren) {
+    public MatrixStats replaceChildren(List<Expression> newChildren) {
         return new MatrixStats(source(), newChildren.get(0));
     }
 }

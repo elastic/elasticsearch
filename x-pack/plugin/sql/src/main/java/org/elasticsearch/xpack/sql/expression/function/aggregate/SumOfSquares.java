@@ -23,7 +23,7 @@ public class SumOfSquares extends NumericAggregate implements ExtendedStatsEnclo
     }
 
     @Override
-    protected SumOfSquares replaceChildren(List<Expression> newChildren) {
+    public SumOfSquares replaceChildren(List<Expression> newChildren) {
         return new SumOfSquares(source(), newChildren.get(0));
     }
 

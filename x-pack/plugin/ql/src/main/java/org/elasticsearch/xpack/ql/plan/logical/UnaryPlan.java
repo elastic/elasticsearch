@@ -26,7 +26,7 @@ public abstract class UnaryPlan extends LogicalPlan {
     }
 
     @Override
-    protected final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
+    public final UnaryPlan replaceChildren(List<LogicalPlan> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 

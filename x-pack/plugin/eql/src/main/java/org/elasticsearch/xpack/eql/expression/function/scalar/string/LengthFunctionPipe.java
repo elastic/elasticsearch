@@ -25,7 +25,7 @@ public class LengthFunctionPipe extends Pipe {
     }
 
     @Override
-    protected final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final Pipe replaceChildren(List<Pipe> newChildren) {
         return replaceChildren(newChildren.get(0));
     }
 

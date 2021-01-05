@@ -34,7 +34,7 @@ public final class UnaryPipe extends Pipe {
     }
 
     @Override
-    protected Pipe replaceChildren(List<Pipe> newChildren) {
+    public Pipe replaceChildren(List<Pipe> newChildren) {
         return new UnaryPipe(source(), expression(), newChildren.get(0), action);
     }
 

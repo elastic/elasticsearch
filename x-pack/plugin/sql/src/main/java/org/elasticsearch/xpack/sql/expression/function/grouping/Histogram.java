@@ -63,7 +63,7 @@ public class Histogram extends GroupingFunction {
     }
     
     @Override
-    protected final GroupingFunction replaceChildren(List<Expression> newChildren) {
+    public final GroupingFunction replaceChildren(List<Expression> newChildren) {
         return new Histogram(source(), newChildren.get(0), newChildren.get(1), zoneId);
     }
 

@@ -99,7 +99,7 @@ public class Concat extends ScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Concat(source(), newChildren);
     }
 

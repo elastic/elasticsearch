@@ -133,7 +133,7 @@ public class CIDRMatch extends ScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new CIDRMatch(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
 }

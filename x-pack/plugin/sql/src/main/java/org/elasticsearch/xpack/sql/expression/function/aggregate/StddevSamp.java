@@ -23,7 +23,7 @@ public class StddevSamp extends NumericAggregate implements ExtendedStatsEnclose
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new StddevSamp(source(), newChildren.get(0));
     }
 

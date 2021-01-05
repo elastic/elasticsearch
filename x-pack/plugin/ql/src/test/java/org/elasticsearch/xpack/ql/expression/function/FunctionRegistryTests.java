@@ -241,7 +241,7 @@ public class FunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        protected Expression replaceChildren(List<Expression> newChildren) {
+        public Expression replaceChildren(List<Expression> newChildren) {
             throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
         }
 

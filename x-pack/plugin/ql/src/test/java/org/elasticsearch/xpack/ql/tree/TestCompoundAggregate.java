@@ -26,7 +26,7 @@ public class TestCompoundAggregate extends AggregateFunction implements Compound
     }
 
     @Override
-    protected TestCompoundAggregate replaceChildren(List<Expression> newChildren) {
+    public TestCompoundAggregate replaceChildren(List<Expression> newChildren) {
         return new TestCompoundAggregate(source(), newChildren.get(0));
     }
 

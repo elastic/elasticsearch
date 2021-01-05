@@ -145,7 +145,7 @@ public class Between extends ScalarFunction implements OptionalArgument {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new Between(source(), newChildren.get(0), newChildren.get(1), newChildren.get(2), newChildren.get(3));
     }
 }

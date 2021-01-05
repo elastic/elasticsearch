@@ -121,7 +121,7 @@ public class StartsWith extends CaseSensitiveScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new StartsWith(source(), newChildren.get(0), newChildren.get(1), configuration());
     }
 

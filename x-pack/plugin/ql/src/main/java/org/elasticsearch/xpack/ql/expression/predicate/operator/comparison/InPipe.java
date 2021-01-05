@@ -22,7 +22,7 @@ public class InPipe extends MultiPipe {
     }
 
     @Override
-    protected final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final Pipe replaceChildren(List<Pipe> newChildren) {
         return new InPipe(source(), expression(), newChildren);
     }
 

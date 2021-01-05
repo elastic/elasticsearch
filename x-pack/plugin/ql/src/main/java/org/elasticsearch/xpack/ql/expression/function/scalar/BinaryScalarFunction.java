@@ -27,7 +27,7 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
     }
 
     @Override
-    protected final BinaryScalarFunction replaceChildren(List<Expression> newChildren) {
+    public final BinaryScalarFunction replaceChildren(List<Expression> newChildren) {
         Expression newLeft = newChildren.get(0);
         Expression newRight = newChildren.get(1);
 

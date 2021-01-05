@@ -45,7 +45,7 @@ public class Join extends BinaryPlan {
     }
 
     @Override
-    protected LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+    public LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         return new Join(source(), newChildren.get(0), newChildren.get(1), type, condition);
     }
 

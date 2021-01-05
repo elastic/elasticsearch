@@ -75,7 +75,7 @@ public class Join extends LogicalPlan {
     }
 
     @Override
-    protected Join replaceChildren(List<LogicalPlan> newChildren) {
+    public Join replaceChildren(List<LogicalPlan> newChildren) {
         int lastIndex = newChildren.size() - 1;
         return new Join(source(), newChildren.subList(0, lastIndex), newChildren.get(lastIndex), timestamp, tiebreaker, direction);
     }

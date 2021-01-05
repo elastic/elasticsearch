@@ -67,7 +67,7 @@ public class UnresolvedFunction extends Function implements Unresolvable {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new UnresolvedFunction(source(), name, resolutionType, newChildren, analyzed, unresolvedMsg);
     }
 

@@ -23,7 +23,7 @@ public class Kurtosis extends NumericAggregate implements MatrixStatsEnclosed {
     }
 
     @Override
-    protected Kurtosis replaceChildren(List<Expression> newChildren) {
+    public Kurtosis replaceChildren(List<Expression> newChildren) {
         return new Kurtosis(source(), newChildren.get(0));
     }
 

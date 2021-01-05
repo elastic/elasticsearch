@@ -133,7 +133,7 @@ public class BinaryPipesTests extends ESTestCase {
         }
 
         @Override
-        protected Pipe replaceChildren(List<Pipe> newChildren) {
+        public Pipe replaceChildren(List<Pipe> newChildren) {
             throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
         }
 

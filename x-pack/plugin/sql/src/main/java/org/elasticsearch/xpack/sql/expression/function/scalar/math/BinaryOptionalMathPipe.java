@@ -30,7 +30,7 @@ public class BinaryOptionalMathPipe extends Pipe {
     }
 
     @Override
-    protected final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final Pipe replaceChildren(List<Pipe> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1));
     }
 

@@ -29,7 +29,7 @@ public class ScorePipe extends Pipe {
     }
 
     @Override
-    protected final Pipe replaceChildren(List<Pipe> newChildren) {
+    public final Pipe replaceChildren(List<Pipe> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 

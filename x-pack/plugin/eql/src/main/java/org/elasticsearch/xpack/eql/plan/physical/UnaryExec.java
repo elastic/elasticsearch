@@ -22,7 +22,7 @@ public abstract class UnaryExec extends PhysicalPlan {
     }
 
     @Override
-    protected final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
+    public final PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
         return replaceChild(newChildren.get(0));
     }
 

@@ -33,7 +33,7 @@ public class Min extends NumericAggregate implements EnclosedAgg {
     }
 
     @Override
-    protected Min replaceChildren(List<Expression> newChildren) {
+    public Min replaceChildren(List<Expression> newChildren) {
         return new Min(source(), newChildren.get(0));
     }
 

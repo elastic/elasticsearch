@@ -106,7 +106,7 @@ public class ToNumber extends ScalarFunction implements OptionalArgument {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new ToNumber(source(), newChildren.get(0), newChildren.get(1));
     }
 }

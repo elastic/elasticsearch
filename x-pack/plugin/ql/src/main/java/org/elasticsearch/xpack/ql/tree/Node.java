@@ -239,7 +239,7 @@ public abstract class Node<T extends Node<T>> {
      * Constructs a new node, keeping the current properties of the node, but changing the list of 
      * the children.
      */
-    protected abstract T replaceChildren(List<T> newChildren);
+    public abstract T replaceChildren(List<T> newChildren);
 
     //
     // transform the node properties and use the tree only for navigation

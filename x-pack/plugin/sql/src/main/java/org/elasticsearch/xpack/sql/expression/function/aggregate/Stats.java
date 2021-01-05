@@ -23,7 +23,7 @@ public class Stats extends CompoundNumericAggregate {
     }
 
     @Override
-    protected Stats replaceChildren(List<Expression> newChildren) {
+    public Stats replaceChildren(List<Expression> newChildren) {
         return new Stats(source(), newChildren.get(0));
     }
 

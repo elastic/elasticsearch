@@ -42,7 +42,7 @@ public class InnerAggregate extends AggregateFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         /* I can't figure out how rewriting this one's children ever worked because its
          * are all twisted up in `outer`. Refusing to rewrite it doesn't break anything
          * that I can see right now so lets just go with it and hope for the best.

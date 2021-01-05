@@ -94,7 +94,7 @@ public class ToString extends ScalarFunction {
     }
 
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return new ToString(source(), newChildren.get(0));
     }
 }

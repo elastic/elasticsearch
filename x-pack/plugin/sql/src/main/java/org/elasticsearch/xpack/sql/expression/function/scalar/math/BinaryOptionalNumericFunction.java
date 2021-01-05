@@ -74,7 +74,7 @@ public abstract class BinaryOptionalNumericFunction extends ScalarFunction {
     }
     
     @Override
-    protected Expression replaceChildren(List<Expression> newChildren) {
+    public Expression replaceChildren(List<Expression> newChildren) {
         return replacedChildrenInstance(newChildren);
     }
     

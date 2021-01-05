@@ -17,7 +17,7 @@ public abstract class LeafPlan extends LogicalPlan {
     }
 
     @Override
-    protected final LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
+    public final LogicalPlan replaceChildren(List<LogicalPlan> newChildren) {
         throw new UnsupportedOperationException("this type of node doesn't have any children to replace");
     }
 }

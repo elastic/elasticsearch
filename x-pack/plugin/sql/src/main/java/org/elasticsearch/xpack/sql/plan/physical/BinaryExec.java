@@ -22,7 +22,7 @@ abstract class BinaryExec extends PhysicalPlan {
     }
 
     @Override
-    protected final BinaryExec replaceChildren(List<PhysicalPlan> newChildren) {
+    public final BinaryExec replaceChildren(List<PhysicalPlan> newChildren) {
         return replaceChildren(newChildren.get(0), newChildren.get(1));
     }
     protected abstract BinaryExec replaceChildren(PhysicalPlan newLeft, PhysicalPlan newRight);

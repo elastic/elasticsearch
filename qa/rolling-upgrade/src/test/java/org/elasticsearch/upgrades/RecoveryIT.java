@@ -308,7 +308,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
                 throw new IllegalStateException("unknown type " + CLUSTER_TYPE);
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            performSyncedFlush(index, randomBoolean());
+            ensureGlobalCheckpointSynced(index);
         }
     }
 
@@ -587,22 +588,6 @@ public class RecoveryIT extends AbstractRollingTestCase {
         }
     }
 
-    private void syncedFlush(String index) throws Exception {
-        // We have to spin synced-flush requests here because we fire the global checkpoint sync for the last write operation.
-        // A synced-flush request considers the global checkpoint sync as an going operation because it acquires a shard permit.
-        assertBusy(() -> {
-            try {
-                Response resp = performSyncedFlush(index);
-                Map<String, Object> result = ObjectPath.createFromResponse(resp).evaluate("_shards");
-                assertThat(result.get("failed"), equalTo(0));
-            } catch (ResponseException ex) {
-                throw new AssertionError(ex); // cause assert busy to retry
-            }
-        });
-        // ensure the global checkpoint is synced; otherwise we might trim the commit with syncId
-        ensureGlobalCheckpointSynced(index);
-    }
-
     @SuppressWarnings("unchecked")
     private void assertPeerRecoveredFiles(String reason, String index, String targetNode, Matcher<Integer> sizeMatcher) throws IOException {
         Map<?, ?> recoveryStats = entityAsMap(client().performRequest(new Request("GET", index + "/_recovery")));
@@ -668,7 +653,8 @@ public class RecoveryIT extends AbstractRollingTestCase {
             assertThat(XContentMapValues.extractValue("_source.updated_field", doc), equalTo(updates.get(docId)));
         }
         if (randomBoolean()) {
-            syncedFlush(index);
+            performSyncedFlush(index, randomBoolean());
+            ensureGlobalCheckpointSynced(index);
         }
     }
 

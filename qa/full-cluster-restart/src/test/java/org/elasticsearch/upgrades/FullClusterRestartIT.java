@@ -731,13 +731,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             assertOK(client().performRequest(flushRequest));
 
             if (randomBoolean()) {
-                // We had a bug before where we failed to perform peer recovery with sync_id from 5.x to 6.x.
-                // We added this synced flush so we can exercise different paths of recovery code.
-                try {
-                    performSyncedFlush(index);
-                } catch (ResponseException ignored) {
-                    // synced flush is optional here
-                }
+                performSyncedFlush(index, randomBoolean());
             }
             if (shouldHaveTranslog) {
                 // Update a few documents so we are sure to have a translog
@@ -1421,7 +1415,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66631")
     public void testRecoveryWithTranslogRetentionDisabled() throws Exception {
         if (isRunningAgainstOldCluster()) {
             final Settings.Builder settings = Settings.builder()
@@ -1452,7 +1445,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
             if (randomBoolean()) {
                 flush(index, randomBoolean());
             } else if (randomBoolean()) {
-                performSyncedFlush(index);
+                performSyncedFlush(index, randomBoolean());
             }
             saveInfoDocument("doc_count", Integer.toString(numDocs));
         }

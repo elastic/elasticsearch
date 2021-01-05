@@ -344,6 +344,8 @@ setup:
 
 ---
 nested:
+  # Tests that we don't accidentally match nested documents when the filter
+  # matches it.
   - do:
       indices.create:
           index: test_nested

@@ -297,6 +297,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    /**
+     * Check that we don't accidentally find nested documents when the filter
+     * matches it.
+     */
     public void testNested() throws IOException {
         KeywordFieldType ft = new KeywordFieldType("author");
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(

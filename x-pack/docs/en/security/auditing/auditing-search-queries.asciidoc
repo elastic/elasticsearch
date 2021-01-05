@@ -33,7 +33,7 @@ event attribute.
 Not all events contain the `request.body` attribute, even when the above setting
 is toggled. The ones that do are: `authentication_success`,
 `authentication_failed`, `realm_authentication_failed`, `tampered_request`, `run_as_denied`,
-and `anonymous_access_denied` that are printed on the coordinating node only
+and `anonymous_access_denied`. The `request.body` attribute is printed on the coordinating node only
 (the node that handles the REST request). Most of them are
 <<xpack-sa-lf-events-include, not included by default>>.
 

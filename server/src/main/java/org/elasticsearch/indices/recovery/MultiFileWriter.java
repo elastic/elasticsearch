@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.Store;
@@ -72,7 +73,12 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         throws IOException {
         assert Transports.assertNotTransportThread("multi_file_writer");
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetadata.name(), name -> new FileChunkWriter());
-        writer.writeChunk(new FileChunk(fileMetadata, content, position, lastChunk));
+        incRef();
+        try {
+            writer.writeChunk(new FileChunk(fileMetadata, content, position, lastChunk));
+        } finally {
+            decRef();
+        }
     }
 
     /** Get a temporary name for the provided file name. */
@@ -152,6 +158,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     @Override
     protected void closeInternal() {
+        Releasables.close(fileChunkWriters.values());
         fileChunkWriters.clear();
         // clean open index outputs
         Iterator<Map.Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
@@ -198,7 +205,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         }
     }
 
-    private final class FileChunkWriter {
+    private final class FileChunkWriter implements Releasable {
         // chunks can be delivered out of order, we need to buffer chunks if there's a gap between them.
         final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
         long lastPosition = 0;
@@ -216,7 +223,6 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                     }
                     pendingChunks.remove();
                 }
-                boolean success = false;
                 try (chunk) {
                     innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
                     synchronized (this) {
@@ -227,20 +233,14 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                             fileChunkWriters.remove(chunk.md.name());
                             assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
                         }
-                        success = true;
-                    }
-                } finally {
-                    if (success == false) {
-                        // we failed to write a chunk so we drain and release the remaining pending chunks
-                        synchronized (this) {
-                            FileChunk c;
-                            while ((c = pendingChunks.poll()) != null) {
-                                c.close();
-                            }
-                        }
                     }
                 }
             }
+        }
+
+        @Override
+        public synchronized void close() {
+            Releasables.close(pendingChunks);
         }
     }
 }

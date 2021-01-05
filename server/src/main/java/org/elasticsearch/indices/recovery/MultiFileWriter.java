@@ -216,6 +216,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                     }
                     pendingChunks.remove();
                 }
+                boolean success = false;
                 try (chunk) {
                     innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
                     synchronized (this) {
@@ -225,6 +226,17 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                             assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
                             fileChunkWriters.remove(chunk.md.name());
                             assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                        }
+                        success = true;
+                    }
+                } finally {
+                    if (success == false) {
+                        // we failed to write a chunk so we drain and release the remaining pending chunks
+                        synchronized (this) {
+                            FileChunk c;
+                            while ((c = pendingChunks.poll()) != null) {
+                                c.close();
+                            }
                         }
                     }
                 }

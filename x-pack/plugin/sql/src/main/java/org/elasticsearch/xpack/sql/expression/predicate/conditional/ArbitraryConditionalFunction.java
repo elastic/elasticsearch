@@ -58,7 +58,7 @@ public abstract class ArbitraryConditionalFunction extends ConditionalFunction {
     /**
      * {@inheritDoc}
      * 
-     * Note: the visibility of the function is promoted to public.
+     * Note: Promoted to public, so the optimizer rules can rewrite the case statements by eliminating the unnecessary conditions.
      */
     @Override
     public abstract Expression replaceChildren(List<Expression> newChildren);

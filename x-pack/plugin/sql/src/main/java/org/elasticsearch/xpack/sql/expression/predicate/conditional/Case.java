@@ -64,6 +64,11 @@ public class Case extends ConditionalFunction {
         return dataType;
     }
 
+    /**
+     * {@inheritDoc}
+     * 
+     * Note: Promoted to public, so the optimizer rules can rewrite the case statements by eliminating the unnecessary conditions.
+     */
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Case(source(), newChildren);

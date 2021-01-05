@@ -120,14 +120,16 @@ public class LocalStateMonitoring extends LocalStateCompositeXPackPlugin {
 
         @Override
         protected void doExecute(Task task, CcrStatsAction.Request request, ActionListener<CcrStatsAction.Response> listener) {
-            AutoFollowStats autoFollowStats = new AutoFollowStats(0, 0, 0, Collections.emptyNavigableMap(), Collections.emptyNavigableMap());
+            AutoFollowStats autoFollowStats =
+                new AutoFollowStats(0, 0, 0, Collections.emptyNavigableMap(), Collections.emptyNavigableMap());
             FollowStatsAction.StatsResponses statsResponses =
                 new FollowStatsAction.StatsResponses(Collections.emptyList(), Collections.emptyList(), Collections.emptyList());
             listener.onResponse(new CcrStatsAction.Response(autoFollowStats, statsResponses));
         }
     }
 
-    public static class TransportEnrichStatsStubAction extends HandledTransportAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
+    public static class TransportEnrichStatsStubAction
+        extends HandledTransportAction<EnrichStatsAction.Request, EnrichStatsAction.Response> {
 
         @Inject
         public TransportEnrichStatsStubAction(TransportService transportService, ActionFilters actionFilters) {

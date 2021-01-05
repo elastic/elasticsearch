@@ -239,18 +239,18 @@ public class InboundHandler {
 
                                     @Override
                                     public void onAfter() {
-                                        RefCounted.decRef(request);
+                                        request.decRef();
                                     }
                                 });
                                 success = true;
                             } finally {
                                 if (success == false) {
-                                    RefCounted.decRef(request);
+                                    request.decRef();
                                 }
                             }
                         }
                     } finally {
-                        RefCounted.decRef(request);
+                        request.decRef();
                     }
                 }
             } catch (Exception e) {
@@ -291,7 +291,7 @@ public class InboundHandler {
                 success = true;
             } finally {
                 if (success == false) {
-                    RefCounted.decRef(response);
+                    response.decRef();
                 }
             }
         }
@@ -303,7 +303,7 @@ public class InboundHandler {
         } catch (Exception e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
         } finally {
-            RefCounted.decRef(response);
+            response.decRef();
         }
     }
 

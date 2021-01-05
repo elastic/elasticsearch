@@ -218,14 +218,14 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                 }
                 try (chunk) {
                     innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
-                }
-                synchronized (this) {
-                    assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
-                    lastPosition += chunk.content.length();
-                    if (chunk.lastChunk) {
-                        assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
-                        fileChunkWriters.remove(chunk.md.name());
-                        assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                    synchronized (this) {
+                        assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
+                        lastPosition += chunk.content.length();
+                        if (chunk.lastChunk) {
+                            assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
+                            fileChunkWriters.remove(chunk.md.name());
+                            assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                        }
                     }
                 }
             }

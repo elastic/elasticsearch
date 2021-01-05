@@ -124,10 +124,10 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         assert refCount() > 0;
         return new BytesReferenceStreamInput(this) {
             @Override
-            public ReleasableBytesReference readUnsafeBytesReference() throws IOException {
+            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
                 final int len = readArraySize();
                 // instead of reading the bytes from a stream we just create a slice of the underlying bytes
-                final ReleasableBytesReference result = ((ReleasableBytesReference) bytesReference).retainedSlice(offset(), len);
+                final ReleasableBytesReference result = retainedSlice(offset(), len);
                 // move the stream manually since creating the slice didn't move it
                 skip(len);
                 return result;

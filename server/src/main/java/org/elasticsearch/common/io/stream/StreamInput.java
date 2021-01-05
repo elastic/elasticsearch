@@ -130,7 +130,7 @@ public abstract class StreamInput extends InputStream {
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
     /**
-     * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readUnsafeBytesReference()}
+     * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
      * when reading large bytes references where possible top avoid needless allocations and copying.
      */
     public BytesReference readBytesReference() throws IOException {
@@ -143,7 +143,7 @@ public abstract class StreamInput extends InputStream {
      * bytes in a pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
      * Prefer this method over {@link #readBytesReference()} when reading large bytes references to avoid allocations and copying.
      */
-    public ReleasableBytesReference readUnsafeBytesReference() throws IOException {
+    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
         return ReleasableBytesReference.wrap(readBytesReference());
     }
 

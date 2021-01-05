@@ -39,7 +39,7 @@ public class BytesTransportRequest extends TransportRequest implements RefCounte
 
     public BytesTransportRequest(StreamInput in) throws IOException {
         super(in);
-        bytes = in.readUnsafeBytesReference();
+        bytes = in.readReleasableBytesReference();
         version = in.getVersion();
     }
 

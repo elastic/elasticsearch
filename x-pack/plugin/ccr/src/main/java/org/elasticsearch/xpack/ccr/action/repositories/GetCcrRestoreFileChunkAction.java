@@ -58,8 +58,6 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             ByteArray array = bigArrays.newByteArray(bytesRequested, false);
             String fileName = request.getFileName();
             String sessionUUID = request.getSessionUUID();
-            // This is currently safe to do because calling `onResponse` will serialize the bytes to the network layer data
-            // structure on the same thread. So the bytes will be copied before the reference is released.
             BytesReference pagedBytesReference = BytesReference.fromByteArray(array, bytesRequested);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
@@ -81,7 +79,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
         GetCcrRestoreFileChunkResponse(StreamInput streamInput) throws IOException {
             super(streamInput);
             offset = streamInput.readVLong();
-            chunk = streamInput.readUnsafeBytesReference();
+            chunk = streamInput.readReleasableBytesReference();
         }
 
         GetCcrRestoreFileChunkResponse(long offset, ReleasableBytesReference chunk) {

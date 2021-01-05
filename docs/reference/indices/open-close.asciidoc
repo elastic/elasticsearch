@@ -90,7 +90,7 @@ the request. Wildcard (`*`) expressions are supported.
 To target all data streams and indices, use `_all` or `*`.
 +
 To disallow use of `_all` or wildcard expressions,
-change the `action.destructive_requires_name` cluster setting to `true`.
+the `action.destructive_requires_name` cluster setting must be `true`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.
 

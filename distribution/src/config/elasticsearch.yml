@@ -80,9 +80,3 @@ ${path.logs}
 #gateway.recover_after_nodes: 3
 #
 # For more information, consult the gateway module documentation.
-#
-# ---------------------------------- Various -----------------------------------
-#
-# Require explicit names when deleting indices:
-#
-#action.destructive_requires_name: true

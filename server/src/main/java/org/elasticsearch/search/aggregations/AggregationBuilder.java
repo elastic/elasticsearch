@@ -39,6 +39,7 @@ import java.util.Map;
  */
 public abstract class AggregationBuilder
         implements NamedWriteable, ToXContentFragment, BaseAggregationBuilder, Rewriteable<AggregationBuilder> {
+    public static final long DEFAULT_PREALLOCATION = 1024 * 6;
 
     protected final String name;
     protected AggregatorFactories.Builder factoriesBuilder = AggregatorFactories.builder();
@@ -157,6 +158,18 @@ public abstract class AggregationBuilder
      * by this builder will contain per owning parent bucket.
      */
     public abstract BucketCardinality bucketCardinality();
+
+    /**
+     * Bytes to preallocate on the "request" breaker for this aggregation. The
+     * goal is to request a few more bytes than we expect to use at first to
+     * cut down on contention on the "request" breaker when we are constructing
+     * the aggs. Underestimating what we allocate up front will fail to
+     * accomplish the goal. Overestimating will cause requests to fail for no
+     * reason.
+     */
+    public long bytesToPreallocate() {
+        return DEFAULT_PREALLOCATION;
+    }
 
     /** Common xcontent fields shared among aggregator builders */
     public static final class CommonFields extends ParseField.CommonFields {

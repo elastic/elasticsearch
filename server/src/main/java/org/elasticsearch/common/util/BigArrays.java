@@ -25,6 +25,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.recycler.Recycler;
@@ -428,6 +429,14 @@ public class BigArrays {
      */
     public BigArrays withCircuitBreaking() {
         return this.circuitBreakingInstance;
+    }
+
+    /**
+     * Creates a new {@link BigArray} pointing at the specified
+     * {@link CircuitBreakerService}. Use with {@link PreallocatedCircuitBreakerService}.
+     */
+    public BigArrays withBreakerService(CircuitBreakerService breakerService) {
+        return new BigArrays(recycler, breakerService, breakerName, checkBreaker);
     }
 
     public CircuitBreakerService breakerService() {   // TODO this feels like it is for tests but it has escaped

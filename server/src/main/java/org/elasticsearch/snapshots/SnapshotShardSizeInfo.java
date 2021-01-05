@@ -22,6 +22,8 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.IndexId;
 
 public class SnapshotShardSizeInfo {
 
@@ -52,5 +54,9 @@ public class SnapshotShardSizeInfo {
             return fallback;
         }
         return shardSize;
+    }
+
+    public long getShardSize(Snapshot snapshot, IndexId index, ShardId shardId, long fallback) {
+        return snapshotShardSizes.getOrDefault(new InternalSnapshotsInfoService.SnapshotShard(snapshot, index, shardId), fallback);
     }
 }

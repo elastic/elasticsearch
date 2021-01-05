@@ -133,79 +133,83 @@ public class TaskResultsService {
 
             builder.startObject();
             {
-                builder.startObject("_meta");
-                builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
-                builder.endObject();
-
+                builder.startObject(TASK_TYPE);
                 builder.field("dynamic", "strict");
-                builder.startObject("properties");
                 {
-                    builder.startObject("completed");
-                    builder.field("type", "boolean");
+                    builder.startObject("_meta");
+                    builder.field(TASK_RESULT_MAPPING_VERSION_META_FIELD, Version.CURRENT.toString());
                     builder.endObject();
 
-                    builder.startObject("task");
+                    builder.startObject("properties");
                     {
-                        builder.startObject("properties");
+                        builder.startObject("completed");
+                        builder.field("type", "boolean");
+                        builder.endObject();
+
+                        builder.startObject("task");
                         {
-                            builder.startObject("action");
-                            builder.field("type", "keyword");
-                            builder.endObject();
+                            builder.startObject("properties");
+                            {
+                                builder.startObject("action");
+                                builder.field("type", "keyword");
+                                builder.endObject();
 
-                            builder.startObject("cancellable");
-                            builder.field("type", "boolean");
-                            builder.endObject();
+                                builder.startObject("cancellable");
+                                builder.field("type", "boolean");
+                                builder.endObject();
 
-                            builder.startObject("id");
-                            builder.field("type", "long");
-                            builder.endObject();
+                                builder.startObject("id");
+                                builder.field("type", "long");
+                                builder.endObject();
 
-                            builder.startObject("parent_task_id");
-                            builder.field("type", "keyword");
-                            builder.endObject();
+                                builder.startObject("parent_task_id");
+                                builder.field("type", "keyword");
+                                builder.endObject();
 
-                            builder.startObject("node");
-                            builder.field("type", "keyword");
-                            builder.endObject();
+                                builder.startObject("node");
+                                builder.field("type", "keyword");
+                                builder.endObject();
 
-                            builder.startObject("running_time_in_nanos");
-                            builder.field("type", "long");
-                            builder.endObject();
+                                builder.startObject("running_time_in_nanos");
+                                builder.field("type", "long");
+                                builder.endObject();
 
-                            builder.startObject("start_time_in_millis");
-                            builder.field("type", "long");
-                            builder.endObject();
+                                builder.startObject("start_time_in_millis");
+                                builder.field("type", "long");
+                                builder.endObject();
 
-                            builder.startObject("type");
-                            builder.field("type", "keyword");
-                            builder.endObject();
+                                builder.startObject("type");
+                                builder.field("type", "keyword");
+                                builder.endObject();
 
-                            builder.startObject("status");
-                            builder.field("type", "object");
-                            builder.field("enabled", false);
-                            builder.endObject();
+                                builder.startObject("status");
+                                builder.field("type", "object");
+                                builder.field("enabled", false);
+                                builder.endObject();
 
-                            builder.startObject("description");
-                            builder.field("type", "text");
-                            builder.endObject();
+                                builder.startObject("description");
+                                builder.field("type", "text");
+                                builder.endObject();
 
-                            builder.startObject("headers");
-                            builder.field("type", "object");
-                            builder.field("enabled", false);
+                                builder.startObject("headers");
+                                builder.field("type", "object");
+                                builder.field("enabled", false);
+                                builder.endObject();
+                            }
                             builder.endObject();
                         }
                         builder.endObject();
+
+                        builder.startObject("response");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.endObject();
+
+                        builder.startObject("error");
+                        builder.field("type", "object");
+                        builder.field("enabled", false);
+                        builder.endObject();
                     }
-                    builder.endObject();
-
-                    builder.startObject("response");
-                    builder.field("type", "object");
-                    builder.field("enabled", false);
-                    builder.endObject();
-
-                    builder.startObject("error");
-                    builder.field("type", "object");
-                    builder.field("enabled", false);
                     builder.endObject();
                 }
                 builder.endObject();

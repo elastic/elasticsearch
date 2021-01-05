@@ -39,9 +39,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.INDEX_NAME;
 import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_NAME;
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
@@ -105,10 +105,8 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
     public void testCreateSystemIndexIgnoresExplicitSettingsAndMappings() {
         doCreateTest(
             () -> assertAcked(
-                prepareCreate(PRIMARY_INDEX_NAME).addMapping(
-                    "foo",
-                    Collections.singletonMap("foo", TestSystemIndexDescriptor.getNewMappings())
-                ).setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 999).build())
+                prepareCreate(PRIMARY_INDEX_NAME).addMapping("foo", singletonMap("foo", TestSystemIndexDescriptor.getNewMappings()))
+                    .setSettings(Settings.builder().put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 999).build())
             )
         );
     }
@@ -155,7 +153,10 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         final Map<String, Object> sourceAsMap = mappings.get(PRIMARY_INDEX_NAME).get(MapperService.SINGLE_MAPPING_NAME).getSourceAsMap();
 
         try {
-            assertThat(convertToXContent(sourceAsMap, XContentType.JSON).utf8ToString(), equalTo(expectedMappings));
+            assertThat(
+                convertToXContent(singletonMap(MapperService.SINGLE_MAPPING_NAME, sourceAsMap), XContentType.JSON).utf8ToString(),
+                equalTo(expectedMappings)
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

@@ -104,8 +104,6 @@ public class DiscoveryNodeFilters {
             // Remove all entries that start with "_tier", as these will be handled elsewhere
             .filter(entry -> {
                 String attr = entry.getKey();
-                if (attr != null && attr.startsWith("_tier")) {
-                }
                 return attr != null && attr.startsWith("_tier") == false;
             })
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));

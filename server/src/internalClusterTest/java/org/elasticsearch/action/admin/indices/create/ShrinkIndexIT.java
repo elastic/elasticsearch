@@ -399,9 +399,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .put("index.routing.allocation.require._name", mergeNode)).get();
         ensureGreen("source");
 
-        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(ClusterInfoService.class,
-            internalCluster().getMasterName());
-        ClusterInfoServiceUtils.refresh(infoService);
+        refreshClusterInfo();
         // kick off a retry and wait until it's done!
         ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target")

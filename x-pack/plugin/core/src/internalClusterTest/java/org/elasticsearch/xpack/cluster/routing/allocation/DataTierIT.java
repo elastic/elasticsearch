@@ -243,6 +243,26 @@ public class DataTierIT extends ESIntegTestCase {
         assertThat(usage.getTierStats().get(DataTier.DATA_HOT).primaryShardBytesMAD, greaterThanOrEqualTo(0L));
     }
 
+    public void testTierFilteringIgnoredByFilterAllocationDecider() {
+        startContentOnlyNode();
+        startHotOnlyNode();
+
+        // Exclude all data_cold nodes
+        client().admin().cluster().prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put(DataTierAllocationDecider.CLUSTER_ROUTING_EXCLUDE, "data_cold")
+                .build())
+            .get();
+
+        // Create an index, which should be excluded just fine, ignored by the FilterAllocationDecider
+        client().admin().indices().prepareCreate(index)
+            .setSettings(Settings.builder()
+                .put("index.number_of_shards", 2)
+                .put("index.number_of_replicas", 0))
+            .setWaitForActiveShards(0)
+            .get();
+    }
+
     private DataTiersFeatureSetUsage getUsage() {
         XPackUsageResponse usages = new XPackUsageRequestBuilder(client()).execute().actionGet();
         return usages.getUsages().stream()

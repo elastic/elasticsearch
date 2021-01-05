@@ -4,7 +4,7 @@
 
 Delayed data are documents that are indexed late. That is to say, it is data 
 related to a time that your {dfeed} has already processed and it is therefore
-not analyzed by your {anomaly-job}.
+never analyzed by your {anomaly-job}.
 
 When you create a {dfeed}, you can specify a
 {ref}/ml-put-datafeed.html#ml-put-datafeed-request-body[`query_delay`] setting.

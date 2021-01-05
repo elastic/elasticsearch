@@ -115,45 +115,45 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             if (closed) {
                 throw new IllegalStateException("already closed");
             }
             if (preallocationUsed == preallocated) {
                 // Preallocation buffer was full before this request
-                return next.addEstimateBytesAndMaybeBreak(bytes, label);
+                next.addEstimateBytesAndMaybeBreak(bytes, label);
+                return;
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 // This request filled up the buffer
                 preallocationUsed = preallocated;
-                return next.addEstimateBytesAndMaybeBreak(newUsed - preallocated, label);
+                next.addEstimateBytesAndMaybeBreak(newUsed - preallocated, label);
+                return;
             }
             // This is the fast case. No volatile reads or writes here, ma!
             preallocationUsed = newUsed;
-            // We return garbage here but callers never use the result for anything interesting
-            return 0;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
+        public void addWithoutBreaking(long bytes) {
             if (closed) {
                 throw new IllegalStateException("already closed");
             }
             if (preallocationUsed == preallocated) {
                 // Preallocation buffer was full before this request
-                return next.addWithoutBreaking(bytes);
+                next.addWithoutBreaking(bytes);
+                return;
             }
             long newUsed = preallocationUsed + bytes;
             if (newUsed > preallocated) {
                 // This request filled up the buffer
                 preallocationUsed = preallocated;
-                return next.addWithoutBreaking(newUsed - preallocated);
+                next.addWithoutBreaking(newUsed - preallocated);
+                return;
             }
             // This is the fast case. No volatile reads or writes here, ma!
             preallocationUsed = newUsed;
-            // We return garbage here but callers never use the result for anything interesting
-            return 0;
         }
 
         @Override

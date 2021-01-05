@@ -63,6 +63,7 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -1154,7 +1155,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final ClusterInfoService clusterInfoService
                 = internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
         if (clusterInfoService instanceof InternalClusterInfoService) {
-            ((InternalClusterInfoService) clusterInfoService).refresh();
+            ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         }
     }
 

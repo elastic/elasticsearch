@@ -22,7 +22,6 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -39,7 +38,6 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -59,7 +57,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
 /**
@@ -378,29 +375,7 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
         return nodeStats;
     }
 
-    /**
-     * Refreshes the ClusterInfo in a blocking fashion, for use in tests
-     */
-    public ClusterInfo refresh() {
-        logger.trace("refreshing cluster info");
-        final PlainActionFuture<ClusterInfo> future = new PlainActionFuture<>(){
-            @Override
-            protected boolean blockingAllowed() {
-                // In tests we permit blocking the applier thread here so that we know a followup reroute isn't working with stale data.
-                return (Assertions.ENABLED && Thread.currentThread().getName().contains(ClusterApplierService.CLUSTER_UPDATE_THREAD_NAME))
-                        || super.blockingAllowed();
-            }
-        };
-        refreshAsync(future);
-        try {
-            return future.actionGet(10, TimeUnit.SECONDS);
-        } catch (RuntimeException e) {
-            assert false : e;
-            throw e;
-        }
-    }
-
-    private void refreshAsync(ActionListener<ClusterInfo> future) {
+    void refreshAsync(ActionListener<ClusterInfo> future) {
         final Runnable newRefresh;
         synchronized (mutex) {
             nextRefreshListeners.add(future);

@@ -147,7 +147,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster
             .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
         infoService.setUpdateFrequency(TimeValue.timeValueMillis(200));
-        ClusterInfo info = infoService.refresh();
+        ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("info should not be null", info);
         ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
         ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
@@ -200,7 +200,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
 
         // get one healthy sample
-        ClusterInfo originalInfo = infoService.refresh();
+        ClusterInfo originalInfo = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("failed to collect info", originalInfo);
         assertThat("some usages are populated", originalInfo.getNodeLeastAvailableDiskUsages().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", originalInfo.shardSizes.size(), greaterThan(0));
@@ -231,7 +231,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         setClusterInfoTimeout("1s");
         // timeouts shouldn't clear the info
         timeout.set(true);
-        final ClusterInfo infoAfterTimeout = infoService.refresh();
+        final ClusterInfo infoAfterTimeout = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("info should not be null", infoAfterTimeout);
         // node stats from remote nodes will time out, but the local node will be included
         assertThat(infoAfterTimeout.getNodeLeastAvailableDiskUsages().size(), equalTo(1));
@@ -254,7 +254,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         assertNotNull("failed to find BlockingActionFilter", blockingActionFilter);
         blockingActionFilter.blockActions(blockedActions.toArray(Strings.EMPTY_ARRAY));
-        final ClusterInfo infoAfterException = infoService.refresh();
+        final ClusterInfo infoAfterException = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("info should not be null", infoAfterException);
         assertThat(infoAfterException.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(infoAfterException.getNodeMostAvailableDiskUsages().size(), equalTo(0));
@@ -264,7 +264,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         // check we recover
         blockingActionFilter.blockActions();
         setClusterInfoTimeout("15s");
-        final ClusterInfo infoAfterRecovery = infoService.refresh();
+        final ClusterInfo infoAfterRecovery = ClusterInfoServiceUtils.refresh(infoService);
         assertNotNull("info should not be null", infoAfterRecovery);
         assertThat(infoAfterRecovery.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(infoAfterRecovery.getNodeMostAvailableDiskUsages().size(), equalTo(2));

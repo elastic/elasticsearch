@@ -21,6 +21,7 @@ package org.elasticsearch.common.breaker;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -28,7 +29,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.startsWith;
+import static org.junit.Assume.assumeThat;
 
 public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
     public void testUseNotPreallocated() {
@@ -89,7 +92,9 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
     public void testRandom() {
         try (HierarchyCircuitBreakerService real = real()) {
             CircuitBreaker realBreaker = real.getBreaker(CircuitBreaker.REQUEST);
-            long preallocatedBytes = randomLongBetween(1, realBreaker.getLimit());
+            long limit = ByteSizeValue.ofMb(100).getBytes();
+            assumeThat(limit, lessThanOrEqualTo(realBreaker.getLimit()));
+            long preallocatedBytes = randomLongBetween(1, limit);
             try (PreallocatedCircuitBreakerService preallocated = preallocateRequest(real, preallocatedBytes)) {
                 CircuitBreaker b = preallocated.getBreaker(CircuitBreaker.REQUEST);
                 boolean usedPreallocated = false;

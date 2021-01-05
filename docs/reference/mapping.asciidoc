@@ -6,23 +6,29 @@
 
 Mapping is the process of defining how a document, and the fields it contains,
 are stored and indexed. You can choose how and where to map your data. Each
-method provides different benefits based on where you are in your data journey:
+method provides different benefits based on where you are in your data journey.
 
-* <<dynamic-field-mapping,Dynamic field mappings>> allow you to experiment with
-and explore data when you’re just getting started. {es} will add new fields
+[discrete]
+[[mapping-dynamic]]
+== Dynamic mapping
+<<dynamic-field-mapping,Dynamic mapping>> allows you to experiment with
+and explore data when you’re just getting started. {es} adds new fields
 automatically, just by indexing a document. You can add fields to the top-level
 mapping, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
-* <<runtime-search-request,Runtime fields in search requests>> are flexible,
-allowing you to experiment with different mapping options.
-* <<runtime-mapping-fields,Runtime fields in index mappings>> allow you to make
-schema changes without reindexing. You can use these fields in conjunction with
-indexed fields to balance resource usage and performance. Your index will be
-smaller, but with slower search performance.
-* <<explicit-mapping,Explicit mappings>> provide the best search performance
-but require more storage space, resulting in a larger index.
 
-When mapping your data using runtime fields or through explicit mapping, you
-choose how to define the mapping definition, such as:
+You can also dynamically map runtime fields:
+
+* <<match-mapping-runtime-fields,Map runtime fields in a dynamic template>> so
+that new fields are automatically added to the index mapping as runtime fields.
+* <<runtime-search-request,Define runtime fields in a search request>> to
+experiment with different mapping options, and also fix mistakes in your index
+mapping values by overriding values in the mapping during the search request.
+
+[discrete]
+[[mapping-explicit]]
+== Explicit mapping
+<<explicit-mapping,Explicit mapping>> allows you to precisely choose how to
+define the mapping definition, such as:
 
 * Which string fields should be treated as full text fields.
 * Which fields contain numbers, dates, or geolocations.
@@ -30,29 +36,28 @@ choose how to define the mapping definition, such as:
 * Custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
+You can <<runtime-mapping-fields,explicitly map runtime fields>>,
+which allows you to make schema changes without reindexing. You can use runtime
+fields in conjunction with indexed fields to balance resource usage and
+performance. Your index will be smaller, but with slower search performance.
+
 [discrete]
 [[mapping-definition-fields]]
-== Mapping fields
-Each document is a collection of fields. Most fields are indexed by default, which makes them searchable. When indexing documents, fields are saved to
-`_source`, which contains the original JSON document body that was passed at index time. The inverted index allows queries to look up the search term in unique sorted list of terms, and from that immediately have access to the list of documents that contain the term.
+== Fields in the mapping definition
+Each document is a collection of fields, which each have
+their own <<mapping-types,data type>>. A mapping definition contains a list of
+fields or `properties` pertinent to the document.
 
-However, we also need the ability to look up the document and find the terms that it has in a field. Doc values are the on-disk data structure, built at document index time, which makes this data access pattern possible. They store the same values as the `_source` but in a column-oriented fashion that is way more efficient for sorting and aggregations.
+Most fields are indexed by default, which makes them searchable. When indexing
+documents, fields are stored in <<mapping-source-field,`_source`>>, which
+contains the original JSON document body that was passed at index time.
 
-A mapping definition includes metadata fields and fields:
+<<mapping-fields,Metadata fields>>, like the `_source` field, are used to
+customize how a document's associated metadata is handled. Your mapping
+definition uses a combination of metadata fields and fields to outline the
+document schema.
 
-<<mapping-fields,Metadata fields>>::
-
-Metadata fields are used to customize how a document's associated metadata is
-treated. Examples of metadata fields include the document's
-<<mapping-index-field,`_index`>>, <<mapping-id-field,`_id`>>, and
-<<mapping-source-field,`_source`>> fields.
-
-<<mapping-types,Fields>>::
-
-A mapping contains a list of fields or `properties` pertinent to the
-document. Each field has its own <<mapping-types, data type>>.
-
-NOTE: Before 7.0.0, the 'mappings' definition included a type name.
+NOTE: Before 7.0.0, the mapping definition included a type name.
 {es} 7.0.0 and later no longer accept a _default_ mapping. See <<removal-of-types>>.
 
 [discrete]

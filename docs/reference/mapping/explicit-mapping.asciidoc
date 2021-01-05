@@ -1,6 +1,6 @@
 
 [[explicit-mapping]]
-== Explicit field mapping
+== Explicit mapping
 
 You know more about your data than {es} can guess, so while dynamic
 mapping can be useful to get started, at some point you will want to specify

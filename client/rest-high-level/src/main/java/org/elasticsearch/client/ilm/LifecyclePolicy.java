@@ -81,7 +81,7 @@ public class LifecyclePolicy implements ToXContentObject {
                 throw new IllegalArgumentException("Lifecycle does not support phase [" + phase.getName() + "]");
             }
            if (phase.getName().equals("delete") && phase.getActions().size() == 0) {
-               throw new IllegalArgumentException("phase [" + phase.getName() + "] must contain actions");
+              throw new IllegalArgumentException("phase [" + phase.getName() + "] must define actions");
            }
            phase.getActions().forEach((actionName, action) -> {
                 if (ALLOWED_ACTIONS.get(phase.getName()).contains(actionName) == false) {

@@ -200,7 +200,7 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
 
         Exception e = expectThrows(IllegalArgumentException.class,
             () -> new LifecyclePolicy(lifecycleName, phases));
-        assertThat(e.getMessage(), equalTo("phase [" + delete.getName() + "] must contain actions"));
+        assertThat(e.getMessage(), equalTo("phase [" + delete.getName() + "] must define actions"));
     }
 
     public static LifecyclePolicy createRandomPolicy(String lifecycleName) {

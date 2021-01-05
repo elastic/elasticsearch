@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-
 public class DocumentMapper implements ToXContentFragment {
 
     public static class Builder {
@@ -134,14 +133,6 @@ public class DocumentMapper implements ToXContentFragment {
             .filter(field -> noopTombstoneMetadataFields.contains(field.name())).toArray(MetadataFieldMapper[]::new);
     }
 
-    IndexSettings indexSettings() {
-        return indexSettings;
-    }
-
-    IndexAnalyzers indexAnalyzers() {
-        return indexAnalyzers;
-    }
-
     public Mapping mapping() {
         return mapping;
     }
@@ -203,18 +194,20 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping.metadataMappers, this);
+        return documentParser.parseDocument(source, mapping, fieldMappers, indexSettings, indexAnalyzers);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String type, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, this).toTombstone();
+        return documentParser.parseDocument(emptySource, mapping, deleteTombstoneMetadataFieldMappers, fieldMappers,
+            indexSettings, indexAnalyzers).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, type, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, this).toTombstone();
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, mapping, noopTombstoneMetadataFieldMappers,
+            fieldMappers, indexSettings, indexAnalyzers).toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));

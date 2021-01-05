@@ -78,16 +78,15 @@ public class ReloadSecureSettingsWithPasswordProtectedKeystoreRestIT extends ESR
             assertThat(entry.getValue(), instanceOf(Map.class));
             final Map<String, Object> node = (Map<String, Object>) entry.getValue();
             assertThat(node.get("reload_exception"), instanceOf(Map.class));
-            if (inFipsJvm()) {
-                assertThat(ObjectPath.eval("reload_exception.reason", node), containsString(
-                    "Error generating an encryption key from the provided password"));
-                assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("general_security_exception"));
-            } else {
-                assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
-                    equalTo("Provided keystore password was incorrect"),
-                    equalTo("Keystore has been corrupted or tampered with")));
-                assertThat(ObjectPath.eval("reload_exception.type", node), equalTo("security_exception"));
-            }
+            assertThat(ObjectPath.eval("reload_exception.reason", node), anyOf(
+                equalTo("Provided keystore password was incorrect"),
+                equalTo("Keystore has been corrupted or tampered with"),
+                containsString("Error generating an encryption key from the provided password") // FIPS
+            ));
+            assertThat(ObjectPath.eval("reload_exception.type", node), 
+                // Depends on exact security provider (eg Sun vs BCFIPS)
+                anyOf(equalTo("security_exception"), equalTo("general_security_exception"))
+            );
         }
     }
 

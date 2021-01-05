@@ -38,13 +38,11 @@ public class NoopCircuitBreaker implements CircuitBreaker {
     }
 
     @Override
-    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
-        return 0;
+    public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
     }
 
     @Override
-    public long addWithoutBreaking(long bytes) {
-        return 0;
+    public void addWithoutBreaking(long bytes) {
     }
 
     @Override

@@ -82,6 +82,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stopping the node with the primary");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(primaryNodeName()));
         ensureStableCluster(1);
+        refreshClusterInfo();
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();
@@ -159,6 +160,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         logger.info("--> stopping the node with the replica");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(replicaNode().getName()));
         ensureStableCluster(2);
+        refreshClusterInfo();
         assertBusy(() ->
             // wait till we have passed any pending shard data fetching
             assertEquals(AllocationDecision.ALLOCATION_DELAYED, client().admin().cluster().prepareAllocationExplain()

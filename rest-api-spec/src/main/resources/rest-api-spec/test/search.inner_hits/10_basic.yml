@@ -95,6 +95,9 @@ setup:
 
 ---
 "Inner hits with disabled _source":
+  - skip:
+      version: " - 7.3.0"
+      reason: "The bugfix for this case was introduced in 7.3.1"
   - do:
       indices.create:
         index: disabled_source

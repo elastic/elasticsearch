@@ -95,7 +95,7 @@ public class DiscoveryNodeFilters {
      * filters after trimming, {@code null} is returned.
      */
     @Nullable
-    public static DiscoveryNodeFilters trim(@Nullable DiscoveryNodeFilters original) {
+    public static DiscoveryNodeFilters trimTier(@Nullable DiscoveryNodeFilters original) {
         if (original == null) {
             return null;
         }

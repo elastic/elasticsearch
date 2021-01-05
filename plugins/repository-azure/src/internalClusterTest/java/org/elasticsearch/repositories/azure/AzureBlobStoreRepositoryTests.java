@@ -242,9 +242,11 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             List<String> blobsToDelete = new ArrayList<>();
             for (int i = 0; i < 10; i++) {
                 byte[] bytes = randomBytes(randomInt(100));
-                String blobName = randomAlphaOfLength(10);
-                container.writeBlob(blobName, new BytesArray(bytes), false);
-                blobsToDelete.add(blobName);
+                try (InputStream inputStream = new ByteArrayInputStream(bytes)) {
+                    String blobName = randomAlphaOfLength(10);
+                    container.writeBlob(blobName, inputStream, bytes.length, false);
+                    blobsToDelete.add(blobName);
+                }
             }
 
             // Try to delete non existent blobs

@@ -26,9 +26,6 @@ Features/CAT APIs::
 Features/Indices APIs::
 * Deprecate `_upgrade` API (#47678) {es-pull}50484[#50484] (issue: {es-issue}47678[#47678])
 
-Mapping::
-* Emit a warning when an unknown geo strategy is passed in {es-pull}63975[#63975]
-
 Security::
 * Deprecate certificate generation without a CA, and add self-signed option {es-pull}64037[#64037] (issue: {es-issue}61884[#61884])
 
@@ -46,7 +43,7 @@ Audit::
 * Introduce new audit record for security configuration changes via API {es-pull}62916[#62916]
 
 Features/Ingest::
-* URI parts ingest processor  {es-pull}65150[#65150] (issue: {es-issue}57481[#57481])
+* URI parts ingest processor {es-pull}65150[#65150] (issue: {es-issue}57481[#57481])
 
 Geo::
 * Add `geo_line` aggregation {es-pull}41612[#41612] (issue: {es-issue}41649[#41649])
@@ -72,10 +69,13 @@ Aggregations::
 * Consider query when optimizing date rounding {es-pull}63403[#63403]
 * Speed up `date_histogram` without children {es-pull}63643[#63643] (issue: {es-issue}61467[#61467])
 * Speed up interval rounding {es-pull}63245[#63245]
-* Use Globals Ords in Cardinality aggregation when it makes sense {es-pull}62560[#62560]
+* Use global ordinals in Cardinality aggregation when it makes sense {es-pull}62560[#62560]
 
 Allocation::
 * Add data tiers preference for snapshot blob cache system index {es-pull}64004[#64004] (issue: {es-issue}63204[#63204])
+
+Audit::
+* Log a warning when current license level does not permit auditing {es-pull}65498[#65498]
 
 Authentication::
 * Adding API for generating SAML SP metadata {es-pull}64517[#64517] (issue: {es-issue}49018[#49018])
@@ -93,6 +93,7 @@ Client::
 * Adding authentication information to access token create APIs {es-pull}62490[#62490] (issue: {es-issue}59685[#59685])
 
 EQL::
+* Add `?` character to `:` operator {es-pull}65545[#65545] (issue: {es-issue}65536[#65536])
 * Add wildcard functionality to `:` operator {es-pull}65188[#65188] (issue: {es-issue}65154[#65154])
 * Introduce list declaration for `:` operator {es-pull}65230[#65230] (issue: {es-issue}64388[#64388])
 
@@ -108,7 +109,6 @@ Features/Data streams::
 * REST endpoint and tests for data stream migration {es-pull}64415[#64415] (issue: {es-issue}61046[#61046])
 
 Features/Features::
-* Add deprecation check for Java version {es-pull}41092[#41092]
 * Make `stack.templates.enabled` a dynamic setting {es-pull}63764[#63764] (issues: {es-issue}37861[#37861], {es-issue}38560[#38560], {es-issue}62835[#62835])
 
 Features/ILM+SLM::
@@ -116,7 +116,8 @@ Features/ILM+SLM::
 * Allow readonly in the hot phase for ILM policies {es-pull}64381[#64381] (issues: {es-issue}52073[#52073], {es-issue}58289[#58289], {es-issue}64008[#64008])
 * Allow shrink in the hot phase for ILM policies {es-pull}64008[#64008] (issues: {es-issue}52073[#52073], {es-issue}56377[#56377])
 * Add support for the `searchable_snapshot` action in the hot phase {es-pull}64883[#64883] (issue: {es-issue}64656[#64656])
-* validate policy and actions against current license {es-pull}65412[#65412] (issue: {es-issue}60208[#60208])
+* Make the unfollow action and CCR related steps retryable [OPEN] {es-pull}66356[#66356] (issue: {es-issue}48183[#48183])
+* Validate policy and actions against current license {es-pull}65412[#65412] (issue: {es-issue}60208[#60208])
 * Make SLM Run Snapshot Deletes in Parallel {es-pull}62284[#62284] (issue: {es-issue}59655[#59655])
 * Use data stream for ILM history {es-pull}64521[#64521]
 
@@ -141,9 +142,13 @@ Geo::
 * Enable `geo_distance` and `geo_bounding_box` queries on `geo_shape` field type {es-pull}64224[#64224] (issue: {es-issue}54628[#54628])
 * `geo_point` runtime field implementation {es-pull}63164[#63164]
 
+Highlighting::
+* Make runtime fields highlightable {es-pull}65560[#65560]
+
 Infra/Core::
 * Add deprecation check for Java version {es-pull}64996[#64996] (issues: {es-issue}40754[#40754], {es-issue}40756[#40756], {es-issue}41092[#41092])
-* Add stream serialisation for the OffsetTime values {es-pull}63568[#63568] (issue: {es-issue}63521[#63521])
+* Add infrastructure for managing system indices {es-pull}65604[#65604] (issue: {es-issue}61656[#61656])
+* Add stream serialisation for the `OffsetTime` values {es-pull}63568[#63568] (issue: {es-issue}63521[#63521])
 * Add validation in policy files for missing codebases {es-pull}64841[#64841]
 * Use different G1GC options for small heaps {es-pull}59667[#59667]
 
@@ -151,7 +156,7 @@ Infra/Plugins::
 * Introduce licensed plugins {es-pull}64850[#64850]
 
 Infra/Scripting::
-* Support `TemporalAccessor#toEpochMillis` in Painless so that all contexts can use it {es-pull}63439[#63439]
+* Move helper into painless {es-pull}63439[#63439]
 
 Infra/Settings::
 * Enhance byte-size setting validation {es-pull}65363[#65363] (issue: {es-issue}64428[#64428])
@@ -162,15 +167,17 @@ License::
 Machine Learning::
 * Add new setting `xpack.ml.use_auto_machine_memory_percent` for auto calculating native memory percentage allowed for jobs {es-pull}63887[#63887] (issue: {es-issue}63795[#63795])
 * Add new snapshot upgrader API for upgrading older snapshots {es-pull}64665[#64665] (issue: {es-issue}64154[#64154])
+* Add search `runtime_mappings` to datafeed configuration {es-pull}65606[#65606]
 * Add total ML memory to ML info {es-pull}65195[#65195] (issue: {es-issue}64225[#64225])
 * Adding `result_type` and `mlcategory` fields to category definitions {es-pull}63326[#63326] (issue: {es-issue}60108[#60108])
 * Increase log level for forecast disk storage problems {es-pull}64766[#64766] (issue: {es-issue}58806[#58806])
 * Provide a way to revert an AD job to an empty snapshot {es-pull}65431[#65431]
 
 Mapping::
-* Allow `MappedFieldType` impls to hide themselves from field caps {es-pull}63547[#63547] (issue: {es-issue}63446[#63446])
+* Add xpack info and usage endpoints for runtime fields {es-pull}65600[#65600] (issue: {es-issue}59332[#59332])
 * Enable collapse on `unsigned_long` field {es-pull}63495[#63495] (issue: {es-issue}60050[#60050])
 * Ensure field types consistency on supporting text queries {es-pull}63487[#63487]
+* Introduce dynamic runtime setting {es-pull}65489[#65489]
 * Introduce runtime section in mappings {es-pull}62906[#62906] (issue: {es-issue}59332[#59332])
 * Improve error message in case of invalid dynamic templates {es-pull}60870[#60870] (issue: {es-issue}51233[#51233])
 * Support unmapped fields in search `fields` option {es-pull}65386[#65386] (issue: {es-issue}63690[#63690])
@@ -185,7 +192,6 @@ Packaging::
 Query Languages::
 * Combine multiple equal queries into `IN` {es-pull}65353[#65353] (issues: {es-issue}46477[#46477], {es-issue}62804[#62804])
 * Improve expression normalization {es-pull}65419[#65419] (issue: {es-issue}65353[#65353])
-* Introduce common analyzer base class {es-pull}65325[#65325] (issue: {es-issue}63695[#63695])
 
 SQL::
 * Add method args to `PERCENTILE` / `PERCENTILE_RANK` {es-pull}65026[#65026] (issue: {es-issue}63567[#63567])
@@ -193,17 +199,22 @@ SQL::
 
 Search::
 * Add `runtime_mappings` to search request {es-pull}64374[#64374] (issue: {es-issue}59332[#59332])
+* Add default scripts for runtime geo-point fields {es-pull}65586[#65586]
 * Add support for runtime fields {es-pull}61776[#61776] (issue: {es-issue}59332[#59332])
-* Automatic tie-breaking for sorted queries within a PIT {es-pull}65450[#65450] (issue: {es-issue}56828[#56828])
+* Apply can match phase on coordinator when the min max field data is available at the coordinator {es-pull}65583[#65583] (issue: {es-issue}65689[#65689])
 * Cancel search on shard failure when partial results disallowed {es-pull}63520[#63520] (issue: {es-issue}60278[#60278])
 * Do not skip not available shard exception in search response {es-pull}64337[#64337] (issue: {es-issue}47700[#47700])
 
 Snapshot/Restore::
-* Add CacheFile#fsync() method to ensure cached data are written on disk {es-pull}64201[#64201]
+* Add `CacheFile#fsync()` method to ensure cached data are written on disk {es-pull}64201[#64201]
 * Allow searchable snapshot cache service to periodically fsync cache files {es-pull}64696[#64696] (issue: {es-issue}64201[#64201])
-* Expose the list of completed ranges in SparseFileTracker {es-pull}64145[#64145]
+* Allow adding existing cache files in searchable snapshots cache service {es-pull}65538[#65538]
+* Allow creating a `SparseFileTracker` with ranges already present {es-pull}65501[#65501]
+* Expose the list of completed ranges in `SparseFileTracker` {es-pull}64145[#64145]
 * Limit the number of snapshots in a `BlobStoreRepository` {es-pull}64461[#64461]
+* Record timestamp field range in index metadata {es-pull}65564[#65564]
 * Upgrade Azure repository SDK to v12 {es-pull}65140[#65140]
+* Wait for prewarm when relocating searchable snapshot shards {es-pull}65531[#65531]
 
 Task Management::
 * Send ban parent per outstanding child connection {es-pull}65443[#65443]
@@ -212,7 +223,8 @@ Transform::
 * Add new `exclude_generated` flag to `GET` transform {es-pull}63093[#63093] (issue: {es-issue}63055[#63055])
 * Add support for "missing" aggregation {es-pull}63651[#63651]
 * Add support for median absolute deviation {es-pull}64634[#64634]
-* Improve continuous transform `date_histogram` group_by with ingest timestamps {es-pull}63315[#63315] (issues: {es-issue}54254[#54254], {es-issue}59061[#59061])
+* Improve continuous transform `date_histogram` `group_by` with ingest timestamps {es-pull}63315[#63315] (issues: {es-issue}54254[#54254], {es-issue}59061[#59061])
+* Use ISO dates in output instead of epoch millis {es-pull}65584[#65584] (issue: {es-issue}63787[#63787])
 
 
 
@@ -247,10 +259,10 @@ Features/Java Low Level REST Client::
 
 Geo::
 * Compute polygon orientation using signed area {es-pull}64095[#64095] (issue: {es-issue}26286[#26286])
+* Fixes `GeoLineAggregator` bugs {es-pull}65521[#65521] (issue: {es-issue}65473[#65473])
 * Handle degenerated rectangles while indexing {es-pull}64122[#64122]
 
 Infra/Core::
-* Allow interchangeability between camel case and snake case for patterns {es-pull}57878[#57878] (issue: {es-issue}57672[#57672])
 * Fix array handling in `XContentMapValues.extractRawValues()` {es-pull}65193[#65193]
 
 Machine Learning::
@@ -262,7 +274,6 @@ Machine Learning::
 Mapping::
 * Count only mapped fields towards `docvalue_fields` limit {es-pull}63806[#63806] (issue: {es-issue}63730[#63730])
 * Fix exception when building exists query for nested search-as-you-type field {es-pull}64630[#64630] (issue: {es-issue}64609[#64609])
-* Fix a bug around trailing dots in field names {es-pull}49946[#49946]
 
 Packaging::
 * Fix plugin installation in Docker container as non-default user {es-pull}63807[#63807]
@@ -270,8 +281,8 @@ Packaging::
 
 Search::
 * Add explanation to runtime field query {es-pull}63429[#63429]
+* Correctly handle mixed object paths in XContentMapValues {es-pull}65539[#65539] (issue: {es-issue}65499[#65499])
 * Drop boost from runtime distance feature query {es-pull}63949[#63949] (issue: {es-issue}63767[#63767])
-* Fix NPE in artificial document `_termvectors` request {es-pull}48745[#48745] (issues: {es-issue}47723[#47723], {es-issue}48744[#48744])
 * Handle range query edge case {es-pull}63397[#63397] (issue: {es-issue}63386[#63386])
 * Return partial failures if search was cancelled {es-pull}64382[#64382] (issues: {es-issue}63520[#63520], {es-issue}64367[#64367])
 * `_mtermvectors` should continue request on item error {es-pull}65324[#65324] (issue: {es-issue}65228[#65228])
@@ -280,11 +291,14 @@ Security::
 * Gracefully handle exceptions from security providers {es-pull}65464[#65464]
 
 Snapshot/Restore::
+* Fix inconsistent API behavior when cluster never had a snapshot repository configured {es-pull}65535[#65535] (issue: {es-issue}65511[#65511])
 * Fix two snapshot clone state machine bugs {es-pull}65042[#65042]
 * Correct the number of searchable snapshot prewarmers {es-pull}63919[#63919] (issue: {es-issue}59313[#59313])
+* Stricter check for snapshot restore version compatibility {es-pull}65580[#65580] (issue: {es-issue}65567[#65567])
 
 Transform::
 * Improve bucket key normalization {es-pull}64196[#64196] (issue: {es-issue}64070[#64070])
 * Make state handling more robust when stop is called while indexer shuts down {es-pull}64922[#64922] (issue: {es-issue}62204[#62204])
 * Weighted average should map to double {es-pull}64586[#64586]
+
 

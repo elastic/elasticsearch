@@ -211,7 +211,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         }
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(bucketSpan);
-        if (randomBoolean()) {
+        if (isCategorization) {
             analysisConfig.setCategorizationFieldName("text");
         }
         Job.Builder job = new Job.Builder(jobId);

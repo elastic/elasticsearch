@@ -19,9 +19,9 @@
 
 package org.elasticsearch.gradle.internal
 
-import org.apache.commons.io.FileUtils
 import org.elasticsearch.gradle.fixtures.AbstractGitAwareGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
+import spock.lang.Unroll
 
 class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleFuncTest {
 
@@ -30,22 +30,31 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
+        execute("git branch origin/7.x", file("cloned"))
+        execute("git branch origin/7.9", file("cloned"))
     }
 
-    def "builds distribution from branches via archives assemble"() {
+    @Unroll
+    def "builds distribution from branches via archives #expectedAssembleTaskName"() {
         when:
-        def result = gradleRunner(":distribution:bwc:bugfix:buildBwcDarwinTar",
-                ":distribution:bwc:bugfix:buildBwcOssDarwinTar",
+        def result = gradleRunner(":distribution:bwc:${bwcProject}:buildBwcDarwinTar",
+                ":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar",
                 "-DtestRemoteRepo=" + remoteGitRepo,
-                "-Dbwc.remote=origin")
+                "-Dbwc.remote=origin",
+                "-Dbwc.dist.version=${bwcDistVersion}-SNAPSHOT")
                 .build()
         then:
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:bugfix:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:${bwcProject}:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+        result.task(":distribution:bwc:${bwcProject}:buildBwcOssDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
-        result.output.contains("[8.0.1] > Task :distribution:archives:oss-darwin-tar:assemble")
+        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:darwin-tar:${expectedAssembleTaskName}")
+        assertOutputContains(result.output, "[$bwcDistVersion] > Task :distribution:archives:oss-darwin-tar:${expectedAssembleTaskName}")
+
+        where:
+        bwcDistVersion | bwcProject | expectedAssembleTaskName
+        "7.9.1"        | "bugfix"   | "assemble"
+        "7.11.0"       | "minor"    | "extractedAssemble"
     }
 
     def "bwc distribution archives can be resolved as bwc project artifact"() {
@@ -79,10 +88,10 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
 
         and: "assemble task triggered"
-        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("[7.9.1] > Task :distribution:archives:darwin-tar:assemble")
         normalized(result.output)
-                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/distribution/archives/darwin-tar/" +
-                        "build/distributions/elasticsearch-8.0.1-SNAPSHOT-darwin-x86_64.tar.gz")
+                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-7.9/distribution/archives/darwin-tar/" +
+                        "build/distributions/elasticsearch-7.9.1-SNAPSHOT-darwin-x86_64.tar.gz")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {
@@ -94,14 +103,17 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         }
         
         dependencies {
-            expandedDist project(path: ":distribution:bwc:bugfix", configuration:"expanded-darwin-tar")
+            expandedDist project(path: ":distribution:bwc:minor", configuration:"expanded-darwin-tar")
         }
         
         tasks.register("resolveExpandedDistribution") {
             inputs.files(configurations.expandedDist)
             doLast {
                 configurations.expandedDist.files.each {
-                    println "distfile " + (it.absolutePath - project.rootDir.absolutePath)
+                    println "expandedRootPath " + (it.absolutePath - project.rootDir.absolutePath)
+                    it.eachFile { nested ->
+                        println "nested folder " + (nested.absolutePath - project.rootDir.absolutePath)
+                    }
                 }
             }
         }
@@ -113,27 +125,14 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
                 .build()
         then:
         result.task(":resolveExpandedDistribution").outcome == TaskOutcome.SUCCESS
-        result.task(":distribution:bwc:bugfix:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
-
+        result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
-        result.output.contains("[8.0.1] > Task :distribution:archives:darwin-tar:assemble")
+        result.output.contains("[7.11.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
         normalized(result.output)
-                .contains("distfile /distribution/bwc/bugfix/build/bwc/checkout-8.0/" +
+                .contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-7.x/" +
                         "distribution/archives/darwin-tar/build/install")
-    }
-
-    File setupGitRemote() {
-        URL fakeRemote = getClass().getResource("fake_git/remote")
-        File workingRemoteGit = new File(remoteRepoDirs.root, 'remote')
-        FileUtils.copyDirectory(new File(fakeRemote.file), workingRemoteGit)
-        fakeRemote.file + "/.git"
-        gradleRunner(workingRemoteGit, "wrapper").build()
-        execute("git init", workingRemoteGit)
-        execute('git config user.email "build-tool@elastic.co"', workingRemoteGit)
-        execute('git config user.name "Build tool"', workingRemoteGit)
-        execute("git add .", workingRemoteGit)
-        execute('git commit -m"Initial"', workingRemoteGit)
-        execute("git checkout -b origin/8.0", workingRemoteGit)
-        return workingRemoteGit;
+        normalized(result.output)
+                .contains("nested folder /distribution/bwc/minor/build/bwc/checkout-7.x/" +
+                        "distribution/archives/darwin-tar/build/install/elasticsearch-7.11.0-SNAPSHOT")
     }
 }

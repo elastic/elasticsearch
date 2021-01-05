@@ -40,7 +40,7 @@ class StringStatsAggregatorFactory extends ValuesSourceAggregatorFactory {
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             StringStatsAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BYTES, StringStatsAggregator::new, true);
+            CoreValuesSourceType.KEYWORD, StringStatsAggregator::new, true);
     }
 
     @Override

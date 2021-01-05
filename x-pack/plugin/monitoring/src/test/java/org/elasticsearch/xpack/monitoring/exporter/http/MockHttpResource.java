@@ -112,7 +112,7 @@ public class MockHttpResource extends PublishableHttpResource {
     }
 
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         assert client != null;
 
         ++published;
@@ -121,7 +121,7 @@ public class MockHttpResource extends PublishableHttpResource {
         if (publish == null) {
             listener.onFailure(new RuntimeException("TEST - expected"));
         } else {
-            listener.onResponse(publish);
+            listener.onResponse(new ResourcePublishResult(publish));
         }
     }
 

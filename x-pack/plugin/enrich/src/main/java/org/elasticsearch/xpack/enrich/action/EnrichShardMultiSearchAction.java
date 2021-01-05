@@ -242,6 +242,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                 Map<String, Object> runtimeFields = emptyMap();
                 final QueryShardContext context = indexService.newQueryShardContext(
                     shardId.id(),
+                    0,
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
                     null,

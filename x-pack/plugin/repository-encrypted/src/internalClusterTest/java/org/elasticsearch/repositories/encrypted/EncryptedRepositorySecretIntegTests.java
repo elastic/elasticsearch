@@ -35,6 +35,7 @@ import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.junit.BeforeClass;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -64,6 +65,11 @@ import static org.mockito.Mockito.when;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
 public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
+
+    @BeforeClass
+    public static void checkEnabled() {
+        assumeFalse("Should only run when encrypted repo is enabled", EncryptedRepositoryPlugin.isDisabled());
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

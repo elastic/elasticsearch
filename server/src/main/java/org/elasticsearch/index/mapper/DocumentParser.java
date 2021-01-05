@@ -40,6 +40,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -58,18 +60,33 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source,
-                                 MetadataFieldMapper[] metadataFieldsMappers,
-                                 DocumentMapper docMapper) throws MapperParsingException {
+                                 Mapping mapping,
+                                 MappingLookup mappingLookup,
+                                 IndexSettings indexSettings,
+                                 IndexAnalyzers indexAnalyzers) throws MapperParsingException {
+        return parseDocument(source, mapping, mapping.metadataMappers, mappingLookup, indexSettings, indexAnalyzers);
+    }
 
-        final Mapping mapping = docMapper.mapping();
+    ParsedDocument parseDocument(SourceToParse source,
+                                 Mapping mapping,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 MappingLookup mappingLookup,
+                                 IndexSettings indexSettings,
+                                 IndexAnalyzers indexAnalyzers) throws MapperParsingException {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
-
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(docMapper, dateParserContext, dynamicRuntimeFieldsBuilder, source, parser);
+            context = new ParseContext.InternalParseContext(mapping,
+                mappingLookup,
+                indexSettings,
+                indexAnalyzers,
+                dateParserContext,
+                dynamicRuntimeFieldsBuilder,
+                source,
+                parser);
             validateStart(parser);
-            internalParseDocument(mapping, metadataFieldsMappers, context, parser);
+            internalParseDocument(mapping.root(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -81,7 +98,7 @@ final class DocumentParser {
 
         context.postParse();
 
-        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper.mappers(),
+        return parsedDocument(source, context, createDynamicUpdate(mapping, mappingLookup,
             context.getDynamicMappers(), context.getDynamicRuntimeFields()));
     }
 
@@ -99,19 +116,19 @@ final class DocumentParser {
         return false;
     }
 
-    private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataFieldsMappers,
+    private static void internalParseDocument(RootObjectMapper root, MetadataFieldMapper[] metadataFieldsMappers,
                                               ParseContext context, XContentParser parser) throws IOException {
-        final boolean emptyDoc = isEmptyDoc(mapping, parser);
+        final boolean emptyDoc = isEmptyDoc(root, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.preParse(context);
         }
 
-        if (mapping.root.isEnabled() == false) {
+        if (root.isEnabled() == false) {
             // entire type is disabled
             parser.skipChildren();
         } else if (emptyDoc == false) {
-            parseObjectOrNested(context, mapping.root);
+            parseObjectOrNested(context, root);
         }
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -137,8 +154,8 @@ final class DocumentParser {
         }
     }
 
-    private static boolean isEmptyDoc(Mapping mapping, XContentParser parser) throws IOException {
-        if (mapping.root.isEnabled()) {
+    private static boolean isEmptyDoc(RootObjectMapper root, XContentParser parser) throws IOException {
+        if (root.isEnabled()) {
             final XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_OBJECT) {
                 // empty doc, we can handle it...

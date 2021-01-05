@@ -617,7 +617,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        ParseContext context = new ParseContext.InternalParseContext(mapperService.documentMapper(), null, null, null, null);
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParseContext context = new ParseContext.InternalParseContext(docMapper.mapping(), docMapper.mappers(),
+            mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), null, null, null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);

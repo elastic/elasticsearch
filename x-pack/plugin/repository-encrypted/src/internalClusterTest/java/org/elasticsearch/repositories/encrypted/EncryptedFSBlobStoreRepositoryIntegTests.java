@@ -42,7 +42,8 @@ public final class EncryptedFSBlobStoreRepositoryIntegTests extends ESFsBasedRep
     private static List<String> repositoryNames = new ArrayList<>();
 
     @BeforeClass
-    private static void preGenerateRepositoryNames() {
+    public static void preGenerateRepositoryNames() {
+        assumeFalse("Should only run when encrypted repo is enabled", EncryptedRepositoryPlugin.isDisabled());
         for (int i = 0; i < NUMBER_OF_TEST_REPOSITORIES; i++) {
             repositoryNames.add("test-repo-" + i);
         }

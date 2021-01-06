@@ -57,7 +57,7 @@ Data stream names must meet the following criteria:
 space character
 - Cannot start with `-`, `_`, `+`, or `.ds-`
 - Cannot be `.` or `..`
-- Cannot be longer than 255 bytes Multi-byte characters
+- Cannot be longer than 255 bytes. Multi-byte characters
 count towards this limit faster.
 // end::data-stream-name[]
 --

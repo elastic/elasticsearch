@@ -84,7 +84,8 @@ public abstract class Collector {
                 return doCollect(convertNode(timestamp, clusterService.localNode()), interval, clusterState);
             }
         } catch (ElasticsearchTimeoutException e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] timed out when collecting data", name()));
+            logger.error((Supplier<?>) () ->
+                    new ParameterizedMessage("collector [{}] timed out when collecting data: {}", name(), e.getMessage()));
         } catch (Exception e) {
             logger.error((Supplier<?>) () -> new ParameterizedMessage("collector [{}] failed to collect data", name()), e);
         }

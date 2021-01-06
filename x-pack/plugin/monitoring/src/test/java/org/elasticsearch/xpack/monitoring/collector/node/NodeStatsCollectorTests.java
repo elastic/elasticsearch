@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -121,7 +120,7 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
     private void thenReturnNodeStats(final Client client, final TimeValue timeout, final NodesStatsResponse nodesStatsResponse) {
         @SuppressWarnings("unchecked")
         final ActionFuture<NodesStatsResponse> future = (ActionFuture<NodesStatsResponse>) mock(ActionFuture.class);
-        when(future.actionGet(eq(timeout))).thenReturn(nodesStatsResponse);
+        when(future.actionGet()).thenReturn(nodesStatsResponse);
 
         final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
         when(clusterAdminClient.nodesStats(any(NodesStatsRequest.class))).thenReturn(future);

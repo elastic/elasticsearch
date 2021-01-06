@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
+
 /**
  * Collector for nodes statistics.
  * <p>
@@ -77,6 +79,7 @@ public class NodeStatsCollector extends Collector {
         request.timeout(getCollectionTimeout());
 
         final NodesStatsResponse response = client.admin().cluster().nodesStats(request).actionGet();
+        ensureNoTimeouts(getCollectionTimeout(), response);
 
         // if there's a failure, then we failed to work with the
         // _local node (guaranteed a single exception)

@@ -99,7 +99,8 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
             phaseName += randomAlphaOfLength(5);
         }
         Map<String, Phase> phases = Collections.singletonMap(phaseName,
-            new Phase(phaseName, TimeValue.ZERO, Collections.emptyMap()));
+            new Phase(phaseName, TimeValue.ZERO, phaseName.equals("delete") ? Collections.singletonMap(DeleteAction.NAME,
+                new DeleteAction()) : Collections.emptyMap()));
         if (invalid) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new LifecyclePolicy(lifecycleName, phases));
             assertThat(e.getMessage(), equalTo("Lifecycle does not support phase [" + phaseName + "]"));

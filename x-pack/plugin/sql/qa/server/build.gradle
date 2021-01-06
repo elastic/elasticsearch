@@ -42,6 +42,13 @@ dependencies {
   }
 }
 
+tasks.register("dataloader", JavaExec) {
+  dependsOn "testClasses"
+  main 'org.elasticsearch.xpack.sql.qa.jdbc.DataLoader'
+  classpath sourceSets.main.runtimeClasspath + sourceSets.main.output
+  systemProperty 'file.encoding', 'UTF-8'
+}
+
 subprojects {
   if (subprojects.isEmpty()) {
     // leaf project

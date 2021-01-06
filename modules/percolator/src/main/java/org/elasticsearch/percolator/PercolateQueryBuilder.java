@@ -272,7 +272,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             out.writeBytesReference(document);
         }
         if (documents.isEmpty() == false) {
-            out.writeEnum(documentXContentType);
+            XContentHelper.writeTo(out, documentXContentType);
         }
     }
 

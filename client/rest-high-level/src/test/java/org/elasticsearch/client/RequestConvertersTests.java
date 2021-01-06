@@ -1821,9 +1821,11 @@ public class RequestConvertersTests extends ESTestCase {
     }
 
     public void testEnforceSameContentType() {
-        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE);
+        XContentType xContentType = randomFrom(XContentType.JSON, XContentType.SMILE, XContentType.VND_JSON, XContentType.VND_SMILE);
         IndexRequest indexRequest = new IndexRequest().source(singletonMap("field", "value"), xContentType);
-        assertEquals(xContentType, enforceSameContentType(indexRequest, null));
+        // indexRequest content type is made canonical because IndexRequest's content-type is
+        // from XContentBuilder.getXContentType (hardcoded in JsonXContentGEnerator)
+        assertEquals(xContentType.canonical(), enforceSameContentType(indexRequest, null));
         assertEquals(xContentType, enforceSameContentType(indexRequest, xContentType));
 
         XContentType bulkContentType = randomBoolean() ? xContentType : null;
@@ -1840,7 +1842,7 @@ public class RequestConvertersTests extends ESTestCase {
         assertEquals("Unsupported content-type found for request with content-type [YAML], only JSON and SMILE are supported",
                 exception.getMessage());
 
-        XContentType requestContentType = xContentType == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
+        XContentType requestContentType = xContentType.canonical() == XContentType.JSON ? XContentType.SMILE : XContentType.JSON;
 
         exception = expectThrows(IllegalArgumentException.class,
                 () -> enforceSameContentType(new IndexRequest().source(singletonMap("field", "value"), requestContentType), xContentType));

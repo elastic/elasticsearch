@@ -52,7 +52,7 @@ import java.util.regex.Pattern;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
 
-    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
+    static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MIME_TYPE = "application/json";
     static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
     static final String X_WWW_FORM_URLENCODED_MIME_TYPE = "application/x-www-form-urlencoded";

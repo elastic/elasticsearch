@@ -1043,19 +1043,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             assert bytes >= 0;
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }
             allocated += bytes;
-            return allocated;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
+        public void addWithoutBreaking(long bytes) {
             allocated += bytes;
-            return allocated;
         }
     }
 }

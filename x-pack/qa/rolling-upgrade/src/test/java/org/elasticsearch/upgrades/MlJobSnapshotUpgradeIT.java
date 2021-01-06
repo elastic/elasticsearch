@@ -86,6 +86,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67059")
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
@@ -229,8 +230,17 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setPartitionFieldName("series");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        List<Detector> detectors = new ArrayList<>();
+        detectors.add(detector.build());
+        boolean isCategorization = randomBoolean();
+        if (isCategorization) {
+            detectors.add(new Detector.Builder("count", null).setByFieldName("mlcategory").build());
+        }
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(bucketSpan);
+        if (randomBoolean()) {
+            analysisConfig.setCategorizationFieldName("text");
+        }
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -247,6 +257,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", now);
                 record.put("value", timeAndSeriesToValueFunction.apply(i, field));
+                record.put("text", randomFrom("foo has landed 3", "bar has landed 5", "bar has finished 2", "foo has finished 10"));
                 record.put("series", field);
                 data.add(createJsonRecord(record));
 

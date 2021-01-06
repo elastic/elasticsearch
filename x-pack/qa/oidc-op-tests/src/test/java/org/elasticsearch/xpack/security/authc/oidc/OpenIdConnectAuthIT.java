@@ -73,7 +73,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     private static final String REALM_NAME_PROXY = "c2id-proxy";
     private static final String REALM_NAME_CLIENT_POST_AUTH = "c2id-post";
     private static final String REALM_NAME_CLIENT_JWT_AUTH = "c2id-jwt";
-    private static final String FACILITATOR_PASSWORD = "f@cilit@t0r";
+    private static final String FACILITATOR_PASSWORD = "f@cilit@t0rPassword"; // longer than 14 chars
     private static final String REGISTRATION_URL = "http://127.0.0.1:" + getEphemeralTcpPortFromProperty("oidc-provider", "8080")
         + "/c2id/clients";
     private static final String LOGIN_API = "http://127.0.0.1:" + getEphemeralTcpPortFromProperty("oidc-provider", "8080")

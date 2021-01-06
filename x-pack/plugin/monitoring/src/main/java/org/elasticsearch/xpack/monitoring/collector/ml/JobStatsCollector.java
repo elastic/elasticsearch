@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.collector.Collector;
-import org.elasticsearch.xpack.monitoring.collector.TimeoutUtils;
 
 import java.util.List;
 import java.util.stream.Collectors;

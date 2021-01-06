@@ -131,13 +131,13 @@ PUT my-index-000001/_doc/1
 [[match-mapping-runtime-fields]]
 ===== Mapping runtime fields in a dynamic template
 You can also map runtime fields in a dynamic template. For example, the
-following request adds a dynamic template named `dayofweek` that maps all
-incoming `string` fields as `keyword` fields. Although the `runtime` definition
-is blank, new `string` fields will be mapped as `keyword` fields based on the
-<<dynamic-field-mapping-types,dynamic mapping rules>> that {es} uses for adding
-field types to the mapping. Any `string` that doesn't pass date detection or
-numeric detection is automatically mapped as a `keyword` when `dynamic` is set
-to `runtime`.
+following request adds a dynamic template named `dayOfWeek` that maps all
+incoming `string` fields as `keyword` runtime fields. Although the `runtime`
+definition is blank, new `string` fields will be mapped as `keyword` runtime
+fields based on the <<dynamic-field-mapping-types,dynamic mapping rules>> that
+{es} uses for adding field types to the mapping. Any `string` that doesn't pass
+date detection or numeric detection is automatically mapped as a `keyword` when
+`dynamic` is set to `runtime`.
 
 [source,console]
 ----

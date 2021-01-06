@@ -71,17 +71,17 @@ causing a mapping explosion.
 
 --
 
-include::mapping/types.asciidoc[]
+include::mapping/dynamic-mapping.asciidoc[]
+
+include::mapping/explicit-mapping.asciidoc[]
 
 include::mapping/runtime.asciidoc[]
+
+include::mapping/types.asciidoc[]
 
 include::mapping/fields.asciidoc[]
 
 include::mapping/params.asciidoc[]
-
-include::mapping/dynamic-mapping.asciidoc[]
-
-include::mapping/explicit-mapping.asciidoc[]
 
 include::mapping/mapping-settings-limit.asciidoc[]
 

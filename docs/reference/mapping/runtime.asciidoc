@@ -431,12 +431,16 @@ Indexing the data is time consuming and uses a lot of disk space, and you just
 want to explore the data structure without committing to a schema up front.
 
 You know that your log data contains specific fields that you want to extract.
-By using runtime fields, you can define scripts to calculate values at search
+In this case, we want to focus on the `@timestamp` and `message` fields. By
+using runtime fields, you can define scripts to calculate values at search
 time for these fields.
 
+[[runtime-examples-define-fields]]
+==== Define indexed fields as a starting point
+
 You can start with a simple example by adding the `@timestamp` and `message`
-fields to the `my-index` mapping. To remain flexible, use `wildcard` as the
-field type for `message`:
+fields to the `my-index` mapping as indexed fields. To remain flexible, use
+`wildcard` as the field type for `message`:
 
 [source,console]
 ----
@@ -456,6 +460,8 @@ PUT /my-index/
 }
 ----
 
+[[runtime-examples-ingest-data]]
+==== Ingest some data
 After mapping the fields you want to retrieve, index a few records from
 your log data into {es}. The following request uses the <<docs-bulk,bulk API>>
 to index raw log data into `my-index`. Instead of indexing all of your log
@@ -521,6 +527,8 @@ The mapping contains two fields: `@timestamp` and `message`.
 ----
 // TESTRESPONSE[s/\.\.\./"settings": $body.my-index.settings/]
 
+[[runtime-examples-runtime-field]]
+==== Define a runtime field to search by IP address
 If you want to retrieve results that include `clientip`, you can add that field
 as a runtime field in the mapping. The runtime script operates on the `clientip`
 field at runtime to calculate values for that field.
@@ -601,6 +609,8 @@ and determine which fields to index.
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 
+[[runtime-examples-calculate-value]]
+==== Define a runtime field to calculate the day of week
 You can add the `day_of_week` field to the mapping using the request from
 <<runtime-mapping-fields,mapping a runtime field>>:
 

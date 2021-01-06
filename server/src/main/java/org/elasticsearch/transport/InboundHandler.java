@@ -260,16 +260,24 @@ public class InboundHandler {
     private <T extends TransportRequest> T readRequest(TcpChannel channel, String action, long requestId, StreamInput stream,
                                                        RequestHandlerRegistry<T> reg) throws IOException {
         assert reg != null;
+        boolean success = false;
         final T request = reg.newRequest(stream);
-        request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
-        // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
-        final int nextByte = stream.read();
-        // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
-        if (nextByte != -1) {
-            throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
-                + action + "], available [" + stream.available() + "]; resetting");
+        try {
+            request.remoteAddress(new TransportAddress(channel.getRemoteAddress()));
+            // in case we throw an exception, i.e. when the limit is hit, we don't want to verify
+            final int nextByte = stream.read();
+            // calling read() is useful to make sure the message is fully read, even if there some kind of EOS marker
+            if (nextByte != -1) {
+                throw new IllegalStateException("Message not fully read (request) for requestId [" + requestId + "], action ["
+                        + action + "], available [" + stream.available() + "]; resetting");
+            }
+            success = true;
+            return request;
+        } finally {
+            if (success == false) {
+                request.decRef();
+            }
         }
-        return request;
     }
 
     private static void sendErrorResponse(String actionName, TransportChannel transportChannel, Exception e) {

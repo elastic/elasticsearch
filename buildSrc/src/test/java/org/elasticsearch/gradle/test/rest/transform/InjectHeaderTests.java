@@ -28,6 +28,7 @@ import org.junit.Test;
 
 import java.io.File;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -50,7 +51,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
                 "Accept", "application/vnd.elasticsearch+json;compatible-with=7"
             );
 
-        transformer.transformRestTests(tests,  Collections.singletonList(new InjectHeaders(headers)));
+        transformer.transformRestTests(new LinkedList<>(tests),  Collections.singletonList(new InjectHeaders(headers)));
 
     }
 }

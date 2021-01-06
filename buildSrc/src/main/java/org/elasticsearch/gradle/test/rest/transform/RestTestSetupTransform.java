@@ -30,7 +30,7 @@ import javax.annotation.Nullable;
 public interface RestTestSetupTransform {
 
     /**
-     * @param existingSetupNode The existing setup ObjectNode, null otherwise. If null a new setup section should be added.
+     * @param setupNode The existing setup ObjectNode, null otherwise. If null a new setup section should be added.
      */
-    void transformSetup(@Nullable ObjectNode existingSetupNode);
+    ObjectNode transformSetup(@Nullable ObjectNode setupNode);
 }

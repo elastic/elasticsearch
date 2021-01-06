@@ -32,9 +32,7 @@ import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
@@ -54,18 +52,21 @@ public class RestTestTransformer {
      * @param transformations The set of transformations to perform against the test
      * @return the transformed tests
      */
-    public List<ObjectNode> transformRestTests(List<ObjectNode> tests, List<RestTestTransform<?>> transformations) {
-        if(transformations == null || transformations.isEmpty()){
+    public List<ObjectNode> transformRestTests(LinkedList<ObjectNode> tests, List<RestTestTransform<?>> transformations) {
+        if (transformations == null || transformations.isEmpty()) {
             return tests;
         }
 
+        ObjectNode setupSection = null;
         for (ObjectNode test : tests) {
             Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
 
             while (testsIterator.hasNext()) {
                 Map.Entry<String, JsonNode> testObject = testsIterator.next();
                 String testName = testObject.getKey();
-                JsonNode testNode = testObject.getValue();
+                if("setup".equals(testName)){
+                    setupSection = test;
+                }
                 Map<String, ObjectKeyFinder> objectKeyFinders = transformations.stream()
                     .filter(a -> a instanceof ObjectKeyFinder)
                     .map(b -> (ObjectKeyFinder) b)
@@ -73,8 +74,25 @@ public class RestTestTransformer {
 
                 transformByObjectKeyName(test, objectKeyFinders);
             }
-            System.out.println(test.toPrettyString());
         }
+
+        List<RestTestSetupTransform> setupTransforms = transformations.stream()
+            .filter(a -> a instanceof RestTestSetupTransform)
+            .map(b -> (RestTestSetupTransform) b)
+            .collect(Collectors.toList());
+
+        assert setupTransforms.isEmpty() || setupTransforms.size() == 1;
+
+        if (setupTransforms.isEmpty() == false) {
+            RestTestSetupTransform setupTransform = setupTransforms.iterator().next();
+            ObjectNode result = setupTransform.transformSetup(setupSection);
+            if(setupSection == null){
+                tests.addFirst(result);
+            }
+        }
+        tests.forEach(t -> {
+            System.out.println(t.toPrettyString());
+        });
         return tests;
     }
 

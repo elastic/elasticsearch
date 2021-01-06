@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.test.rest.transform;
 
+import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -43,7 +44,6 @@ public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
         if (headersNode == null) {
             headersNode = new ObjectNode(jsonNodeFactory);
         }
-
         for (Map.Entry<String, String> entry : headers.entrySet()) {
             headersNode.set(entry.getKey(), TextNode.valueOf(entry.getValue()));
         }
@@ -56,7 +56,26 @@ public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
     }
 
     @Override
-    public void transformSetup(@Nullable ObjectNode existingSetupNode) {
-
+    public ObjectNode transformSetup(@Nullable ObjectNode setupNodeParent) {
+        if (setupNodeParent == null) {
+            setupNodeParent = new ObjectNode(jsonNodeFactory);
+        }
+        ObjectNode setupNode = (ObjectNode) setupNodeParent.get("setup");
+        if (setupNode == null) {
+            setupNode = new ObjectNode(jsonNodeFactory);
+            setupNodeParent.set("setup", setupNode);
+        }
+        ObjectNode skipNode = (ObjectNode) setupNode.get("skip");
+        if (skipNode == null) {
+            skipNode = new ObjectNode(jsonNodeFactory);
+            setupNode.set("skip", skipNode);
+        }
+        ArrayNode featuresNode = (ArrayNode) skipNode.get("features");
+        if (featuresNode == null) {
+            featuresNode = new ArrayNode(jsonNodeFactory);
+            skipNode.set("features", featuresNode);
+        }
+        featuresNode.add("headers");
+        return setupNodeParent;
     }
 }

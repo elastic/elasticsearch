@@ -95,6 +95,9 @@ setup:
 
 ---
 "Inner hits with disabled _source":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/67079"
   - do:
       indices.create:
         index: disabled_source

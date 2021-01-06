@@ -15,6 +15,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -31,6 +32,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackField;
+import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Request;
@@ -38,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction.Resp
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.results.Result;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
@@ -59,6 +62,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
     private final JobResultsProvider jobResultsProvider;
     private final MlMemoryTracker memoryTracker;
     private final MlConfigMigrationEligibilityCheck migrationEligibilityCheck;
+    private final Client client;
 
     @Inject
     public TransportUpgradeJobModelSnapshotAction(Settings settings, TransportService transportService, ThreadPool threadPool,
@@ -66,7 +70,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                                                   PersistentTasksService persistentTasksService, ActionFilters actionFilters,
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   JobConfigProvider jobConfigProvider, MlMemoryTracker memoryTracker,
-                                                  JobResultsProvider jobResultsProvider) {
+                                                  JobResultsProvider jobResultsProvider, Client client) {
         super(UpgradeJobModelSnapshotAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
             indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
@@ -75,6 +79,7 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
         this.jobResultsProvider = jobResultsProvider;
         this.memoryTracker = memoryTracker;
         this.migrationEligibilityCheck = new MlConfigMigrationEligibilityCheck(settings, clusterService);
+        this.client = client;
     }
 
     @Override
@@ -131,8 +136,8 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
             });
 
         // Start job task
-        ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
-            mem -> {
+        ActionListener<Boolean> configIndexMappingUpdaterListener = ActionListener.wrap(
+            _unused -> {
                 logger.info("[{}] [{}] sending start upgrade request", params.getJobId(), params.getSnapshotId());
                 persistentTasksService.sendStartRequest(
                     MlTasks.snapshotUpgradeTaskId(params.getJobId(), params.getSnapshotId()),
@@ -140,6 +145,17 @@ public class TransportUpgradeJobModelSnapshotAction extends TransportMasterNodeA
                     params,
                     waitForJobToStart);
             },
+            listener::onFailure
+        );
+
+        // Update config index if necessary
+        ActionListener<Long> memoryRequirementRefreshListener = ActionListener.wrap(
+            mem -> ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(),
+                MlConfigIndex::mapping,
+                client,
+                state,
+                configIndexMappingUpdaterListener),
             listener::onFailure
         );
 

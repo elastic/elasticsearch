@@ -436,20 +436,15 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             Map<IndexMetadata, Long> newIndices = new HashMap<>();
             DataStream dataStream = stream.getDataStream();
             for (int i = 0; i < numberNewIndices; ++i) {
-                final String newWriteIndexName = DataStream.getDefaultBackingIndexName(
-                    dataStream.getName(),
-                    dataStream.getGeneration() + 1
-                );
+                final String uuid = UUIDs.randomBase64UUID();
+                dataStream = dataStream.rollover(uuid, Version.CURRENT);
                 IndexMetadata newIndex = IndexMetadata.builder(writeIndex)
-                    .index(newWriteIndexName)
-                    .settings(
-                        Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID())
-                    )
+                    .index(dataStream.getWriteIndex().getName())
+                    .settings(Settings.builder().put(writeIndex.getSettings()).put(IndexMetadata.SETTING_INDEX_UUID, uuid))
                     .build();
                 long size = Math.min(avgSizeCeil, scaledTotalSize - (avgSizeCeil * i));
                 assert size > 0;
                 newIndices.put(newIndex, size);
-                dataStream = dataStream.rollover(newIndex.getIndex(), Version.CURRENT);
             }
 
             return new SingleForecast(newIndices, dataStream);

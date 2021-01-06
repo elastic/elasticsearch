@@ -82,7 +82,7 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     // SHA256 of this is defined in  x-pack/test/idp-fixture/oidc/override.properties
     private static final String OP_API_BEARER_TOKEN = "811fa888f3e0fdc9e01d4201bfeee46a";
     private static final String ES_PORT = getEphemeralTcpPortFromProperty("elasticsearch-node", "9200");
-    private static Path HTTP_TRUSTSTORE;
+    private static Path HTTP_TRUSTED_CERT;
 
     @Before
     public void setupUserAndRoles() throws Exception {
@@ -91,12 +91,12 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     }
 
     @BeforeClass
-    public static void readTrustStore() throws Exception {
-        final URL resource = OpenIdConnectAuthIT.class.getResource("/tls/testnode.jks");
+    public static void readTrustedCert() throws Exception {
+        final URL resource = OpenIdConnectAuthIT.class.getResource("/testnode_ec.crt");
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /tls/testnode.jks");
+            throw new FileNotFoundException("Cannot find classpath resource /testnode_ec.crt");
         }
-        HTTP_TRUSTSTORE = PathUtils.get(resource.toURI());
+        HTTP_TRUSTED_CERT = PathUtils.get(resource.toURI());
     }
 
     /**
@@ -182,10 +182,9 @@ public class OpenIdConnectAuthIT extends ESRestTestCase {
     protected Settings restAdminSettings() {
         String token = basicAuthHeaderValue("x_pack_rest_user", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder()
-            .put(ThreadContext.PREFIX + ".Authorization", token)
-            .put(TRUSTSTORE_PATH, HTTP_TRUSTSTORE)
-            .put(TRUSTSTORE_PASSWORD, "testnode")
-            .build();
+                .put(ThreadContext.PREFIX + ".Authorization", token)
+                .put(CERTIFICATE_AUTHORITIES, HTTP_TRUSTED_CERT)
+                .build();
     }
 
     private String authenticateAtOP(URI opAuthUri) throws Exception {

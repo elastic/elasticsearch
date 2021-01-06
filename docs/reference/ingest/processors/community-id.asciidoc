@@ -6,8 +6,14 @@
 <titleabbrev>Community ID</titleabbrev>
 ++++
 
-Computes the Community ID for flow data as defined in the
+Computes the Community ID for network flow data as defined in the
 https://github.com/corelight/community-id-spec[Community ID Specification].
+You can use a community ID to correlate network events related to a single
+flow.
+
+The community ID processor reads network flow data from related
+{ecs-ref}[Elastic Common Schema (ECS)] fields by default. If you use the ECS, no
+configuration is required.
 
 [[community-id-options]]
 .Community ID Options
@@ -25,15 +31,15 @@ https://github.com/corelight/community-id-spec[Community ID Specification].
 Used only when the `iana_number` field is not present.
 | `target_field`     | no       | `network.community_id` | Output field for the community ID.
 | `seed`             | no       | `0`           | Seed for the community ID hash. Must be between
-0 and 65535. This can be use to prevent hash collisions between network domains
-such as a staging and production network that use the same addressing scheme.
+0 and 65535 (inclusive). The seed can prevent hash collisions between network domains, such as
+a staging and production network that use the same addressing scheme.
 | `ignore_missing`   | no       | `true`        | If `true` and any required fields are missing,
 the processor quietly exits without modifying the document.
 
 include::common-options.asciidoc[]
 |======
 
-Here is an example definition of the URI parts processor:
+Here is an example definition of the community ID processor:
 
 [source,js]
 --------------------------------------------------

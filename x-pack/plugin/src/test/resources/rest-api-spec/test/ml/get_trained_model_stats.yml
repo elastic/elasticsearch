@@ -3,72 +3,82 @@ setup:
       features:
         - headers
         - allowed_warnings
-        - warnings
   - do:
       allowed_warnings:
         - "index [.ml-inference-000003] matches multiple legacy templates [.ml-inference-000003, global], composable templates will only match a single template"
-      warnings:
-        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        id: trained_model_config-a-unused-regression-model1-0
-        index: .ml-inference-000003
+      ml.put_trained_model:
+        model_id: a-unused-regression-model1
         body: >
           {
-            "model_id": "a-unused-regression-model1",
-            "created_by": "ml_tests",
-            "version": "8.0.0",
-            "inference_config": {"regression": {}},
             "description": "empty model for tests",
-            "create_time": 0,
-            "doc_type": "trained_model_config"
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"regression": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
           }
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        id: trained_model_config-a-unused-regression-model-0
-        index: .ml-inference-000003
+      ml.put_trained_model:
+        model_id: a-unused-regression-model
         body: >
           {
-            "model_id": "a-unused-regression-model",
-            "created_by": "ml_tests",
-            "version": "8.0.0",
-            "inference_config": {"regression": {}},
             "description": "empty model for tests",
-            "create_time": 0,
-            "doc_type": "trained_model_config"
-          }
-  - do:
-      warnings:
-        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      index:
-        id: trained_model_config-a-used-regression-model-0
-        index: .ml-inference-000003
-        body: >
-          {
-            "model_id": "a-used-regression-model",
-            "created_by": "ml_tests",
-            "version": "8.0.0",
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
             "inference_config": {"regression": {}},
-            "description": "empty model for tests",
-            "create_time": 0,
-            "doc_type": "trained_model_config"
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
           }
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.ml-inference-000003], but in a future major version, direct access to system indices will be prevented by default"
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh:
-        index: ".ml-inference-*"
+      ml.put_trained_model:
+        model_id: a-used-regression-model
+        body: >
+          {
+            "description": "empty model for tests",
+            "tags": ["regression", "tag1"],
+            "input": {"field_names": ["field1", "field2"]},
+            "inference_config": {"regression": {}},
+            "definition": {
+               "preprocessors": [],
+               "trained_model": {
+                  "tree": {
+                     "feature_names": ["field1", "field2"],
+                     "tree_structure": [
+                        {"node_index": 0, "leaf_value": 1}
+                     ],
+                     "target_type": "regression"
+                  }
+               }
+            }
+          }
 
   - do:
       headers:
@@ -115,37 +125,14 @@ setup:
         body: >
           {
           }
-  # reference and then de-reference a model to flush the stats
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      ingest.put_pipeline:
-        id: "regression-model-pipeline-2"
-        body:  >
-          {
-            "processors": [
-              {
-                "inference" : {
-                  "model_id" : "a-unused-regression-model",
-                  "inference_config": {"regression": {}},
-                  "target_field": "regression_field",
-                  "field_map": {}
-                }
-              }
-            ]
-          }
 
-  - do:
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      ingest.delete_pipeline:
-        id: "regression-model-pipeline-2"
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
       cluster.health:
         wait_for_status: yellow
         index: .ml-stats*
+
 ---
 "Test get stats given missing trained model":
 

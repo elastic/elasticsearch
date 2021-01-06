@@ -1,0 +1,6 @@
+---
+"Get Features":
+  - skip:
+      features: contains
+  - do: { snapshot.features: {}}
+  - contains: {'features': {'name': 'tasks'}}

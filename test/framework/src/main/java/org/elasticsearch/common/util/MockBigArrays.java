@@ -628,27 +628,26 @@ public class MockBigArrays extends BigArrays {
         }
     }
 
-    private static class LimitedBreaker extends NoopCircuitBreaker {
+    public static class LimitedBreaker extends NoopCircuitBreaker {
         private final AtomicLong used = new AtomicLong();
         private final ByteSizeValue max;
 
-        LimitedBreaker(String name, ByteSizeValue max) {
+        public LimitedBreaker(String name, ByteSizeValue max) {
             super(name);
             this.max = max;
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             long total = used.addAndGet(bytes);
             if (total > max.getBytes()) {
                 throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
             }
-            return total;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
-            return used.addAndGet(bytes);
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
         }
     }
 }

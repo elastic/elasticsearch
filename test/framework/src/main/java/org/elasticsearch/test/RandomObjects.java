@@ -142,7 +142,7 @@ public final class RandomObjects {
             }
         }
         if (value instanceof Float) {
-            if (xContentType == XContentType.CBOR || xContentType == XContentType.SMILE) {
+            if (xContentType.canonical() == XContentType.CBOR || xContentType.canonical() == XContentType.SMILE) {
                 // with binary content types we pass back the object as is
                 return value;
             }

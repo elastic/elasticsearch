@@ -39,7 +39,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
@@ -150,17 +149,16 @@ public class MetadataRolloverService {
         final Version minNodeVersion = currentState.nodes().getMinNodeVersion();
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = dataStream.getWriteIndex();
-        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1, minNodeVersion);
-        ds.rollover(new Index(newWriteIndexName, "uuid"), minNodeVersion); // just for validation
-        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        DataStream rolledDataStream = ds.rollover("uuid", minNodeVersion);
+        createIndexService.validateIndexName(rolledDataStream.getWriteIndex().getName(), currentState); // fails if the index already exists
         if (onlyValidate) {
-            return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), currentState);
+            return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), currentState);
         }
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateRequest =
-            prepareDataStreamCreateIndexRequest(dataStreamName, newWriteIndexName, createIndexRequest);
+            prepareDataStreamCreateIndexRequest(dataStreamName, rolledDataStream.getWriteIndex().getName(), createIndexRequest);
         ClusterState newState = createIndexService.applyCreateIndexRequest(currentState, createIndexClusterStateRequest, silent,
-            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndex(), minNodeVersion)));
+            (builder, indexMetadata) -> builder.put(ds.rollover(indexMetadata.getIndexUUID(), minNodeVersion)));
 
         RolloverInfo rolloverInfo = new RolloverInfo(dataStreamName, metConditions, threadPool.absoluteTimeInMillis());
         newState = ClusterState.builder(newState)
@@ -169,7 +167,7 @@ public class MetadataRolloverService {
                     .putRolloverInfo(rolloverInfo)))
             .build();
 
-        return new RolloverResult(newWriteIndexName, originalWriteIndex.getIndex().getName(), newState);
+        return new RolloverResult(rolledDataStream.getWriteIndex().getName(), originalWriteIndex.getIndex().getName(), newState);
     }
 
     static String generateRolloverIndexName(String sourceIndexName, IndexNameExpressionResolver indexNameExpressionResolver) {

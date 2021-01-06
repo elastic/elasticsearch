@@ -86,7 +86,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -1177,9 +1176,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(seqNo, greaterThanOrEqualTo(0L));
                 if (primaryTermDocValues.advanceExact(docId)) {
                     if (seqNos.add(seqNo) == false) {
-                        final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
-                        leaf.reader().document(docId, idFieldVisitor);
-                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
+                        IdStoredFieldLoader idLoader = new IdStoredFieldLoader(leaf.reader());
+                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idLoader.id(docId));
                     }
                 }
             }

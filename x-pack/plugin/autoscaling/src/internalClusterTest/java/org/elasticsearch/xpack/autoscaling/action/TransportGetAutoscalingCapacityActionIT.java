@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.greaterThan;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67089")
     public void testCurrentCapacity() throws Exception {
         assertThat(capacity().results().keySet(), Matchers.empty());
         long memory = OsProbe.getInstance().getTotalPhysicalMemorySize();

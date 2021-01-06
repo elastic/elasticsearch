@@ -196,6 +196,7 @@ public class InboundHandler {
                     final StreamInput stream = namedWriteableStream(message.openOrGetStreamInput());
                     assertRemoteVersion(stream, header.getVersion());
                     final RequestHandlerRegistry<T> reg = requestHandlers.getHandler(action);
+                    assert reg != null;
                     final String executor = reg.getExecutor();
                     if (ThreadPool.Names.SAME.equals(executor)) {
                         try {
@@ -284,7 +285,7 @@ public class InboundHandler {
     }
 
     private <T extends TransportResponse> void doHandleResponse(InetSocketAddress remoteAddress, StreamInput stream,
-                                                              TransportResponseHandler<T> handler, InboundMessage message) {
+                                                                TransportResponseHandler<T> handler, InboundMessage message) {
         final T response;
         try {
             response = handler.read(stream);
@@ -302,6 +303,8 @@ public class InboundHandler {
             ensureFullyConsumed(header, handler, header.getRequestId(), stream);
         } catch (Exception e) {
             handleException(handler, new ResponseHandlerFailureTransportException(e));
+        } finally {
+            response.decRef();
         }
     }
 

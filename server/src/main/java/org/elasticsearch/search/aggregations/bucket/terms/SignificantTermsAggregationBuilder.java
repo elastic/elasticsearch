@@ -129,7 +129,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override

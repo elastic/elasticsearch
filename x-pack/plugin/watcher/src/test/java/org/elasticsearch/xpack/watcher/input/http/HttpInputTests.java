@@ -267,7 +267,7 @@ public class HttpInputTests extends ESTestCase {
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
         Map<String, String[]> headers = new HashMap<>(1);
-        String contentType = randomFrom("application/json", "application/json; charset=UTF-8", "text/html", "application/yaml",
+        String contentType = randomFrom("application/json", "application/json;charset=utf-8", "text/html", "application/yaml",
                 "application/smile", "application/cbor");
         headers.put("Content-Type", new String[] { contentType });
         String body = "{\"foo\":\"bar\"}";

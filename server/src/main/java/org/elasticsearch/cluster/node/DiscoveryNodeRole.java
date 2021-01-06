@@ -79,6 +79,8 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
 
     protected DiscoveryNodeRole(final String roleName, final String roleNameAbbreviation, final boolean canContainData) {
         this(true, roleName, roleNameAbbreviation, canContainData);
+        assert canContainData == isDataRoleBasedOnNamingConvention(roleName) :
+            "Role '" + roleName + "' not compliant to data role naming convention";
     }
 
     private DiscoveryNodeRole(
@@ -138,6 +140,14 @@ public abstract class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole>
         }
 
     };
+
+    /**
+     * Allows determining the "data" property without the need to load plugins, but does this purely based on
+     * naming conventions.
+     */
+    static boolean isDataRoleBasedOnNamingConvention(String role) {
+        return role.equals("data") || role.startsWith("data_");
+    }
 
     /**
      * Represents the role for an ingest node.

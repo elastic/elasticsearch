@@ -43,7 +43,7 @@ public class TextTemplate implements ToXContent {
         if (type == ScriptType.INLINE) {
             options = new HashMap<>();
             if (contentType != null) {
-                options.put(Script.CONTENT_TYPE_OPTION, contentType.mediaType());
+                options.put(Script.CONTENT_TYPE_OPTION, contentType.canonical().mediaType());
             }
         }
         if (params == null) {

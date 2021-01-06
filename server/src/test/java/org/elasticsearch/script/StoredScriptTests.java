@@ -80,7 +80,7 @@ public class StoredScriptTests extends AbstractSerializingTestCase<StoredScriptS
 
             StoredScriptSource parsed = StoredScriptSource.parse(BytesReference.bytes(builder), XContentType.JSON);
             StoredScriptSource source = new StoredScriptSource("mustache", code,
-                Collections.singletonMap("content_type", "application/json; charset=UTF-8"));
+                Collections.singletonMap("content_type", "application/json;charset=utf-8"));
 
             assertThat(parsed, equalTo(source));
         }

@@ -222,7 +222,6 @@ public class PolicyUtilTests extends ESTestCase {
 
     static final List<String> PLUGIN_TEST_PERMISSIONS = List.of(
         "java.lang.reflect.ReflectPermission suppressAccessChecks",
-        "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getClassLoader",
         "java.lang.RuntimePermission setContextClassLoader",
         "java.lang.RuntimePermission setFactory",
@@ -283,6 +282,7 @@ public class PolicyUtilTests extends ESTestCase {
     static final List<String> MODULE_TEST_PERMISSIONS = List.of(
         "java.io.FilePermission /foo/bar read",
         "java.io.FilePermission /foo/bar write",
+        "java.lang.RuntimePermission createClassLoader",
         "java.lang.RuntimePermission getFileStoreAttributes",
         "java.lang.RuntimePermission accessUserInformation"
     );

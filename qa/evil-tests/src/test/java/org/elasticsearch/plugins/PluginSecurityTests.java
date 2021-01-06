@@ -65,7 +65,7 @@ public class PluginSecurityTests extends ESTestCase {
         Set<String> actual = PluginSecurity.getPermissionDescriptions(info, scratch);
         assertThat(actual, containsInAnyOrder(
             PluginSecurity.formatPermission(new RuntimePermission("getClassLoader")),
-            PluginSecurity.formatPermission(new RuntimePermission("createClassLoader"))));
+            PluginSecurity.formatPermission(new RuntimePermission("setFactory"))));
     }
 
     /** Test that we can format some simple permissions properly */

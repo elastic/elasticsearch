@@ -20,10 +20,18 @@ import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import java.util.HashSet;
 import java.util.concurrent.TimeoutException;
 
+/**
+ * Utilities for identifying timeouts in responses to collection requests, since we prefer to fail the whole collection attempt if any of
+ * the involved nodes times out.
+ */
 public final class TimeoutUtils {
     private TimeoutUtils() {
     }
 
+    /**
+     * @throws ElasticsearchTimeoutException iff the {@code response} contains any node-level timeout. The exception message identifies the
+     *                                       nodes that timed out and mentions {@code collectionTimeout}.
+     */
     public static <T extends BaseNodeResponse> void ensureNoTimeouts(TimeValue collectionTimeout, BaseNodesResponse<T> response) {
         HashSet<String> timedOutNodeIds = null;
         for (FailedNodeException failedNodeException : response.failures()) {
@@ -37,6 +45,10 @@ public final class TimeoutUtils {
         ensureNoTimeouts(collectionTimeout, timedOutNodeIds);
     }
 
+    /**
+     * @throws ElasticsearchTimeoutException iff the {@code response} contains any node-level timeout. The exception message identifies the
+     *                                       nodes that timed out and mentions {@code collectionTimeout}.
+     */
     public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseTasksResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (ElasticsearchException nodeFailure : response.getNodeFailures()) {
@@ -53,6 +65,10 @@ public final class TimeoutUtils {
         ensureNoTimeouts(collectionTimeout, timedOutNodeIds);
     }
 
+    /**
+     * @throws ElasticsearchTimeoutException iff the {@code response} contains any node-level timeout. The exception message identifies the
+     *                                       nodes that timed out and mentions {@code collectionTimeout}.
+     */
     public static void ensureNoTimeouts(TimeValue collectionTimeout, BroadcastResponse response) {
         HashSet<String> timedOutNodeIds = null;
         for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {

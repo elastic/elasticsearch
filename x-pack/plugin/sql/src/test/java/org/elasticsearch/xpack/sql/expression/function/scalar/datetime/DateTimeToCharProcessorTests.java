@@ -30,7 +30,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
      * 
      * Process to (re)generate the test data:
      * <ol>
-     *     <li>Run the @{link {@link ToCharTestGenerator#main(String[])}} class</li>
+     *     <li>Run the @{link {@link ToCharTestScript#main(String[])}} class</li>
      *     <li>Spin up a Postgres instance (latest or a specific version) using docker:
      *       <pre>
      *       docker run --rm --name postgres-latest -e POSTGRES_PASSWORD=mysecretpassword -p 5432:5432 -d postgres:latest
@@ -53,7 +53,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             if (line.startsWith("#")) {
                 continue;
             }
-            String[] cols = line.split(quote(ToCharTestGenerator.DELIMITER));
+            String[] cols = line.split(quote(ToCharTestScript.DELIMITER));
             testOneCase(testFile, lineNumber, cols[0], cols[1], cols[2], cols[3], cols[4]);
         }
     }
@@ -80,9 +80,9 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                 .makePipe()
                 .asProcessor()
                 .process(null);
-        List<String> expectedResultSplitted = asList(expectedResult.split(quote(ToCharTestGenerator.PATTERN_DELIMITER)));
-        List<String> resultSplitted = asList(actualResult.split(quote(ToCharTestGenerator.PATTERN_DELIMITER)));
-        List<String> formatStringSplitted = asList(formatString.split(ToCharTestGenerator.PATTERN_DELIMITER));
+        List<String> expectedResultSplitted = asList(expectedResult.split(quote(ToCharTestScript.PATTERN_DELIMITER)));
+        List<String> resultSplitted = asList(actualResult.split(quote(ToCharTestScript.PATTERN_DELIMITER)));
+        List<String> formatStringSplitted = asList(formatString.split(ToCharTestScript.PATTERN_DELIMITER));
         assertEquals(formatStringSplitted.size(), resultSplitted.size());
         assertEquals(formatStringSplitted.size(), expectedResultSplitted.size());
         for (int i = 0; i < formatStringSplitted.size(); i++) {
@@ -111,7 +111,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                         formatString, expectedResult, actualResult, patternMaybeWithIndex),
                     expectedPart, actualPart);
             } catch (AssertionError err) {
-                if (ToCharTestGenerator.NOT_FULLY_MATCHABLE_PATTERNS.stream().anyMatch(pattern::contains)) {
+                if (ToCharTestScript.NOT_FULLY_MATCHABLE_PATTERNS.stream().anyMatch(pattern::contains)) {
                     logger.info("Known pattern failure ('TZ' and 'tz' cannot be matched with Postgres): " + err.getMessage());
                 } else {
                     throw err;

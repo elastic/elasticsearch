@@ -16,7 +16,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Random;
@@ -30,9 +29,9 @@ import static java.util.regex.Pattern.quote;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
 
 /**
- * Generates an sql file that can be used to generate the test dataset for the {@link DateTimeToCharProcessorTests}.
+ * Generates an psql file that can be used to generate the test dataset for the {@link DateTimeToCharProcessorTests}.
  */
-public class ToCharTestGenerator {
+public class ToCharTestScript {
 
     private static class TestRecord {
 
@@ -57,7 +56,7 @@ public class ToCharTestGenerator {
         TestRecord(BigDecimal secondsAndFractionsSinceEpoch, String formatString) {
             this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
             this.formatString = formatString;
-            this.zoneId = ToCharTestGenerator.randomFromCollection(POSTGRES_TEST_ZONE_LIST);
+            this.zoneId = ToCharTestScript.randomFromCollection(POSTGRES_TEST_ZONE_LIST);
         }
 
     }
@@ -73,14 +72,111 @@ public class ToCharTestGenerator {
     private static final List<String> FILL_MODIFIERS = asList("FM", "fm", "");
     private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
 
+    private final List<TestRecord> testRecords = new ArrayList<>();
+    private final List<BigDecimal> testEpochSeconds = new ArrayList<>();
+
     @SuppressForbidden(reason = "It is ok to use ThreadLocalRandom outside of an actual test")
     private static Random rnd() {
         return ThreadLocalRandom.current();
     }
 
+    public ToCharTestScript() {
+        generateTestTimestamps();
+        
+        patternsOneByOne();
+        allPatternsTogether();
+        lowercasePatterns();
+        postgreSQLPatternParsingBehaviour();
+        monthsAsRomanNumbers();
+        randomizedPatternStrings();
+    }
+
+    private void generateTestTimestamps() {
+        final int latestYearToTest = 3000;
+        int countOfTestYears = 150;
+        for (int i = 0; i < countOfTestYears; i++) {
+            testEpochSeconds.add(randomSecondsWithFractions(-latestYearToTest, latestYearToTest));
+        }
+
+        int countOfTestYearsAroundYearZero = 10;
+        for (int i = 0; i < countOfTestYearsAroundYearZero; i++) {
+            testEpochSeconds.add(randomSecondsWithFractions(-1, 1));
+        }
+    }
+
+    private void patternsOneByOne() {
+        for (String pattern : PATTERNS) {
+            testRecords.add(new TestRecord(
+                randomFromCollection(testEpochSeconds),
+                NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern) ?
+                    pattern :
+                    String.join(PATTERN_DELIMITER, pattern, FILL_MODIFIERS.get(0) + pattern + ORDINAL_SUFFIX_MODIFIERS.get(0))));
+        }
+    }
+
+    private void allPatternsTogether() {
+        for (BigDecimal es : testEpochSeconds) {
+            testRecords.add(new TestRecord(
+                es,
+                IntStream.range(0, PATTERNS.size())
+                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx)))
+                    .collect(Collectors.joining(PATTERN_DELIMITER))));
+        }
+    }
+
+    private void lowercasePatterns() {
+        testRecords.add(new TestRecord(
+            randomFromCollection(testEpochSeconds),
+            IntStream.range(0, PATTERNS.size())
+                .mapToObj(idx -> (idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx))).toLowerCase(Locale.ROOT))
+                .collect(Collectors.joining(PATTERN_DELIMITER))));
+    }
+
+    private void postgreSQLPatternParsingBehaviour() {
+        // potentially ambiguous format string test cases, to check if our format string parsing is in-sync with PostgreSQL
+        // that is greedy and prefers the longer format strings
+        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "YYYYYYYYYYYYYYY,YYYYYYYYY"));
+        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "SSSSSSSSSSSSSSSS"));
+        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "DDDDDDDD"));
+    }
+
+    private void monthsAsRomanNumbers() {
+        for (int i = 1; i <= 12; i++) {
+            testRecords.add(new TestRecord(
+                new BigDecimal(dateTime(0).withMonth(i).toEpochSecond()),
+                rnd().nextBoolean() ? "RM" : "rm"));
+        }
+    }
+
+    private void randomizedPatternStrings() {
+        final String randomCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy _-.:;";
+
+        final int randomizedPatternCount = 20;
+        final int lengthOfRandomizedPattern = 30;
+        final int pctChanceOfRandomCharacter = 80;
+        for (int i = 0; i < randomizedPatternCount; i++) {
+            String patternWithLiterals = IntStream.rangeClosed(1, lengthOfRandomizedPattern)
+                    .mapToObj(idx -> {
+                        if (rnd().nextInt(100) < pctChanceOfRandomCharacter) {
+                            return randomCharacters.substring(rnd().nextInt(randomCharacters.length())).substring(0, 1);
+                        } else {
+                            return (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS) 
+                                + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS));
+                        }})
+                    .collect(Collectors.joining());
+
+            // clean up the random string from the unsupported modifiers
+            for (String unsupportedPatternModifier : Sets.union(UNSUPPORTED_PATTERN_MODIFIERS, NOT_FULLY_MATCHABLE_PATTERNS)) {
+                patternWithLiterals = patternWithLiterals
+                    .replace(unsupportedPatternModifier, "")
+                    .replace(unsupportedPatternModifier.toLowerCase(Locale.ROOT), "");
+            }
+            testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), patternWithLiterals));
+        }
+    }
+
     private static BigDecimal randomSecondsWithFractions(int minYear, int maxYear) {
-        BigDecimal
-            seconds =
+        BigDecimal seconds =
             new BigDecimal(RandomNumbers.randomLongBetween(rnd(), (minYear - 1970) * SECONDS_IN_YEAR, (maxYear - 1970) * SECONDS_IN_YEAR));
         BigDecimal fractions = new BigDecimal(RandomNumbers.randomIntBetween(rnd(), 0, 999_999)).movePointLeft(6);
         return seconds.add(fractions);
@@ -98,98 +194,6 @@ public class ToCharTestGenerator {
         return randomFromCollection(FILL_MODIFIERS) + pattern + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS);
     }
 
-    private static List<TestRecord> generateTestCases() {
-
-        final List<BigDecimal> testEpochSeconds = new LinkedList<>();
-        final int MAX_YEAR_TO_TEST = 2500;
-        
-        final int NUMBER_OF_TIMESTAMPS_WITH_FULL_RANGE = 100;
-        for (int i = 0; i < NUMBER_OF_TIMESTAMPS_WITH_FULL_RANGE; i++) {
-            testEpochSeconds.add(randomSecondsWithFractions(-MAX_YEAR_TO_TEST, MAX_YEAR_TO_TEST));
-        }
-        
-        for (int i = 0; i < 5; i++) {
-            testEpochSeconds.add(randomSecondsWithFractions(-1, 1));
-        }
-
-        List<TestRecord> testRecords = new ArrayList<>();
-        
-        patternsOneByOne(testEpochSeconds, testRecords);
-        allPatternsTogether(testEpochSeconds, testRecords);
-        lowercasePatterns(testEpochSeconds, testRecords);
-        postgreSQLPatternParsingBehaviour(testEpochSeconds, testRecords);
-        monthsAsRomanNumbers(testRecords);
-        randomPatterns(testEpochSeconds, testRecords);
-
-        return testRecords;
-    }
-
-    private static void randomPatterns(List<BigDecimal> testEpochSeconds, List<TestRecord> testRecords) {
-        final String randomCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy _-.:;";
-
-        for (int i = 0; i < 20; i++) {
-            String patternWithLiterals =
-                IntStream.rangeClosed(1, 30)
-                    .mapToObj(idx -> rnd().nextInt(100) < 80 ?
-                        randomCharacters.substring(rnd().nextInt(randomCharacters.length())).substring(0, 1) :
-                        (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS) + randomFromCollection(
-                            ORDINAL_SUFFIX_MODIFIERS)))
-                    .collect(Collectors.joining());
-
-            // clean up the random string from the unsupported modifiers
-            for (String unsupportedPatternModifier : Sets.union(UNSUPPORTED_PATTERN_MODIFIERS, NOT_FULLY_MATCHABLE_PATTERNS)) {
-                patternWithLiterals = patternWithLiterals
-                    .replace(unsupportedPatternModifier, "")
-                    .replace(unsupportedPatternModifier.toLowerCase(Locale.ROOT), "");
-            }
-            testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), patternWithLiterals));
-        }
-    }
-
-    private static void monthsAsRomanNumbers(List<TestRecord> testRecords) {
-        for (int i = 1; i <= 12; i++) {
-            testRecords.add(new TestRecord(
-                new BigDecimal(dateTime(0).withMonth(i).toEpochSecond()),
-                rnd().nextBoolean() ? "RM" : "rm"));
-        }
-    }
-
-    private static void postgreSQLPatternParsingBehaviour(List<BigDecimal> testEpochSeconds, List<TestRecord> testRecords) {
-        // potentially ambiguous format string test cases, to check if our format string parsing is in-sync with PostgreSQL
-        // that is greedy and prefers the longer format strings
-        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "YYYYYYYYYYYYYYY,YYYYYYYYY"));
-        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "SSSSSSSSSSSSSSSS"));
-        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "DDDDDDDD"));
-    }
-
-    private static void lowercasePatterns(List<BigDecimal> testEpochSeconds, List<TestRecord> testRecords) {
-        testRecords.add(new TestRecord(
-            randomFromCollection(testEpochSeconds),
-            IntStream.range(0, PATTERNS.size())
-                .mapToObj(idx -> (idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx))).toLowerCase(Locale.ROOT))
-                .collect(Collectors.joining(PATTERN_DELIMITER))));
-    }
-
-    private static void allPatternsTogether(List<BigDecimal> testEpochSeconds, List<TestRecord> testRecords) {
-        for (BigDecimal es : testEpochSeconds) {
-            testRecords.add(new TestRecord(
-                es,
-                IntStream.range(0, PATTERNS.size())
-                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx)))
-                    .collect(Collectors.joining(PATTERN_DELIMITER))));
-        }
-    }
-
-    private static void patternsOneByOne(List<BigDecimal> testEpochSeconds, List<TestRecord> testRecords) {
-        for (String pattern : PATTERNS) {
-            testRecords.add(new TestRecord(
-                randomFromCollection(testEpochSeconds),
-                NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern) ?
-                    pattern :
-                    String.join(PATTERN_DELIMITER, pattern, FILL_MODIFIERS.get(0) + pattern + ORDINAL_SUFFIX_MODIFIERS.get(0))));
-        }
-    }
-
     private static String adjustZoneIdToPostgres(String zoneId) {
         // when the zone is specified by the offset in Postgres, it follows the POSIX definition, so the +- signs are flipped
         // compared to ISO-8601, see more info at: https://www.postgresql.org/docs/current/datetime-posix-timezone-specs.html
@@ -202,17 +206,17 @@ public class ToCharTestGenerator {
     }
 
     /**
-     * Generates an SQL file that can be used to create the test dataset for the unit test of the <code>TO_CHAR</code>
+     * Generates an SQL file (psql input) that can be used to create the test dataset for the unit test of the <code>TO_CHAR</code>
      * implementation. In case the <code>TO_CHAR</code> implementation needs an upgrade, add the list of the new format
      * strings to the list of the format string, regenerate the SQL, run it against the PostgreSQL version you are targeting
      * and update the test CSV file.
      */
-    private static String unitTestExporterScript() {
+    private String unitTestExporterScript() {
         String header =
             "\n\\echo #" +
-            "\n\\echo # DO NOT EDIT manually, was generated using " + ToCharTestGenerator.class.getName() +
+            "\n\\echo # DO NOT EDIT manually, was generated using " + ToCharTestScript.class.getName() +
             "\n\\echo #\n\n";
-        String testCases = generateTestCases().stream().map(tc -> {
+        String testCases = testRecords.stream().map(tc -> {
             long seconds = tc.secondsAndFractionsSinceEpoch.longValue();
             BigDecimal fractions = tc.secondsAndFractionsSinceEpoch.remainder(BigDecimal.ONE).movePointRight(6);
             return String.format(Locale.ROOT, 
@@ -233,6 +237,6 @@ public class ToCharTestGenerator {
 
     public static void main(String[] args) throws Exception {
         String scriptFilename = args.length < 1 ? "/tmp/postgresql-tochar-test.sql" : args[0];
-        Files.writeString(Path.of(scriptFilename), unitTestExporterScript(), StandardCharsets.UTF_8);
+        Files.writeString(Path.of(scriptFilename), new ToCharTestScript().unitTestExporterScript(), StandardCharsets.UTF_8);
     }
 }

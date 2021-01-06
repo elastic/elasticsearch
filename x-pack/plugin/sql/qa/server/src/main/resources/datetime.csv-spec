@@ -613,7 +613,7 @@ TO_CHAR('11:22:33.123456789Z'::time, 'HH24:MI:SS.FF2') AS df_time;
 ;
 
 selectToCharWithField
-schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s
+schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s|emp_no:i
 SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, 
 TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2, emp_no FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
 
@@ -633,7 +633,7 @@ null                    |F              |null           |null           |10049
 ;
 
 toCharWhere
-schema::birth_date:ts|df_birth_date:s
+schema::birth_date:ts|df_birth_date:s|emp_no:i
 SELECT birth_date, TO_CHAR(birth_date, 'MM') AS df_birth_date, emp_no FROM test_emp
 WHERE TO_CHAR(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 

@@ -109,7 +109,6 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
-//    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66820")
     public void testTemplateExists() throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();

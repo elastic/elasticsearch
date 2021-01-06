@@ -122,19 +122,20 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param newWriteIndex the new write backing index. Must conform to the naming convention for
-     *                      backing indices on data streams. See {@link #getDefaultBackingIndexName}.
+     * @param writeIndexUuid UUID for the data stream's new write index
+     * @param minNodeVersion minimum cluster node version
+     *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index newWriteIndex, Version minNodeVersion) {
-        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1, minNodeVersion));
+    public DataStream rollover(String writeIndexUuid, Version minNodeVersion) {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);
-        backingIndices.add(newWriteIndex);
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), getGeneration() + 1, minNodeVersion);
+        backingIndices.add(new Index(newWriteIndexName, writeIndexUuid));
         return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated);
     }
 

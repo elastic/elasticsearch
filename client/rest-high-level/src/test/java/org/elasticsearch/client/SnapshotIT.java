@@ -273,6 +273,7 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         assertFalse("index [" + testIndex + "] should have been deleted", indexExists(testIndex));
 
         RestoreSnapshotRequest request = new RestoreSnapshotRequest(testRepository, testSnapshot);
+        request.indices(testIndex);
         request.waitForCompletion(true);
         request.renamePattern(testIndex);
         request.renameReplacement(restoredIndex);

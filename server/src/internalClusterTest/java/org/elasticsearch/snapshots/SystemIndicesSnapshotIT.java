@@ -160,6 +160,43 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
+     * Take a snapshot with global state but don't restore system indexes. By
+     * default, snapshot restorations ignore global state. This means that,
+     * for now, the system index is treated as part of the snapshot and must be
+     * handled explicitly. Otherwise, as in this test, there will be an
+     * exception.
+     */
+    public void testDefaultRestoreOnlyRegularIndices() {
+        final String regularIndex = "test-idx";
+
+        indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        // snapshot including global state
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setIndices(regularIndex)
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // Delete the regular index so we can restore it
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
+
+        // restore indices by feature, with only the regular index named explicitly
+        SnapshotRestoreException exception = expectThrows(SnapshotRestoreException.class,
+            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+                .setWaitForCompletion(true)
+                .get());
+
+        assertThat(exception.getMessage(), containsString(
+            "cannot restore index [" +
+                SystemIndexTestPlugin.SYSTEM_INDEX_NAME
+                + "] because an open index with same name already exists"));
+    }
+
+    /**
      * Take a snapshot with global state but restore features by state.
      */
     public void testRestoreByFeature() {

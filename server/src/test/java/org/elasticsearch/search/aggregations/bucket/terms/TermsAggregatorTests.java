@@ -167,7 +167,7 @@ public class TermsAggregatorTests extends AggregatorTestCase {
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Collections.unmodifiableList(asList(CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.IP,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN));

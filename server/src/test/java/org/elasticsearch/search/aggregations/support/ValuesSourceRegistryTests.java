@@ -45,7 +45,7 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             null,
             null,
             null,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
 
         ValuesSourceConfig scriptOnly = ValuesSourceConfig.resolve(
@@ -56,7 +56,7 @@ public class ValuesSourceRegistryTests extends ESTestCase {
             null,
             null,
             null,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
         ValuesSourceRegistry.RegistryKey key = new ValuesSourceRegistry.RegistryKey("bogus", HistogramAggregatorSupplier.class);
         ValuesSourceRegistry registry = new ValuesSourceRegistry(

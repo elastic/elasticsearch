@@ -19,26 +19,24 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
+public class NullValueObjectMappingTests extends MapperServiceTestCase {
+
     public void testNullValueObject() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()
-                .endObject().endObject());
+        DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("obj1");
+            b.field("type", "object");
+            b.endObject();
+        }));
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping), false);
-
-        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+        ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "_doc", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1").endObject()
@@ -48,7 +46,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+        doc = defaultMapper.parse(new SourceToParse("test", "_doc", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .nullField("obj1")
@@ -58,7 +56,7 @@ public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().get("value1"), equalTo("test1"));
 
-        doc = defaultMapper.parse(new SourceToParse("test", "type", "1",
+        doc = defaultMapper.parse(new SourceToParse("test", "_doc", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
                         .startObject()
                         .startObject("obj1").field("field", "value").endObject()

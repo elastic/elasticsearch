@@ -67,7 +67,7 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return Arrays.asList(
             CoreValuesSourceType.BOOLEAN,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
     }
 

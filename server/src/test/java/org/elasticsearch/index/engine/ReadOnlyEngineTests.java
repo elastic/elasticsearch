@@ -22,12 +22,10 @@ import org.apache.lucene.index.CodecReader;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterMergePolicy;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.MergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.LuceneTestCase;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,7 +38,9 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
@@ -345,14 +345,9 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 }
             };
             final EngineConfig config = config(defaultSettings, store, createTempDir(), mergePolicy, null, null, globalCheckpoint::get);
-            final SetOnce<IndexWriter> indexWriter = new SetOnce<>();
-            final IndexWriterFactory indexWriterFactory = (dir, iwc) -> {
-                final IndexWriter writer = new IndexWriter(dir, iwc);
-                indexWriter.set(writer);
-                return writer;
-            };
             String lastSearcherId;
-            try (InternalEngine engine = createEngine(indexWriterFactory, null, null, config)) {
+            Map<String, Engine.Operation> latestOps = new HashMap<>();
+            try (InternalEngine engine = createEngine(null, null, null, config)) {
                 lastSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
                 assertNotNull(lastSearcherId);
                 int iterations = randomIntBetween(0, 10);
@@ -360,22 +355,44 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                     assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(lastSearcherId));
                     final List<Engine.Operation> operations = generateHistoryOnReplica(between(1, 100),
                         engine.getProcessedLocalCheckpoint() + 1L, false, randomBoolean(), randomBoolean());
-                    final long indexWriterSeqNo = indexWriter.get().getMaxCompletedSequenceNumber();
-                    applyOperations(engine, operations);
-                    if (indexWriter.get().getMaxCompletedSequenceNumber() == indexWriterSeqNo) {
-                        assertFalse(
-                            "we don't add documents for no-ops or deletes of non existing documents iff soft-deletes is disabled",
-                            config.getIndexSettings().isSoftDeleteEnabled());
-                        continue;
+                    boolean hasChanges = false;
+                    for (Engine.Operation op : operations) {
+                        if (op instanceof Engine.Index) {
+                            engine.index((Engine.Index) op);
+                            if (latestOps.containsKey(op.id()) == false || latestOps.get(op.id()).seqNo() < op.seqNo()) {
+                                latestOps.put(op.id(), op);
+                                hasChanges = true;
+                            }
+                        } else if (op instanceof Engine.Delete) {
+                            engine.delete((Engine.Delete) op);
+                            final Engine.Operation lastOp = latestOps.get(op.id());
+                            hasChanges |= (lastOp instanceof Engine.Index && lastOp.seqNo() < op.seqNo());
+                            if (lastOp == null || lastOp.seqNo() < op.seqNo()) {
+                                latestOps.put(op.id(), op);
+                            }
+                        } else {
+                            assertThat(op, instanceOf(Engine.NoOp.class));
+                            engine.noOp((Engine.NoOp) op);
+                        }
+                        if (randomInt(100) < 10) {
+                            engine.refresh("test");
+                        }
+                        if (rarely()) {
+                            engine.flush(false, true);
+                        }
                     }
                     engine.flush(randomBoolean(), true);
-                    final String newCommitId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
-                    assertThat(newCommitId, not(equalTo(lastSearcherId)));
+                    final String newSearcherId = ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos());
+                    if (hasChanges || config.getIndexSettings().isSoftDeleteEnabled()) {
+                        assertThat(newSearcherId, not(equalTo(lastSearcherId)));
+                    } else {
+                        assertThat(newSearcherId, equalTo(lastSearcherId));
+                    }
                     if (randomBoolean()) {
                         engine.flush(true, true);
-                        assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(newCommitId));
+                        assertThat(ReadOnlyEngine.generateSearcherId(engine.getLastCommittedSegmentInfos()), equalTo(newSearcherId));
                     }
-                    lastSearcherId = newCommitId;
+                    lastSearcherId = newSearcherId;
                 }
                 globalCheckpoint.set(engine.getProcessedLocalCheckpoint());
             }

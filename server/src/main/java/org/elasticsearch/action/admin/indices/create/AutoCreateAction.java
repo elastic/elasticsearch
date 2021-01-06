@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.action.admin.indices.create;
 
-import java.util.Collections;
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -48,11 +45,13 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Api that auto creates an index or data stream that originate from requests that write into an index that doesn't yet exist.
@@ -183,7 +182,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 
                     if (mappings != null) {
-                        updateRequest.mappings(Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, mappings));
+                        updateRequest.mappings(Collections.singletonMap(descriptor.getIndexType(), descriptor.getMappings()));
                     }
                     if (settings != null) {
                         updateRequest.settings(settings);

@@ -22,6 +22,7 @@ package org.elasticsearch.index.reindex;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -257,7 +258,10 @@ public class DeleteByQueryBasicTests extends ReindexTestCase {
                     .getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
                 ThreadPool threadPool = internalTestCluster.getInstance(ThreadPool.class, internalTestCluster.getMasterName());
                 // Refresh the cluster info after a random delay to check the disk threshold and release the block on the index
-                threadPool.schedule(infoService::refresh, TimeValue.timeValueMillis(randomIntBetween(1, 100)), ThreadPool.Names.MANAGEMENT);
+                threadPool.schedule(
+                        () -> ClusterInfoServiceUtils.refresh(infoService),
+                        TimeValue.timeValueMillis(randomIntBetween(1, 100)),
+                        ThreadPool.Names.MANAGEMENT);
                 // The delete by query request will be executed successfully because the block will be released
                 assertThat(deleteByQuery().source("test").filter(QueryBuilders.matchAllQuery()).refresh(true).get(),
                     matcher().deleted(docs));

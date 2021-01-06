@@ -410,7 +410,7 @@ public abstract class AbstractIndicesClusterStateServiceTestCase extends ESTestC
         }
 
         @Override
-        public ShardLongFieldRange getTimestampMillisRange() {
+        public ShardLongFieldRange getTimestampRange() {
             return ShardLongFieldRange.EMPTY;
         }
 

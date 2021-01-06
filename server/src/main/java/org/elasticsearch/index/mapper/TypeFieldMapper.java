@@ -94,7 +94,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             emitTypesDeprecationWarning();
-            return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override

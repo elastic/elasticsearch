@@ -259,7 +259,7 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
     }
 
-    public void testBucketBreaker() throws Exception {
+    public void testAggTookTooMuch() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
             return;
@@ -290,12 +290,10 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
             assertTrue("there should be shard failures", resp.getFailedShards() > 0);
             fail("aggregation should have tripped the breaker");
         } catch (Exception e) {
-            String errMsg = "CircuitBreakingException[[request] Data too large, data for [<agg [my_terms]>] would be";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                    e.toString(), containsString(errMsg));
-            errMsg = "which is larger than the limit of [100/100b]]";
-            assertThat("Exception: [" + e.toString() + "] should contain a CircuitBreakingException",
-                    e.toString(), containsString(errMsg));
+            Throwable cause = e.getCause();
+            assertThat(cause, instanceOf(CircuitBreakingException.class));
+            assertThat(cause.toString(), containsString("[request] Data too large, data for [preallocate[aggregations]] would be"));
+            assertThat(cause.toString(), containsString("which is larger than the limit of [100/100b]"));
         }
     }
 

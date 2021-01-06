@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
-import java.util.Collections;
-import java.util.Set;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
@@ -35,11 +32,15 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.Collections;
+import java.util.Set;
+
+import static java.util.Collections.singletonMap;
 
 /**
  * Create index action.
@@ -120,7 +121,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(Collections.singletonMap(MapperService.SINGLE_MAPPING_NAME, descriptor.getMappings()))
+            .mappings(singletonMap(descriptor.getIndexType(), descriptor.getMappings()))
             .settings(settings);
     }
 }

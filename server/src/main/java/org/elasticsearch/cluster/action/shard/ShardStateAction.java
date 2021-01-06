@@ -527,15 +527,15 @@ public class ShardStateAction {
     public void shardStarted(final ShardRouting shardRouting,
                              final long primaryTerm,
                              final String message,
-                             final ShardLongFieldRange timestampMillisRange,
+                             final ShardLongFieldRange timestampRange,
                              final ActionListener<Void> listener) {
-        shardStarted(shardRouting, primaryTerm, message, timestampMillisRange, listener, clusterService.state());
+        shardStarted(shardRouting, primaryTerm, message, timestampRange, listener, clusterService.state());
     }
 
     public void shardStarted(final ShardRouting shardRouting,
                              final long primaryTerm,
                              final String message,
-                             final ShardLongFieldRange timestampMillisRange,
+                             final ShardLongFieldRange timestampRange,
                              final ActionListener<Void> listener,
                              final ClusterState currentState) {
         final StartedShardEntry entry = new StartedShardEntry(
@@ -543,7 +543,7 @@ public class ShardStateAction {
                 shardRouting.allocationId().getId(),
                 primaryTerm,
                 message,
-                timestampMillisRange);
+                timestampRange);
         sendShardAction(SHARD_STARTED_ACTION_NAME, currentState, entry, listener);
     }
 
@@ -640,13 +640,13 @@ public class ShardStateAction {
                             IndexLongFieldRange currentTimestampMillisRange = updatedTimestampRanges.get(index);
                             final IndexMetadata indexMetadata = currentState.metadata().index(index);
                             if (currentTimestampMillisRange == null) {
-                                currentTimestampMillisRange = indexMetadata.getTimestampMillisRange();
+                                currentTimestampMillisRange = indexMetadata.getTimestampRange();
                             }
                             final IndexLongFieldRange newTimestampMillisRange;
                             newTimestampMillisRange = currentTimestampMillisRange.extendWithShardRange(
                                     task.shardId.id(),
                                     indexMetadata.getNumberOfShards(),
-                                    task.timestampMillisRange);
+                                    task.timestampRange);
                             if (newTimestampMillisRange != currentTimestampMillisRange) {
                                 updatedTimestampRanges.put(index, newTimestampMillisRange);
                             }
@@ -665,7 +665,7 @@ public class ShardStateAction {
                     for (Map.Entry<Index, IndexLongFieldRange> updatedTimestampRangeEntry : updatedTimestampRanges.entrySet()) {
                         metadataBuilder.put(IndexMetadata
                                 .builder(metadataBuilder.getSafe(updatedTimestampRangeEntry.getKey()))
-                                .timestampMillisRange(updatedTimestampRangeEntry.getValue()));
+                                .timestampRange(updatedTimestampRangeEntry.getValue()));
                     }
                     maybeUpdatedState = ClusterState.builder(maybeUpdatedState).metadata(metadataBuilder).build();
                 }
@@ -684,9 +684,9 @@ public class ShardStateAction {
         private static boolean assertStartedIndicesHaveCompleteTimestampRanges(ClusterState clusterState) {
             for (ObjectObjectCursor<String, IndexRoutingTable> cursor : clusterState.getRoutingTable().getIndicesRouting()) {
                 assert cursor.value.allPrimaryShardsActive() == false
-                        || clusterState.metadata().index(cursor.key).getTimestampMillisRange().isComplete()
+                        || clusterState.metadata().index(cursor.key).getTimestampRange().isComplete()
                         : "index [" + cursor.key + "] should have complete timestamp range, but got "
-                        + clusterState.metadata().index(cursor.key).getTimestampMillisRange() + " for " + cursor.value.prettyPrint();
+                        + clusterState.metadata().index(cursor.key).getTimestampRange() + " for " + cursor.value.prettyPrint();
             }
             return true;
         }
@@ -713,7 +713,7 @@ public class ShardStateAction {
         final String allocationId;
         final long primaryTerm;
         final String message;
-        final ShardLongFieldRange timestampMillisRange;
+        final ShardLongFieldRange timestampRange;
 
         StartedShardEntry(StreamInput in) throws IOException {
             super(in);
@@ -732,19 +732,19 @@ public class ShardStateAction {
                 final Exception ex = in.readException();
                 assert ex == null : "started shard must not have failure [" + ex + "]";
             }
-            this.timestampMillisRange = ShardLongFieldRange.readFrom(in);
+            this.timestampRange = ShardLongFieldRange.readFrom(in);
         }
 
         public StartedShardEntry(final ShardId shardId,
                                  final String allocationId,
                                  final long primaryTerm,
                                  final String message,
-                                 final ShardLongFieldRange timestampMillisRange) {
+                                 final ShardLongFieldRange timestampRange) {
             this.shardId = shardId;
             this.allocationId = allocationId;
             this.primaryTerm = primaryTerm;
             this.message = message;
-            this.timestampMillisRange = timestampMillisRange;
+            this.timestampRange = timestampRange;
         }
 
         @Override
@@ -761,7 +761,7 @@ public class ShardStateAction {
             if (out.getVersion().before(Version.V_6_3_0)) {
                 out.writeException(null);
             }
-            timestampMillisRange.writeTo(out);
+            timestampRange.writeTo(out);
         }
 
         @Override

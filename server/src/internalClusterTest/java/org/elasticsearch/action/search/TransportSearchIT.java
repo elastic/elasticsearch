@@ -536,6 +536,11 @@ public class TransportSearchIT extends ESIntegTestCase {
         public String getType() {
             return "test";
         }
+
+        @Override
+        public long bytesToPreallocate() {
+            return 0;
+        }
     }
 
     /**
@@ -570,13 +575,13 @@ public class TransportSearchIT extends ESIntegTestCase {
         @Override
         public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
             return new InternalAggregation[] {
-                new InternalMax(name(), Double.NaN, DocValueFormat.RAW, Collections.emptyMap())
+                buildEmptyAggregation()
             };
         }
 
         @Override
         public InternalAggregation buildEmptyAggregation() {
-            return new InternalMax(name(), Double.NaN, DocValueFormat.RAW, Collections.emptyMap());
+            return new InternalMax(name(), Double.NaN, DocValueFormat.RAW, null);
         }
 
         @Override

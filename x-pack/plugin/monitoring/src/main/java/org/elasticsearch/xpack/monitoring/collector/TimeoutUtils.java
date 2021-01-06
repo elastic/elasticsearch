@@ -6,12 +6,14 @@
 
 package org.elasticsearch.xpack.monitoring.collector;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
+import org.elasticsearch.action.support.tasks.BaseTasksResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
@@ -35,9 +37,25 @@ public final class TimeoutUtils {
         ensureNoTimeouts(collectionTimeout, timedOutNodeIds);
     }
 
-    public static void ensureNoTimeouts(TimeValue collectionTimeout, BroadcastResponse broadcastResponse) {
+    public static void ensureNoTimeouts(TimeValue collectionTimeout, BaseTasksResponse response) {
         HashSet<String> timedOutNodeIds = null;
-        for (DefaultShardOperationFailedException shardFailure : broadcastResponse.getShardFailures()) {
+        for (ElasticsearchException nodeFailure : response.getNodeFailures()) {
+            if (nodeFailure instanceof FailedNodeException) {
+                FailedNodeException failedNodeException = (FailedNodeException) nodeFailure;
+                if (isTimeoutFailure(failedNodeException)) {
+                    if (timedOutNodeIds == null) {
+                        timedOutNodeIds = new HashSet<>();
+                    }
+                    timedOutNodeIds.add(failedNodeException.nodeId());
+                }
+            }
+        }
+        ensureNoTimeouts(collectionTimeout, timedOutNodeIds);
+    }
+
+    public static void ensureNoTimeouts(TimeValue collectionTimeout, BroadcastResponse response) {
+        HashSet<String> timedOutNodeIds = null;
+        for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
             final Throwable shardFailureCause = shardFailure.getCause();
             if (shardFailureCause instanceof FailedNodeException) {
                 FailedNodeException failedNodeException = (FailedNodeException) shardFailureCause;

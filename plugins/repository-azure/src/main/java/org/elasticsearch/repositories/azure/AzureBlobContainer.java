@@ -107,6 +107,11 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlob(String blobName, BytesReference bytes, boolean failIfAlreadyExists) throws IOException {
+        blobStore.writeBlob(buildKey(blobName), bytes, failIfAlreadyExists);
+    }
+
+    @Override
     public DeleteResult delete() throws IOException {
         return blobStore.deleteBlobDirectory(keyPath);
     }

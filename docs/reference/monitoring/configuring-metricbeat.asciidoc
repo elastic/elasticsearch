@@ -78,8 +78,7 @@ The `modules.d/elasticsearch-xpack.yml` file contains the following settings:
     #ssl.certificate_authorities: ["/etc/pki/root/ca.pem"]
     #ssl.certificate: "/etc/pki/client/cert.pem"
     #ssl.key: "/etc/pki/client/cert.key"
-    #ssl.verification_mode: "full"            
-    xpack.enabled: true
+    #ssl.verification_mode: "full"
 ----------------------------------
 <1> By default, the module collects {es} monitoring metrics from
 `http://localhost:9200`. If that host and port number are not correct, you must

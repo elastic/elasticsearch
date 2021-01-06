@@ -82,52 +82,6 @@ IMPORTANT: Queries against runtime fields are considered expensive. If
 to `false`, expensive queries are not allowed and {es} will reject any queries
 against runtime fields.
 
-[[runtime-search-request]]
-=== Define runtime fields in a search request
-You can specify a `runtime_mappings` section in a search request to create
-runtime fields that exist only as part of the query. You specify a script
-as part of the `runtime_mappings` section, just as you would if adding a
-runtime field to the mappings.
-
-Fields defined in the search request take precedence over fields defined with
-the same name in the index mappings. This flexibility allows you to shadow
-existing fields and calculate a different value in the search request, without
-modifying the field itself. If you made a mistake in your index mapping, you
-can use runtime fields to calculate values that override values in the mapping
-during the search request.
-
-In the following request, the values for the `day_of_week` field are calculated
-dynamically, and only within the context of this search request:
-
-[source,console]
-----
-GET my-index/_search
-{
-  "runtime_mappings": {
-    "day_of_week": {
-      "type": "keyword",
-      "script": {
-        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
-      }
-    }
-  },
-  "aggs": {
-    "day_of_week": {
-      "terms": {
-        "field": "day_of_week"
-      }
-    }
-  }
-}
-----
-// TEST[continued]
-
-Defining a runtime field in a search request uses the same format as defining
-a runtime field in the index mapping. That consistency means you can promote a
-runtime field from a search request to the index mapping by moving the field
-definition from `runtime_mappings` in the search request to the `runtime`
-section of the index mapping.
-
 [[runtime-mapping-fields]]
 === Map a runtime field
 You map runtime fields by adding a `runtime` section under the mapping
@@ -191,6 +145,52 @@ that uses a runtime field of type `ip` will fail if the type is changed
 to `boolean`.
 
 ****
+
+[[runtime-search-request]]
+=== Define runtime fields in a search request
+You can specify a `runtime_mappings` section in a search request to create
+runtime fields that exist only as part of the query. You specify a script
+as part of the `runtime_mappings` section, just as you would if adding a
+runtime field to the mappings.
+
+Fields defined in the search request take precedence over fields defined with
+the same name in the index mappings. This flexibility allows you to shadow
+existing fields and calculate a different value in the search request, without
+modifying the field itself. If you made a mistake in your index mapping, you
+can use runtime fields to calculate values that override values in the mapping
+during the search request.
+
+In the following request, the values for the `day_of_week` field are calculated
+dynamically, and only within the context of this search request:
+
+[source,console]
+----
+GET my-index/_search
+{
+  "runtime_mappings": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+      }
+    }
+  },
+  "aggs": {
+    "day_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+----
+//TEST[continued]
+
+Defining a runtime field in a search request uses the same format as defining
+a runtime field in the index mapping. That consistency means you can promote a
+runtime field from a search request to the index mapping by moving the field
+definition from `runtime_mappings` in the search request to the `runtime`
+section of the index mapping.
 
 [[runtime-fields-scriptless]]
 ==== Define runtime fields without a script

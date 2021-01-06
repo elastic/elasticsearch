@@ -43,11 +43,7 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         super(in);
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-            timeout = in.readOptionalTimeValue();
-        } else {
-            timeout = null;
-        }
+        timeout = in.readOptionalTimeValue();
     }
 
     protected BroadcastRequest(String... indices) {
@@ -113,8 +109,6 @@ public class BroadcastRequest<Request extends BroadcastRequest<Request>> extends
         super.writeTo(out);
         out.writeStringArrayNullable(indices);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeOptionalTimeValue(timeout);
-        }
+        out.writeOptionalTimeValue(timeout);
     }
 }

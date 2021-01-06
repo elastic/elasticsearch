@@ -23,6 +23,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.List;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Objects;
@@ -44,32 +45,23 @@ public class IndexAbstractionTests extends ESTestCase {
         IndexMetadata indexWithUnspecifiedAlias = buildIndexWithAlias("nonhidden2", hiddenAliasName, null, Version.CURRENT, false);
 
         {
-            IndexAbstraction.Alias allHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, hidden1);
-            allHidden.addIndex(hidden2);
-            allHidden.addIndex(hidden3);
-            allHidden.computeAndValidateAliasProperties(); // Should be ok
+            // Should be ok:
+            IndexAbstraction.Alias allHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(hidden1, hidden2, hidden3));
         }
 
         {
+            // Should be ok:
             IndexAbstraction.Alias allVisible;
             if (randomBoolean()) {
-                allVisible = new IndexAbstraction.Alias(hiddenAliasMetadata, indexWithNonHiddenAlias);
-                allVisible.addIndex(indexWithUnspecifiedAlias);
+                allVisible = new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(indexWithNonHiddenAlias, indexWithUnspecifiedAlias));
             } else {
-                allVisible = new IndexAbstraction.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
-                allVisible.addIndex(indexWithNonHiddenAlias);
+                allVisible = new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(indexWithUnspecifiedAlias, indexWithNonHiddenAlias));
             }
-
-            allVisible.computeAndValidateAliasProperties(); // Should be ok
         }
 
         {
-            IndexAbstraction.Alias oneNonHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, hidden1);
-            oneNonHidden.addIndex(hidden2);
-            oneNonHidden.addIndex(hidden3);
-            oneNonHidden.addIndex(indexWithNonHiddenAlias);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> oneNonHidden.computeAndValidateAliasProperties());
+                () -> new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(hidden1, hidden2, hidden3, indexWithNonHiddenAlias)));
             assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName +
                 "] has is_hidden set to true on indices ["));
             assertThat(exception.getMessage(), allOf(containsString(hidden1.getIndex().getName()),
@@ -80,12 +72,8 @@ public class IndexAbstractionTests extends ESTestCase {
         }
 
         {
-            IndexAbstraction.Alias oneUnspecified = new IndexAbstraction.Alias(hiddenAliasMetadata, hidden1);
-            oneUnspecified.addIndex(hidden2);
-            oneUnspecified.addIndex(hidden3);
-            oneUnspecified.addIndex(indexWithUnspecifiedAlias);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> oneUnspecified.computeAndValidateAliasProperties());
+                () -> new IndexAbstraction.Alias(hiddenAliasMetadata, List.of(hidden1, hidden2, hidden3, indexWithUnspecifiedAlias)));
             assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName +
                 "] has is_hidden set to true on indices ["));
             assertThat(exception.getMessage(), allOf(containsString(hidden1.getIndex().getName()),
@@ -96,18 +84,17 @@ public class IndexAbstractionTests extends ESTestCase {
         }
 
         {
-            IndexAbstraction.Alias mostlyVisibleOneHidden;
-            if (randomBoolean()) {
-                mostlyVisibleOneHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, indexWithNonHiddenAlias);
-                mostlyVisibleOneHidden.addIndex(indexWithUnspecifiedAlias);
-            } else {
-                mostlyVisibleOneHidden = new IndexAbstraction.Alias(hiddenAliasMetadata, indexWithUnspecifiedAlias);
-                mostlyVisibleOneHidden.addIndex(indexWithNonHiddenAlias);
-            }
             final IndexMetadata hiddenIndex = randomFrom(hidden1, hidden2, hidden3);
-            mostlyVisibleOneHidden.addIndex(hiddenIndex);
             IllegalStateException exception = expectThrows(IllegalStateException.class,
-                () -> mostlyVisibleOneHidden.computeAndValidateAliasProperties());
+                () -> {
+                    if (randomBoolean()) {
+                        new IndexAbstraction.Alias(hiddenAliasMetadata,
+                            List.of(indexWithNonHiddenAlias, indexWithUnspecifiedAlias, hiddenIndex));
+                    } else {
+                        new IndexAbstraction.Alias(hiddenAliasMetadata,
+                            List.of(indexWithUnspecifiedAlias, indexWithNonHiddenAlias, hiddenIndex));
+                    }
+                });
             assertThat(exception.getMessage(), containsString("alias [" + hiddenAliasName + "] has is_hidden set to true on " +
                 "indices [" + hiddenIndex.getIndex().getName() + "] but does not have is_hidden set to true on indices ["));
             assertThat(exception.getMessage(), allOf(containsString(indexWithUnspecifiedAlias.getIndex().getName()),

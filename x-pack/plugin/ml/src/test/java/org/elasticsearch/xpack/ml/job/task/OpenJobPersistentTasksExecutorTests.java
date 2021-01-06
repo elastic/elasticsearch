@@ -18,20 +18,24 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlMetaIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
@@ -50,15 +54,19 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFiel
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
+import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.junit.Before;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.elasticsearch.xpack.ml.job.task.OpenJobPersistentTasksExecutor.validateJobAndId;
@@ -76,7 +84,23 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     @Before
     public void setUpMocks() {
-        clusterService = mock(ClusterService.class);
+        ThreadPool tp = mock(ThreadPool.class);
+        ExecutorService executorService = EsExecutors.newDirectExecutorService();
+        when(tp.generic()).thenReturn(executorService);
+        Settings settings = Settings.builder().put("node.name", "OpenJobPersistentTasksExecutorTests").build();
+        ClusterSettings clusterSettings = new ClusterSettings(settings,
+            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                ClusterService.USER_DEFINED_METADATA,
+                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
+                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
+                MachineLearning.MAX_LAZY_ML_NODES,
+                MachineLearning.MAX_ML_NODE_SIZE,
+                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
+                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT)));
+        clusterService = new ClusterService(settings, clusterSettings, tp);
         autodetectProcessManager = mock(AutodetectProcessManager.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
@@ -109,17 +133,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testGetAssignment_GivenJobThatRequiresMigration() {
-        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
-                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES,
-                MachineLearning.MAX_ML_NODE_SIZE,
-                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
-            )
-        );
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
         OpenJobPersistentTasksExecutor executor = createExecutor(Settings.EMPTY);
 
         OpenJobAction.JobParams params = new OpenJobAction.JobParams("missing_job_field");
@@ -129,16 +142,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
     // An index being unavailable should take precedence over waiting for a lazy node
     public void testGetAssignment_GivenUnavailableIndicesWithLazyNode() {
         Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 1).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
-                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES,
-                MachineLearning.MAX_ML_NODE_SIZE,
-                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
-            )
-        );
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
 
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
@@ -159,17 +162,6 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
 
     public void testGetAssignment_GivenLazyJobAndNoGlobalLazyNodes() {
         Settings settings = Settings.builder().put(MachineLearning.MAX_LAZY_ML_NODES.getKey(), 0).build();
-        ClusterSettings clusterSettings = new ClusterSettings(settings,
-            Sets.newHashSet(MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
-                MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
-                MachineLearning.MAX_LAZY_ML_NODES,
-                MachineLearning.MAX_ML_NODE_SIZE,
-                MachineLearning.MAX_OPEN_JOBS_PER_NODE,
-                MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT
-            )
-        );
-        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
-
         ClusterState.Builder csBuilder = ClusterState.builder(new ClusterName("_name"));
         Metadata.Builder metadata = Metadata.builder();
         RoutingTable.Builder routingTable = RoutingTable.builder();

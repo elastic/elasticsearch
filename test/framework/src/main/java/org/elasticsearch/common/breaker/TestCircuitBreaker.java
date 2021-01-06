@@ -30,11 +30,10 @@ public class TestCircuitBreaker extends NoopCircuitBreaker {
     }
 
     @Override
-    public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+    public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
         if (shouldBreak.get()) {
             throw new CircuitBreakingException("broken", getDurability());
         }
-        return 0;
     }
 
     public void startBreaking() {

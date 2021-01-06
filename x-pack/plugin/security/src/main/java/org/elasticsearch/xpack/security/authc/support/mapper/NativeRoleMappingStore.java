@@ -198,7 +198,7 @@ public class NativeRoleMappingStore implements UserRoleMapper {
 
     private void innerPutMapping(PutRoleMappingRequest request, ActionListener<Boolean> listener) {
         final ExpressionRoleMapping mapping = request.getMapping();
-        securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+        securityIndex.checkIndexStateThenExecute(listener::onFailure, () -> {
             final XContentBuilder xContentBuilder;
             try {
                 xContentBuilder = mapping.toXContent(jsonBuilder(), ToXContent.EMPTY_PARAMS, true);

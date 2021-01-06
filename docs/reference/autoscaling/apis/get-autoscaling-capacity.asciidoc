@@ -6,6 +6,8 @@
 <titleabbrev>Get autoscaling capacity</titleabbrev>
 ++++
 
+experimental[]
+
 Get autoscaling capacity.
 
 [[autoscaling-get-autoscaling-capacity-request]]

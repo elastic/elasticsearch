@@ -24,6 +24,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
+import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHeader;
+
 /**
  * {@code SnapshotLifecyclePolicyMetadata} encapsulates a {@link SnapshotLifecyclePolicy} as well as
  * the additional meta information link headers used for execution, version (a monotonically
@@ -86,6 +88,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
                                     SnapshotInvocationRecord lastSuccess, SnapshotInvocationRecord lastFailure) {
         this.policy = policy;
         this.headers = headers;
+        assertNoAuthorizationHeader(this.headers);
         this.version = version;
         this.modifiedDate = modifiedDate;
         this.lastSuccess = lastSuccess;
@@ -96,6 +99,7 @@ public class SnapshotLifecyclePolicyMetadata extends AbstractDiffable<SnapshotLi
     SnapshotLifecyclePolicyMetadata(StreamInput in) throws IOException {
         this.policy = new SnapshotLifecyclePolicy(in);
         this.headers = (Map<String, String>) in.readGenericValue();
+        assertNoAuthorizationHeader(this.headers);
         this.version = in.readVLong();
         this.modifiedDate = in.readVLong();
         this.lastSuccess = in.readOptionalWriteable(SnapshotInvocationRecord::new);

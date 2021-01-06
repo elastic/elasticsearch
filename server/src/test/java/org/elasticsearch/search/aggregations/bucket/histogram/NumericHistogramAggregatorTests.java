@@ -262,10 +262,9 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(5)
                 .missing(2d);
-            MappedFieldType type = null;
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                InternalHistogram histogram = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder);
 
                 assertEquals(1, histogram.getBuckets().size());
 
@@ -289,11 +288,10 @@ public class NumericHistogramAggregatorTests extends AggregatorTestCase {
                 .field("field")
                 .interval(5)
                 .missing(missingValue);
-            MappedFieldType type = null;
             try (IndexReader reader = w.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
                 Throwable t = expectThrows(IllegalArgumentException.class, () -> {
-                    searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, type);
+                    searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder);
                 });
                 // This throws a number format exception (which is a subclass of IllegalArgumentException) and might be ok?
                 assertThat(t.getMessage(), containsString(missingValue));

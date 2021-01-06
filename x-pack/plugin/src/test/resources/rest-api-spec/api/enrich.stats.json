@@ -5,6 +5,7 @@
       "description": "Gets enrich coordinator statistics and information about enrich policies that are currently executing."
     },
     "stability" : "stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

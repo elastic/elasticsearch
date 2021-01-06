@@ -5,6 +5,7 @@
       "description":"starts a limited time trial license."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

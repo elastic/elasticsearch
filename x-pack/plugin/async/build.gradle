@@ -13,7 +13,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
 }
 
-dependencyLicenses {
+tasks.named("dependencyLicenses").configure {
   ignoreSha 'x-pack-core'
 }
 

@@ -8,8 +8,6 @@ package org.elasticsearch.xpack.transform.utils;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.rest.RestStatus;
 
 import java.util.Arrays;
@@ -37,30 +35,6 @@ public final class ExceptionRootCauseFinder {
             RestStatus.NOT_ACCEPTABLE
         )
     );
-
-    /**
-     * Unwrap the exception stack and return the most likely cause.
-     *
-     * @param t raw Throwable
-     * @return unwrapped throwable if possible
-     */
-    public static Throwable getRootCauseException(Throwable t) {
-        // circuit breaking exceptions are at the bottom
-        Throwable unwrappedThrowable = org.elasticsearch.ExceptionsHelper.unwrapCause(t);
-
-        if (unwrappedThrowable instanceof SearchPhaseExecutionException) {
-            SearchPhaseExecutionException searchPhaseException = (SearchPhaseExecutionException) unwrappedThrowable;
-            for (ShardSearchFailure shardFailure : searchPhaseException.shardFailures()) {
-                Throwable unwrappedShardFailure = org.elasticsearch.ExceptionsHelper.unwrapCause(shardFailure.getCause());
-
-                if (unwrappedShardFailure instanceof ElasticsearchException) {
-                    return unwrappedShardFailure;
-                }
-            }
-        }
-
-        return t;
-    }
 
     /**
      * Return the best error message possible given a already unwrapped exception.

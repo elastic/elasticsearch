@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -38,6 +39,11 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 
+/**
+ * Handles inbound messages by first deserializing a {@link TransportMessage} from an {@link InboundMessage} and then passing
+ * it to the appropriate handler. Any deserialized {@code TransportMessage} that is found to implement {@link RefCounted} will have its
+ * reference count decremented by one after having been passed to its handler.
+ */
 public class InboundHandler {
 
     private static final Logger logger = LogManager.getLogger(InboundHandler.class);
@@ -199,10 +205,13 @@ public class InboundHandler {
                     assert reg != null;
                     final String executor = reg.getExecutor();
                     if (ThreadPool.Names.SAME.equals(executor)) {
+                        final T request = readRequest(channel, action, requestId, stream, reg);
                         try {
-                            reg.processMessageReceived(readRequest(channel, action, requestId, stream, reg), transportChannel);
+                            reg.processMessageReceived(request, transportChannel);
                         } catch (Exception e) {
                             sendErrorResponse(reg.getAction(), transportChannel, e);
+                        } finally {
+                            request.decRef();
                         }
                     } else {
                         boolean success = false;
@@ -211,7 +220,12 @@ public class InboundHandler {
                             threadPool.executor(executor).execute(new AbstractRunnable() {
                                 @Override
                                 protected void doRun() throws Exception {
-                                    reg.processMessageReceived(readRequest(channel, action, requestId, stream, reg), transportChannel);
+                                    final T request = readRequest(channel, action, requestId, stream, reg);
+                                    try {
+                                        reg.processMessageReceived(request, transportChannel);
+                                    } finally {
+                                        request.decRef();
+                                    }
                                 }
 
                                 @Override
@@ -268,7 +282,7 @@ public class InboundHandler {
     }
 
     private <T extends TransportResponse> void handleResponse(InetSocketAddress remoteAddress, StreamInput stream,
-                                                              InboundMessage inboundMessage, TransportResponseHandler<T> handler) {
+                                                              final InboundMessage inboundMessage, TransportResponseHandler<T> handler) {
         final String executor = handler.executor();
         if (ThreadPool.Names.SAME.equals(executor)) {
             doHandleResponse(remoteAddress, stream, handler, inboundMessage);

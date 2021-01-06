@@ -65,13 +65,7 @@ public class RestTestTransformer {
             while (testsIterator.hasNext()) {
                 Map.Entry<String, JsonNode> testObject = testsIterator.next();
                 String testName = testObject.getKey();
-                JsonNode currentTest = testObject.getValue();
-//
-//                System.out.println("************************************************");
-//                System.out.println("*************** " + testName + " *******************");
-//                System.out.println("*************** " + currentTest + " *******************");
-//                System.out.println("************************************************");
-
+                JsonNode testNode = testObject.getValue();
                 Map<String, ObjectKeyFinder> objectKeyFinders = transformations.stream()
                     .filter(a -> a instanceof ObjectKeyFinder)
                     .map(b -> (ObjectKeyFinder) b)
@@ -79,10 +73,9 @@ public class RestTestTransformer {
 
                 transformByObjectKeyName(test, objectKeyFinders);
             }
-            //System.out.println(test.toPrettyString());
+            System.out.println(test.toPrettyString());
         }
         return tests;
-
     }
 
     private void transformByObjectKeyName(JsonNode currentNode, Map<String, ObjectKeyFinder> objectKeyFinders) {

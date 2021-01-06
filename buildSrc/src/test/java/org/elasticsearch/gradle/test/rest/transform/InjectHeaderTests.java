@@ -45,10 +45,10 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
 
-        List<Map<String, String>> headers = List.of(
-            Map.of("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7"),
-            Map.of("Accept", "application/vnd.elasticsearch+json;compatible-with=7")
-        );
+        Map<String, String> headers =
+            Map.of("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7",
+                "Accept", "application/vnd.elasticsearch+json;compatible-with=7"
+            );
 
         transformer.transformRestTests(tests,  Collections.singletonList(new InjectHeaders(headers)));
 

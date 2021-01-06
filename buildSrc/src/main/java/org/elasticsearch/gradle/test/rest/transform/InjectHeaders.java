@@ -19,24 +19,35 @@
 
 package org.elasticsearch.gradle.test.rest.transform;
 
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 
 import javax.annotation.Nullable;
-import java.util.List;
 import java.util.Map;
 
-public class InjectHeaders implements ObjectKeyFinder , RestTestSetupTransform {
+public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
 
+    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-    private final List<Map<String, String>> headers;
+    private final Map<String, String> headers;
 
-    public InjectHeaders(List<Map<String, String>> headers) {
+    public InjectHeaders(Map<String, String> headers) {
         this.headers = headers;
     }
 
     @Override
     public void transformTest(ObjectNode doNode) {
-        System.out.println("*************** Found doNode " + doNode + " *****************");
+        ObjectNode doNodeValue = (ObjectNode) doNode.get(getKeyToFind());
+        ObjectNode headersNode = (ObjectNode) doNodeValue.get("headers");
+        if (headersNode == null) {
+            headersNode = new ObjectNode(jsonNodeFactory);
+        }
+
+        for (Map.Entry<String, String> entry : headers.entrySet()) {
+            headersNode.set(entry.getKey(), TextNode.valueOf(entry.getValue()));
+        }
+        doNodeValue.set("headers", headersNode);
     }
 
     @Override

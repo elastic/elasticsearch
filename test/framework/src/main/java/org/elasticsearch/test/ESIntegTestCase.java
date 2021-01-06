@@ -64,8 +64,11 @@ import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.transport.TransportClient;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -576,6 +579,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
                     ensureClusterStateCanBeReadByNodeTool();
+                    ensureClusterInfoServiceRunning();
                     if (isInternalCluster()) {
                         // check no pending cluster states are leaked
                         for (Discovery discovery : internalCluster().getInstances(Discovery.class)) {
@@ -1197,6 +1201,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
                         XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()));
             }
+        }
+    }
+
+    private void ensureClusterInfoServiceRunning() {
+        if (isInternalCluster() && cluster().size() > 0) {
+            // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
+            refreshClusterInfo();
+        }
+    }
+
+    public static void refreshClusterInfo() {
+        final ClusterInfoService clusterInfoService
+                = internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        if (clusterInfoService instanceof InternalClusterInfoService) {
+            ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         }
     }
 

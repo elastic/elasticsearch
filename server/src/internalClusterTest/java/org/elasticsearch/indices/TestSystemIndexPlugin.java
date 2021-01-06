@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -17,14 +17,22 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.remote;
+package org.elasticsearch.indices;
 
-import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SystemIndexPlugin;
 
-public final class RemoteInfoRequestBuilder extends ActionRequestBuilder<RemoteInfoRequest, RemoteInfoResponse> {
+import java.util.Collection;
 
-    public RemoteInfoRequestBuilder(ElasticsearchClient client, RemoteInfoAction action) {
-        super(client, action, new RemoteInfoRequest());
+import static java.util.Collections.singletonList;
+
+/**
+ * Just a test plugin to allow the test descriptor to be installed in the cluster.
+ */
+public class TestSystemIndexPlugin extends Plugin implements SystemIndexPlugin {
+    @Override
+    public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
+        return singletonList(new TestSystemIndexDescriptor());
     }
 }

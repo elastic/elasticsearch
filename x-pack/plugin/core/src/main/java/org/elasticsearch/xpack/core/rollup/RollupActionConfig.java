@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rollup.v2;
+package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
@@ -19,7 +19,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.IOException;
@@ -42,26 +42,28 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     private static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueSeconds(20);
     private static final String TIMEOUT = "timeout";
 
-    private final GroupConfig groupConfig;
+    private final RollupActionGroupConfig groupConfig;
     private final List<MetricConfig> metricsConfig;
     private final TimeValue timeout;
 
     private static final ConstructingObjectParser<RollupActionConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, false, (args) -> {
-            GroupConfig groupConfig = (GroupConfig) args[0];
+            RollupActionGroupConfig groupConfig = (RollupActionGroupConfig) args[0];
             @SuppressWarnings("unchecked")
             List<MetricConfig> metricsConfig = (List<MetricConfig>) args[1];
             TimeValue timeout = (TimeValue) args[2];
             return new RollupActionConfig(groupConfig, metricsConfig, timeout);
         });
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> GroupConfig.fromXContent(p), new ParseField(GroupConfig.NAME));
+        PARSER.declareObject(optionalConstructorArg(), (p, c) -> RollupActionGroupConfig.fromXContent(p),
+            new ParseField(RollupActionGroupConfig.NAME));
         PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> MetricConfig.fromXContent(p), new ParseField(MetricConfig.NAME));
         PARSER.declareField(optionalConstructorArg(), (p, c) -> TimeValue.parseTimeValue(p.textOrNull(), TIMEOUT),
             new ParseField(TIMEOUT), ObjectParser.ValueType.STRING_OR_NULL);
     }
 
-    public RollupActionConfig(final GroupConfig groupConfig, final List<MetricConfig> metricsConfig, final @Nullable TimeValue timeout) {
+    public RollupActionConfig(final RollupActionGroupConfig groupConfig, final List<MetricConfig> metricsConfig,
+                              final @Nullable TimeValue timeout) {
         if (groupConfig == null && (metricsConfig == null || metricsConfig.isEmpty())) {
             throw new IllegalArgumentException("At least one grouping or metric must be configured");
         }
@@ -71,12 +73,12 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     }
 
     public RollupActionConfig(final StreamInput in) throws IOException {
-        groupConfig = in.readOptionalWriteable(GroupConfig::new);
+        groupConfig = in.readOptionalWriteable(RollupActionGroupConfig::new);
         metricsConfig = in.readList(MetricConfig::new);
         timeout = in.readTimeValue();
     }
 
-    public GroupConfig getGroupConfig() {
+    public RollupActionGroupConfig getGroupConfig() {
         return groupConfig;
     }
 
@@ -119,7 +121,7 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         builder.startObject();
         {
             if (groupConfig != null) {
-                builder.field(GroupConfig.NAME, groupConfig);
+                builder.field(RollupActionGroupConfig.NAME, groupConfig);
             }
             if (metricsConfig != null) {
                 builder.startArray(MetricConfig.NAME);

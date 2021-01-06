@@ -783,7 +783,7 @@ public class TextFieldMapper extends FieldMapper {
                 filter.minFreq,
                 filter.maxFreq,
                 filter.minSegmentSize,
-                CoreValuesSourceType.BYTES
+                CoreValuesSourceType.KEYWORD
             );
         }
 

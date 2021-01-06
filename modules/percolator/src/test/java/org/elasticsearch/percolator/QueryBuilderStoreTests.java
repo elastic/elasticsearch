@@ -92,7 +92,7 @@ public class QueryBuilderStoreTests extends ESTestCase {
             when(queryShardContext.getWriteableRegistry()).thenReturn(writableRegistry());
             when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
             when(queryShardContext.getForField(fieldMapper.fieldType()))
-                .thenReturn(new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.BYTES));
+                .thenReturn(new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD));
             when(queryShardContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
                 return new KeywordFieldMapper.KeywordFieldType(fieldName);

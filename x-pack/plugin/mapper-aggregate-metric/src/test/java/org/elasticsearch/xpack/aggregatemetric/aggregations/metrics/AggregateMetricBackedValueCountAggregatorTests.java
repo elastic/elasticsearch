@@ -151,7 +151,7 @@ public class AggregateMetricBackedValueCountAggregatorTests extends AggregatorTe
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return org.elasticsearch.common.collect.List.of(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             CoreValuesSourceType.GEOPOINT,
             CoreValuesSourceType.RANGE,
             CoreValuesSourceType.BOOLEAN,

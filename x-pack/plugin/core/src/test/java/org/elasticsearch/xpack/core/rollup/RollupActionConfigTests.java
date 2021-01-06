@@ -3,14 +3,12 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.xpack.core.rollup.v2;
+package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
-import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.IOException;
@@ -30,7 +28,7 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
 
     public static RollupActionConfig randomConfig(Random random) {
         final TimeValue timeout = random.nextBoolean() ? null : ConfigTestHelpers.randomTimeout(random);
-        final GroupConfig groupConfig = ConfigTestHelpers.randomGroupConfig(random);
+        final RollupActionGroupConfig groupConfig = ConfigTestHelpers.randomRollupActionGroupConfig(random);
         final List<MetricConfig> metricConfigs = ConfigTestHelpers.randomMetricsConfigs(random);
         return new RollupActionConfig(groupConfig, metricConfigs, timeout);
     }

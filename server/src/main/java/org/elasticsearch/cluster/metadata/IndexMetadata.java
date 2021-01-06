@@ -392,7 +392,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
 
-    private final IndexLongFieldRange timestampMillisRange;
+    private final IndexLongFieldRange timestampRange;
 
     private IndexMetadata(
             final Index index,
@@ -420,7 +420,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
             final boolean isSystem,
-            final IndexLongFieldRange timestampMillisRange) {
+            final IndexLongFieldRange timestampRange) {
 
         this.index = index;
         this.version = version;
@@ -453,7 +453,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
-        this.timestampMillisRange = timestampMillisRange;
+        this.timestampRange = timestampRange;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -667,8 +667,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return excludeFilters;
     }
 
-    public IndexLongFieldRange getTimestampMillisRange() {
-        return timestampMillisRange;
+    public IndexLongFieldRange getTimestampRange() {
+        return timestampRange;
     }
 
     @Override
@@ -780,7 +780,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
-        private final IndexLongFieldRange timestampMillisRange;
+        private final IndexLongFieldRange timestampRange;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -799,7 +799,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
-            timestampMillisRange = after.timestampMillisRange;
+            timestampRange = after.timestampRange;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -845,7 +845,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 isSystem = false;
             }
-            timestampMillisRange = IndexLongFieldRange.readFrom(in);
+            timestampRange = IndexLongFieldRange.readFrom(in);
         }
 
         @Override
@@ -875,7 +875,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
-            timestampMillisRange.writeTo(out);
+            timestampRange.writeTo(out);
         }
 
         @Override
@@ -895,7 +895,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(part.isSystem);
-            builder.timestampMillisRange(timestampMillisRange);
+            builder.timestampRange(timestampRange);
             return builder.build();
         }
     }
@@ -953,7 +953,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
-        builder.timestampMillisRange(IndexLongFieldRange.readFrom(in));
+        builder.timestampRange(IndexLongFieldRange.readFrom(in));
         return builder.build();
     }
 
@@ -1005,7 +1005,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
-        timestampMillisRange.writeTo(out);
+        timestampRange.writeTo(out);
     }
 
     public boolean isSystem() {
@@ -1037,7 +1037,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
-        private IndexLongFieldRange timestampMillisRange = IndexLongFieldRange.NO_SHARDS;
+        private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
 
         public Builder(String index) {
             this.index = index;
@@ -1065,7 +1065,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
-            this.timestampMillisRange = indexMetadata.timestampMillisRange;
+            this.timestampRange = indexMetadata.timestampRange;
         }
 
         public Builder index(String index) {
@@ -1274,13 +1274,13 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return isSystem;
         }
 
-        public Builder timestampMillisRange(IndexLongFieldRange timestampMillisRange) {
-            this.timestampMillisRange = timestampMillisRange;
+        public Builder timestampRange(IndexLongFieldRange timestampRange) {
+            this.timestampRange = timestampRange;
             return this;
         }
 
-        public IndexLongFieldRange getTimestampMillisRange() {
-            return timestampMillisRange;
+        public IndexLongFieldRange getTimestampRange() {
+            return timestampRange;
         }
 
         public IndexMetadata build() {
@@ -1397,7 +1397,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     waitForActiveShards,
                     rolloverInfos.build(),
                     isSystem,
-                    timestampMillisRange);
+                timestampRange);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1499,7 +1499,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
             builder.startObject(KEY_TIMESTAMP_RANGE);
-            indexMetadata.timestampMillisRange.toXContent(builder, params);
+            indexMetadata.timestampRange.toXContent(builder, params);
             builder.endObject();
 
             builder.endObject();
@@ -1583,7 +1583,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
                     } else if (KEY_TIMESTAMP_RANGE.equals(currentFieldName)) {
-                        builder.timestampMillisRange(IndexLongFieldRange.fromXContent(parser));
+                        builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());

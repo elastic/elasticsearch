@@ -5,8 +5,21 @@
 --
 
 Mapping is the process of defining how a document, and the fields it contains,
-are stored and indexed. You can choose how and where to map your data. Each
-method provides different benefits based on where you are in your data journey.
+are stored and indexed.
+
+Each document is a collection of fields, which each have their own
+<<mapping-types,data type>>. When mapping your data, you create a mapping
+definition, which contains a list of fields or `properties` that are pertinent
+to the document. A mapping definition also includes
+<<mapping-fields,metadata fields>>, like the `_source` field, which customize
+how a document's associated metadata is handled.
+
+You can choose a _dynamic mapping_ or an _explicit mapping_ to define your data.
+Each method provides different benefits based on where you are in your data
+journey.
+
+NOTE: Before 7.0.0, the mapping definition included a type name.
+{es} 7.0.0 and later no longer accept a _default_ mapping. See <<removal-of-types>>.
 
 [discrete]
 [[mapping-dynamic]]
@@ -40,25 +53,6 @@ You can <<runtime-mapping-fields,explicitly map runtime fields>>,
 which allows you to make schema changes without reindexing. You can use runtime
 fields in conjunction with indexed fields to balance resource usage and
 performance. Your index will be smaller, but with slower search performance.
-
-[discrete]
-[[mapping-definition-fields]]
-== Fields in the mapping definition
-Each document is a collection of fields, which each have
-their own <<mapping-types,data type>>. A mapping definition contains a list of
-fields or `properties` pertinent to the document.
-
-Most fields are indexed by default, which makes them searchable. When indexing
-documents, fields are stored in <<mapping-source-field,`_source`>>, which
-contains the original JSON document body that was passed at index time.
-
-<<mapping-fields,Metadata fields>>, like the `_source` field, are used to
-customize how a document's associated metadata is handled. Your mapping
-definition uses a combination of metadata fields and fields to outline the
-document schema.
-
-NOTE: Before 7.0.0, the mapping definition included a type name.
-{es} 7.0.0 and later no longer accept a _default_ mapping. See <<removal-of-types>>.
 
 [discrete]
 [[mapping-limit-settings]]

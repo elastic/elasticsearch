@@ -165,9 +165,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        QueryShardContext context = new QueryShardContext(0,
+        QueryShardContext context = new QueryShardContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null,
                 xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
@@ -187,9 +187,9 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
     public void testRangeQuery() throws IOException {
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
-        QueryShardContext context = new QueryShardContext(0,
+        QueryShardContext context = new QueryShardContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
                 null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -232,8 +232,8 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             .build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
-        QueryShardContext context = new QueryShardContext(0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+        QueryShardContext context = new QueryShardContext(0, 0, indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         MappedFieldType ft = new DateFieldType("field");

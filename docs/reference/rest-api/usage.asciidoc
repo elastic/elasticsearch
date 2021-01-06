@@ -341,6 +341,11 @@ GET /_xpack/usage
   "aggregate_metric" : {
     "available" : true,
     "enabled" : true
+  },
+  "runtime_fields" : {
+    "available" : true,
+    "enabled" : true,
+    "field_types" : []
   }
 }
 ------------------------------------------------------------

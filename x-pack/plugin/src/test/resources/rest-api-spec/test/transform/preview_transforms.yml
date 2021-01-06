@@ -84,17 +84,17 @@ setup:
             }
           }
   - match: { preview.0.airline: foo }
-  - match: { preview.0.by-hour: 1487376000000 }
+  - match: { preview.0.by-hour: "2017-02-18T00:00:00.000Z" }
   - match: { preview.0.avg_response: 1.0 }
   - match: { preview.0.time.max: "2017-02-18T00:30:00.000Z" }
   - match: { preview.0.time.min: "2017-02-18T00:00:00.000Z" }
   - match: { preview.1.airline: bar }
-  - match: { preview.1.by-hour: 1487379600000 }
+  - match: { preview.1.by-hour: "2017-02-18T01:00:00.000Z" }
   - match: { preview.1.avg_response: 42.0 }
   - match: { preview.1.time.max: "2017-02-18T01:00:00.000Z" }
   - match: { preview.1.time.min: "2017-02-18T01:00:00.000Z" }
   - match: { preview.2.airline: foo }
-  - match: { preview.2.by-hour: 1487379600000 }
+  - match: { preview.2.by-hour: "2017-02-18T01:00:00.000Z" }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.time.max: "2017-02-18T01:01:00.000Z" }
   - match: { preview.2.time.min: "2017-02-18T01:01:00.000Z" }
@@ -135,20 +135,72 @@ setup:
             }
           }
   - match: { preview.0.airline: foo }
-  - match: { preview.0.by-hour: 1487376000000 }
+  - match: { preview.0.by-hour: "2017-02-18T00:00:00.000Z" }
   - match: { preview.0.avg_response: 1.0 }
   - match: { preview.0.my_field: 42 }
   - match: { preview.1.airline: bar }
-  - match: { preview.1.by-hour: 1487379600000 }
+  - match: { preview.1.by-hour: "2017-02-18T01:00:00.000Z" }
   - match: { preview.1.avg_response: 42.0 }
   - match: { preview.1.my_field: 42 }
   - match: { preview.2.airline: foo }
-  - match: { preview.2.by-hour: 1487379600000 }
+  - match: { preview.2.by-hour: "2017-02-18T01:00:00.000Z" }
   - match: { preview.2.avg_response: 42.0 }
   - match: { preview.2.my_field: 42 }
   - match: { generated_dest_index.mappings.properties.airline.type: "keyword" }
   - match: { generated_dest_index.mappings.properties.by-hour.type: "date" }
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
+
+---
+"Test preview transform latest":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "latest": {
+              "unique_key": ["airline"],
+              "sort": "time"
+            }
+          }
+  - match: { preview.0.airline: bar }
+  - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - match: { preview.1.airline: foo }
+  - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - match: { generated_dest_index.mappings.properties: {} }
+
+  - do:
+      ingest.put_pipeline:
+        id: "transform_latest_simple_pipeline"
+        body:  >
+          {
+            "processors": [
+             {
+               "set" : {
+                 "field" : "my_field",
+                 "value": 42
+               }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "transform_latest_simple_pipeline" },
+            "latest": {
+              "unique_key": ["airline"],
+              "sort": "time"
+            }
+          }
+  - match: { preview.0.airline: bar }
+  - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - match: { preview.0.my_field: 42 }
+  - match: { preview.1.airline: foo }
+  - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - match: { preview.1.my_field: 42 }
+  - match: { generated_dest_index.mappings.properties: {} }
 
 ---
 "Test preview transform with invalid config":

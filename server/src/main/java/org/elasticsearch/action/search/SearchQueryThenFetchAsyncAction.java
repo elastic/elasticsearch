@@ -33,7 +33,6 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 
@@ -52,14 +51,14 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     SearchQueryThenFetchAsyncAction(final Logger logger, final SearchTransportService searchTransportService,
                                     final BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                                     final Map<String, AliasFilter> aliasFilter,
-                                    final Map<String, Float> concreteIndexBoosts, final Map<String, Set<String>> indexRoutings,
+                                    final Map<String, Float> concreteIndexBoosts,
                                     final SearchPhaseController searchPhaseController, final Executor executor,
                                     final QueryPhaseResultConsumer resultConsumer, final SearchRequest request,
                                     final ActionListener<SearchResponse> listener,
                                     final GroupShardsIterator<SearchShardIterator> shardsIts,
                                     final TransportSearchAction.SearchTimeProvider timeProvider,
                                     ClusterState clusterState, SearchTask task, SearchResponse.Clusters clusters) {
-        super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts, indexRoutings,
+        super("query", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
                 resultConsumer, request.getMaxConcurrentShardRequests(), clusters);
         this.topDocsSize = getTopDocsSize(request);
@@ -79,7 +78,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     protected void executePhaseOnShard(final SearchShardIterator shardIt,
                                        final SearchShardTarget shard,
                                        final SearchActionListener<SearchPhaseResult> listener) {
-        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt));
+        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
         getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
     }
 

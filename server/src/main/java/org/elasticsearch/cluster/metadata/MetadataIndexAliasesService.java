@@ -149,8 +149,8 @@ public class MetadataIndexAliasesService {
                         }
                         // the context is only used for validation so it's fine to pass fake values for the shard id,
                         // but the current timestamp should be set to real value as we may use `now` in a filtered alias
-                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, null,
-                            () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
+                        aliasValidator.validateAliasFilter(alias, filter, indexService.newQueryShardContext(0, 0,
+                                null, () -> System.currentTimeMillis(), null, emptyMap()), xContentRegistry);
                     }
                 };
                 if (action.apply(newAliasValidator, metadata, index)) {
@@ -189,7 +189,7 @@ public class MetadataIndexAliasesService {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {
-            throw new IllegalArgumentException("The provided index [ " + action.getIndex()
+            throw new IllegalArgumentException("The provided index [" + action.getIndex()
                 + "] is a backing index belonging to data stream [" + indexAbstraction.getParentDataStream().getName()
                 + "]. Data streams and their backing indices don't support alias operations.");
         }

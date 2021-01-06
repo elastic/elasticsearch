@@ -31,7 +31,8 @@ import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.CancellableThreads;
@@ -83,6 +84,8 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     // last time this status was accessed
     private volatile long lastAccessTime = System.nanoTime();
+
+    private volatile boolean recoveryMonitorEnabled = true;
 
     // latch that can be used to blockingly wait for RecoveryTarget to be closed
     private final CountDownLatch closedLatch = new CountDownLatch(1);
@@ -153,12 +156,31 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
 
     /** return the last time this RecoveryStatus was used (based on System.nanoTime() */
     public long lastAccessTime() {
-        return lastAccessTime;
+        if (recoveryMonitorEnabled) {
+            return lastAccessTime;
+        }
+        return System.nanoTime();
     }
 
     /** sets the lasAccessTime flag to now */
     public void setLastAccessTime() {
         lastAccessTime = System.nanoTime();
+    }
+
+    /**
+     * Set flag to signal to {@link org.elasticsearch.indices.recovery.RecoveriesCollection.RecoveryMonitor} that it must not cancel this
+     * recovery temporarily. This is used by the recovery clean files step to avoid recovery failure in case a long running condition was
+     * added to the shard via {@link IndexShard#addCleanFilesDependency()}.
+     *
+     * @return releasable that once closed will re-enable liveness checks by the recovery monitor
+     */
+    public Releasable disableRecoveryMonitor() {
+        assert recoveryMonitorEnabled : "recovery monitor already disabled";
+        recoveryMonitorEnabled = false;
+        return () -> {
+            setLastAccessTime();
+            recoveryMonitorEnabled = true;
+        };
     }
 
     public Store store() {
@@ -256,7 +278,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
                 // release the initial reference. recovery files will be cleaned as soon as ref count goes to zero, potentially now
                 decRef();
             }
-            listener.onRecoveryDone(state(), indexShard.getTimestampMillisRange());
+            listener.onRecoveryDone(state(), indexShard.getTimestampRange());
         }
     }
 
@@ -473,7 +495,7 @@ public class RecoveryTarget extends AbstractRefCounted implements RecoveryTarget
     }
 
     @Override
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content,
+    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
                                boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
         try {
             state().getTranslog().totalOperations(totalTranslogOps);

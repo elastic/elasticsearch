@@ -122,8 +122,12 @@ public class ESCCRRestTestCase extends ESRestTestCase {
     }
 
     protected static void deleteAutoFollowPattern(String patternName) throws IOException {
+        deleteAutoFollowPattern(client(), patternName);
+    }
+
+    protected static void deleteAutoFollowPattern(RestClient client, String patternName) throws IOException {
         Request putPatternRequest = new Request("DELETE", "/_ccr/auto_follow/" + patternName);
-        assertOK(client().performRequest(putPatternRequest));
+        assertOK(client.performRequest(putPatternRequest));
     }
 
     protected static void unfollow(String followIndex) throws IOException {

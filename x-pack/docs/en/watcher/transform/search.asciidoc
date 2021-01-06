@@ -1,6 +1,9 @@
 [role="xpack"]
 [[transform-search]]
-=== Search {watcher-transform}
+=== {watcher} search {watcher-transform}
+++++
+<titleabbrev>Search {watcher-transform}</titleabbrev>
+++++
 
 A <<transform,{watcher-transform}>> that executes a search on the cluster and
 replaces the current payload in the watch execution context with the returned

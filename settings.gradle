@@ -42,6 +42,7 @@ List projects = [
   'distribution:docker:oss-docker-aarch64-export',
   'distribution:docker:oss-docker-build-context',
   'distribution:docker:oss-docker-export',
+  'distribution:docker:transform-log4j-config',
   'distribution:docker:ubi-docker-aarch64-export',
   'distribution:docker:ubi-docker-build-context',
   'distribution:docker:ubi-docker-export',

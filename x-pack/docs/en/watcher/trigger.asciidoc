@@ -1,6 +1,9 @@
 [role="xpack"]
 [[trigger]]
-== Triggers
+== {watcher} triggers
+++++
+<titleabbrev>Triggers</titleabbrev>
+++++
 
 Every watch must have a `trigger` that defines when the watch execution process
 should start. When you create a watch, its trigger is registered with the

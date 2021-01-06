@@ -31,10 +31,16 @@ import org.junit.BeforeClass;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.junit.Assume.assumeTrue;
 
 /**
@@ -140,6 +146,40 @@ public class QuotaAwareFsTests extends PackagingTestCase {
 
             assertThat(updatedActualTotals.totalInBytes, equalTo(updatedTotal));
             assertThat(updatedActualTotals.availableInBytes, equalTo(updatedAvailable));
+        } finally {
+            stopElasticsearch();
+            Files.deleteIfExists(quotaPath);
+        }
+    }
+
+    /**
+     * Check that the _cat API can list the plugin correctly.
+     */
+    public void test40CatApiFiltersPlugin() throws Exception {
+        install();
+
+        int total = 20 * 1024 * 1024;
+        int available = 10 * 1024 * 1024;
+
+        installation.executables().pluginTool.run("install --batch \"" + QUOTA_AWARE_FS_PLUGIN.toUri() + "\"");
+
+        final Path quotaPath = getRootTempDir().resolve("quota.properties");
+        Files.writeString(quotaPath, String.format(Locale.ROOT, "total=%d\nremaining=%d\n", total, available));
+
+        sh.getEnv().put("ES_JAVA_OPTS", "-Des.fs.quota.file=" + quotaPath.toUri());
+
+        try {
+            startElasticsearch();
+
+            final String uri = "http://localhost:9200/_cat/plugins?include_bootstrap=true&h=component,type";
+            String response = ServerUtils.makeRequest(Request.Get(uri)).trim();
+            assertThat(response, not(emptyString()));
+
+            List<String> lines = response.lines().collect(Collectors.toList());
+            assertThat(lines, hasSize(1));
+
+            final String[] fields = lines.get(0).split(" ");
+            assertThat(fields, arrayContaining("quota-aware-fs", "bootstrap"));
         } finally {
             stopElasticsearch();
             Files.deleteIfExists(quotaPath);

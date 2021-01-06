@@ -19,4 +19,11 @@ public class ExceptionsHelper {
         }
         return obj;
     }
+
+    /**
+     * @see org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper#findSearchExceptionRootCause(Throwable)
+     */
+    public static Throwable findSearchExceptionRootCause(Throwable t) {
+        return org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper.findSearchExceptionRootCause(t);
+    }
 }

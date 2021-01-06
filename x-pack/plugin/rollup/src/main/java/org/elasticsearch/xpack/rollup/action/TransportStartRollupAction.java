@@ -13,12 +13,8 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.tasks.TransportTasksAction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.rollup.job.RollupJobTask;
 
@@ -28,31 +24,16 @@ import java.util.function.Consumer;
 public class TransportStartRollupAction extends TransportTasksAction<RollupJobTask, StartRollupJobAction.Request,
         StartRollupJobAction.Response, StartRollupJobAction.Response> {
 
-    private final XPackLicenseState licenseState;
-
     @Inject
-    public TransportStartRollupAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService,
-                                      XPackLicenseState licenseState) {
+    public TransportStartRollupAction(TransportService transportService, ActionFilters actionFilters, ClusterService clusterService) {
         super(StartRollupJobAction.NAME, clusterService, transportService, actionFilters, StartRollupJobAction.Request::new,
             StartRollupJobAction.Response::new, StartRollupJobAction.Response::new, ThreadPool.Names.SAME);
-        this.licenseState = licenseState;
     }
 
 
     @Override
     protected void processTasks(StartRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
         TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
-    }
-
-    @Override
-    protected void doExecute(Task task, StartRollupJobAction.Request request, ActionListener<StartRollupJobAction.Response> listener) {
-
-        if (!licenseState.isAllowed(XPackLicenseState.Feature.ROLLUP)) {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.ROLLUP));
-            return;
-        }
-
-        super.doExecute(task, request, listener);
     }
 
 

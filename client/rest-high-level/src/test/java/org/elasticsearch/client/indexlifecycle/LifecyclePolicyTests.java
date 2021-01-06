@@ -192,6 +192,17 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         }
     }
 
+    public void testValidateEmptyDeletePhase() {
+        Map<String, LifecycleAction> actions = new HashMap<>();
+
+        Phase delete = new Phase("delete", TimeValue.ZERO, actions);
+        Map<String, Phase> phases = Collections.singletonMap("delete", delete);
+
+        Exception e = expectThrows(IllegalArgumentException.class,
+            () -> new LifecyclePolicy(lifecycleName, phases));
+        assertThat(e.getMessage(), equalTo("phase [" + delete.getName() + "] must define actions"));
+    }
+
     public static LifecyclePolicy createRandomPolicy(String lifecycleName) {
         List<String> phaseNames = randomSubsetOf(Arrays.asList("hot", "warm", "cold", "delete"));
         Map<String, Phase> phases = new HashMap<>(phaseNames.size());
@@ -205,6 +216,17 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
                     return VALID_COLD_ACTIONS;
                 case "delete":
                     return VALID_DELETE_ACTIONS;
+                default:
+                    throw new IllegalArgumentException("invalid phase [" + phase + "]");
+            }};
+        Function<String, Boolean> allowEmptyActions = (phase) -> {
+            switch (phase) {
+                case "hot":
+                case "warm":
+                case "cold":
+                    return true;
+                case "delete":
+                    return false;
                 default:
                     throw new IllegalArgumentException("invalid phase [" + phase + "]");
             }};
@@ -238,7 +260,12 @@ public class LifecyclePolicyTests extends AbstractXContentTestCase<LifecyclePoli
         for (String phase : phaseNames) {
             TimeValue after = TimeValue.parseTimeValue(randomTimeValue(0, 1000000000, "s", "m", "h", "d"), "test_after");
             Map<String, LifecycleAction> actions = new HashMap<>();
-            List<String> actionNames = randomSubsetOf(validActions.apply(phase));
+            List<String> actionNames;
+            if (allowEmptyActions.apply(phase)) {
+                actionNames = randomSubsetOf(validActions.apply(phase));
+            } else {
+                actionNames = randomSubsetOf(randomIntBetween(1, validActions.apply(phase).size()), validActions.apply(phase));
+            }
             for (String action : actionNames) {
                 actions.put(action, randomAction.apply(action));
             }

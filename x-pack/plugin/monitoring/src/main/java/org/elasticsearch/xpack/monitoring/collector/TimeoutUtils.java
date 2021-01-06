@@ -61,7 +61,8 @@ public final class TimeoutUtils {
 
     private static void ensureNoTimeouts(TimeValue collectionTimeout, HashSet<String> timedOutNodeIds) {
         if (timedOutNodeIds != null) {
-            throw new ElasticsearchTimeoutException("nodes " + timedOutNodeIds + " timed out after [" + collectionTimeout + "]");
+            throw new ElasticsearchTimeoutException((timedOutNodeIds.size() == 1 ? "node " : "nodes ") + timedOutNodeIds +
+                    " did not respond within [" + collectionTimeout + "]");
         }
     }
 

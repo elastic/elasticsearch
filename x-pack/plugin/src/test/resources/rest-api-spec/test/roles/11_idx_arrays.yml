@@ -47,7 +47,7 @@ teardown:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "admin_role2" ]
             }
   - match: { created: true }
@@ -60,7 +60,7 @@ teardown:
 
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       get:
         index: foo
         id: 1
@@ -71,7 +71,7 @@ teardown:
 # test that the role works on the cluster level
   - do:
       headers:
-        Authorization: "Basic am9lOnMza3JpdA=="
+        Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA=="
       cluster.health: {}
   - match: { timed_out: false }
 

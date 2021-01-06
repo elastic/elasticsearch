@@ -6,6 +6,16 @@
 
 package org.elasticsearch.xpack.monitoring.action;
 
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.monitoring.exporter.http.ClusterAlertHttpResource.CLUSTER_ALERT_VERSION_PARAMETERS;
+import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.WATCHER_CHECK_PARAMETERS;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -29,6 +39,7 @@ import org.elasticsearch.xpack.core.monitoring.action.MonitoringMigrateAlertsRes
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.get.GetWatchRequest;
+import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.monitoring.Monitoring;
 import org.elasticsearch.xpack.monitoring.MonitoringService;
 import org.elasticsearch.xpack.monitoring.exporter.ClusterAlertsUtil;
@@ -37,16 +48,6 @@ import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 import org.elasticsearch.xpack.monitoring.test.MonitoringIntegTestCase;
 import org.junit.After;
 import org.junit.Before;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.monitoring.exporter.http.ClusterAlertHttpResource.CLUSTER_ALERT_VERSION_PARAMETERS;
-import static org.elasticsearch.xpack.monitoring.exporter.http.WatcherExistsHttpResource.WATCHER_CHECK_PARAMETERS;
-import static org.hamcrest.Matchers.endsWith;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.hamcrest.Matchers.startsWith;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 3)
 public class TransportMonitoringMigrateAlertsActionTests extends MonitoringIntegTestCase {
@@ -106,6 +107,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         ));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -119,12 +121,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // ensure resources exist
-            assertBusy(() -> {
-                assertThat(indexExists(".monitoring-*"), is(true));
-                ensureYellowAndNoInitializingShards(".monitoring-*");
-                checkMonitoringTemplates();
-                assertWatchesExist(true);
-            });
+            ensureInitialLocalResources();
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -158,12 +155,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
             assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(exporterSettings));
 
             // ensure resources exist
-            assertBusy(() -> {
-                assertThat(indexExists(".monitoring-*"), is(true));
-                ensureYellowAndNoInitializingShards(".monitoring-*");
-                checkMonitoringTemplates();
-                assertWatchesExist(true);
-            });
+            ensureInitialLocalResources();
 
             // call migration api
             MonitoringMigrateAlertsResponse response = client().execute(MonitoringMigrateAlertsAction.INSTANCE,
@@ -195,6 +187,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testDisabledLocalExporterAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -237,6 +230,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testLocalExporterWithAlertingDisabled() throws Exception {
         try {
             // start monitoring service
@@ -463,6 +457,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
     }
 
     private void ensureInitialLocalResources() throws Exception {
+        waitForWatcherIndices();
         assertBusy(() -> {
             assertThat(indexExists(".monitoring-*"), is(true));
             ensureYellowAndNoInitializingShards(".monitoring-*");
@@ -578,5 +573,10 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
                 assertThat(request.getUri().getQuery(), equalTo(resourceClusterAlertQueryString()));
             }
         }
+    }
+
+    protected void waitForWatcherIndices() throws Exception {
+        awaitIndexExists(Watch.INDEX);
+        assertBusy(() -> ensureYellowAndNoInitializingShards(Watch.INDEX));
     }
 }

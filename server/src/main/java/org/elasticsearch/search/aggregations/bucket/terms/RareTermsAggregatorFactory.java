@@ -48,7 +48,7 @@ public class RareTermsAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,
-            List.of(CoreValuesSourceType.BYTES, CoreValuesSourceType.IP),
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             RareTermsAggregatorFactory.bytesSupplier(), true);
 
         builder.register(RareTermsAggregationBuilder.REGISTRY_KEY,

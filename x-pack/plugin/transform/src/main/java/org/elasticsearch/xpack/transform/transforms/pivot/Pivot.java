@@ -131,6 +131,7 @@ public class Pivot implements Function {
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
+        ClientHelper.assertNoAuthorizationHeader(headers);
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,

@@ -23,12 +23,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.function.Predicate;
 
 public class LatestConfigTests extends AbstractXContentTestCase<LatestConfig> {
 
     public static LatestConfig randomLatestConfig() {
-        return new LatestConfig(randomList(5, () -> randomAlphaOfLengthBetween(1, 10)), randomAlphaOfLengthBetween(1, 10));
+        return new LatestConfig(
+            new ArrayList<>(randomUnique(() -> randomAlphaOfLengthBetween(1, 10), randomIntBetween(1, 10))),
+            randomAlphaOfLengthBetween(1, 10)
+        );
     }
 
     @Override

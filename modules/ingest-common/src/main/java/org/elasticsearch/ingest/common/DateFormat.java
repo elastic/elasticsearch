@@ -109,7 +109,7 @@ enum DateFormat {
                 // fill the rest of the date up with the parsed date
                 if (accessor.isSupported(ChronoField.YEAR) == false
                     && accessor.isSupported(ChronoField.YEAR_OF_ERA) == false
-                    && accessor.isSupported(WeekFields.of(locale).weekOfWeekBasedYear()) == false) {
+                    && accessor.isSupported(WeekFields.of(locale).weekBasedYear()) == false) {
                     int year = LocalDate.now(ZoneOffset.UTC).getYear();
                     ZonedDateTime newTime = Instant.EPOCH.atZone(ZoneOffset.UTC).withYear(year);
                     for (ChronoField field : FIELDS) {

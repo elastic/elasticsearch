@@ -99,10 +99,15 @@ public class MiniHDFS {
         UserGroupInformation.setConfiguration(cfg);
 
         MiniDFSCluster.Builder builder = new MiniDFSCluster.Builder(cfg);
-        if (secure) {
-            builder.nameNodePort(9998);
+        String explicitPort = System.getProperty("hdfs.config.port");
+        if(explicitPort != null) {
+            builder.nameNodePort(Integer.parseInt(explicitPort));
         } else {
-            builder.nameNodePort(9999);
+            if (secure) {
+                builder.nameNodePort(9998);
+            } else {
+                builder.nameNodePort(9999);
+            }
         }
 
         // Configure HA mode

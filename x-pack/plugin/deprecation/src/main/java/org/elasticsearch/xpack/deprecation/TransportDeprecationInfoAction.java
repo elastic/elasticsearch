@@ -22,13 +22,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
-import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
@@ -47,7 +44,6 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     private static final List<DeprecationChecker> PLUGIN_CHECKERS = List.of(new MlDeprecationChecker());
     private static final Logger logger = LogManager.getLogger(TransportDeprecationInfoAction.class);
 
-    private final XPackLicenseState licenseState;
     private final NodeClient client;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Settings settings;
@@ -57,10 +53,9 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     public TransportDeprecationInfoAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                           ThreadPool threadPool, ActionFilters actionFilters,
                                           IndexNameExpressionResolver indexNameExpressionResolver,
-                                          XPackLicenseState licenseState, NodeClient client, NamedXContentRegistry xContentRegistry) {
+                                          NodeClient client, NamedXContentRegistry xContentRegistry) {
         super(DeprecationInfoAction.NAME, transportService, clusterService, threadPool, actionFilters, DeprecationInfoAction.Request::new,
                 indexNameExpressionResolver, DeprecationInfoAction.Response::new, ThreadPool.Names.GENERIC);
-        this.licenseState = licenseState;
         this.client = client;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.settings = settings;
@@ -76,39 +71,34 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
     @Override
     protected final void masterOperation(Task task, final DeprecationInfoAction.Request request, ClusterState state,
                                          final ActionListener<DeprecationInfoAction.Response> listener) {
-        if (licenseState.checkFeature(XPackLicenseState.Feature.DEPRECATION)) {
-
-            NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
-            ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN,
-                NodesDeprecationCheckAction.INSTANCE, nodeDepReq,
-                ActionListener.wrap(response -> {
-                if (response.hasFailures()) {
-                    List<String> failedNodeIds = response.failures().stream()
-                        .map(failure -> failure.nodeId() + ": " + failure.getMessage())
-                        .collect(Collectors.toList());
-                    logger.warn("nodes failed to run deprecation checks: {}", failedNodeIds);
-                    for (FailedNodeException failure : response.failures()) {
-                        logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
-                    }
+        NodesDeprecationCheckRequest nodeDepReq = new NodesDeprecationCheckRequest("_all");
+        ClientHelper.executeAsyncWithOrigin(client, ClientHelper.DEPRECATION_ORIGIN,
+            NodesDeprecationCheckAction.INSTANCE, nodeDepReq,
+            ActionListener.wrap(response -> {
+            if (response.hasFailures()) {
+                List<String> failedNodeIds = response.failures().stream()
+                    .map(failure -> failure.nodeId() + ": " + failure.getMessage())
+                    .collect(Collectors.toList());
+                logger.warn("nodes failed to run deprecation checks: {}", failedNodeIds);
+                for (FailedNodeException failure : response.failures()) {
+                    logger.debug("node {} failed to run deprecation checks: {}", failure.nodeId(), failure);
                 }
+            }
 
-                DeprecationChecker.Components components = new DeprecationChecker.Components(
-                    xContentRegistry,
-                    settings,
-                    new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
-                );
-                pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
-                    deprecationIssues -> listener.onResponse(
-                        DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
-                            request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
-                            deprecationIssues)),
-                    listener::onFailure
-                ));
+            DeprecationChecker.Components components = new DeprecationChecker.Components(
+                xContentRegistry,
+                settings,
+                new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
+            );
+            pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
+                deprecationIssues -> listener.onResponse(
+                    DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
+                        request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
+                        deprecationIssues)),
+                listener::onFailure
+            ));
 
-            }, listener::onFailure));
-        } else {
-            listener.onFailure(LicenseUtils.newComplianceException(XPackField.DEPRECATION));
-        }
+        }, listener::onFailure));
     }
 
     static void pluginSettingIssues(List<DeprecationChecker> checkers,

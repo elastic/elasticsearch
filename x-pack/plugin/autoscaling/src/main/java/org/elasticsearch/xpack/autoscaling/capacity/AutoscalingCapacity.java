@@ -54,10 +54,10 @@ public class AutoscalingCapacity implements ToXContent, Writeable {
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             if (storage != null) {
-                builder.field("storage", storage.getStringRep());
+                builder.field("storage", storage.getBytes());
             }
             if (memory != null) {
-                builder.field("memory", memory.getStringRep());
+                builder.field("memory", memory.getBytes());
             }
             builder.endObject();
             return builder;

@@ -12,6 +12,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -60,6 +61,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -445,6 +447,13 @@ public class JobResultsProvider {
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 // look for both old and new formats
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId), DataCounts.v54DocumentId(jobId)))
+                // We want to sort on log_time. However, this was added a long time later and before that we used to
+                // sort on latest_record_time. Thus we handle older data counts where no log_time exists and we fall back
+                // to the prior behaviour.
+                .addSort(SortBuilders.fieldSort(DataCounts.LOG_TIME.getPreferredName())
+                    .order(SortOrder.DESC)
+                    .unmappedType(NumberFieldMapper.NumberType.LONG.typeName())
+                    .missing(0L))
                 .addSort(SortBuilders.fieldSort(DataCounts.LATEST_RECORD_TIME.getPreferredName()).order(SortOrder.DESC));
     }
 
@@ -1054,6 +1063,11 @@ public class JobResultsProvider {
 
         FieldSortBuilder sb = new FieldSortBuilder(sortField)
                 .order(sortDescending ? SortOrder.DESC : SortOrder.ASC);
+        // `min_version` might not be present in very early snapshots.
+        // Consequently, we should treat it as being at least from 6.3.0 or before
+        if (sortField.equals(ModelSnapshot.MIN_VERSION.getPreferredName())) {
+            sb.missing(Version.fromString("6.3.0"));
+        }
 
         String indexName = AnomalyDetectorsIndex.jobResultsAliasedName(jobId);
         LOGGER.trace("ES API CALL: search all model snapshots from index {} sort ascending {} with filter after sort from {} size {}",

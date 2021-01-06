@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequ
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -77,6 +76,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -489,13 +489,12 @@ public class CcrRepositoryIT extends CcrIntegTestCase {
             assertThat(bulkRequest.get().hasFailures(), is(false));
         }
 
-        final ForceMergeResponse forceMergeResponse = leaderClient().admin().indices().prepareForceMerge(leaderIndex)
-            .setMaxNumSegments(1)
-            .setFlush(true)
-            .get();
-        assertThat(forceMergeResponse.getSuccessfulShards(), equalTo(numberOfShards));
-        assertThat(forceMergeResponse.getFailedShards(), equalTo(0));
         ensureLeaderGreen(leaderIndex);
+        assertAllSuccessful(leaderClient().admin().indices().prepareForceMerge(leaderIndex)
+                .setMaxNumSegments(1)
+                .setFlush(true)
+                .get());
+        refresh(leaderClient(), leaderIndex);
 
         final IndexStats indexStats = leaderClient().admin().indices().prepareStats(leaderIndex)
             .clear()

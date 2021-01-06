@@ -13,8 +13,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 
 import java.util.HashSet;
+import java.util.concurrent.TimeoutException;
 
 public final class TimeoutUtils {
     private TimeoutUtils() {
@@ -23,8 +25,7 @@ public final class TimeoutUtils {
     public static <T extends BaseNodeResponse> void ensureNoTimeouts(TimeValue collectionTimeout, BaseNodesResponse<T> response) {
         HashSet<String> timedOutNodeIds = null;
         for (FailedNodeException failedNodeException : response.failures()) {
-            final Throwable nodeFailureCause = failedNodeException.getCause();
-            if (nodeFailureCause instanceof ElasticsearchTimeoutException) {
+            if (isTimeoutFailure(failedNodeException)) {
                 if (timedOutNodeIds == null) {
                     timedOutNodeIds = new HashSet<>();
                 }
@@ -40,8 +41,7 @@ public final class TimeoutUtils {
             final Throwable shardFailureCause = shardFailure.getCause();
             if (shardFailureCause instanceof FailedNodeException) {
                 FailedNodeException failedNodeException = (FailedNodeException) shardFailureCause;
-                final Throwable nodeFailureCause = failedNodeException.getCause();
-                if (nodeFailureCause instanceof ElasticsearchTimeoutException) {
+                if (isTimeoutFailure(failedNodeException)) {
                     if (timedOutNodeIds == null) {
                         timedOutNodeIds = new HashSet<>();
                     }
@@ -50,6 +50,13 @@ public final class TimeoutUtils {
             }
         }
         ensureNoTimeouts(collectionTimeout, timedOutNodeIds);
+    }
+
+    private static boolean isTimeoutFailure(FailedNodeException failedNodeException) {
+        final Throwable cause = failedNodeException.getCause();
+        return cause instanceof ElasticsearchTimeoutException
+                || cause instanceof TimeoutException
+                || cause instanceof ReceiveTimeoutTransportException;
     }
 
     private static void ensureNoTimeouts(TimeValue collectionTimeout, HashSet<String> timedOutNodeIds) {

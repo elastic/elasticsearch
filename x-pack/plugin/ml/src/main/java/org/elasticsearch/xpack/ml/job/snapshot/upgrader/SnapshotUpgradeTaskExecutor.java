@@ -186,24 +186,35 @@ public class SnapshotUpgradeTaskExecutor extends AbstractJobPersistentTasksExecu
             task::markAsFailed
         );
 
-        // Try adding the results doc mapping - this updates to the latest version if an old mapping is present
-        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+        // Make sure that the results index is updated if necessary
+        ActionListener<Boolean> configIndexMappingUpdaterListener = ActionListener.wrap(
             ack -> ElasticsearchMappings.addDocMappingIfMissing(
                 AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
                 AnomalyDetectorsIndex::resultsMapping,
                 client,
                 clusterState,
                 resultsMappingUpdateHandler),
+            task::markAsFailed
+        );
+
+        // Update the config index mapping if necessary
+        ActionListener<Boolean> annotationsIndexUpdateHandler = ActionListener.wrap(
+            ack -> ElasticsearchMappings.addDocMappingIfMissing(
+                MlConfigIndex.indexName(),
+                MlConfigIndex::mapping,
+                client,
+                clusterState,
+                configIndexMappingUpdaterListener),
             e -> {
                 // Due to a bug in 7.9.0 it's possible that the annotations index already has incorrect mappings
                 // and it would cause more harm than good to block jobs from opening in subsequent releases
                 logger.warn(new ParameterizedMessage("[{}] ML annotations index could not be updated with latest mappings", jobId), e);
                 ElasticsearchMappings.addDocMappingIfMissing(
-                    AnomalyDetectorsIndex.jobResultsAliasedName(jobId),
-                    AnomalyDetectorsIndex::resultsMapping,
+                    MlConfigIndex.indexName(),
+                    MlConfigIndex::mapping,
                     client,
                     clusterState,
-                    resultsMappingUpdateHandler);
+                    configIndexMappingUpdaterListener);
             }
         );
 

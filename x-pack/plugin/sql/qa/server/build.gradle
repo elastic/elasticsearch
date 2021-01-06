@@ -43,9 +43,9 @@ dependencies {
 }
 
 tasks.register("dataloader", JavaExec) {
-  dependsOn "testClasses"
+  dependsOn build
   main 'org.elasticsearch.xpack.sql.qa.jdbc.DataLoader'
-  classpath sourceSets.main.runtimeClasspath + sourceSets.main.output
+  classpath sourceSets.main.runtimeClasspath
   systemProperty 'file.encoding', 'UTF-8'
 }
 

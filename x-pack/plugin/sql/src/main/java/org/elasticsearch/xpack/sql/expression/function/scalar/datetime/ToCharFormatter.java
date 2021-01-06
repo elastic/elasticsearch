@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
@@ -133,6 +132,8 @@ class ToCharFormatter {
     
     private static final int MAX_TO_CHAR_FORMAT_STRING_LENGTH =
         FORMATTER_MAP.keySet().stream().mapToInt(String::length).max().orElse(Integer.MAX_VALUE);
+    
+    private static final String[] ROMAN_NUMBERS = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII"};
 
     private final String pattern;
     private final boolean acceptsLowercase;
@@ -140,20 +141,20 @@ class ToCharFormatter {
     // https://www.postgresql.org/docs/13/functions-formatting.html#FUNCTIONS-FORMATTING-DATETIMEMOD-TABLE
     private final Function<String, String> fillModeFn;
     private final boolean hasOrdinalSuffix;
-    private final Function<TemporalAccessor, String> formatFn;
+    private final Function<TemporalAccessor, String> formatter;
 
     private ToCharFormatter(
         String pattern,
         boolean acceptsLowercase,
         Function<String, String> fillModeFn,
         boolean hasOrdinalSuffix,
-        Function<TemporalAccessor, String> formatFn) {
+        Function<TemporalAccessor, String> formatter) {
 
         this.pattern = pattern;
         this.acceptsLowercase = acceptsLowercase;
         this.fillModeFn = fillModeFn;
         this.hasOrdinalSuffix = hasOrdinalSuffix;
-        this.formatFn = formatFn;
+        this.formatter = formatter;
     }
 
     private static Builder of(String pattern) {
@@ -161,50 +162,23 @@ class ToCharFormatter {
     }
 
     private static String monthToRoman(int month) {
-        switch (month) {
-            case 1:
-                return "I";
-            case 2:
-                return "II";
-            case 3:
-                return "III";
-            case 4:
-                return "IV";
-            case 5:
-                return "V";
-            case 6:
-                return "VI";
-            case 7:
-                return "VII";
-            case 8:
-                return "VIII";
-            case 9:
-                return "IX";
-            case 10:
-                return "X";
-            case 11:
-                return "XI";
-            case 12:
-                return "XII";
-            default:
-                throw new QlIllegalArgumentException("invalid month: " + month);
-        }
+        return ROMAN_NUMBERS[month - 1];
     }
 
     private static int yearToCentury(int year) {
+        int offset = -1;
         if (year > 0) {
-            return year % 100 == 0 ? year / 100 : year / 100 + 1;
-        } else {
-            return year / 100 - 1;
+            offset = year % 100 == 0 ? 0 : 1;
         }
+        return year / 100 + offset;
     }
 
     private String format(TemporalAccessor temporalAccessor) {
-        return formatFn.apply(temporalAccessor);
+        return formatter.apply(temporalAccessor);
     }
 
-    private ToCharFormatter withModifier(Function<String, String> modifierFn) {
-        return new ToCharFormatter(pattern, acceptsLowercase, fillModeFn, hasOrdinalSuffix, formatFn.andThen(modifierFn));
+    private ToCharFormatter withModifier(Function<String, String> modifier) {
+        return new ToCharFormatter(pattern, acceptsLowercase, fillModeFn, hasOrdinalSuffix, formatter.andThen(modifier));
     }
 
     private static List<ToCharFormatter> parsePattern(String toCharPattern) {

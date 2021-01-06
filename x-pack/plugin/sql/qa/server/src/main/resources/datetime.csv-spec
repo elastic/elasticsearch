@@ -615,40 +615,40 @@ TO_CHAR('11:22:33.123456789Z'::time, 'HH24:MI:SS.FF2') AS df_time;
 selectToCharWithField
 schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s
 SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, 
-TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2 FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
+TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2, emp_no FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
 
-       birth_date       |    gender     |df_birth_date1 |df_birth_date2 
-------------------------+---------------+---------------+---------------
-null                    |M              |null           |null           
-null                    |M              |null           |null           
-null                    |F              |null           |null           
-1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           
-1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           
-1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           
-1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             
-1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           
-1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           
-1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              
-1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             
+       birth_date       |    gender     |df_birth_date1 |df_birth_date2 |    emp_no     
+------------------------+---------------+---------------+---------------+---------------
+null                    |M              |null           |null           |10047          
+null                    |M              |null           |null           |10048          
+null                    |F              |null           |null           |10049          
+1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           |10050          
+1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           |10051          
+1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           |10052          
+1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             |10053          
+1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           |10054          
+1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           |10055          
+1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              |10056          
+1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             |10057          
 ;
 
 toCharWhere
 schema::birth_date:ts|df_birth_date:s
-SELECT birth_date, TO_CHAR(birth_date, 'MM') AS df_birth_date FROM test_emp
+SELECT birth_date, TO_CHAR(birth_date, 'MM') AS df_birth_date, emp_no FROM test_emp
 WHERE TO_CHAR(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 
-       birth_date        | df_birth_date
--------------------------+---------------
-1959-12-03 00:00:00.000Z | 12
-1953-11-07 00:00:00.000Z | 11
-1952-12-24 00:00:00.000Z | 12
-1963-11-26 00:00:00.000Z | 11
-1956-12-13 00:00:00.000Z | 12
-1956-11-14 00:00:00.000Z | 11
-1962-12-29 00:00:00.000Z | 12
-1961-11-02 00:00:00.000Z | 11
-1952-11-13 00:00:00.000Z | 11
-1962-11-26 00:00:00.000Z | 11
+       birth_date       | df_birth_date |    emp_no     
+------------------------+---------------+---------------
+1959-12-03T00:00:00.000Z|12             |10003          
+1953-11-07T00:00:00.000Z|11             |10011          
+1952-12-24T00:00:00.000Z|12             |10020          
+1963-11-26T00:00:00.000Z|11             |10028          
+1956-12-13T00:00:00.000Z|12             |10029          
+1956-11-14T00:00:00.000Z|11             |10033          
+1962-12-29T00:00:00.000Z|12             |10034          
+1961-11-02T00:00:00.000Z|11             |10062          
+1952-11-13T00:00:00.000Z|11             |10066          
+1962-11-26T00:00:00.000Z|11             |10068          
 ;
 
 toCharOrderBy

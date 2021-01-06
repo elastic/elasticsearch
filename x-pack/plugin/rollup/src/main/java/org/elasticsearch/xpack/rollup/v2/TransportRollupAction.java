@@ -26,10 +26,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupTask;
-import org.elasticsearch.xpack.rollup.Rollup;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupTask;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -59,8 +58,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
     @Override
     protected void doExecute(Task task, RollupAction.Request request, ActionListener<RollupAction.Response> listener) {
         RollupTask rollupTask = (RollupTask) task;
-        RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, Rollup.TASK_THREAD_POOL_NAME,
-            request, rollupTask.headers(), ActionListener.wrap(c -> {
+        RollupV2Indexer indexer = new RollupV2Indexer(client, threadPool, request, rollupTask.headers(), ActionListener.wrap(c -> {
             // update Rollup metadata to include this index
             clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
 
@@ -71,7 +69,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    String rollupIndexName = rollupTask.config().getRollupIndex();
+                    String rollupIndexName = rollupTask.getRollupIndex();
                     IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                     Index rollupIndex = rollupIndexMetadata.getIndex();
                     // TODO(talevy): find better spot to get the original index name
@@ -90,7 +88,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
                     } else {
                         rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                     }
-                    DateHistogramGroupConfig dateConfig = rollupTask.config().getGroupConfig().getDateHistogram();
+                    RollupActionDateHistogramGroupConfig dateConfig = rollupTask.config().getGroupConfig().getDateHistogram();
                     WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
                     if (rollupGroups.containsKey(rollupGroupKeyName)) {
                         RollupGroup group = rollupGroups.get(rollupGroupKeyName);

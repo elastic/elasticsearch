@@ -48,11 +48,7 @@ include::data-management.asciidoc[]
 
 include::ilm/index.asciidoc[]
 
-ifdef::permanently-unreleased-branch[]
-
 include::autoscaling/index.asciidoc[]
-
-endif::[]
 
 include::monitoring/index.asciidoc[]
 

@@ -25,7 +25,7 @@ import java.util.function.Function;
  */
 public class SecondaryAuthentication {
 
-    private static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
+    public static final String THREAD_CTX_KEY = "_xpack_security_secondary_authc";
 
     private final SecurityContext securityContext;
     private final Authentication authentication;

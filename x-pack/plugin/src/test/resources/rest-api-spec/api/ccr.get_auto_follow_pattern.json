@@ -5,6 +5,7 @@
       "description": "Gets configured auto-follow patterns. Returns the specified auto-follow pattern collection."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

@@ -131,7 +131,7 @@ public class DatafeedJobTests extends ESTestCase {
         InputStream inputStream = new ByteArrayInputStream(contentBytes);
         when(dataExtractor.next()).thenReturn(Optional.of(inputStream));
         DataCounts dataCounts = new DataCounts(jobId, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, new Date(0), new Date(0),
-                new Date(0), new Date(0), new Date(0));
+                new Date(0), new Date(0), new Date(0), Instant.now());
 
         PostDataAction.Request expectedRequest = new PostDataAction.Request(jobId);
         expectedRequest.setDataDescription(dataDescription.build());

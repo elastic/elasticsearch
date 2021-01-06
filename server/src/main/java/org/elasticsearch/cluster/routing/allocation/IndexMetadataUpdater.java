@@ -170,7 +170,7 @@ public class IndexMetadataUpdater extends RoutingChangesObserver.AbstractRouting
                 final String allocationId;
                 if (recoverySource == RecoverySource.ExistingStoreRecoverySource.FORCE_STALE_PRIMARY_INSTANCE) {
                     allocationId = RecoverySource.ExistingStoreRecoverySource.FORCED_ALLOCATION_ID;
-                    indexMetadataBuilder.timestampMillisRange(indexMetadataBuilder.getTimestampMillisRange()
+                    indexMetadataBuilder.timestampRange(indexMetadataBuilder.getTimestampRange()
                             .removeShard(shardId.id(), oldIndexMetadata.getNumberOfShards()));
                 } else {
                     assert recoverySource instanceof RecoverySource.SnapshotRecoverySource : recoverySource;

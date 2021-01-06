@@ -59,6 +59,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -939,16 +940,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
                 context.getQueryShardContext(),
+                source.aggregations().bytesToPreallocate(),
                 context.query() == null ? new MatchAllDocsQuery() : context.query(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
                 multiBucketConsumerService.create(),
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
-                context::addReleasable,
                 context.bitsetFilterCache(),
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
                 context::isCancelled
             );
+            context.addReleasable(aggContext);
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories));
@@ -1187,24 +1189,34 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             }
 
             try (canMatchSearcher) {
-                QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), canMatchSearcher,
-                    request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
-                Rewriteable.rewrite(request.getRewriteable(), context, false);
-                final boolean aliasFilterCanMatch = request.getAliasFilter()
-                    .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
-                FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-                MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                final boolean canMatch;
-                if (canRewriteToMatchNone(request.source())) {
-                    QueryBuilder queryBuilder = request.source().query();
-                    canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
+                QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), 0,
+                    canMatchSearcher, request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
+                final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
+                final MinAndMax<?> minMax;
+                if (canMatch || hasRefreshPending) {
+                    FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
+                    minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
                 } else {
-                    // null query means match_all
-                    canMatch = aliasFilterCanMatch;
+                    minMax = null;
                 }
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         }
+    }
+
+    public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
+        Rewriteable.rewrite(request.getRewriteable(), context, false);
+        final boolean aliasFilterCanMatch = request.getAliasFilter()
+            .getQueryBuilder() instanceof MatchNoneQueryBuilder == false;
+        final boolean canMatch;
+        if (canRewriteToMatchNone(request.source())) {
+            QueryBuilder queryBuilder = request.source().query();
+            canMatch = aliasFilterCanMatch && queryBuilder instanceof MatchNoneQueryBuilder == false;
+        } else {
+            // null query means match_all
+            canMatch = aliasFilterCanMatch;
+        }
+        return canMatch;
     }
 
     /**
@@ -1240,6 +1252,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis) {
         return indicesService.getRewriteContext(nowInMillis);
+    }
+
+    public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {
+        return indicesService.getCoordinatorRewriteContextProvider(nowInMillis);
     }
 
     public IndicesService getIndicesService() {

@@ -5,6 +5,7 @@
       "description":"Returns cluster settings."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

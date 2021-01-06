@@ -19,6 +19,24 @@
 
 package org.elasticsearch.index.mapper;
 
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexableField;
@@ -34,24 +52,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
-
-import java.io.IOException;
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
 
 public class DocumentParserTests extends MapperServiceTestCase {
 
@@ -144,6 +144,43 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNull(doc.dynamicMappingsUpdate());
         assertNotNull(doc.rootDoc().getField("field"));
         assertNotNull(doc.rootDoc().getField("field.keyword"));
+    }
+
+    public void testParseWithShadowedNestedField() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> {
+            b.field("dynamic", "true");
+            b.startObject("runtime");
+            {
+                b.startObject("child.name").field("type", "keyword").endObject();
+            }
+            b.endObject();
+            b.startObject("properties");
+            {
+                b.startObject("child");
+                {
+                    b.field("type", "nested");
+                }
+                b.endObject();
+            }
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapper.parse(source(b -> {
+            b.field("name", "alice");
+            b.field("age", 42);
+            b.startArray("child");
+            {
+                b.startObject().field("name", "bob").field("age", 12).endObject();
+                b.startObject().field("name", "charlie").field("age", 10).endObject();
+            }
+            b.endArray();
+        }));
+        assertEquals(3, doc.docs().size());
+        assertEquals("alice", doc.rootDoc().getField("name").stringValue());
+        assertNull(doc.docs().get(0).getField("child.name"));   // shadowed by the runtime field
+        assertEquals(12L, doc.docs().get(0).getField("child.age").numericValue());
+        assertNull(doc.docs().get(1).getField("child.name"));
+        assertEquals(10L, doc.docs().get(1).getField("child.age").numericValue());
     }
 
     public void testRuntimeFieldAndArrayChildren() throws IOException {
@@ -580,7 +617,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     // creates an object mapper, which is about 100x harder than it should be....
     ObjectMapper createObjectMapper(MapperService mapperService, String name) {
-        ParseContext context = new ParseContext.InternalParseContext(mapperService.documentMapper(), null, null, null, null);
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParseContext context = new ParseContext.InternalParseContext(docMapper.mapping(), docMapper.mappers(),
+            mapperService.getIndexSettings(), mapperService.getIndexAnalyzers(), null, null, null, null);
         String[] nameParts = name.split("\\.");
         for (int i = 0; i < nameParts.length - 1; ++i) {
             context.path().add(nameParts[i]);
@@ -591,13 +630,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testEmptyMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
-        assertNull(DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList(), Collections.emptyList()));
+        assertNull(DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(),
+            Collections.emptyList(), Collections.emptyList()));
     }
 
     public void testSingleMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = Collections.singletonList(new MockFieldMapper("foo"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), updates, Collections.emptyList());
         assertNotNull(mapping);
         assertNotNull(mapping.root().getMapper("foo"));
     }
@@ -605,7 +645,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSingleRuntimeFieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<RuntimeFieldType> updates = Collections.singletonList(new TestRuntimeField("foo", "any"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList(), updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), Collections.emptyList(), updates);
         assertNotNull(mapping);
         assertNull(mapping.root().getMapper("foo"));
         assertNotNull(mapping.root().getRuntimeFieldType("foo"));
@@ -614,7 +654,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = Collections.singletonList(new MockFieldMapper("x.foo"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -626,7 +666,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testRuntimeSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<RuntimeFieldType> updates = Collections.singletonList(new TestRuntimeField("x.foo", "any"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, Collections.emptyList(), updates);
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), Collections.emptyList(), updates);
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNull(xMapper);
@@ -638,7 +678,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         List<Mapper> updates = new ArrayList<>();
         updates.add(new MockFieldMapper("x.foo"));
         updates.add(new MockFieldMapper("x.bar"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -651,7 +691,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
     public void testDeepSubfieldMappingUpdate() throws Exception {
         DocumentMapper docMapper = createDummyMapping();
         List<Mapper> updates = Collections.singletonList(new MockFieldMapper("x.subx.foo"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -667,7 +707,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         List<Mapper> updates = new ArrayList<>();
         updates.add(new MockFieldMapper("x.a"));
         updates.add(new MockFieldMapper("x.subx.b"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper xMapper = mapping.root().getMapper("x");
         assertNotNull(xMapper);
@@ -686,7 +726,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
         updates.add(createObjectMapper(mapperService, "foo.bar"));
         updates.add(new MockFieldMapper("foo.bar.baz"));
         updates.add(new MockFieldMapper("foo.field"));
-        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper, updates, Collections.emptyList());
+        Mapping mapping = DocumentParser.createDynamicUpdate(docMapper.mapping(), docMapper.mappers(), updates, Collections.emptyList());
         assertNotNull(mapping);
         Mapper fooMapper = mapping.root().getMapper("foo");
         assertNotNull(fooMapper);

@@ -5,6 +5,7 @@
       "description":"Cancels a task, if it can be cancelled through an API."
     },
     "stability":"experimental",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

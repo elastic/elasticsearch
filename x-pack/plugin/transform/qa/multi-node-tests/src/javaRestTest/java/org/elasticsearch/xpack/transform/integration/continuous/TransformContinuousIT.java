@@ -16,6 +16,7 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.AcknowledgedResponse;
 import org.elasticsearch.client.transform.DeleteTransformRequest;
@@ -39,6 +40,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -57,10 +59,12 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.hamcrest.Matchers.containsInRelativeOrder;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.Is.is;
 
@@ -337,8 +341,9 @@ public class TransformContinuousIT extends ESRestTestCase {
                 if (dateType.equals("date_nanos")) {
                     builder.field("format", "strict_date_optional_time_nanos");
                 }
-                builder.endObject()
-                    .startObject("event")
+                builder.endObject();
+
+                builder.startObject("event")
                     .field("type", "keyword")
                     .endObject()
                     .startObject("metric")
@@ -355,9 +360,66 @@ public class TransformContinuousIT extends ESRestTestCase {
                     .endObject()
                     .startObject("some-timestamp")
                     .field("type", dateType)
+                    .endObject();
+
+                builder.endObject(); // properties
+
+                // add some runtime fields
+                builder.startObject("runtime");
+
+                builder.startObject("metric-rt-2x")
+                    .field("type", "long")
+                    .startObject("script")
+                    .field("source", "if (params._source.metric != null) {emit(params._source.metric * 2)}")
                     .endObject()
+                    .endObject()
+                    .startObject("event-upper")
+                    .field("type", "keyword")
+                    .startObject("script")
+                    .field("source", "if (params._source.event != null) {emit(params._source.event.toUpperCase())}")
+                    .endObject()
+                    .endObject()
+                    .startObject("timestamp-at-runtime")
+                    .field("type", "date")
+                    .startObject("script")
+                    .field("source", "emit(parse(params._source.get('timestamp')))")
+                    .endObject()
+                    .endObject()
+                    .startObject("metric-timestamp-5m-earlier")
+                    .field("type", "date")
+                    .startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['metric-timestamp'].size()!=0) {emit(doc['metric-timestamp'].value.minus(5, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                    )
+                    .endObject()
+                    .endObject()
+                    .startObject("some-timestamp-10m-earlier")
+                    .field("type", "date")
+                    .startObject("script")
+                    .field(
+                        "source",
+                        "if (doc['some-timestamp'].size()!=0) {emit(doc['some-timestamp'].value.minus(10, ChronoUnit.MINUTES).toInstant().toEpochMilli())}"
+                    )
                     .endObject()
                     .endObject();
+
+                // random overlay of existing field
+                if (randomBoolean()) {
+                    if (randomBoolean()) {
+                        builder.startObject("metric").field("type", "long").endObject();
+                    } else {
+                        builder.startObject("metric")
+                            .field("type", "long")
+                            .startObject("script")
+                            .field("source", "if (params._source.metric != null) {emit(params._source.metric * 3)}")
+                            .endObject()
+                            .endObject();
+                    }
+                }
+
+                builder.endObject(); // runtime
+                builder.endObject(); // mappings
             }
             builder.endObject();
             String indexSettingsAndMappings = Strings.toString(builder);
@@ -420,6 +482,11 @@ public class TransformContinuousIT extends ESRestTestCase {
             putPipeline(new PutPipelineRequest(ContinuousTestCase.INGEST_PIPELINE, BytesReference.bytes(pipeline), XContentType.JSON))
                 .isAcknowledged()
         );
+        // Make sure the pipeline really got created and is seen in the cluster state.
+        Map<String, Object> clusterState = entityAsMap(client().performRequest(new Request("GET", "/_cluster/state/metadata")));
+        @SuppressWarnings("unchecked")
+        List<String> pipelineIds = (List<String>) XContentMapValues.extractValue(clusterState, "metadata", "ingest", "pipeline", "id");
+        assertThat(pipelineIds, containsInRelativeOrder(ContinuousTestCase.INGEST_PIPELINE));
     }
 
     private GetTransformStatsResponse getTransformStats(String id) throws IOException {
@@ -481,19 +548,24 @@ public class TransformContinuousIT extends ESRestTestCase {
 
     private AcknowledgedResponse putTransform(TransformConfig config) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().putTransform(new PutTransformRequest(config), RequestOptions.DEFAULT);
+            PutTransformRequest request = new PutTransformRequest(config);
+            logger.info("putTransform: {}", Strings.toString(request));
+            return restClient.transform().putTransform(request, RequestOptions.DEFAULT);
         }
     }
 
-    private org.elasticsearch.action.support.master.AcknowledgedResponse putPipeline(PutPipelineRequest pipeline) throws IOException {
+    private org.elasticsearch.action.support.master.AcknowledgedResponse putPipeline(PutPipelineRequest request) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.ingest().putPipeline(pipeline, RequestOptions.DEFAULT);
+            logger.info("putPipeline: {}", Strings.toString(request));
+            return restClient.ingest().putPipeline(request, RequestOptions.DEFAULT);
         }
     }
 
     private org.elasticsearch.action.support.master.AcknowledgedResponse deletePipeline(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.ingest().deletePipeline(new DeletePipelineRequest(id), RequestOptions.DEFAULT);
+            DeletePipelineRequest request = new DeletePipelineRequest(id);
+            logger.info("deletePipeline: {}", request.getId());
+            return restClient.ingest().deletePipeline(request, RequestOptions.DEFAULT);
         }
     }
 
@@ -505,23 +577,27 @@ public class TransformContinuousIT extends ESRestTestCase {
 
     private StartTransformResponse startTransform(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform().startTransform(new StartTransformRequest(id), RequestOptions.DEFAULT);
+            StartTransformRequest request = new StartTransformRequest(id);
+            logger.info("startTransform: {}", request.getId());
+            return restClient.transform().startTransform(request, RequestOptions.DEFAULT);
         }
     }
 
     private StopTransformResponse stopTransform(String id, boolean waitForCompletion, TimeValue timeout, boolean waitForCheckpoint)
         throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            return restClient.transform()
-                .stopTransform(new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint), RequestOptions.DEFAULT);
+            StopTransformRequest request = new StopTransformRequest(id, waitForCompletion, timeout, waitForCheckpoint);
+            logger.info("stopTransform: {}", request.getId());
+            return restClient.transform().stopTransform(request, RequestOptions.DEFAULT);
         }
     }
 
     private AcknowledgedResponse deleteTransform(String id, boolean force) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
-            DeleteTransformRequest deleteRequest = new DeleteTransformRequest(id);
-            deleteRequest.setForce(force);
-            return restClient.transform().deleteTransform(deleteRequest, RequestOptions.DEFAULT);
+            DeleteTransformRequest request = new DeleteTransformRequest(id);
+            request.setForce(force);
+            logger.info("deleteTransform: {}", request.getId());
+            return restClient.transform().deleteTransform(request, RequestOptions.DEFAULT);
         }
     }
 

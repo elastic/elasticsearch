@@ -235,13 +235,13 @@ Set of matching events or sequences to return.
 .Valid values for `result_position`
 [%collapsible%open]
 ====
-`head`::
+`tail`::
 (Default)
-Return the earliest matches, similar to the {wikipedia}/Head_(Unix)[Unix head
+Return the most recent matches, similar to the {wikipedia}/Tail_(Unix)[Unix tail
 command].
 
-`tail`::
-Return the most recent matches, similar to the {wikipedia}/Tail_(Unix)[Unix tail
+`head`::
+Return the earliest matches, similar to the {wikipedia}/Head_(Unix)[Unix head
 command].
 ====
 +

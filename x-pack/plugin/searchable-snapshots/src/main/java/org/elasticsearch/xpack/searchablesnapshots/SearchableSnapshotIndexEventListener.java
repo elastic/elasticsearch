@@ -10,8 +10,12 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.index.SegmentInfos;
 import org.elasticsearch.action.StepListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -20,16 +24,39 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 
+import static org.elasticsearch.index.store.SearchableSnapshotDirectory.unwrapDirectory;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
 
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotIndexEventListener.class);
 
+    private final @Nullable CacheService cacheService;
+
+    public SearchableSnapshotIndexEventListener(Settings settings, @Nullable CacheService cacheService) {
+        assert cacheService != null || DiscoveryNode.isDataNode(settings) == false;
+        this.cacheService = cacheService;
+    }
+
+    /**
+     * Called before a searchable snapshot {@link IndexShard} starts to recover. This event is used to trigger the loading of the shard
+     * snapshot information that contains the list of shard's Lucene files.
+     *
+     * @param indexShard    the shard that is about to recover
+     * @param indexSettings the shard's index settings
+     */
     @Override
     public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings) {
         assert Thread.currentThread().getName().contains(ThreadPool.Names.GENERIC);
@@ -38,7 +65,7 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     }
 
     private static void ensureSnapshotIsLoaded(IndexShard indexShard) {
-        final SearchableSnapshotDirectory directory = SearchableSnapshotDirectory.unwrapDirectory(indexShard.store().directory());
+        final SearchableSnapshotDirectory directory = unwrapDirectory(indexShard.store().directory());
         assert directory != null;
         final StepListener<Void> preWarmListener = new StepListener<>();
         final boolean success = directory.loadSnapshot(indexShard.recoveryState(), preWarmListener);
@@ -77,5 +104,36 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
         } catch (Exception e) {
             throw new TranslogException(shardId, "failed to associate a new translog", e);
         }
+    }
+
+    @Override
+    public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+        if (cacheService != null && shouldEvictCacheFiles(reason)) {
+            final IndexSettings indexSettings = indexService.getIndexSettings();
+            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())) {
+                for (IndexShard indexShard : indexService) {
+                    final ShardId shardId = indexShard.shardId();
+
+                    logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: {})", shardId, reason);
+                    cacheService.markShardAsEvictedInCache(
+                        new SnapshotId(
+                            SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
+                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
+                        ),
+                        new IndexId(
+                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+                            SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings())
+                        ),
+                        shardId
+                    );
+                }
+            }
+        }
+    }
+
+    private static boolean shouldEvictCacheFiles(IndexRemovalReason reason) {
+        return reason == IndexRemovalReason.DELETED
+            || reason == IndexRemovalReason.NO_LONGER_ASSIGNED
+            || reason == IndexRemovalReason.FAILURE;
     }
 }

@@ -19,7 +19,7 @@ import org.elasticsearch.xpack.textstructure.structurefinder.FileStructureOverri
 
 import java.io.InputStream;
 
-import static org.elasticsearch.xpack.textstructure.TextStructurePlugin.UTILITY_THREAD_POOL_NAME;
+import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 
 public class TransportFindFileStructureAction extends HandledTransportAction<
     FindFileStructureAction.Request,
@@ -42,7 +42,7 @@ public class TransportFindFileStructureAction extends HandledTransportAction<
 
         // As determining the file structure might take a while, we run
         // in a different thread to avoid blocking the network thread.
-        threadPool.executor(UTILITY_THREAD_POOL_NAME).execute(() -> {
+        threadPool.executor(GENERIC).execute(() -> {
             try {
                 listener.onResponse(buildFileStructureResponse(request));
             } catch (Exception e) {

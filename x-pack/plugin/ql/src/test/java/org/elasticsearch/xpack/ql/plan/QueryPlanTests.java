@@ -32,7 +32,7 @@ public class QueryPlanTests extends ESTestCase {
 
     public void testTransformWithExpressionTopLevel() throws Exception {
         Limit limit = new Limit(EMPTY, of(42), relation());
-        LogicalPlan transformed = limit.transformExpressionsOnly(l -> of(24), Literal.class);
+        LogicalPlan transformed = limit.transformExpressionsOnly(Literal.class, l -> of(24));
 
         assertEquals(Limit.class, transformed.getClass());
         Limit l = (Limit) transformed;
@@ -42,7 +42,7 @@ public class QueryPlanTests extends ESTestCase {
     public void testTransformWithExpressionTree() throws Exception {
         Limit limit = new Limit(EMPTY, of(42), relation());
         OrderBy o = new OrderBy(EMPTY, limit, emptyList());
-        LogicalPlan transformed = o.transformExpressionsDown(l -> of(24), Literal.class);
+        LogicalPlan transformed = o.transformExpressionsDown(Literal.class, l -> of(24));
 
         assertEquals(OrderBy.class, transformed.getClass());
         OrderBy order = (OrderBy) transformed;
@@ -55,8 +55,8 @@ public class QueryPlanTests extends ESTestCase {
         FieldAttribute two = fieldAttribute("two", INTEGER);
 
         Project project = new Project(EMPTY, relation(), asList(one, two));
-        LogicalPlan transformed = project.transformExpressionsOnly(n -> n.name().equals("one") ?
-            new FieldAttribute(EMPTY, "changed", one.field()) : n, NamedExpression.class);
+        LogicalPlan transformed = project.transformExpressionsOnly(NamedExpression.class, n -> n.name().equals("one") ?
+            new FieldAttribute(EMPTY, "changed", one.field()) : n);
 
         assertEquals(Project.class, transformed.getClass());
         Project p = (Project) transformed;
@@ -74,11 +74,11 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpressions(l -> {
+        project.forEachExpressions(Literal.class, l -> {
             if (l.fold().equals(42)) {
                 list.add(l.fold());
             }
-        }, Literal.class);
+        });
 
         assertEquals(singletonList(one.child().fold()), list);
     }
@@ -88,11 +88,11 @@ public class QueryPlanTests extends ESTestCase {
         OrderBy o = new OrderBy(EMPTY, limit, emptyList());
 
         List<Object> list = new ArrayList<>();
-        o.forEachExpressionsDown(l -> {
+        o.forEachExpressionsDown(Literal.class, l -> {
             if (l.fold().equals(42)) {
                 list.add(l.fold());
             }
-        }, Literal.class);
+        });
 
         assertEquals(singletonList(limit.limit().fold()), list);
     }
@@ -104,11 +104,11 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
 
         List<NamedExpression> list = new ArrayList<>();
-        project.forEachExpressions(n -> {
+        project.forEachExpressions(NamedExpression.class, n -> {
             if (n.name().equals("one")) {
                 list.add(n);
             }
-        }, NamedExpression.class);
+        });
 
         assertEquals(singletonList(one), list);
     }
@@ -120,11 +120,11 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpressions(l -> {
+        project.forEachExpressions(Literal.class, l -> {
             if (l.fold().equals(42)) {
                 list.add(l.fold());
             }
-        }, Literal.class);
+        });
 
         assertEquals(singletonList(one.child().fold()), list);
     }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ql.tree;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
@@ -115,7 +114,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     /**
-     * Test {@link Node#transformPropertiesOnly(java.util.function.Function, Class)}
+     * Test {@link Node#transformPropertiesOnly(Class, java.util.function.Function)}
      * implementation on {@link #subclass} which tests the implementation of
      * {@link Node#info()}. And tests the actual {@link NodeInfo} subclass
      * implementations in the process.
@@ -133,7 +132,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             Type changedArgType = argTypes[changedArgOffset];
             Object changedArgValue = randomValueOtherThan(nodeCtorArgs[changedArgOffset], () -> makeArg(changedArgType));
 
-            B transformed = node.transformNodeProps(prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop, Object.class);
+            B transformed = node.transformNodeProps(Object.class, prop -> Objects.equals(prop, originalArgValue) ? changedArgValue : prop);
 
             if (node.children().contains(originalArgValue) || node.children().equals(originalArgValue)) {
                 if (node.children().equals(emptyList()) && originalArgValue.equals(emptyList())) {
@@ -639,7 +638,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
             // for folders, just use the FileSystems API
             else {
-                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
+                Files.walkFileTree(root, new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {

@@ -32,7 +32,6 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.elasticsearch.cluster.DataStreamTestHelper.createTimestampField;
-import static org.elasticsearch.cluster.metadata.DataStream.getDefaultBackingIndexName;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
@@ -54,29 +53,27 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
 
     public void testRollover() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        Index newWriteIndex = new Index(getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1), UUIDs.randomBase64UUID(random()));
-        DataStream rolledDs = ds.rollover(newWriteIndex, DataStream.NEW_FEATURES_VERSION);
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), DataStream.NEW_FEATURES_VERSION);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertTrue(rolledDs.getIndices().contains(newWriteIndex));
+        assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
     }
 
     public void testRolloverWithLegacyBackingIndexNames() {
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
-        Index newWriteIndex = new Index(getDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1, Version.V_7_10_0),
-            UUIDs.randomBase64UUID(random()));
-        DataStream rolledDs = ds.rollover(newWriteIndex, Version.V_7_10_0);
+        DataStream rolledDs = ds.rollover(UUIDs.randomBase64UUID(), Version.V_7_10_0);
 
         assertThat(rolledDs.getName(), equalTo(ds.getName()));
         assertThat(rolledDs.getTimeStampField(), equalTo(ds.getTimeStampField()));
         assertThat(rolledDs.getGeneration(), equalTo(ds.getGeneration() + 1));
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
-        assertTrue(rolledDs.getIndices().contains(newWriteIndex));
+        assertThat(rolledDs.getWriteIndex().getName(),
+            equalTo(DataStream.getLegacyDefaultBackingIndexName(ds.getName(), ds.getGeneration() + 1)));
     }
 
     public void testRemoveBackingIndex() {

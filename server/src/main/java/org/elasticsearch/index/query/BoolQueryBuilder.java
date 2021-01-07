@@ -94,7 +94,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     }
 
     /**
-     * Set the maximum number of nested permitted per BooleanQuery.
+     * Set the maximum nested depth of bool queries.
      * Default value is 20.
      */
     public static void setMaxNestedDepth(int maxNestedDepth) {

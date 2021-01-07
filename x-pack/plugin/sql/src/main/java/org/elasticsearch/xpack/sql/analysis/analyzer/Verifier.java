@@ -124,7 +124,7 @@ public final class Verifier {
                 localFailures.add(fail(p, "SELECT DISTINCT is not yet supported"));
             } else {
                 // then take a look at the expressions
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;
@@ -187,7 +187,7 @@ public final class Verifier {
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
             // FieldAttribute for example are self replicating.
-            plan.forEachExpressionsUp(e -> {
+            plan.forEachExpressionUp(e -> {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
                     collectRefs.put(a.toAttribute(), a.child());
@@ -692,7 +692,7 @@ public final class Verifier {
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
         // Make sure that SCORE is only used in "top level" functions
-        p.forEachExpressions(e ->
+        p.forEachExpression(e ->
             e.forEachUp(Function.class, (Function f) ->
                 f.arguments().stream()
                     .filter(exp -> exp.anyMatch(Score.class::isInstance))
@@ -858,12 +858,12 @@ public final class Verifier {
     private static void checkMatrixStats(LogicalPlan p, Set<Failure> localFailures) {
         // MatrixStats aggregate functions cannot operates on scalars
         // https://github.com/elastic/elasticsearch/issues/55344
-        p.forEachExpressions(e -> e.forEachUp(Kurtosis.class, (Kurtosis s) -> {
+        p.forEachExpression(e -> e.forEachUp(Kurtosis.class, (Kurtosis s) -> {
             if (s.field() instanceof Function) {
                 localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
             }
         }));
-        p.forEachExpressions(e -> e.forEachUp(Skewness.class, (Skewness s) -> {
+        p.forEachExpression(e -> e.forEachUp(Skewness.class, (Skewness s) -> {
             if (s.field() instanceof Function) {
                 localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
             }
@@ -871,7 +871,7 @@ public final class Verifier {
     }
 
     private static void checkCastOnInexact(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachDown(Filter.class, f -> f.forEachExpressionsUp(e -> e.forEachUp(Cast.class, (Cast c) -> {
+        p.forEachDown(Filter.class, f -> f.forEachExpressionUp(e -> e.forEachUp(Cast.class, (Cast c) -> {
             if (c.field() instanceof FieldAttribute) {
                 EsField.Exact exactInfo = ((FieldAttribute) c.field()).getExactInfo();
                 if (exactInfo.hasExact() == false

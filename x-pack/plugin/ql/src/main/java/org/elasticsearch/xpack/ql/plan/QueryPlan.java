@@ -109,28 +109,28 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return arg;
     }
 
-    public void forEachExpressions(Consumer<? super Expression> rule) {
-        forEachExpressions(Expression.class, rule);
+    public void forEachExpression(Consumer<? super Expression> rule) {
+        forEachExpression(Expression.class, rule);
     }
 
-    public <E extends Expression> void forEachExpressions(Class<E> typeToken, Consumer<? super E> rule) {
-        forEachPropertiesOnly(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
+    public <E extends Expression> void forEachExpression(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachPropertyOnly(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
     }
 
-    public void forEachExpressionsDown(Consumer<? super Expression> rule) {
-        forEachExpressionsDown(Expression.class, rule);
+    public void forEachExpressionDown(Consumer<? super Expression> rule) {
+        forEachExpressionDown(Expression.class, rule);
     }
 
-    public <E extends Expression> void forEachExpressionsDown(Class<? extends E> typeToken, Consumer<? super E> rule) {
-        forEachPropertiesDown(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
+    public <E extends Expression> void forEachExpressionDown(Class<? extends E> typeToken, Consumer<? super E> rule) {
+        forEachPropertyDown(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
     }
 
-    public void forEachExpressionsUp(Consumer<? super Expression> rule) {
-        forEachExpressionsUp(Expression.class, rule);
+    public void forEachExpressionUp(Consumer<? super Expression> rule) {
+        forEachExpressionUp(Expression.class, rule);
     }
 
-    public <E extends Expression> void forEachExpressionsUp(Class<E> typeToken, Consumer<? super E> rule) {
-        forEachPropertiesUp(Object.class, e -> doForEachExpression(e, exp -> exp.forEachUp(typeToken, rule)));
+    public <E extends Expression> void forEachExpressionUp(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachPropertyUp(Object.class, e -> doForEachExpression(e, exp -> exp.forEachUp(typeToken, rule)));
     }
 
     @SuppressWarnings("unchecked")

@@ -285,7 +285,7 @@ public class DocumentMapper implements ToXContentFragment {
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping().merge(mapping, reason);
-        return new DocumentMapper(this.mappingLookup.getIndexSettings(), this.mappingLookup.getIndexAnalyzers(), this.documentParser, merged);
+        return new DocumentMapper(mappingLookup.getIndexSettings(), mappingLookup.getIndexAnalyzers(), documentParser, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {

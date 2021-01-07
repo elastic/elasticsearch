@@ -227,7 +227,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             plan = plan.transformUp(p -> {
                 // non attribute defining plans get their references removed
                 if ((p instanceof Pivot || p instanceof Aggregate || p instanceof Project) == false || p.children().isEmpty()) {
-                    p = p.transformExpressionsOnly(e -> collectRefs.getOrDefault(e, e), ReferenceAttribute.class);
+                    p = p.transformExpressionsOnly(ReferenceAttribute.class, e -> collectRefs.getOrDefault(e, e));
                 }
                 return p;
             });
@@ -391,7 +391,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Holder<Boolean> foundImplicitGroupBy = new Holder<>(Boolean.FALSE);
 
             // if the first found aggregate has no grouping, there's no need to do ordering
-            ob.forEachDown(a -> {
+            ob.forEachDown(Aggregate.class, a -> {
                 // take into account
                 if (foundAggregate.get() == Boolean.TRUE) {
                     return;
@@ -400,7 +400,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 if (a.groupings().isEmpty()) {
                     foundImplicitGroupBy.set(Boolean.TRUE);
                 }
-            }, Aggregate.class);
+            });
 
             if (foundImplicitGroupBy.get() == Boolean.TRUE) {
                 return ob.child();
@@ -427,7 +427,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Holder<Boolean> foundAggregate = new Holder<>(Boolean.FALSE);
 
             // if the first found aggregate has no grouping, there's no need to do ordering
-            return ob.transformDown(a -> {
+            return ob.transformDown(Aggregate.class, a -> {
                 // take into account
                 if (foundAggregate.get() == Boolean.TRUE) {
                     return a;
@@ -471,7 +471,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 return a;
-            }, Aggregate.class);
+            });
         }
     }
 
@@ -497,12 +497,12 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             // eliminate redundant casts
-            return plan.transformExpressionsUp(c -> {
+            return plan.transformExpressionsUp(Cast.class, c -> {
                 if (c.from() == c.to()) {
                     return c.field();
                 }
                 return c;
-            }, Cast.class);
+            });
         }
     }
 
@@ -557,10 +557,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
-                NamedExpression replacedExp = (NamedExpression) ne.transformUp(a -> {
+                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> {
                     NamedExpression as = aliases.get(a);
                     return as != null ? as : a;
-                }, Attribute.class);
+                });
 
                 replaced.add((NamedExpression) CleanAliases.trimNonTopLevelAliases(replacedExp));
             }
@@ -585,7 +585,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             List<Attribute> attrs = new ArrayList<>();
 
             // find aliases of all projections
-            plan.forEachDown(p -> {
+            plan.forEachDown(Project.class, p -> {
                 for (NamedExpression ne : p.projections()) {
                     if (ne instanceof Alias) {
                         if (((Alias) ne).child().foldable()) {
@@ -595,7 +595,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         }
                     }
                 }
-            }, Project.class);
+            });
 
             if (attrs.isEmpty()) {
                 return plan;
@@ -607,7 +607,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // anything higher and the propagate stops
             plan = plan.transformUp(p -> {
                 if (stop.get() == Boolean.FALSE && canPropagateFoldable(p)) {
-                    return p.transformExpressionsDown(e -> {
+                    return p.transformExpressionsDown(Attribute.class, e -> {
                         if (attrs.contains(e)) {
                             Alias as = aliases.get(e);
                             if (as == null) {
@@ -617,7 +617,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                             return as;
                         }
                         return e;
-                    }, Attribute.class);
+                    });
                 }
 
                 if (p.children().size() > 1) {
@@ -794,7 +794,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan p) {
-            return p.transformExpressionsDown(a -> {
+            return p.transformExpressionsDown(AggregateFunction.class, a -> {
                 if (Stats.isTypeCompatible(a) || (a instanceof Count && ((Count) a).distinct())) {
 
                     if (a.field().foldable()) {
@@ -816,7 +816,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 return a;
-            }, AggregateFunction.class);
+            });
         }
     }
 
@@ -829,7 +829,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(Aggregate a) {
             boolean hasLocalRelation = a.anyMatch(LocalRelation.class::isInstance);
 
-            return hasLocalRelation ? a.transformExpressionsDown(c -> new Literal(c.source(), 1, c.dataType()), Count.class) : a;
+            return hasLocalRelation ? a.transformExpressionsDown(Count.class, c -> new Literal(c.source(), 1, c.dataType())) : a;
         }
     }
 
@@ -840,7 +840,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // minimal reuse of the same matrix stat object
             final Map<Expression, MatrixStats> seen = new LinkedHashMap<>();
 
-            return p.transformExpressionsUp(f -> {
+            return p.transformExpressionsUp(AggregateFunction.class, f -> {
                 if (f instanceof MatrixStatsEnclosed) {
                     Expression argument = f.field();
                     MatrixStats matrixStats = seen.get(argument);
@@ -855,7 +855,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 return f;
-            }, AggregateFunction.class);
+            });
         }
     }
 
@@ -866,7 +866,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // minimal reuse of the same matrix stat object
             final Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
 
-            return p.transformExpressionsUp(f -> {
+            return p.transformExpressionsUp(AggregateFunction.class, f -> {
                 if (f instanceof ExtendedStatsEnclosed) {
                     Expression argument = f.field();
                     ExtendedStats extendedStats = seen.get(argument);
@@ -881,7 +881,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 return f;
-            }, AggregateFunction.class);
+            });
         }
     }
 
@@ -947,7 +947,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // start promotion
 
             // 2. promote aggs to InnerAggs
-            return p.transformExpressionsUp(f -> {
+            return p.transformExpressionsUp(AggregateFunction.class, f -> {
                 if (Stats.isTypeCompatible(f)) {
                     Expression argument = f.field();
                     Match match = potentialPromotions.get(argument);
@@ -957,7 +957,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 return f;
-            }, AggregateFunction.class);
+            });
         }
     }
 
@@ -981,7 +981,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             });
 
             if (statsPerField.isEmpty() == false) {
-                plan = plan.transformExpressionsUp(sum -> new InnerAggregate(sum, statsPerField.get(sum.field())), Sum.class);
+                plan = plan.transformExpressionsUp(Sum.class, sum -> new InnerAggregate(sum, statsPerField.get(sum.field())));
             }
 
             return plan;
@@ -1006,7 +1006,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             });
 
             // then if there's a match, replace the stat inside the InnerAgg
-            return p.transformExpressionsUp(ia -> {
+            return p.transformExpressionsUp(InnerAggregate.class, ia -> {
                 if (ia.outer() instanceof Stats) {
                     Stats stats = (Stats) ia.outer();
                     ExtendedStats ext = seen.get(stats.field());
@@ -1015,7 +1015,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 return ia;
-            }, InnerAggregate.class);
+            });
         }
     }
 
@@ -1058,11 +1058,11 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new Percentiles(percents.iterator().next().source(), aggKey.field(), new ArrayList<>(percents),
                     aggKey.percentilesConfig())));
 
-            return p.transformExpressionsUp(per -> {
+            return p.transformExpressionsUp(Percentile.class, per -> {
                 PercentileKey a = new PercentileKey(per);
                 Percentiles percentiles = percentilesPerAggKey.get(a);
                 return new InnerAggregate(per, percentiles);
-            }, Percentile.class);
+            });
         }
     }
 
@@ -1087,10 +1087,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PercentileRanks(values.iterator().next().source(), aggKey.field(), new ArrayList<>(values),
                     aggKey.percentilesConfig())));
 
-            return p.transformExpressionsUp(per -> {
+            return p.transformExpressionsUp(PercentileRank.class, per -> {
                 PercentileRanks ranks = ranksPerAggKey.get(new PercentileKey(per));
                 return new InnerAggregate(per, ranks);
-            }, PercentileRank.class);
+            });
         }
     }
 
@@ -1100,7 +1100,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         protected LogicalPlan rule(LogicalPlan plan) {
             Map<Expression, TopHits> mins = new HashMap<>();
             Map<Expression, TopHits> maxs = new HashMap<>();
-            return plan.transformExpressionsDown(e -> {
+            return plan.transformExpressionsDown(NumericAggregate.class, e -> {
                 if (e instanceof Min) {
                     Min min = (Min) e;
                     if (DataTypes.isString(min.field().dataType())) {
@@ -1114,7 +1114,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 return e;
-            }, NumericAggregate.class);
+            });
         }
     }
 
@@ -1142,25 +1142,25 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
             Holder<LocalRelation> optimizedPlan = new Holder<>();
-            plan.forEachDown(p -> {
+            plan.forEachDown(Project.class, p -> {
                 List<Object> values = extractConstants(p.projections());
                 if (values.size() == p.projections().size() && !(p.child() instanceof EsRelation) &&
                     isNotQueryWithFromClauseAndFilterFoldedToFalse(p)) {
                     optimizedPlan.set(new LocalRelation(p.source(), new SingletonExecutable(p.output(), values.toArray())));
                 }
-            }, Project.class);
+            });
 
             if (optimizedPlan.get() != null) {
                 return optimizedPlan.get();
             }
 
-            plan.forEachDown(a -> {
+            plan.forEachDown(Aggregate.class, a -> {
                 List<Object> values = extractConstants(a.aggregates());
                 if (values.size() == a.aggregates().size() && a.groupings().isEmpty()
                     && isNotQueryWithFromClauseAndFilterFoldedToFalse(a)) {
                     optimizedPlan.set(new LocalRelation(a.source(), new SingletonExecutable(a.output(), values.toArray())));
                 }
-            }, Aggregate.class);
+            });
 
             if (optimizedPlan.get() != null) {
                 return optimizedPlan.get();

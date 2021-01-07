@@ -58,13 +58,13 @@ import org.elasticsearch.xpack.sql.querydsl.container.QueryContainer;
 import org.elasticsearch.xpack.sql.querydsl.container.ScriptFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.SearchHitFieldRef;
 import org.elasticsearch.xpack.sql.querydsl.container.TopHitsAggRef;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.Cursor;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.RowSet;
 import org.elasticsearch.xpack.sql.session.Rows;
 import org.elasticsearch.xpack.sql.session.SchemaRowSet;
+import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 
 import java.io.IOException;
@@ -440,10 +440,10 @@ public class Querier {
                 Pipe proc = ((ComputedRef) ref).processor();
 
                 // wrap only agg inputs
-                proc = proc.transformDown(l -> {
+                proc = proc.transformDown(AggPathInput.class, l -> {
                     BucketExtractor be = createExtractor(l.context(), totalCount);
                     return new AggExtractorInput(l.source(), l.expression(), l.action(), be);
-                }, AggPathInput.class);
+                });
 
                 return new ComputingExtractor(proc.asProcessor());
             }
@@ -499,7 +499,7 @@ public class Querier {
                 Pipe proc = ((ComputedRef) ref).processor();
                 // collect hitNames
                 Set<String> hitNames = new LinkedHashSet<>();
-                proc = proc.transformDown(l -> {
+                proc = proc.transformDown(ReferenceInput.class, l -> {
                     HitExtractor he = createExtractor(l.context());
                     hitNames.add(he.hitName());
 
@@ -508,7 +508,7 @@ public class Querier {
                     }
 
                     return new HitExtractorInput(l.source(), l.expression(), he);
-                }, ReferenceInput.class);
+                });
                 String hitName = null;
                 if (hitNames.size() == 1) {
                     hitName = hitNames.iterator().next();

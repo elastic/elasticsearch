@@ -113,7 +113,7 @@
   - match: { indices.index_3.closed: true }
 
 ---
-"?wait_for_active_shards=index-setting is deprecated"
+"?wait_for_active_shards=index-setting is deprecated":
   - skip:
       version: " - 7.99.99"
       reason: "required deprecation warning is only emitted in 8.0 and later"

@@ -217,7 +217,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
 
             // collect aliases
-            plan.forEachExpressionsUp(e -> {
+            plan.forEachExpressionUp(e -> {
                 if (e instanceof Alias) {
                     Alias a = (Alias) e;
                     collectRefs.put(a.toAttribute(), a.child());
@@ -315,7 +315,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 // collect Attribute sources
                 // only Aliases are interesting since these are the only ones that hide expressions
                 // FieldAttribute for example are self replicating.
-                project.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                project.forEachUp(p -> p.forEachExpressionUp(e -> {
                     if (e instanceof Alias) {
                         Alias a = (Alias) e;
                         if (a.child() instanceof Function) {
@@ -923,7 +923,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // 1. first check whether there are at least 2 aggs for the same fields so that there can be a promotion
             final Map<Expression, Match> potentialPromotions = new LinkedHashMap<>();
 
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (Stats.isTypeCompatible(e)) {
                     AggregateFunction f = (AggregateFunction) e;
 
@@ -971,7 +971,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan plan) {
             final Map<Expression, Stats> statsPerField = new LinkedHashMap<>();
 
-            plan.forEachExpressionsUp(e -> {
+            plan.forEachExpressionUp(e -> {
                 if (e instanceof Sum) {
                     statsPerField.computeIfAbsent(((Sum) e).field(), field -> {
                         Source source = new Source(field.sourceLocation(), "STATS(" + field.sourceText() + ")");
@@ -995,7 +995,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             final Map<Expression, ExtendedStats> seen = new LinkedHashMap<>();
 
             // count the extended stats
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e instanceof InnerAggregate) {
                     InnerAggregate ia = (InnerAggregate) e;
                     if (ia.outer() instanceof ExtendedStats) {
@@ -1043,7 +1043,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan p) {
             Map<PercentileKey, Set<Expression>> percentsPerAggKey = new LinkedHashMap<>();
 
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e instanceof Percentile) {
                     Percentile per = (Percentile) e;
                     percentsPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>())
@@ -1072,7 +1072,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         public LogicalPlan apply(LogicalPlan p) {
             final Map<PercentileKey, Set<Expression>> valuesPerAggKey = new LinkedHashMap<>();
 
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e instanceof PercentileRank) {
                     PercentileRank per = (PercentileRank) e;
                     valuesPerAggKey.computeIfAbsent(new PercentileKey(per), v -> new LinkedHashSet<>())

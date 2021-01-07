@@ -633,7 +633,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
 
                     // collect aliases
-                    child.forEachUp(p -> p.forEachExpressionsUp(e -> {
+                    child.forEachUp(p -> p.forEachExpressionUp(e -> {
                         if (e instanceof Alias) {
                             Alias a = (Alias) e;
                             collectRefs.put(a.toAttribute(), a.child());

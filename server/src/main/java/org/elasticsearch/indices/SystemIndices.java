@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
-import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
@@ -48,7 +48,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
  */
 public class SystemIndices {
     private static final Map<String, Feature> SERVER_SYSTEM_INDEX_DESCRIPTORS = Map.of(
-        TASKS_FEATURE_NAME, new Feature("Manages task results", List.of(TASKS_DESCRIPTOR))
+        TASKS_FEATURE_NAME, new Feature("Manages task results", List.of(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index")))
     );
 
     private final CharacterRunAutomaton runAutomaton;

@@ -253,7 +253,7 @@ public abstract class AggregationContext implements Releasable {
         private final QueryShardContext context;
         private final PreallocatedCircuitBreakerService breakerService;
         private final BigArrays bigArrays;
-        private final Query topLevelQuery;
+        private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
         private final Supplier<SubSearchContext> subSearchContextBuilder;
@@ -267,7 +267,7 @@ public abstract class AggregationContext implements Releasable {
         public ProductionAggregationContext(
             QueryShardContext context,
             long bytesToPreallocate,
-            Query topLevelQuery,
+            Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
             MultiBucketConsumer multiBucketConsumer,
             Supplier<SubSearchContext> subSearchContextBuilder,
@@ -308,7 +308,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public Query query() {
-            return topLevelQuery;
+            return topLevelQuery.get();
         }
 
         @Override

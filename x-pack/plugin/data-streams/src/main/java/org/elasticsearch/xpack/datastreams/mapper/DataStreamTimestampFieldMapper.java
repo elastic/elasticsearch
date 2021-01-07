@@ -201,4 +201,8 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
     protected String contentType() {
         return NAME;
     }
+
+    boolean isEnabled() {
+        return enabled;
+    }
 }

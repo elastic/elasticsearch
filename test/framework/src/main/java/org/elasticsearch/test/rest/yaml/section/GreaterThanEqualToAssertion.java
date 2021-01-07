@@ -30,7 +30,6 @@ import java.io.IOException;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
-import static org.junit.Assert.fail;
 
 /**
  * Represents a gte assert section:
@@ -61,10 +60,13 @@ public class GreaterThanEqualToAssertion extends Assertion {
                 actualValue, instanceOf(Comparable.class));
         assertThat("expected value of [" + getField() + "] is not comparable (got [" + expectedValue.getClass() + "])",
                 expectedValue, instanceOf(Comparable.class));
+        if (actualValue instanceof Long && expectedValue instanceof Integer) {
+            expectedValue = (long) (int) expectedValue;
+        }
         try {
             assertThat(errorMessage(), (Comparable) actualValue, greaterThanOrEqualTo((Comparable) expectedValue));
         } catch (ClassCastException e) {
-            fail("cast error while checking (" + errorMessage() + "): " + e);
+            throw new AssertionError("cast error while checking (" + errorMessage() + "): " + e, e);
         }
     }
 

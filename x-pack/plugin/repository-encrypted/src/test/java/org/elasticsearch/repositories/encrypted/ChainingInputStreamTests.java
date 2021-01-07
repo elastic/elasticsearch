@@ -875,6 +875,7 @@ public class ChainingInputStreamTests extends ESTestCase {
         test.readAllBytes();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67086")
     public void testResetForDoubleMarkAnywhere() throws Exception {
         Supplier<InputStream> mockInputStreamSupplier = () -> {
             InputStream mockIn = mock(InputStream.class);

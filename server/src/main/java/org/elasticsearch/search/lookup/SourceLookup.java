@@ -33,7 +33,6 @@ import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -115,19 +114,15 @@ public class SourceLookup implements Map<String, Object> {
         if (this.reader != context.reader()) {
             this.reader = context.reader();
             // only reset reader and fieldReader when reader changes
-            try {
-                if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
-                    // All the docs to fetch are adjacent but Lucene stored fields are optimized
-                    // for random access and don't optimize for sequential access - except for merging.
-                    // So we do a little hack here and pretend we're going to do merges in order to
-                    // get better sequential access.
-                    SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
-                    fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
-                } else {
-                    fieldReader = context.reader()::document;
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+            if (context.reader() instanceof SequentialStoredFieldsLeafReader) {
+                // All the docs to fetch are adjacent but Lucene stored fields are optimized
+                // for random access and don't optimize for sequential access - except for merging.
+                // So we do a little hack here and pretend we're going to do merges in order to
+                // get better sequential access.
+                SequentialStoredFieldsLeafReader lf = (SequentialStoredFieldsLeafReader) context.reader();
+                fieldReader = lf.getSequentialStoredFieldsReader()::visitDocument;
+            } else {
+                fieldReader = context.reader()::document;
             }
         }
         this.source = null;

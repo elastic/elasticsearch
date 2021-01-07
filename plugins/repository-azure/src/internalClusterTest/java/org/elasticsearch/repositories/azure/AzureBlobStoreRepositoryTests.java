@@ -24,6 +24,7 @@ import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 import fixture.azure.AzureHttpHandler;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -39,14 +40,18 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
 public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTestCase {
@@ -229,6 +234,28 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
 
             container.delete();
             assertThat(container.listBlobs().size(), equalTo(0));
+        }
+    }
+
+    public void testDeleteBlobsIgnoringIfNotExists() throws Exception {
+        try (BlobStore store = newBlobStore()) {
+            final BlobContainer container = store.blobContainer(new BlobPath());
+            List<String> blobsToDelete = new ArrayList<>();
+            for (int i = 0; i < 10; i++) {
+                byte[] bytes = randomBytes(randomInt(100));
+                String blobName = randomAlphaOfLength(10);
+                container.writeBlob(blobName, new BytesArray(bytes), false);
+                blobsToDelete.add(blobName);
+            }
+
+            // Try to delete non existent blobs
+            for (int i = 0; i < 10; i++) {
+                blobsToDelete.add(randomName());
+            }
+
+            Randomness.shuffle(blobsToDelete);
+            container.deleteBlobsIgnoringIfNotExists(blobsToDelete);
+            assertThat(container.listBlobs(), is(anEmptyMap()));
         }
     }
 }

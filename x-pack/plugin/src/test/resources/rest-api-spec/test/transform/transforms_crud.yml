@@ -701,3 +701,102 @@ setup:
   - match: {transforms.0.id: "airline-transform"}
   - is_false: transforms.0.create_time
   - is_false: transforms.0.version
+
+---
+"Test creation failures of latest function":
+  - do:
+      catch: /latest.unique_key must be non-empty/
+      transform.put_transform:
+        transform_id: "duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-index" },
+            "latest": {
+              "unique_key": [],
+              "sort": "time"
+            }
+          }
+
+  - do:
+      catch: /latest.unique_key\[1\] element must be non-empty/
+      transform.put_transform:
+        transform_id: "duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-index" },
+            "latest": {
+              "unique_key": [ "airline", "" ],
+              "sort": "time"
+            }
+          }
+
+  - do:
+      catch: /latest.unique_key elements must be unique, found duplicate element \[airline\]/
+      transform.put_transform:
+        transform_id: "duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-index" },
+            "latest": {
+              "unique_key": [ "airline", "airline" ],
+              "sort": "time"
+            }
+          }
+
+  - do:
+      catch: /latest.sort must be non-empty/
+      transform.put_transform:
+        transform_id: "duplicate-field-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "dest-index" },
+            "latest": {
+              "unique_key": [ "airline" ],
+              "sort": ""
+            }
+          }
+
+---
+"Test creation of latest function":
+  - do:
+      transform.put_transform:
+        transform_id: "latest-by-airline-transform"
+        body: >
+          {
+            "source": {
+              "index": "airline-data"
+            },
+            "dest": { "index": "latest-by-airline" },
+            "latest": {
+              "unique_key": [ "airline" ],
+              "sort": "time"
+            },
+            "description": "yaml test latest transform on airline-data"
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      transform.get_transform:
+        transform_id: "latest-by-airline-transform"
+  - match: { count: 1 }
+  - match: { transforms.0.id: "latest-by-airline-transform" }
+  - match: { transforms.0.source.index.0: "airline-data" }
+  - match: { transforms.0.dest.index: "latest-by-airline" }
+  - is_true: transforms.0.source.query.match_all
+  - is_true: transforms.0.create_time
+  - is_true: transforms.0.version
+  - match: { transforms.0.latest.unique_key.0: "airline" }
+  - match: { transforms.0.latest.sort: "time" }
+  - match: { transforms.0.description: "yaml test latest transform on airline-data" }

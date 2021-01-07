@@ -388,6 +388,10 @@ public abstract class FiltersAggregator extends BucketsAggregator {
                      * second one because it'll try to "go backwards". So we build
                      * a new one for each subsequent filter.
                      */
+                    // NOCOMMIT switch to the block collection mechanism if we have more than a single sub-agg instead of this.
+                    /*
+                     * The switch is better because we can better estimate the costs.
+                     */
                     LeafBucketCollector filterLeafCollector = filterOrd == 0 ? sub : collectableSubAggregators.getLeafCollector(ctx);
                     SubCollector collector = new SubCollector(filterOrd, filterLeafCollector);
                     scorer.score(collector, live);

@@ -20,9 +20,7 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
 
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -221,7 +219,6 @@ public interface IndexAbstraction {
             return referenceIndexMetadatas;
         }
 
-
         @Nullable
         public IndexMetadata getWriteIndex() {
             return writeIndex;
@@ -241,30 +238,6 @@ public interface IndexAbstraction {
         @Override
         public boolean isSystem() {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
-        }
-
-        /**
-         * Returns the unique alias metadata per concrete index.
-         * <p>
-         * (note that although alias can point to the same concrete indices, each alias reference may have its own routing
-         * and filters)
-         */
-        public Iterable<Tuple<String, AliasMetadata>> getConcreteIndexAndAliasMetadatas() {
-            return () -> new Iterator<>() {
-
-                int index = 0;
-
-                @Override
-                public boolean hasNext() {
-                    return index < referenceIndexMetadatas.size();
-                }
-
-                @Override
-                public Tuple<String, AliasMetadata> next() {
-                    IndexMetadata indexMetadata = referenceIndexMetadatas.get(index++);
-                    return new Tuple<>(indexMetadata.getIndex().getName(), indexMetadata.getAliases().get(aliasName));
-                }
-            };
         }
 
         public AliasMetadata getFirstAliasMetadata() {

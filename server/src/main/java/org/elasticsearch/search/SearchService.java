@@ -940,16 +940,22 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
                 context.getQueryShardContext(),
-                context.query() == null ? new MatchAllDocsQuery() : context.query(),
+                source.aggregations().bytesToPreallocate(),
+                /*
+                 * The query on the search context right now doesn't include
+                 * the filter for nested documents or slicing so we have to
+                 * delay reading it until the aggs ask for it.
+                 */
+                () -> context.query() == null ? new MatchAllDocsQuery() : context.query(),
                 context.getProfilers() == null ? null : context.getProfilers().getAggregationProfiler(),
                 multiBucketConsumerService.create(),
                 () -> new SubSearchContext(context).parsedQuery(context.parsedQuery()).fetchFieldsContext(context.fetchFieldsContext()),
-                context::addReleasable,
                 context.bitsetFilterCache(),
                 context.indexShard().shardId().hashCode(),
                 context::getRelativeTimeInMillis,
                 context::isCancelled
             );
+            context.addReleasable(aggContext);
             try {
                 AggregatorFactories factories = source.aggregations().build(aggContext, null);
                 context.aggregations(new SearchContextAggregations(factories));

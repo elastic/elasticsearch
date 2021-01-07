@@ -113,32 +113,29 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
+            return filter.transformExpressionsUp(cmp -> {
                 // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
-                if (e instanceof InsensitiveBinaryComparison) {
-                    InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
+                Expression result = cmp;
+                Expression target = null;
+                String wildString = null;
 
-                    Expression target = null;
-                    String wildString = null;
-
-                    // check only the right side
-                    if (isWildcard(cmp.right())) {
-                        wildString = (String) cmp.right().fold();
-                        target = cmp.left();
-                    }
-
-                    if (target != null) {
-                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString), true);
-                        if (e instanceof InsensitiveNotEquals) {
-                            like = new Not(e.source(), like);
-                        }
-
-                        e = like;
-                    }
+                // check only the right side
+                if (isWildcard(cmp.right())) {
+                    wildString = (String) cmp.right().fold();
+                    target = cmp.left();
                 }
 
-                return e;
-            });
+                if (target != null) {
+                    Expression like = new Like(cmp.source(), target, StringUtils.toLikePattern(wildString), true);
+                    if (cmp instanceof InsensitiveNotEquals) {
+                        like = new Not(cmp.source(), like);
+                    }
+
+                    result = like;
+                }
+
+                return result;
+            }, InsensitiveBinaryComparison.class);
         }
 
         private static boolean isWildcard(Expression expr) {
@@ -158,22 +155,20 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
 
-            return filter.transformExpressionsUp(e -> {
+            return filter.transformExpressionsUp(cmp -> {
+                Expression result = cmp;
                 // expr == null || expr != null
-                if (e instanceof Equals || e instanceof NotEquals) {
-                    BinaryComparison cmp = (BinaryComparison) e;
-
+                if (cmp instanceof Equals || cmp instanceof NotEquals) {
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
-                        if (e instanceof Equals) {
-                            e = new IsNull(e.source(), cmp.left());
+                        if (cmp instanceof Equals) {
+                            result = new IsNull(cmp.source(), cmp.left());
                         } else {
-                            e = new IsNotNull(e.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), cmp.left());
                         }
                     }
                 }
-
-                return e;
-            });
+                return result;
+            }, BinaryComparison.class);
         }
     }
 

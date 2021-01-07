@@ -462,6 +462,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public boolean isCacheable() {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public void close() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 

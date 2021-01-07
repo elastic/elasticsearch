@@ -23,6 +23,8 @@ import com.carrotsearch.hppc.IntArrayList;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
@@ -42,9 +44,11 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -74,8 +78,10 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService;
+import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchSearchResult;
@@ -104,6 +110,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
@@ -822,6 +829,52 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         Thread currentThread = Thread.currentThread();
         // we still make sure can match is executed on the network thread
         service.canMatch(req, ActionListener.wrap(r -> assertSame(Thread.currentThread(), currentThread), e -> fail("unexpected")));
+    }
+
+    public void testAggContextGetsMatchAll() throws IOException {
+        createIndex("test");
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+    }
+
+    public void testAggContextGetsNestedFilter() throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder().startObject().startObject("properties");
+        mapping.startObject("nested").field("type", "nested").endObject();
+        mapping.endObject().endObject();
+
+        createIndex("test", Settings.EMPTY, mapping);
+        withAggregationContext(
+            "test",
+            context -> assertThat(context.query(), equalTo(new ConstantScoreQuery(Queries.newNonNestedFilter())))
+        );
+    }
+
+    /**
+     * Build an {@link AggregationContext} with the named index.
+     */
+    private void withAggregationContext(String index, Consumer<AggregationContext> check) throws IOException {
+        IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(resolveIndex(index));
+        ShardId shardId = new ShardId(indexService.index(), 0);
+
+        SearchRequest request = new SearchRequest().indices(index)
+            .source(new SearchSourceBuilder().aggregation(new FiltersAggregationBuilder("test", new MatchAllQueryBuilder())))
+            .allowPartialSearchResults(false);
+        ShardSearchRequest shardRequest = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            request,
+            shardId,
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1,
+            0,
+            null
+        );
+
+        try (ReaderContext readerContext = createReaderContext(indexService, indexService.getShard(0))) {
+            try (SearchContext context = getInstanceFromNode(SearchService.class).createContext(readerContext, shardRequest, null, true)) {
+                check.accept(context.aggregations().factories().context());
+            }
+        }
     }
 
     public void testExpandSearchThrottled() {

@@ -7,8 +7,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigDecimal;
 import java.time.ZoneId;
@@ -19,7 +17,13 @@ import java.util.Locale;
 import static java.util.Arrays.asList;
 import static java.util.regex.Pattern.quote;
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
+import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.DateTimeTestUtils.dateTime;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToCharTestScript.DELIMITER;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToCharTestScript.NOT_FULLY_MATCHABLE_PATTERNS;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToCharTestScript.PATTERN_DELIMITER;
 
 public class DateTimeToCharProcessorTests extends ESTestCase {
 
@@ -50,7 +54,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
             if (line.startsWith("#")) {
                 continue;
             }
-            String[] cols = line.split(quote(ToCharTestScript.DELIMITER));
+            String[] cols = line.split(quote(DELIMITER));
             testOneCase(testFile, lineNumber, cols[0], cols[1], cols[2], cols[3], cols[4]);
         }
     }
@@ -73,13 +77,13 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
         ZoneId zoneId = ZoneId.of(zone);
         ZonedDateTime timestamp = dateTimeWithFractions(secondsAndFractionsSinceEpoch);
         String actualResult =
-            (String) new ToChar(Source.EMPTY, l(timestamp, DataTypes.DATETIME), l(formatString, DataTypes.KEYWORD), zoneId)
+            (String) new ToChar(EMPTY, l(timestamp, DATETIME), l(formatString, KEYWORD), zoneId)
                 .makePipe()
                 .asProcessor()
                 .process(null);
-        List<String> expectedResultSplitted = asList(expectedResult.split(quote(ToCharTestScript.PATTERN_DELIMITER)));
-        List<String> resultSplitted = asList(actualResult.split(quote(ToCharTestScript.PATTERN_DELIMITER)));
-        List<String> formatStringSplitted = asList(formatString.split(ToCharTestScript.PATTERN_DELIMITER));
+        List<String> expectedResultSplitted = asList(expectedResult.split(quote(PATTERN_DELIMITER)));
+        List<String> resultSplitted = asList(actualResult.split(quote(PATTERN_DELIMITER)));
+        List<String> formatStringSplitted = asList(formatString.split(PATTERN_DELIMITER));
         assertEquals(formatStringSplitted.size(), resultSplitted.size());
         assertEquals(formatStringSplitted.size(), expectedResultSplitted.size());
         for (int i = 0; i < formatStringSplitted.size(); i++) {
@@ -108,7 +112,7 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
                         formatString, expectedResult, actualResult, patternMaybeWithIndex),
                     expectedPart, actualPart);
             } catch (AssertionError err) {
-                if (ToCharTestScript.NOT_FULLY_MATCHABLE_PATTERNS.stream().anyMatch(pattern::contains)) {
+                if (NOT_FULLY_MATCHABLE_PATTERNS.stream().anyMatch(pattern::contains)) {
                     logger.info("Known pattern failure ('TZ' and 'tz' cannot be matched with Postgres): " + err.getMessage());
                 } else {
                     throw err;

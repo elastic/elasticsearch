@@ -240,7 +240,7 @@ public class ToCharTestScript {
     }
 
     public static void main(String[] args) throws Exception {
-        String scriptFilename = args.length < 1 ? "/tmp/postgresql-tochar-test.sql" : args[0];
+        String scriptFilename = args.length < 1 ? "postgresql-tochar-test.sql" : args[0];
         Files.writeString(Path.of(scriptFilename), new ToCharTestScript().unitTestExporterScript(), StandardCharsets.UTF_8);
     }
 }

@@ -26,6 +26,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.CacheableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -78,7 +79,7 @@ import static org.elasticsearch.search.internal.SearchContext.TRACK_TOTAL_HITS_D
  *
  * @see org.elasticsearch.action.search.SearchRequest#source(SearchSourceBuilder)
  */
-public final class SearchSourceBuilder implements Writeable, ToXContentObject, Rewriteable<SearchSourceBuilder> {
+public final class SearchSourceBuilder extends CacheableWriteable implements ToXContentObject, Rewriteable<SearchSourceBuilder> {
     public static final ParseField FROM_FIELD = new ParseField("from");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField TIMEOUT_FIELD = new ParseField("timeout");
@@ -262,7 +263,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     @Override
-    public void writeTo(StreamOutput out) throws IOException {
+    public void doWriteTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(aggregations);
         out.writeOptionalBoolean(explain);
         out.writeOptionalWriteable(fetchSourceContext);
@@ -338,6 +339,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder query(QueryBuilder query) {
         this.queryBuilder = query;
+        clearCache();
         return this;
     }
 
@@ -355,6 +357,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder postFilter(QueryBuilder postFilter) {
         this.postQueryBuilder = postFilter;
+        clearCache();
         return this;
     }
 
@@ -374,6 +377,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new IllegalArgumentException("[from] parameter cannot be negative but was [" + from + "]");
         }
         this.from = from;
+        clearCache();
         return this;
     }
 
@@ -392,6 +396,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new IllegalArgumentException("[size] parameter cannot be negative, found [" + size + "]");
         }
         this.size = size;
+        clearCache();
         return this;
     }
 
@@ -407,6 +412,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder minScore(float minScore) {
         this.minScore = minScore;
+        clearCache();
         return this;
     }
 
@@ -423,6 +429,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder explain(Boolean explain) {
         this.explain = explain;
+        clearCache();
         return this;
     }
 
@@ -440,6 +447,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder version(Boolean version) {
         this.version = version;
+        clearCache();
         return this;
     }
 
@@ -457,6 +465,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder seqNoAndPrimaryTerm(Boolean seqNoAndPrimaryTerm) {
         this.seqNoAndPrimaryTerm = seqNoAndPrimaryTerm;
+        clearCache();
         return this;
     }
 
@@ -473,6 +482,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder timeout(TimeValue timeout) {
         this.timeout = timeout;
+        clearCache();
         return this;
     }
 
@@ -492,6 +502,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             throw new IllegalArgumentException("terminateAfter must be > 0");
         }
         this.terminateAfter = terminateAfter;
+        clearCache();
         return this;
     }
 
@@ -534,11 +545,12 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      * Adds a sort builder.
      */
     public SearchSourceBuilder sort(SortBuilder<?> sort) {
-            if (sorts == null) {
-                sorts = new ArrayList<>();
-            }
-            sorts.add(sort);
-            return this;
+        if (sorts == null) {
+            sorts = new ArrayList<>();
+        }
+        sorts.add(sort);
+        clearCache();
+        return this;
     }
 
     /**
@@ -554,6 +566,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder trackScores(boolean trackScores) {
         this.trackScores = trackScores;
+        clearCache();
         return this;
     }
 
@@ -569,6 +582,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder trackTotalHits(boolean trackTotalHits) {
         this.trackTotalHitsUpTo = trackTotalHits ? TRACK_TOTAL_HITS_ACCURATE : TRACK_TOTAL_HITS_DISABLED;
+        clearCache();
         return this;
     }
 
@@ -587,6 +601,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                 "got " + trackTotalHitsUpTo);
         }
         this.trackTotalHitsUpTo = trackTotalHitsUpTo;
+        clearCache();
         return this;
     }
 
@@ -608,6 +623,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder searchAfter(Object[] values) {
         this.searchAfterBuilder = new SearchAfterBuilder().setSortValues(values);
+        clearCache();
         return this;
     }
 
@@ -617,6 +633,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder slice(SliceBuilder builder) {
         this.sliceBuilder = builder;
+        clearCache();
         return this;
     }
 
@@ -634,6 +651,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public SearchSourceBuilder collapse(CollapseBuilder collapse) {
         this.collapse = collapse;
+        clearCache();
         return this;
     }
 
@@ -645,6 +663,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             aggregations = AggregatorFactories.builder();
         }
         aggregations.addAggregator(aggregation);
+        clearCache();
         return this;
     }
 
@@ -656,6 +675,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             aggregations = AggregatorFactories.builder();
         }
         aggregations.addPipelineAggregator(aggregation);
+        clearCache();
         return this;
     }
 
@@ -671,6 +691,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder highlighter(HighlightBuilder highlightBuilder) {
         this.highlightBuilder = highlightBuilder;
+        clearCache();
         return this;
     }
 
@@ -683,6 +704,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public SearchSourceBuilder suggest(SuggestBuilder suggestBuilder) {
         this.suggestBuilder = suggestBuilder;
+        clearCache();
         return this;
     }
 
@@ -694,15 +716,17 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     }
 
     public SearchSourceBuilder addRescorer(RescorerBuilder<?> rescoreBuilder) {
-            if (rescoreBuilders == null) {
-                rescoreBuilders = new ArrayList<>();
-            }
-            rescoreBuilders.add(rescoreBuilder);
-            return this;
+        if (rescoreBuilders == null) {
+            rescoreBuilders = new ArrayList<>();
+        }
+        rescoreBuilders.add(rescoreBuilder);
+        clearCache();
+        return this;
     }
 
     public SearchSourceBuilder clearRescorers() {
         rescoreBuilders = null;
+        clearCache();
         return this;
     }
 
@@ -711,6 +735,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder profile(boolean profile) {
         this.profile = profile;
+        clearCache();
         return this;
     }
 
@@ -738,6 +763,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext
             : FetchSourceContext.FETCH_SOURCE;
         this.fetchSourceContext = new FetchSourceContext(fetch, fetchSourceContext.includes(), fetchSourceContext.excludes());
+        clearCache();
         return this;
     }
 
@@ -774,6 +800,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         FetchSourceContext fetchSourceContext = this.fetchSourceContext != null ? this.fetchSourceContext
             : FetchSourceContext.FETCH_SOURCE;
         this.fetchSourceContext = new FetchSourceContext(fetchSourceContext.fetchSource(), includes, excludes);
+        clearCache();
         return this;
     }
 
@@ -782,6 +809,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder fetchSource(@Nullable FetchSourceContext fetchSourceContext) {
         this.fetchSourceContext = fetchSourceContext;
+        clearCache();
         return this;
     }
 
@@ -812,6 +840,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else {
             storedFieldsContext.addFieldNames(fields);
         }
+        clearCache();
         return this;
     }
 
@@ -820,6 +849,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder storedFields(StoredFieldsContext context) {
         storedFieldsContext = context;
+        clearCache();
         return this;
     }
 
@@ -846,6 +876,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             docValueFields = new ArrayList<>();
         }
         docValueFields.add(new FieldAndFormat(name, format));
+        clearCache();
         return this;
     }
 
@@ -880,6 +911,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             fetchFields = new ArrayList<>();
         }
         fetchFields.add(fetchField);
+        clearCache();
         return this;
     }
 
@@ -893,6 +925,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder scriptField(String name, Script script) {
         scriptField(name, script, false);
+        clearCache();
         return this;
     }
 
@@ -909,6 +942,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             scriptFields = new ArrayList<>();
         }
         scriptFields.add(new ScriptField(name, script, ignoreFailure));
+        clearCache();
         return this;
     }
 
@@ -931,6 +965,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public SearchSourceBuilder indexBoost(String index, float indexBoost) {
         Objects.requireNonNull(index, "index must not be null");
         this.indexBoosts.add(new IndexBoost(index, indexBoost));
+        clearCache();
         return this;
     }
 
@@ -947,6 +982,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder stats(List<String> statsGroups) {
         this.stats = statsGroups;
+        clearCache();
         return this;
     }
 
@@ -959,6 +995,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     public SearchSourceBuilder ext(List<SearchExtBuilder> searchExtBuilders) {
         this.extBuilders = Objects.requireNonNull(searchExtBuilders, "searchExtBuilders must not be null");
+        clearCache();
         return this;
     }
 
@@ -986,6 +1023,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder pointInTimeBuilder(PointInTimeBuilder builder) {
         this.pointInTimeBuilder = builder;
+        clearCache();
         return this;
     }
 
@@ -1001,6 +1039,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
      */
     public SearchSourceBuilder runtimeMappings(Map<String, Object> runtimeMappings) {
         this.runtimeMappings = runtimeMappings == null ? emptyMap() : runtimeMappings;
+        clearCache();
         return this;
     }
 
@@ -1041,6 +1080,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (rewritten) {
             return shallowCopy(queryBuilder, postQueryBuilder, aggregations, this.sliceBuilder, sorts, rescoreBuilders, highlightBuilder);
         }
+        clearCache();
         return this;
     }
 

@@ -69,9 +69,9 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> void forEachDown(Consumer<? super E> action, final Class<E> typeToken) {
+    public <E extends T> void forEachDown(Class<E> typeToken, Consumer<? super E> action) {
         forEachDown(t -> {
-            if (typeToken.isInstance(t))  {
+            if (typeToken.isInstance(t)) {
                 action.accept((E) t);
             }
         });
@@ -84,7 +84,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> void forEachUp(Consumer<? super E> action, final Class<E> typeToken) {
+    public <E extends T> void forEachUp(Class<E> typeToken, Consumer<? super E> action) {
         forEachUp(t -> {
             if (typeToken.isInstance(t)) {
                 action.accept((E) t);
@@ -92,20 +92,20 @@ public abstract class Node<T extends Node<T>> {
         });
     }
 
-    public <E> void forEachPropertiesOnly(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachProperty(rule, typeToken);
+    public <E> void forEachPropertiesOnly(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachProperty(typeToken, rule);
     }
 
-    public <E> void forEachPropertiesDown(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachDown(e -> e.forEachProperty(rule, typeToken));
+    public <E> void forEachPropertiesDown(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachDown(e -> e.forEachProperty(typeToken, rule));
     }
 
-    public <E> void forEachPropertiesUp(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachUp(e -> e.forEachProperty(rule, typeToken));
+    public <E> void forEachPropertiesUp(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachUp(e -> e.forEachProperty(typeToken, rule));
     }
 
     @SuppressWarnings("unchecked")
-    protected <E> void forEachProperty(Consumer<? super E> rule, Class<E> typeToken) {
+    protected <E> void forEachProperty(Class<E> typeToken, Consumer<? super E> rule) {
         for (Object prop : info().properties()) {
             // skip children (only properties are interesting)
             if (prop != children && !children.contains(prop) && typeToken.isInstance(prop)) {
@@ -179,7 +179,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> T transformDown(Function<E, ? extends T> rule, final Class<E> typeToken) {
+    public <E extends T> T transformDown(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformDown((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
     }
@@ -192,7 +192,7 @@ public abstract class Node<T extends Node<T>> {
     }
 
     @SuppressWarnings("unchecked")
-    public <E extends T> T transformUp(Function<E, ? extends T> rule, final Class<E> typeToken) {
+    public <E extends T> T transformUp(Class<E> typeToken, Function<E, ? extends T> rule) {
         // type filtering function
         return transformUp((t) -> (typeToken.isInstance(t) ? rule.apply((E) t) : t));
     }
@@ -229,16 +229,16 @@ public abstract class Node<T extends Node<T>> {
     // transform the node properties and use the tree only for navigation
     //
 
-    public <E> T transformPropertiesOnly(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        return transformNodeProps(rule, typeToken);
+    public <E> T transformPropertiesOnly(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformNodeProps(typeToken, rule);
     }
 
-    public <E> T transformPropertiesDown(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        return transformDown(t -> t.transformNodeProps(rule, typeToken));
+    public <E> T transformPropertiesDown(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformDown(t -> t.transformNodeProps(typeToken, rule));
     }
 
-    public <E> T transformPropertiesUp(Function<? super E, ? extends E> rule, Class<E> typeToken) {
-        return transformUp(t -> t.transformNodeProps(rule, typeToken));
+    public <E> T transformPropertiesUp(Class<E> typeToken, Function<? super E, ? extends E> rule) {
+        return transformUp(t -> t.transformNodeProps(typeToken, rule));
     }
 
     /**
@@ -249,7 +249,7 @@ public abstract class Node<T extends Node<T>> {
      * we return the closest thing we do have: {@code T}, which is the
      * root of the hierarchy for the this node.
      */
-    protected final <E> T transformNodeProps(Function<? super E, ? extends E> rule, Class<E> typeToken) {
+    protected final <E> T transformNodeProps(Class<E> typeToken, Function<? super E, ? extends E> rule) {
         return info().transform(rule, typeToken);
     }
 

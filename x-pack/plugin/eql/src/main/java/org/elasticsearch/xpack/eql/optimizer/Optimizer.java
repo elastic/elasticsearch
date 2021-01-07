@@ -113,7 +113,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(cmp -> {
+            return filter.transformExpressionsUp(InsensitiveBinaryComparison.class, cmp -> {
                 // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
                 Expression result = cmp;
                 Expression target = null;
@@ -135,7 +135,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 }
 
                 return result;
-            }, InsensitiveBinaryComparison.class);
+            });
         }
 
         private static boolean isWildcard(Expression expr) {
@@ -155,7 +155,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
 
-            return filter.transformExpressionsUp(cmp -> {
+            return filter.transformExpressionsUp(BinaryComparison.class, cmp -> {
                 Expression result = cmp;
                 // expr == null || expr != null
                 if (cmp instanceof Equals || cmp instanceof NotEquals) {
@@ -168,7 +168,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 return result;
-            }, BinaryComparison.class);
+            });
         }
     }
 
@@ -317,8 +317,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // collect constraints for each filter
             join.queries().forEach(k ->
-                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
-                                  , Filter.class));
+                k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                ));
 
             if (constraints.isEmpty() == false) {
                 List<KeyedFilter> queries = join.queries().stream()

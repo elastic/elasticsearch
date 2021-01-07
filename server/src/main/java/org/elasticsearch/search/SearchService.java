@@ -938,7 +938,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
                 context.getQueryShardContext(),
-                context.query() == null ? new MatchAllDocsQuery() : context.query(),
                 /*
                  * The query on the search context right now doesn't include
                  * the filter for nested documents or slicing so we have to

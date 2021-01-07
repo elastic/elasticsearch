@@ -284,7 +284,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 return p;
             }
 
-            return p.transformExpressionsDown(sq -> sq.withQuery(substituteCTE(sq.query(), subQueries)), SubQueryExpression.class);
+            return p.transformExpressionsDown(SubQueryExpression.class, sq -> sq.withQuery(substituteCTE(sq.query(), subQueries)));
         }
 
         @Override
@@ -386,7 +386,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 log.trace("Attempting to resolve {}", plan.nodeString());
             }
 
-            return plan.transformExpressionsUp(u -> {
+            return plan.transformExpressionsUp(UnresolvedAttribute.class, u -> {
                 List<Attribute> childrenOutput = new ArrayList<>();
                 for (LogicalPlan child : plan.children()) {
                     childrenOutput.addAll(child.output());
@@ -401,7 +401,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
                 //TODO: likely have to expand * inside functions as well
                 return u;
-            }, UnresolvedAttribute.class);
+            });
         }
 
         private List<NamedExpression> expandProjections(List<? extends NamedExpression> projections, LogicalPlan child) {
@@ -669,8 +669,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         List<Order> newOrders = new ArrayList<>();
                         // transform the orders with the failed information
                         for (Order order : o.order()) {
-                            Order transformed = (Order) order.transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "order"),
-                                    UnresolvedAttribute.class);
+                            Order transformed = (Order) order.transformUp(UnresolvedAttribute.class,
+                                ua -> resolveMetadataToMessage(ua, failedAttrs, "order")
+                            );
                             newOrders.add(order.equals(transformed) ? order : transformed);
                         }
 
@@ -704,8 +705,9 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // resolution failed and the failed expressions might contain resolution information so copy it over
                     if (!failedAttrs.isEmpty()) {
                         // transform the orders with the failed information
-                        Expression transformed = f.condition().transformUp(ua -> resolveMetadataToMessage(ua, failedAttrs, "filter"),
-                                UnresolvedAttribute.class);
+                        Expression transformed = f.condition().transformUp(UnresolvedAttribute.class,
+                            ua -> resolveMetadataToMessage(ua, failedAttrs, "filter")
+                        );
 
                         return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);
                     }
@@ -855,19 +857,19 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             });
 
-            return condition.transformDown(u -> {
+            return condition.transformDown(UnresolvedAttribute.class, u -> {
                 boolean qualified = u.qualifier() != null;
                 for (Alias alias : aliases) {
                     // don't replace field with their own aliases (it creates infinite cycles)
                     if (alias.anyMatch(e -> e == u) == false &&
-                           (qualified ?
-                               Objects.equals(alias.qualifiedName(), u.qualifiedName()) :
-                               Objects.equals(alias.name(), u.name()))) {
+                        (qualified ?
+                            Objects.equals(alias.qualifiedName(), u.qualifiedName()) :
+                            Objects.equals(alias.name(), u.name()))) {
                         return alias;
                     }
                 }
                 return u;
-             }, UnresolvedAttribute.class);
+            });
         }
     }
 
@@ -875,7 +877,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(uf -> {
+            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
                 if (uf.analyzed()) {
                     return uf;
                 }
@@ -901,7 +903,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                 Function f = uf.buildResolved(configuration, def);
                 return f;
-            }, UnresolvedFunction.class);
+            });
         }
     }
 
@@ -944,7 +946,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         private List<NamedExpression> assignAliases(List<? extends NamedExpression> exprs) {
             List<NamedExpression> newExpr = new ArrayList<>(exprs.size());
             for (NamedExpression expr : exprs) {
-                NamedExpression transformed = (NamedExpression) expr.transformUp(ua -> {
+                NamedExpression transformed = (NamedExpression) expr.transformUp(UnresolvedAlias.class, ua -> {
                     Expression child = ua.child();
                     if (child instanceof NamedExpression) {
                         return child;
@@ -959,7 +961,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         }
                     }
                     return new Alias(child.source(), child.sourceText(), child);
-                }, UnresolvedAlias.class);
+                });
                 newExpr.add(expr.equals(transformed) ? expr : transformed);
             }
             return newExpr;
@@ -1127,7 +1129,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
             // 2. find first Aggregate child and update it
             final Holder<Boolean> found = new Holder<>(Boolean.FALSE);
 
-            LogicalPlan plan = ob.transformDown(a -> {
+            LogicalPlan plan = ob.transformDown(Aggregate.class, a -> {
                 if (found.get() == Boolean.FALSE) {
                     found.set(Boolean.TRUE);
 
@@ -1150,7 +1152,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                 }
                 return a;
-            }, Aggregate.class);
+            });
 
             // if the plan was updated, project the initial aggregates
             if (plan != ob) {
@@ -1244,7 +1246,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         cleanChildrenAliases(p.aggregates()));
             }
 
-            return plan.transformExpressionsOnly(a -> a.child(), Alias.class);
+            return plan.transformExpressionsOnly(Alias.class, a -> a.child());
         }
 
         private List<NamedExpression> cleanChildrenAliases(List<? extends NamedExpression> args) {
@@ -1272,7 +1274,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
 
         private static Expression trimAliases(Expression e) {
-            return e.transformDown(Alias::child, Alias.class);
+            return e.transformDown(Alias.class, Alias::child);
         }
 
         @Override

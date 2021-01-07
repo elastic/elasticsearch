@@ -31,9 +31,9 @@ public final class AnalyzerRules {
             Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
             // otherwise look for binary logic
             if (condition == filter.condition()) {
-                condition = condition.transformUp(b ->
-                        b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
-                    , BinaryLogic.class);
+                condition = condition.transformUp(BinaryLogic.class, b ->
+                    b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
+                );
             }
 
             if (condition != filter.condition()) {
@@ -62,7 +62,7 @@ public final class AnalyzerRules {
         // but with a twist; only if the tree is not resolved or analyzed
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t), typeToken());
+            return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t));
         }
 
         @Override

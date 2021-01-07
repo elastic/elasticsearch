@@ -25,7 +25,6 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     private AttributeSet lazyOutputSet;
     private AttributeSet lazyInputSet;
 
-
     public QueryPlan(Source source, List<PlanType> children) {
         super(source, children);
     }
@@ -55,27 +54,27 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     //
 
     public PlanType transformExpressionsOnly(Function<Expression, ? extends Expression> rule) {
-        return transformPropertiesOnly(rule, Expression.class);
+        return transformPropertiesOnly(Expression.class, rule);
     }
 
-    public <E extends Expression> PlanType transformExpressionsOnly(Function<E, ? extends Expression> rule, Class<E> typeToken) {
-        return transformPropertiesOnly(e -> doTransformExpression(e, exp -> exp.transformDown(rule, typeToken)), Object.class);
+    public <E extends Expression> PlanType transformExpressionsOnly(Class<E> typeToken, Function<E, ? extends Expression> rule) {
+        return transformPropertiesOnly(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
     }
 
     public PlanType transformExpressionsDown(Function<Expression, ? extends Expression> rule) {
-        return transformExpressionsDown(rule, Expression.class);
+        return transformExpressionsDown(Expression.class, rule);
     }
 
-    public <E extends Expression> PlanType transformExpressionsDown(Function<E, ? extends Expression> rule, Class<E> typeToken) {
-        return transformPropertiesDown(e -> doTransformExpression(e, exp -> exp.transformDown(rule, typeToken)), Object.class);
+    public <E extends Expression> PlanType transformExpressionsDown(Class<E> typeToken, Function<E, ? extends Expression> rule) {
+        return transformPropertiesDown(Object.class, e -> doTransformExpression(e, exp -> exp.transformDown(typeToken, rule)));
     }
 
     public PlanType transformExpressionsUp(Function<Expression, ? extends Expression> rule) {
-        return transformExpressionsUp(rule, Expression.class);
+        return transformExpressionsUp(Expression.class, rule);
     }
 
-    public <E extends Expression> PlanType transformExpressionsUp(Function<E, ? extends Expression> rule, Class<E> typeToken) {
-        return transformPropertiesUp(e -> doTransformExpression(e, exp -> exp.transformUp(rule, typeToken)), Object.class);
+    public <E extends Expression> PlanType transformExpressionsUp(Class<E> typeToken, Function<E, ? extends Expression> rule) {
+        return transformPropertiesUp(Object.class, e -> doTransformExpression(e, exp -> exp.transformUp(typeToken, rule)));
     }
 
     @SuppressWarnings("unchecked")
@@ -111,27 +110,27 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
     }
 
     public void forEachExpressions(Consumer<? super Expression> rule) {
-        forEachExpressions(rule, Expression.class);
+        forEachExpressions(Expression.class, rule);
     }
 
-    public <E extends Expression> void forEachExpressions(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachPropertiesOnly(e -> doForEachExpression(e, exp -> exp.forEachDown(rule, typeToken)), Object.class);
+    public <E extends Expression> void forEachExpressions(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachPropertiesOnly(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
     }
 
     public void forEachExpressionsDown(Consumer<? super Expression> rule) {
-        forEachExpressionsDown(rule, Expression.class);
+        forEachExpressionsDown(Expression.class, rule);
     }
 
-    public <E extends Expression> void forEachExpressionsDown(Consumer<? super E> rule, Class<? extends E> typeToken) {
-        forEachPropertiesDown(e -> doForEachExpression(e, exp -> exp.forEachDown(rule, typeToken)), Object.class);
+    public <E extends Expression> void forEachExpressionsDown(Class<? extends E> typeToken, Consumer<? super E> rule) {
+        forEachPropertiesDown(Object.class, e -> doForEachExpression(e, exp -> exp.forEachDown(typeToken, rule)));
     }
 
     public void forEachExpressionsUp(Consumer<? super Expression> rule) {
-        forEachExpressionsUp(rule, Expression.class);
+        forEachExpressionsUp(Expression.class, rule);
     }
 
-    public <E extends Expression> void forEachExpressionsUp(Consumer<? super E> rule, Class<E> typeToken) {
-        forEachPropertiesUp(e -> doForEachExpression(e, exp -> exp.forEachUp(rule, typeToken)), Object.class);
+    public <E extends Expression> void forEachExpressionsUp(Class<E> typeToken, Consumer<? super E> rule) {
+        forEachPropertiesUp(Object.class, e -> doForEachExpression(e, exp -> exp.forEachUp(typeToken, rule)));
     }
 
     @SuppressWarnings("unchecked")

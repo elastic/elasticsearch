@@ -7,6 +7,7 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 
 import java.util.Map;
 
@@ -24,20 +25,30 @@ public class BasicLicenseUpgradeIT extends AbstractUpgradeTestCase {
 
     @SuppressWarnings("unchecked")
     private void checkBasicLicense() throws Exception {
-        Response licenseResponse = client().performRequest(new Request("GET", "/_license"));
-        Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
-        Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
-        assertEquals("basic", licenseMap.get("type"));
-        assertEquals("active", licenseMap.get("status"));
+        try {
+            Response licenseResponse = client().performRequest(new Request("GET", "/_license"));
+            Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
+            Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
+            assertEquals("basic", licenseMap.get("type"));
+            assertEquals("active", licenseMap.get("status"));
+        } catch (ResponseException e) {
+            // assertBusy only retries the code block if an AssertionError is thrown
+            throw new AssertionError("Failed to get license information", e);
+        }
     }
 
     @SuppressWarnings("unchecked")
     private void checkNonExpiringBasicLicense() throws Exception {
-        Response licenseResponse = client().performRequest(new Request("GET", "/_license"));
-        Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
-        Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
-        assertEquals("basic", licenseMap.get("type"));
-        assertEquals("active", licenseMap.get("status"));
-        assertNull(licenseMap.get("expiry_date_in_millis"));
+        try {
+            Response licenseResponse = client().performRequest(new Request("GET", "/_license"));
+            Map<String, Object> licenseResponseMap = entityAsMap(licenseResponse);
+            Map<String, Object> licenseMap = (Map<String, Object>) licenseResponseMap.get("license");
+            assertEquals("basic", licenseMap.get("type"));
+            assertEquals("active", licenseMap.get("status"));
+            assertNull(licenseMap.get("expiry_date_in_millis"));
+        } catch (ResponseException e) {
+            // assertBusy only retries the code block if an AssertionError is thrown
+            throw new AssertionError("Failed to get license information", e);
+        }
     }
 }

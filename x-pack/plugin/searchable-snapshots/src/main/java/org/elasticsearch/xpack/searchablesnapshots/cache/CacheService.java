@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -16,7 +17,6 @@ import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
-import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -25,8 +25,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.common.util.concurrent.KeyedLock;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -40,13 +39,17 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
@@ -127,6 +130,13 @@ public class CacheService extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> SNAPSHOT_CACHE_SHARD_EVICTIONS_SHUTDOWN_TIMEOUT = Setting.timeSetting(
+        SETTINGS_PREFIX + "shards_evictions.shutdown_timeout",
+        TimeValue.timeValueSeconds(10L),                        // default
+        TimeValue.ZERO,                                         // min
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(CacheService.class);
 
     private final ThreadPool threadPool;
@@ -140,10 +150,13 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ByteSizeValue cacheSize;
     private final ByteSizeValue rangeSize;
     private final ByteSizeValue recoveryRangeSize;
-    private final KeyedLock<ShardEviction> shardsEvictionLock;
-    private final Set<ShardEviction> evictedShards;
+    private final Map<ShardEviction, CompletableFuture<Integer>> runningShardsEvictions;
+    private final Set<ShardEviction> pendingShardsEvictions;
+    private final TimeValue shardsEvictionsStopTimeout;
+    private final Object shardsEvictionsMutex;
 
     private volatile int maxCacheFilesToSyncAtOnce;
+    private boolean allowShardsEvictions;
 
     public CacheService(
         final Settings settings,
@@ -163,8 +176,6 @@ public class CacheService extends AbstractLifecycleComponent {
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
         this.persistentCache = Objects.requireNonNull(persistentCache);
-        this.shardsEvictionLock = new KeyedLock<>();
-        this.evictedShards = ConcurrentCollections.newConcurrentSet();
         this.numberOfCacheFilesToSync = new AtomicLong();
         this.cacheSyncLock = new ReentrantLock();
         this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
@@ -174,6 +185,11 @@ public class CacheService extends AbstractLifecycleComponent {
         this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
         this.cacheSyncStopTimeout = SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT.get(settings);
+        this.shardsEvictionsStopTimeout = SNAPSHOT_CACHE_SHARD_EVICTIONS_SHUTDOWN_TIMEOUT.get(settings);
+        this.pendingShardsEvictions = new HashSet<>();
+        this.runningShardsEvictions = new HashMap<>();
+        this.shardsEvictionsMutex = new Object();
+        this.allowShardsEvictions = true;
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
@@ -206,12 +222,16 @@ public class CacheService extends AbstractLifecycleComponent {
             cacheSyncTask.close();
         } finally {
             try {
-                persistentCache.close();
-            } catch (Exception e) {
-                logger.warn("failed to close persistent cache", e);
+                processAllPendingShardsEvictions();
             } finally {
-                if (acquired) {
-                    cacheSyncLock.unlock();
+                try {
+                    persistentCache.close();
+                } catch (Exception e) {
+                    logger.warn("failed to close persistent cache", e);
+                } finally {
+                    if (acquired) {
+                        cacheSyncLock.unlock();
+                    }
                 }
             }
         }
@@ -338,84 +358,172 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * Marks the specified searchable snapshot shard as evicted in cache. Cache files associated with this shard will be evicted from cache.
      *
-     * @param snapshotId the {@link SnapshotId}
-     * @param indexId the {@link SnapshotId}
-     * @param shardId the {@link SnapshotId}
+     * @param snapshotUUID      the snapshot's unique identifier
+     * @param snapshotIndexName the name of the index in the snapshot
+     * @param shardId           the {@link ShardId}
      */
-    public void markShardAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        final ShardEviction shardEviction = new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId);
-        if (evictedShards.add(shardEviction)) {
-            threadPool.generic().submit(new AbstractRunnable() {
-                @Override
-                protected void doRun() {
-                    runIfShardMarkedAsEvictedInCache(shardEviction, () -> {
-                        assert shardsEvictionLock.isHeldByCurrentThread(shardEviction);
-                        final Map<CacheKey, CacheFile> cacheFilesToEvict = new HashMap<>();
-                        cache.forEach((cacheKey, cacheFile) -> {
-                            if (shardEviction.matches(cacheKey)) {
-                                cacheFilesToEvict.put(cacheKey, cacheFile);
-                            }
-                        });
-                        for (Map.Entry<CacheKey, CacheFile> cacheFile : cacheFilesToEvict.entrySet()) {
-                            try {
-                                cache.invalidate(cacheFile.getKey(), cacheFile.getValue());
-                            } catch (RuntimeException e) {
-                                assert false : e;
-                                logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getKey()), e);
-                            }
+    public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        synchronized (shardsEvictionsMutex) {
+            if (allowShardsEvictions) {
+                final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
+                if (addPendingShardEviction(shardEviction)) {
+                    threadPool.generic().submit(new AbstractRunnable() {
+                        @Override
+                        protected void doRun() {
+                            processShardEvictionIfNeeded(shardEviction);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            logger.warn(
+                                () -> new ParameterizedMessage("failed to evict cache files associated with shard {}", shardEviction),
+                                e
+                            );
+                            assert false : e;
                         }
                     });
                 }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assert false : e;
-                    logger.warn(
-                        () -> new ParameterizedMessage("failed to evict cache files associated with evicted shard {}", shardEviction),
-                        e
-                    );
-                }
-            });
-        }
-    }
-
-    /**
-     * Allows to run the specified {@link Runnable} if the shard represented by the triplet ({@link SnapshotId}, {@link IndexId},
-     * {@link SnapshotId}) is still marked as evicted at the time this method is executed. The @link Runnable} will be executed
-     * while the current thread is holding the lock associated to the shard.
-     *
-     * @param snapshotId the snapshot the evicted searchable snapshots shard belongs to
-     * @param indexId    the index in the snapshot the evicted searchable snapshots shard belongs to
-     * @param shardId    the searchable snapshots shard id
-     * @param runnable   a runnable to execute
-     */
-    public void runIfShardMarkedAsEvictedInCache(SnapshotId snapshotId, IndexId indexId, ShardId shardId, Runnable runnable) {
-        runIfShardMarkedAsEvictedInCache(new ShardEviction(snapshotId.getUUID(), indexId.getName(), shardId), runnable);
-    }
-
-    /**
-     * Allows to run the specified {@link Runnable} if the shard represented by {@link ShardEviction} is still marked as evicted at the time
-     * this method is executed. The @link Runnable} will be executed while the current thread is holding the lock associated to the shard.
-     *
-     * @param shardEviction a {@link ShardEviction} representing the shard marked as evicted
-     * @param runnable      a runnable to execute
-     */
-    private void runIfShardMarkedAsEvictedInCache(ShardEviction shardEviction, Runnable runnable) {
-        try (Releasable ignored = shardsEvictionLock.acquire(shardEviction)) {
-            boolean success = false;
-            try {
-                if (evictedShards.remove(shardEviction)) {
-                    runnable.run();
-                }
-                success = true;
-            } finally {
-                assert success : "shard eviction should be successful: " + shardEviction;
-                if (success == false) {
-                    final boolean added = evictedShards.add(shardEviction);
-                    assert added : shardEviction;
-                }
             }
         }
+    }
+
+    // also used in tests
+    boolean addPendingShardEviction(ShardEviction shardEviction) {
+        synchronized (shardsEvictionsMutex) {
+            assert allowShardsEvictions : "marking shards as evicted is not allowed";
+            return pendingShardsEvictions.add(shardEviction);
+        }
+    }
+
+    /**
+     * Evicts the cache files associated to the shard represented by the triplet ({@link SnapshotId}, {@link IndexId}, {@link SnapshotId})
+     * if the shard is marked as evicted in cache at the time this method is executed. In case another thread is already processing the
+     * shard eviction this method waits for it to complete.
+     *
+     * @param snapshotUUID      the snapshot's unique identifier
+     * @param snapshotIndexName the name of the index in the snapshot
+     * @param shardId           the {@link ShardId}
+     */
+    public void evictCacheFilesIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
+        FutureUtils.get(processShardEvictionIfNeeded(shardEviction));
+    }
+
+    /**
+     * Evicts the cache files associated to the specified {@link ShardEviction} if the shard is marked as evicted in cache at the time
+     * this method is executed. Multiple threads can attempt to process the same shard eviction at the same time but only one thread will
+     * evict the cache files and other threads can use the returned {@link CompletableFuture} to check if the computation is complete
+     * or to wait for its completion.
+     *
+     * @param shardEviction the shard eviction to process
+     * @return a {@link CompletableFuture} that can be used to wait for the eviction to complete
+     */
+    CompletableFuture<Integer> processShardEvictionIfNeeded(ShardEviction shardEviction) {
+        final CompletableFuture<Integer> completableFuture;
+        synchronized (shardsEvictionsMutex) {
+            assert assertGenericThreadPool();
+            assert shardsEvictionsInvariant();
+
+            if (pendingShardsEvictions.contains(shardEviction) == false) {
+                logger.trace("shard [{}] not marked as evicted", shardEviction);
+                assert runningShardsEvictions.get(shardEviction) == null : "found a running shard eviction for " + shardEviction;
+                return CompletableFuture.completedFuture(0);
+
+            } else if (runningShardsEvictions.containsKey(shardEviction)) {
+                logger.trace("shard eviction [{}] is being processed", shardEviction);
+                return runningShardsEvictions.get(shardEviction);
+
+            } else {
+                completableFuture = new CompletableFuture<>();
+                runningShardsEvictions.put(shardEviction, completableFuture);
+                completableFuture.whenComplete((result, e) -> {
+                    synchronized (shardsEvictionsMutex) {
+                        final CompletableFuture<Integer> removedFuture = runningShardsEvictions.remove(shardEviction);
+                        final boolean removed = pendingShardsEvictions.remove(shardEviction);
+                        assert removedFuture == completableFuture;
+                        assert removed;
+                        assert shardsEvictionsInvariant();
+                    }
+                });
+            }
+        }
+        try {
+            final List<CacheFile> cacheFilesToEvict = new ArrayList<>();
+            cache.forEach((cacheKey, cacheFile) -> {
+                if (shardEviction.matches(cacheKey)) {
+                    cacheFilesToEvict.add(cacheFile);
+                }
+            });
+            for (CacheFile cacheFile : cacheFilesToEvict) {
+                try {
+                    cache.invalidate(cacheFile.getCacheKey(), cacheFile);
+                } catch (RuntimeException e) {
+                    logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                    assert false : e;
+                }
+            }
+            logger.debug("shard eviction [{}] processed with [{}] cache files invalidated", shardEviction, cacheFilesToEvict.size());
+            completableFuture.complete(cacheFilesToEvict.size());
+        } catch (Exception e) {
+            completableFuture.completeExceptionally(e);
+        }
+        return completableFuture;
+    }
+
+    /**
+     * Processes and waits for all pending shard evictions to complete.
+     */
+    private void processAllPendingShardsEvictions() {
+        final List<CompletableFuture<Integer>> pendingFutures;
+        synchronized (shardsEvictionsMutex) {
+            allowShardsEvictions = false;
+            pendingFutures = new ArrayList<>(runningShardsEvictions.values());
+            assert shardsEvictionsInvariant();
+        }
+        if (pendingFutures.isEmpty() == false) {
+            try {
+                final CountDownLatch latch = new CountDownLatch(pendingFutures.size());
+                pendingFutures.forEach(completableFuture -> completableFuture.whenComplete((integer, throwable) -> latch.countDown()));
+                if (latch.await(shardsEvictionsStopTimeout.duration(), shardsEvictionsStopTimeout.timeUnit()) == false) {
+                    logger.warn(
+                        "timeout ({}) when waiting for [{}] shards evictions to be processed",
+                        shardsEvictionsStopTimeout,
+                        pendingFutures.size()
+                    );
+                } else if (Assertions.ENABLED) {
+                    synchronized (shardsEvictionsMutex) {
+                        assert pendingShardsEvictions.isEmpty() : pendingShardsEvictions;
+                        assert runningShardsEvictions.isEmpty() : runningShardsEvictions;
+                    }
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                logger.warn("interrupted while waiting shards evictions to be processed", e);
+            }
+        }
+    }
+
+    // used in tests
+    Set<ShardEviction> pendingShardsEvictions() {
+        synchronized (shardsEvictionsMutex) {
+            return Set.copyOf(pendingShardsEvictions);
+        }
+    }
+
+    // used in tests
+    Set<ShardEviction> runningShardsEvictions() {
+        synchronized (shardsEvictionsMutex) {
+            return Set.copyOf(runningShardsEvictions.keySet());
+        }
+    }
+
+    private boolean shardsEvictionsInvariant() {
+        assert Thread.holdsLock(shardsEvictionsMutex) : "shards evictions mutex not held";
+        // running shards evictions also exist in the shards evictions set
+        assert pendingShardsEvictions.containsAll(runningShardsEvictions.keySet());
+        // running shards evictions all have a completable future
+        assert runningShardsEvictions.values().stream().allMatch(Objects::nonNull);
+        return true;
     }
 
     void setCacheSyncInterval(TimeValue interval) {
@@ -497,14 +605,6 @@ public class CacheService extends AbstractLifecycleComponent {
 
                 final long value = numberOfCacheFilesToSync.decrementAndGet();
                 assert value >= 0 : value;
-
-                final CacheKey cacheKey = cacheFile.getCacheKey();
-                if (evictedShards.contains(
-                    new ShardEviction(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId())
-                )) {
-                    logger.debug("cache file belongs to a shard marked as evicted, skipping synchronization for [{}]", cacheKey);
-                    continue;
-                }
 
                 final Path cacheFilePath = cacheFile.getFile();
                 try {
@@ -590,16 +690,28 @@ public class CacheService extends AbstractLifecycleComponent {
      * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
      * to evict the cache files associated to that shard.
      */
-    private static class ShardEviction {
+    static class ShardEviction {
 
         private final String snapshotUUID;
         private final String snapshotIndexName;
         private final ShardId shardId;
 
-        private ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
             this.snapshotUUID = snapshotUUID;
             this.snapshotIndexName = snapshotIndexName;
             this.shardId = shardId;
+        }
+
+        public String getSnapshotUUID() {
+            return snapshotUUID;
+        }
+
+        public String getSnapshotIndexName() {
+            return snapshotIndexName;
+        }
+
+        public ShardId getShardId() {
+            return shardId;
         }
 
         @Override
@@ -627,5 +739,12 @@ public class CacheService extends AbstractLifecycleComponent {
                 && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
                 && Objects.equals(shardId, cacheKey.getShardId());
         }
+    }
+
+    private static boolean assertGenericThreadPool() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
+            || threadName.startsWith("TEST-") : "expected generic thread pool but got " + threadName;
+        return true;
     }
 }

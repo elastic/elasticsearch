@@ -86,10 +86,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.CodecService;
-import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -279,14 +277,14 @@ public abstract class EngineTestCase extends ESTestCase {
             if (engine != null && engine.isClosed.get() == false) {
                 engine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertNoInFlightDocuments(engine);
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine, createMapperService());
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(engine);
                 assertMaxSeqNoInCommitUserData(engine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(engine);
             }
             if (replicaEngine != null && replicaEngine.isClosed.get() == false) {
                 replicaEngine.getTranslog().getDeletionPolicy().assertNoOpenTranslogRefs();
                 assertNoInFlightDocuments(replicaEngine);
-                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine, createMapperService());
+                assertConsistentHistoryBetweenTranslogAndLuceneIndex(replicaEngine);
                 assertMaxSeqNoInCommitUserData(replicaEngine);
                 assertAtMostOneLuceneDocumentPerSequenceNumber(replicaEngine);
             }
@@ -1073,10 +1071,9 @@ public abstract class EngineTestCase extends ESTestCase {
      * Reads all engine operations that have been processed by the engine from Lucene index.
      * The returned operations are sorted and de-duplicated, thus each sequence number will be have at most one operation.
      */
-    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine,
-                                                                     Function<String, MappedFieldType> fieldTypeLookup) throws IOException {
+    public static List<Translog.Operation> readAllOperationsInLucene(Engine engine) throws IOException {
         final List<Translog.Operation> operations = new ArrayList<>();
-        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", fieldTypeLookup, 0, Long.MAX_VALUE, false)) {
+        try (Translog.Snapshot snapshot = engine.newChangesSnapshot("test", 0, Long.MAX_VALUE, false)) {
             Translog.Operation op;
             while ((op = snapshot.next()) != null){
                 operations.add(op);
@@ -1088,8 +1085,8 @@ public abstract class EngineTestCase extends ESTestCase {
     /**
      * Asserts the provided engine has a consistent document history between translog and Lucene index.
      */
-    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine, MapperService mapper) throws IOException {
-        if (mapper == null || mapper.documentMapper() == null || (engine instanceof InternalEngine) == false) {
+    public static void assertConsistentHistoryBetweenTranslogAndLuceneIndex(Engine engine) throws IOException {
+        if (engine instanceof InternalEngine == false) {
             return;
         }
         final List<Translog.Operation> translogOps = new ArrayList<>();
@@ -1099,7 +1096,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 translogOps.add(op);
             }
         }
-        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine, mapper::fieldType).stream()
+        final Map<Long, Translog.Operation> luceneOps = readAllOperationsInLucene(engine).stream()
             .collect(Collectors.toMap(Translog.Operation::seqNo, Function.identity()));
         final long maxSeqNo = ((InternalEngine) engine).getLocalCheckpointTracker().getMaxSeqNo();
         for (Translog.Operation op : translogOps) {
@@ -1179,9 +1176,8 @@ public abstract class EngineTestCase extends ESTestCase {
                 assertThat(seqNo, greaterThanOrEqualTo(0L));
                 if (primaryTermDocValues.advanceExact(docId)) {
                     if (seqNos.add(seqNo) == false) {
-                        final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
-                        leaf.reader().document(docId, idFieldVisitor);
-                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idFieldVisitor.getId());
+                        IdStoredFieldLoader idLoader = new IdStoredFieldLoader(leaf.reader());
+                        throw new AssertionError("found multiple documents for seq=" + seqNo + " id=" + idLoader.id(docId));
                     }
                 }
             }

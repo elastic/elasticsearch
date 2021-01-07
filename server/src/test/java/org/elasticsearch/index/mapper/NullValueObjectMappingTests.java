@@ -19,24 +19,22 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class NullValueObjectMappingTests extends ESSingleNodeTestCase {
-    public void testNullValueObject() throws IOException {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("obj1").field("type", "object").endObject().endObject()
-                .endObject().endObject());
+public class NullValueObjectMappingTests extends MapperServiceTestCase {
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+    public void testNullValueObject() throws IOException {
+        DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {
+            b.startObject("obj1");
+            b.field("type", "object");
+            b.endObject();
+        }));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()

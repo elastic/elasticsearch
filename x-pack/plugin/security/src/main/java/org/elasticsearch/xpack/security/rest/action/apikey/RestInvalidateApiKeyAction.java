@@ -34,15 +34,14 @@ import static org.elasticsearch.rest.RestRequest.Method.DELETE;
 public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
     static final ConstructingObjectParser<InvalidateApiKeyRequest, Void> PARSER = new ConstructingObjectParser<>("invalidate_api_key",
             a -> {
-                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2], (String) a[3],
-                    (a[4] == null) ? false : (Boolean) a[4],
-                    (a[5] == null) ? null : ((List<String>) a[5]).toArray(new String[0]));
+                return new InvalidateApiKeyRequest((String) a[0], (String) a[1], (String) a[2],
+                    (a[3] == null) ? false : (Boolean) a[3],
+                    (a[4] == null) ? null : ((List<String>) a[4]).toArray(new String[0]));
             });
 
     static {
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("realm_name"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("username"));
-        PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("id").withAllDeprecated("ids"));
         PARSER.declareString(ConstructingObjectParser.optionalConstructorArg(), new ParseField("name"));
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), new ParseField("owner"));
         PARSER.declareStringArray(ConstructingObjectParser.optionalConstructorArg(), new ParseField("ids"));

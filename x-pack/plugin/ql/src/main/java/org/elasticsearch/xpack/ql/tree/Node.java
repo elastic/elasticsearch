@@ -208,12 +208,11 @@ public abstract class Node<T extends Node<T>> {
 
         for (T child : children) {
             T next = traversalOperation.apply(child);
-            if (!child.equals(next)) {
-                childrenChanged = true;
-            }
-            else {
+            if (child.equals(next)) {
                 // use the initial value
                 next = child;
+            } else {
+                childrenChanged = true;
             }
             transformedChildren.add(next);
         }
@@ -379,9 +378,9 @@ public abstract class Node<T extends Node<T>> {
                 if (needsComma) {
                     sb.append(",");
                 }
-                
+
                 String stringValue = toString(prop);
-                
+
                 //: Objects.toString(prop);
                 if (maxWidth + stringValue.length() > TO_STRING_MAX_WIDTH) {
                     int cutoff = Math.max(0, TO_STRING_MAX_WIDTH - maxWidth);

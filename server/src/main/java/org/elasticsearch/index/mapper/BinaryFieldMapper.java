@@ -128,7 +128,7 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override

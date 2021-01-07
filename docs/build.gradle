@@ -55,7 +55,7 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
-    keystorePassword 's3cr3t'
+    keystorePassword 'keystore-password'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them
@@ -106,7 +106,7 @@ ext.docsFileTree = fileTree(projectDir) {
   exclude 'README.asciidoc'
   // Broken code snippet tests
   exclude 'reference/graph/explore.asciidoc'
-  if (Boolean.parseBoolean(System.getProperty("tests.fips.enabled"))) {
+  if (BuildParams.inFipsJvm) {
     // We don't install/support this plugin in FIPS 140
     exclude 'plugins/ingest-attachment.asciidoc'
     // We can't conditionally control output, this would be missing the ingest-attachment plugin

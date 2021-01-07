@@ -25,6 +25,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
@@ -32,10 +33,14 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingLookupUtils;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -80,12 +85,12 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     private ExecutorService singleThreadExecutor;
 
     @Before
-    public void setUpExecutor() throws Exception {
+    public void setUpExecutor() {
         singleThreadExecutor = Executors.newSingleThreadExecutor();
     }
 
     @After
-    public void cleanUpExecutor() throws Exception {
+    public void cleanUpExecutor() {
         singleThreadExecutor.shutdown();
     }
 
@@ -586,14 +591,17 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
-        List<MappedFieldType> types = new ArrayList<>();
+        List<FieldMapper> types = new ArrayList<>();
         for (int i = 0; i < 11; i++) { // the tests use fields 1 to 10.
             // This field has a value.
-            types.add(new KeywordFieldMapper.KeywordFieldType("field-" + i));
+            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("field-" + i)));
             // This field never has a value
-            types.add(new KeywordFieldMapper.KeywordFieldType("dne-" + i));
+            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
         }
-        MappingLookup mappingLookup = MappingLookupUtils.fromTypes(types, List.of());
+
+        RootObjectMapper root = new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath());
+        Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap());
+        MappingLookup mappingLookup = new MappingLookup(mapping, types, List.of(), List.of(), null, null, null);
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

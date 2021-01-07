@@ -37,10 +37,15 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingLookupUtils;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MockFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -57,6 +62,7 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -178,9 +184,12 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 Collections.emptyMap());
             MapperService mapperService = mock(MapperService.class);
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-            MappingLookup lookup = MappingLookupUtils.fromTypes(fieldType);
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
+            RootObjectMapper root = new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath());
+            Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap());
+            List<FieldMapper> mappers = List.of(new MockFieldMapper(fieldType));
+            MappingLookup lookup = new MappingLookup(mapping, mappers, List.of(), List.of(), null, null, null);
             QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
                     System::currentTimeMillis, null, null, () -> true, null, emptyMap());

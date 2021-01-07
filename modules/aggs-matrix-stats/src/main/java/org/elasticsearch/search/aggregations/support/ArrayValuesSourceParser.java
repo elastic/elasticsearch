@@ -45,7 +45,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
     public abstract static class BytesValuesSourceParser extends ArrayValuesSourceParser<ValuesSource.Bytes> {
 
         protected BytesValuesSourceParser(boolean formattable) {
-            super(formattable, CoreValuesSourceType.BYTES, ValueType.STRING);
+            super(formattable, CoreValuesSourceType.KEYWORD, ValueType.STRING);
         }
     }
 

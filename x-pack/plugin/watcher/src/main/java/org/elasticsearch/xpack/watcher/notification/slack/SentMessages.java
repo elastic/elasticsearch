@@ -118,8 +118,8 @@ public class SentMessages implements ToXContentObject, Iterable<SentMessages.Sen
                     if (WatcherParams.hideSecrets(params)) {
                         // this writes out the request to the byte array output stream with the correct excludes
                         // for slack
-                        try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType().xContent(),
-                                params, "path")) {
+                        try (InputStream is = HttpRequest.filterToXContent(request, builder.contentType(),
+                            params, "path")) {
                             builder.rawField(REQUEST.getPreferredName(), is, builder.contentType());
                         }
                     } else {

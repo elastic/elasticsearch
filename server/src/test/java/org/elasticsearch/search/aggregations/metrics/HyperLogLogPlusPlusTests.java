@@ -147,18 +147,16 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         when(breakerService.getBreaker(CircuitBreaker.REQUEST)).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST) {
             private int countDown = whenToBreak;
             @Override
-            public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
                 if (countDown-- == 0) {
                     throw new CircuitBreakingException("test error", bytes, Long.MAX_VALUE, Durability.TRANSIENT);
                 }
                 total.addAndGet(bytes);
-                return total.get();
             }
 
             @Override
-            public long addWithoutBreaking(long bytes) {
+            public void addWithoutBreaking(long bytes) {
                 total.addAndGet(bytes);
-                return total.get();
             }
         });
         BigArrays bigArrays = new BigArrays(null, breakerService, CircuitBreaker.REQUEST).withCircuitBreaking();

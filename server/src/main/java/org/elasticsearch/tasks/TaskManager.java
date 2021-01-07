@@ -29,7 +29,6 @@ import org.elasticsearch.Assertions;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -61,7 +60,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -384,15 +382,6 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     /**
-     * Returns the number of currently banned tasks.
-     * <p>
-     * Will be used in task manager stats and for debugging.
-     */
-    public int getBanCount() {
-        return bannedParents.size();
-    }
-
-    /**
      * Bans all tasks with the specified parent task from execution, cancels all tasks that are currently executing.
      * <p>
      * This method is called when a parent task that has children is cancelled.
@@ -401,24 +390,15 @@ public class TaskManager implements ClusterStateApplier {
     public List<CancellableTask> setBan(TaskId parentTaskId, String reason, TransportChannel channel) {
         logger.trace("setting ban for the parent task {} {}", parentTaskId, reason);
         synchronized (bannedParents) {
-            if (channel.getVersion().onOrAfter(Version.V_8_0_0)) {
-                final Ban ban = bannedParents.computeIfAbsent(parentTaskId, k -> new Ban(reason, true));
-                assert ban.perChannel : "not a ban per channel";
-                while (channel instanceof TaskTransportChannel) {
-                    channel = ((TaskTransportChannel) channel).getChannel();
-                }
-                if (channel instanceof TcpTransportChannel) {
-                    startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
-                } else {
-                    assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
-                    ban.registerChannel(DIRECT_CHANNEL_TRACKER);
-                }
+            final Ban ban = bannedParents.computeIfAbsent(parentTaskId, k -> new Ban(reason));
+            while (channel instanceof TaskTransportChannel) {
+                channel = ((TaskTransportChannel) channel).getChannel();
+            }
+            if (channel instanceof TcpTransportChannel) {
+                startTrackingChannel(((TcpTransportChannel) channel).getChannel(), ban::registerChannel);
             } else {
-                if (lastDiscoveryNodes.nodeExists(parentTaskId.getNodeId())) {
-                    // Only set the ban if the node is the part of the cluster
-                    final Ban existing = bannedParents.put(parentTaskId, new Ban(reason, false));
-                    assert existing == null || existing.perChannel == false : "not a ban per node";
-                }
+                assert channel.getChannelType().equals("direct") : "expect direct channel; got [" + channel + "]";
+                ban.registerChannel(DIRECT_CHANNEL_TRACKER);
             }
         }
         return cancellableTasks.values().stream()
@@ -444,41 +424,32 @@ public class TaskManager implements ClusterStateApplier {
 
     private class Ban {
         final String reason;
-        final boolean perChannel; // TODO: Remove this in 8.0
         final Set<ChannelPendingTaskTracker> channels;
 
-        Ban(String reason, boolean perChannel) {
+        Ban(String reason) {
             assert Thread.holdsLock(bannedParents);
             this.reason = reason;
-            this.perChannel = perChannel;
-            if (perChannel) {
-                this.channels = new HashSet<>();
-            } else {
-                this.channels = Set.of();
-            }
+            this.channels = new HashSet<>();
         }
 
         void registerChannel(ChannelPendingTaskTracker channel) {
             assert Thread.holdsLock(bannedParents);
-            assert perChannel : "not a ban per channel";
             channels.add(channel);
         }
 
         boolean unregisterChannel(ChannelPendingTaskTracker channel) {
             assert Thread.holdsLock(bannedParents);
-            assert perChannel : "not a ban per channel";
             return channels.remove(channel);
         }
 
         int registeredChannels() {
             assert Thread.holdsLock(bannedParents);
-            assert perChannel : "not a ban per channel";
             return channels.size();
         }
 
         @Override
         public String toString() {
-            return "Ban{" + "reason='" + reason + '\'' + ", perChannel=" + perChannel + ", channels=" + channels + '}';
+            return "Ban{" + "reason=" + reason + ", channels=" + channels + '}';
         }
     }
 
@@ -502,21 +473,6 @@ public class TaskManager implements ClusterStateApplier {
     @Override
     public void applyClusterState(ClusterChangedEvent event) {
         lastDiscoveryNodes = event.state().getNodes();
-        if (event.nodesRemoved()) {
-            synchronized (bannedParents) {
-                lastDiscoveryNodes = event.state().getNodes();
-                // Remove all bans that were registered by nodes that are no longer in the cluster state
-                final Iterator<Map.Entry<TaskId, Ban>> banIterator = bannedParents.entrySet().iterator();
-                while (banIterator.hasNext()) {
-                    final Map.Entry<TaskId, Ban> ban = banIterator.next();
-                    if (ban.getValue().perChannel == false && lastDiscoveryNodes.nodeExists(ban.getKey().getNodeId()) == false) {
-                        logger.debug("Removing ban for the parent [{}] on the node [{}], reason: the parent node is gone",
-                            ban.getKey(), event.state().getNodes().getLocalNode());
-                        banIterator.remove();
-                    }
-                }
-            }
-        }
     }
 
     /**
@@ -764,16 +720,7 @@ public class TaskManager implements ClusterStateApplier {
 
         // Unregister the closing channel and remove bans whose has no registered channels
         synchronized (bannedParents) {
-            final Iterator<Map.Entry<TaskId, Ban>> iterator = bannedParents.entrySet().iterator();
-            while (iterator.hasNext()) {
-                final Map.Entry<TaskId, Ban> entry = iterator.next();
-                final Ban ban = entry.getValue();
-                if (ban.perChannel) {
-                    if (ban.unregisterChannel(channel) && entry.getValue().registeredChannels() == 0) {
-                        iterator.remove();
-                    }
-                }
-            }
+            bannedParents.values().removeIf(ban -> ban.unregisterChannel(channel) && ban.registeredChannels() == 0);
         }
     }
 

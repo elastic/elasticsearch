@@ -146,7 +146,7 @@ setup:
           username: "test-1"
           body:  >
               {
-                "password": "12345678",
+                "password": "test-user-password",
                 "roles" : [ "test-role-1" ]
               }
   - do:
@@ -154,7 +154,7 @@ setup:
           username: "test-2"
           body:  >
               {
-                "password": "12345678",
+                "password": "test-user-password",
                 "roles" : [ "test-role-2" ]
               }
   - do:
@@ -162,7 +162,7 @@ setup:
           username: "test-3"
           body:  >
               {
-                "password": "12345678",
+                "password": "test-user-password",
                 "roles" : [ "test-role-1", "test-role-2" ]
               }
 
@@ -206,7 +206,7 @@ teardown:
           reason: "contains is a newly added assertion"
           features: contains
   - do:
-      headers: { Authorization: "Basic dGVzdC0xOjEyMzQ1Njc4" } # test-1
+      headers: { Authorization: "Basic dGVzdC0xOnRlc3QtdXNlci1wYXNzd29yZA==" } # test-1
       security.get_user_privileges: {}
 
   - match: { "cluster" : [ "monitor" ] }
@@ -234,7 +234,7 @@ teardown:
   - match: { "run_as" : [ "test-*" ] }
 
   - do:
-      headers: { Authorization: "Basic dGVzdC0yOjEyMzQ1Njc4" } # test-2
+      headers: { Authorization: "Basic dGVzdC0yOnRlc3QtdXNlci1wYXNzd29yZA==" } # test-2
       security.get_user_privileges:
         username: null
 
@@ -268,7 +268,7 @@ teardown:
       reason: "contains is a newly added assertion"
       features: contains
   - do:
-      headers: { Authorization: "Basic dGVzdC0zOjEyMzQ1Njc4" } # test-3
+      headers: { Authorization: "Basic dGVzdC0zOnRlc3QtdXNlci1wYXNzd29yZA==" } # test-3
       security.get_user_privileges: {}
 
   - match: { "cluster" : [ "manage", "manage_security", "monitor" ] }

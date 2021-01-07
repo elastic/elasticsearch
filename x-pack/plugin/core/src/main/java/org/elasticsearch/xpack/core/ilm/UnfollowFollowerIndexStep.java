@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
@@ -29,7 +30,7 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
     }
 
     @Override
-    void innerPerformAction(String followerIndex, Listener listener) {
+    void innerPerformAction(String followerIndex, ClusterState currentClusterState, Listener listener) {
         UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {

@@ -81,8 +81,8 @@ public class GetSnapshottableFeaturesResponse extends ActionResponse implements 
     }
 
     public static class SnapshottableFeature implements Writeable, ToXContentObject {
-        private final String featureName;
 
+        private final String featureName;
         private final String description;
 
         public SnapshottableFeature(String featureName, String description) {

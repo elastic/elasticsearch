@@ -41,7 +41,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
@@ -50,7 +50,7 @@ import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
  */
 public class SystemIndices {
     private static final Map<String, Collection<SystemIndexDescriptor>> SERVER_SYSTEM_INDEX_DESCRIPTORS = singletonMap(
-        TaskResultsService.class.getName(), singletonList(TASKS_DESCRIPTOR)
+        TaskResultsService.class.getName(), singletonList(new SystemIndexDescriptor(TASK_INDEX + "*", "Task Result Index"))
     );
 
     private final CharacterRunAutomaton runAutomaton;

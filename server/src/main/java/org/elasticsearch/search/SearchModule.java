@@ -270,7 +270,7 @@ public class SearchModule {
     public static final Setting<Integer> INDICES_MAX_CLAUSE_COUNT_SETTING = Setting.intSetting("indices.query.bool.max_clause_count",
             1024, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
-    public static final Setting<Integer> INDICES_MAX_CLAUSE_NESTED_SETTING = Setting.intSetting("indices.query.bool.max_nested_count",
+    public static final Setting<Integer> INDICES_MAX_NESTED_DEPTH_SETTING = Setting.intSetting("indices.query.bool.max_nested_depth",
         20, 1, Integer.MAX_VALUE, Setting.Property.NodeScope);
 
     private final Map<String, Highlighter> highlighters;
@@ -783,7 +783,7 @@ public class SearchModule {
         registerQuery(new QuerySpec<>(BoostingQueryBuilder.NAME, BoostingQueryBuilder::new, BoostingQueryBuilder::fromXContent));
         BooleanQuery.setMaxClauseCount(INDICES_MAX_CLAUSE_COUNT_SETTING.get(settings));
         registerBoolQuery(new ParseField(BoolQueryBuilder.NAME), BoolQueryBuilder::new);
-        BoolQueryBuilder.setMaxClauseCount(INDICES_MAX_CLAUSE_NESTED_SETTING.get(settings));
+        BoolQueryBuilder.setMaxNestedDepth(INDICES_MAX_NESTED_DEPTH_SETTING.get(settings));
         registerQuery(new QuerySpec<>(TermQueryBuilder.NAME, TermQueryBuilder::new, TermQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(TermsQueryBuilder.NAME, TermsQueryBuilder::new, TermsQueryBuilder::fromXContent));
         registerQuery(new QuerySpec<>(FuzzyQueryBuilder.NAME, FuzzyQueryBuilder::new, FuzzyQueryBuilder::fromXContent));

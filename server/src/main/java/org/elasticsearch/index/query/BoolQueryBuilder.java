@@ -43,6 +43,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
@@ -59,7 +60,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final ParseField MUST = new ParseField("must");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
-    private static int maxNestedCount = 20;
+    private static int maxNestedDepth = 20;
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
@@ -96,11 +97,11 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Set the maximum number of nested permitted per BooleanQuery.
      * Default value is 20.
      */
-    public static void setMaxClauseCount(int maxNestedCount) {
-        if (maxNestedCount < 1) {
-            throw new IllegalArgumentException("maxNestedCount must be >= 1");
+    public static void setMaxNestedDepth(int maxNestedDepth) {
+        if (maxNestedDepth < 1) {
+            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
         }
-        BoolQueryBuilder.maxNestedCount = maxNestedCount;
+        BoolQueryBuilder.maxNestedDepth = maxNestedDepth;
     }
 
     @Override
@@ -302,8 +303,9 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
 
     public static BoolQueryBuilder fromXContent(XContentParser parser, Integer nestedDepth) throws IOException, ParsingException {
         nestedDepth++;
-        if (nestedDepth > maxNestedCount) {
-            throw new IllegalArgumentException("maxNestedDepth is set to " + maxNestedCount + ", but current depth is " + nestedDepth);
+        if (nestedDepth > maxNestedDepth) {
+            throw new IllegalArgumentException("The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
+                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]");
         }
         return PARSER.parse(parser, nestedDepth);
     }

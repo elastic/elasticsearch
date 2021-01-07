@@ -669,7 +669,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         List<Order> newOrders = new ArrayList<>();
                         // transform the orders with the failed information
                         for (Order order : o.order()) {
-                            Order transformed = (Order) order.transformUp(UnresolvedAttribute.class, ua -> resolveMetadataToMessage(ua, failedAttrs, "order")
+                            Order transformed = (Order) order.transformUp(UnresolvedAttribute.class,
+                                ua -> resolveMetadataToMessage(ua, failedAttrs, "order")
                             );
                             newOrders.add(order.equals(transformed) ? order : transformed);
                         }
@@ -704,7 +705,8 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     // resolution failed and the failed expressions might contain resolution information so copy it over
                     if (!failedAttrs.isEmpty()) {
                         // transform the orders with the failed information
-                        Expression transformed = f.condition().transformUp(UnresolvedAttribute.class, ua -> resolveMetadataToMessage(ua, failedAttrs, "filter")
+                        Expression transformed = f.condition().transformUp(UnresolvedAttribute.class,
+                            ua -> resolveMetadataToMessage(ua, failedAttrs, "filter")
                         );
 
                         return f.condition().equals(transformed) ? f : new Filter(f.source(), f.child(), transformed);

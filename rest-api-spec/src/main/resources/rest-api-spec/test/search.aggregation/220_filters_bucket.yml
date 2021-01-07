@@ -345,8 +345,8 @@ setup:
 ---
 nested:
   - skip:
-      version: " - 7.99.99"
-      reason:  cache fixed in 8.0.0 to be backported to 7.11.0
+      version: " - 7.10.99"
+      reason:  fixed in 7.11.0
 
   # Tests that we don't accidentally match nested documents when the filter
   # matches it.

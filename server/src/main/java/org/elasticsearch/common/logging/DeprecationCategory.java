@@ -21,5 +21,5 @@ package org.elasticsearch.common.logging;
 
 public enum DeprecationCategory {
     SYSTEM_INDICES,
-    TEMPLATES, SETTINGS, API, MAPPINGS, OTHER, INDICES
+    TEMPLATES, SETTINGS, API, MAPPINGS, OTHER, AGGREGATIONS, SCRIPTING, QUERIES, ANALYSIS, INDICES
 }

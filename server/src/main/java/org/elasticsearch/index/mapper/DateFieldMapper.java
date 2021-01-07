@@ -31,6 +31,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
@@ -273,7 +274,8 @@ public final class DateFieldMapper extends FieldMapper {
                 if (indexCreatedVersion.onOrAfter(Version.V_8_0_0)) {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
-                    DEPRECATION_LOGGER.deprecate("date_mapper_null_field", "Error parsing [" + nullValue.getValue()
+                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "date_mapper_null_field",
+                        "Error parsing [" + nullValue.getValue()
                         + "] as date in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                     return null;
                 }

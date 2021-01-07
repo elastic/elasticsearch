@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -135,7 +136,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /** Get the current interval in milliseconds that is set on this builder. */
     @Deprecated
     public long interval() {
-        DEPRECATION_LOGGER.deprecate("date-interval-getter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.OTHER, "date-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
             return TimeValue.parseTimeValue(dateHistogramInterval.toString(), "interval").getMillis();
         }

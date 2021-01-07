@@ -357,19 +357,11 @@ public class SettingTests extends ESTestCase {
         OFF
     }
 
-    public void testFilteredEnumSetting() {
+    public void testThrowsIllegalArgumentExceptionOnInvalidEnumSetting() {
         Setting setting = Setting.enumSetting(TestEnumSetting.class, "foo", TestEnumSetting.ON, Property.Filtered);
         final Settings settings = Settings.builder().put("foo", "bar").build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertThat(
-            e,
-            hasToString(
-                containsString(
-                    "failed to parse value [bar] for setting [foo] as a org.elasticsearch.common.settings.SettingTests$TestEnumSetting"
-                )
-            )
-        );
         assertNull(e.getCause());
     }
 

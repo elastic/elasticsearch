@@ -1372,66 +1372,18 @@ public class Setting<T> implements ToXContentObject {
         return value;
     }
 
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param properties properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
     public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
-        return new Setting<>(key, defaultValue.toString(), e -> parseEnum(clazz, key, e, isFiltered(properties)), properties);
-    }
-
-    public static <T extends Enum<T>> Setting<T> enumSetting(
-        Class<T> clazz,
-        String key,
-        Setting<T> fallbackSetting,
-        Property... properties
-    ) {
-        return new Setting<>(key, fallbackSetting, e -> parseEnum(clazz, key, e, isFiltered(properties)), properties);
-    }
-
-    public static <T extends Enum<T>> Setting<T> enumSetting(
-        Class<T> clazz,
-        String key,
-        T defaultValue,
-        Validator<T> validator,
-        Property... properties
-    ) {
-        return new Setting<>(key, defaultValue.toString(), e -> parseEnum(clazz, key, e, isFiltered(properties)), validator, properties);
-    }
-
-    public static <T extends Enum<T>> Setting<T> enumSetting(
-        Class<T> clazz,
-        String key,
-        Setting<T> fallbackSetting,
-        Validator<T> validator,
-        Property... properties
-    ) {
-        return new Setting<>(
-            new SimpleKey(key),
-            fallbackSetting,
-            fallbackSetting::getRaw,
-            e -> parseEnum(clazz, key, e, isFiltered(properties)),
-            validator,
-            properties
-        );
-    }
-
-    public static <T extends Enum<T>> Setting<T> enumSetting(
-        Class<T> clazz,
-        String key,
-        Function<Settings, String> defaultValueFn,
-        Property... properties
-    ) {
-        return new Setting<>(key, defaultValueFn, e -> parseEnum(clazz, key, e, isFiltered(properties)), properties);
-    }
-
-    static <T extends Enum<T>> T parseEnum(Class<T> clazz, String key, String value, boolean isFiltered) {
-        try {
-            return Enum.valueOf(clazz, value.toUpperCase(Locale.ROOT));
-        } catch (IllegalArgumentException iae) {
-            if (isFiltered) {
-                String msg = String.format("failed to parse value [%s] for setting [%s] as a %s", value, key, clazz.getName());
-                throw new IllegalArgumentException(msg);
-            } else {
-                throw iae;
-            }
-        }
+        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), properties);
     }
 
     /**

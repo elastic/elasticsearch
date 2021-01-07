@@ -5,7 +5,7 @@
 Phases allowed: hot, cold.
 
 Aggregates an index's time series data and stores the results in a new read-only
-index named `<original-index-name>-rollup`. For example, you can roll up hourly
+index named `rollup-<original-index-name>`. For example, you can roll up hourly
 data into daily or weekly summaries.
 
 If {ilm-init} performs the `rollup` action on a backing index for a data stream,

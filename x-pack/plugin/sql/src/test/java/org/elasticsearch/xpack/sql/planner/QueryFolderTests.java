@@ -295,9 +295,9 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(EsQueryExec.class, p.getClass());
         EsQueryExec ee = (EsQueryExec) p;
         assertTrue(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", "").contains(
-            "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
-                +
-                "\"lang\":\"painless\",\"params\":{\"v0\":10}},"));
+                "\"script\":{\"source\":\"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(params.a0,params.v0))\","
+                        +
+            "\"lang\":\"painless\",\"params\":{\"v0\":10}},"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("test.keyword{f}#"));
         assertThat(ee.output().get(1).toString(), startsWith("max(int){r}"));
@@ -425,9 +425,9 @@ public class QueryFolderTests extends ESTestCase {
         EsQueryExec ee = (EsQueryExec) p;
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
             endsWith("{\"script\":{\"source\":\"InternalSqlScriptUtils.cast(" +
-                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
-                "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
-                "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
+                    "InternalQlScriptUtils.docValue(doc,params.v0),params.v1)\"," +
+                    "\"lang\":\"painless\",\"params\":{\"v0\":\"keyword\",\"v1\":\"IP\"}}," +
+                    "\"missing_bucket\":true,\"value_type\":\"ip\",\"order\":\"asc\"}}}]}}}"));
         assertEquals(2, ee.output().size());
         assertThat(ee.output().get(0).toString(), startsWith("count(*){r}#"));
         assertThat(ee.output().get(1).toString(), startsWith("a{r}"));
@@ -455,7 +455,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(2, ee.output().size());
         assertEquals(asList("1", "MAX(int)"), Expressions.names(ee.output()));
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            containsString("\"max\":{\"field\":\"int\""));
+                containsString("\"max\":{\"field\":\"int\""));
 
         p = plan("SELECT 1, count(*) FROM test GROUP BY int");
         assertEquals(EsQueryExec.class, p.getClass());
@@ -463,7 +463,7 @@ public class QueryFolderTests extends ESTestCase {
         assertEquals(2, ee.output().size());
         assertEquals(asList("1", "count(*)"), Expressions.names(ee.output()));
         assertThat(ee.queryContainer().aggs().asAggBuilder().toString().replaceAll("\\s+", ""),
-            containsString("\"terms\":{\"field\":\"int\""));
+                containsString("\"terms\":{\"field\":\"int\""));
     }
 
     public void testConcatIsNotFoldedForNull() {
@@ -507,17 +507,17 @@ public class QueryFolderTests extends ESTestCase {
         assertThat(a, containsString("\"terms\":{\"field\":\"keyword\""));
         assertThat(a, containsString("{\"avg\":{\"field\":\"int\"}"));
     }
-
+    
     public void testPivotHasSameQueryAsGroupBy() {
         final Map<String, String> aggFnsWithMultipleArguments = Map.of(
             "PERCENTILE", "PERCENTILE(int, 0)",
             "PERCENTILE_RANK", "PERCENTILE_RANK(int, 0)"
         );
         List<String> aggregations = new SqlFunctionRegistry().listFunctions()
-            .stream()
-            .filter(def -> AggregateFunction.class.isAssignableFrom(def.clazz()))
-            .map(def -> aggFnsWithMultipleArguments.getOrDefault(def.name(), def.name() + "(int)"))
-            .collect(toList());
+                .stream()
+                .filter(def -> AggregateFunction.class.isAssignableFrom(def.clazz()))
+                .map(def -> aggFnsWithMultipleArguments.getOrDefault(def.name(), def.name() + "(int)"))
+                .collect(toList());
         for (String aggregationStr : aggregations) {
             PhysicalPlan pivotPlan = plan("SELECT * FROM (SELECT some.dotted.field, bool, keyword, int FROM test) " +
                 "PIVOT(" + aggregationStr + " FOR keyword IN ('A', 'B'))");

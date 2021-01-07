@@ -10,12 +10,10 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -82,8 +80,8 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     @SuppressWarnings("unchecked")
     private Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
-        if (arg instanceof DataType || arg instanceof Map) {
-            return arg;
+        if (arg instanceof Expression) {
+            return traversal.apply((Expression) arg);
         }
 
         // WARNING: if the collection is typed, an incompatible function will be applied to it
@@ -107,10 +105,6 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             }
 
             return hasChanged ? transformed : arg;
-        }
-
-        if (arg instanceof Expression) {
-            return traversal.apply((Expression) arg);
         }
 
         return arg;
@@ -142,13 +136,13 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
 
     @SuppressWarnings("unchecked")
     private void doForEachExpression(Object arg, Consumer<Expression> traversal) {
-        if (arg instanceof Collection) {
+        if (arg instanceof Expression) {
+            traversal.accept((Expression) arg);
+        } else if (arg instanceof Collection) {
             Collection<?> c = (Collection<?>) arg;
             for (Object o : c) {
                 doForEachExpression(o, traversal);
             }
-        } else if (arg instanceof Expression) {
-            traversal.accept((Expression) arg);
         }
     }
 }

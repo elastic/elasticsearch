@@ -17,7 +17,6 @@ import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationB
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesConfig;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.expression.Alias;
@@ -119,7 +118,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 
-@TestLogging(reason = "debug", value = "org.elasticsearch.xpack.sql:TRACE")
 public class QueryTranslatorTests extends ESTestCase {
 
     private static class TestContext {
@@ -2390,11 +2388,11 @@ public class QueryTranslatorTests extends ESTestCase {
                 "   PERCENTILE(int, 50), " +
                 // 4: this has a different method parameter
                 // just to make sure we don't fold everything to default
-                "   PERCENTILE(int, 50, 'tdigest', 22) "
+                "   PERCENTILE(int, 50, 'tdigest', 22) " 
                 + "FROM test").replaceAll("PERCENTILE", fnName);
-
+            
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-
+            
             // 0-3
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(aggs.get(0), aggs.get(2));
@@ -2406,7 +2404,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
         };
-
+        
         test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
         test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
     }
@@ -2419,17 +2417,17 @@ public class QueryTranslatorTests extends ESTestCase {
                 // 0-1: fold into the same aggregation
                 "   PERCENTILE(int, 50, 'tdigest'), " +
                 "   PERCENTILE(int, 60, 'tdigest'), " +
-
+                
                 // 2-3: fold into one aggregation
                 "   PERCENTILE(int, 50, 'hdr'), " +
                 "   PERCENTILE(int, 60, 'hdr', 3), " +
-
+                
                 // 4: folds into a separate aggregation
                 "   PERCENTILE(int, 60, 'hdr', 4)" +
                 "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-
+            
             // 0-1
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2439,7 +2437,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(aggs.get(2), aggs.get(3));
             assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
             assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
-
+            
             // 4
             assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);
@@ -2450,7 +2448,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
     // and SUM(all nulls)
     public void testReplaceSumWithStats() {
         List<String> testCases = asList(

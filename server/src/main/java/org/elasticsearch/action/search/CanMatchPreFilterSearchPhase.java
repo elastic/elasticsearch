@@ -63,7 +63,6 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     private final Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory;
     private final GroupShardsIterator<SearchShardIterator> shardsIts;
     private final CoordinatorRewriteContextProvider coordinatorRewriteContextProvider;
-    private final boolean preFilterRollup;
 
     CanMatchPreFilterSearchPhase(Logger logger, SearchTransportService searchTransportService,
                                  BiFunction<String, String, Transport.Connection> nodeIdToConnection,
@@ -72,8 +71,7 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
                                  ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                                  TransportSearchAction.SearchTimeProvider timeProvider, ClusterState clusterState,
                                  SearchTask task, Function<GroupShardsIterator<SearchShardIterator>, SearchPhase> phaseFactory,
-                                 SearchResponse.Clusters clusters, CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
-                                 boolean preFilterRollup) {
+                                 SearchResponse.Clusters clusters, CoordinatorRewriteContextProvider coordinatorRewriteContextProvider) {
         //We set max concurrent shard requests to the number of shards so no throttling happens for can_match requests
         super("can_match", logger, searchTransportService, nodeIdToConnection, aliasFilter, concreteIndexBoosts,
                 executor, request, listener, shardsIts, timeProvider, clusterState, task,
@@ -81,7 +79,6 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
         this.phaseFactory = phaseFactory;
         this.shardsIts = shardsIts;
         this.coordinatorRewriteContextProvider = coordinatorRewriteContextProvider;
-        this.preFilterRollup = preFilterRollup;
     }
 
     @Override

@@ -124,7 +124,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                     public void run() throws IOException {
                         result.set(iter);
                         latch.countDown();
-                    }}, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER, false);
+                    }}, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
         canMatchPhase.start();
         latch.await();
@@ -184,7 +184,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 public void run() throws IOException {
                     result.set(iter);
                     latch.countDown();
-                }}, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER, false);
+                }}, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
         canMatchPhase.start();
         latch.await();
@@ -253,7 +253,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 public void run() throws IOException {
                     result.set(iter);
                     latch.countDown();
-                }}, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER, false);
+                }}, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
         canMatchPhase.start();
         latch.await();
@@ -357,7 +357,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         listener.onFailure(new Exception("failure"));
                     }
                 }
-            }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER, false);
+            }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
         canMatchPhase.start();
         latch.await();
@@ -419,7 +419,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         result.set(iter);
                         latch.countDown();
                     }
-                }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER, false);
+                }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
             canMatchPhase.start();
             latch.await();
@@ -496,7 +496,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                         result.set(iter);
                         latch.countDown();
                     }
-                }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER, false);
+                }, SearchResponse.Clusters.EMPTY, EMPTY_CONTEXT_PROVIDER);
 
             canMatchPhase.start();
             latch.await();
@@ -807,7 +807,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 }
             },
             SearchResponse.Clusters.EMPTY,
-            contextProvider, false);
+            contextProvider);
 
         canMatchPhase.start();
         latch.await();

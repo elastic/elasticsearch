@@ -13,7 +13,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.xpack.monitoring.cleaner.AbstractIndicesCleanerTestCase;
-import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
 
 import java.time.ZonedDateTime;

@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
@@ -99,20 +100,22 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         RoutingAllocation allocation,
         UnassignedAllocationHandler unassignedAllocationHandler
     ) {
-        final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
-        final IndexId indexId = new IndexId(SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings));
-        final SnapshotId snapshotId = new SnapshotId(
-            SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
-            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
-        );
-        final String repository = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings);
-        final Snapshot snapshot = new Snapshot(repository, snapshotId);
-
         // TODO: cancel and jump to better available allocations?
         if (shardRouting.primary()
             && (shardRouting.recoverySource().getType() == RecoverySource.Type.EXISTING_STORE
                 || shardRouting.recoverySource().getType() == RecoverySource.Type.EMPTY_STORE)) {
             // we always force snapshot recovery source to use the snapshot-based recovery process on the node
+            final Settings indexSettings = allocation.metadata().index(shardRouting.index()).getSettings();
+            final IndexId indexId = new IndexId(
+                SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings),
+                SNAPSHOT_INDEX_ID_SETTING.get(indexSettings)
+            );
+            final SnapshotId snapshotId = new SnapshotId(
+                SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings),
+                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings)
+            );
+            final String repository = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings);
+            final Snapshot snapshot = new Snapshot(repository, snapshotId);
 
             shardRouting = unassignedAllocationHandler.updateUnassigned(
                 shardRouting.unassignedInfo(),
@@ -133,8 +136,14 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 unassignedAllocationHandler.initialize(
                     allocateUnassignedDecision.getTargetNode().getId(),
                     allocateUnassignedDecision.getAllocationId(),
-                    allocation.snapshotShardSizeInfo()
-                        .getShardSize(snapshot, indexId, shardRouting.shardId(), ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE),
+                    DiskThresholdDecider.getExpectedShardSize(
+                        shardRouting,
+                        ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE,
+                        allocation.clusterInfo(),
+                        allocation.snapshotShardSizeInfo(),
+                        allocation.metadata(),
+                        allocation.routingTable()
+                    ),
                     allocation.changes()
                 );
             } else {

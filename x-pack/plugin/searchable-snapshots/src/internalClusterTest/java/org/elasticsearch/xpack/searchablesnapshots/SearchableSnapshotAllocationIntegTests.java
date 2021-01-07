@@ -88,9 +88,10 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
 
         setAllocation(EnableAllocationDecider.Allocation.NONE);
 
-        final CacheService cacheService = internalCluster().getInstance(CacheService.class, firstDataNode);
-        cacheService.synchronizeCache();
+        internalCluster().getInstance(CacheService.class, firstDataNode).synchronizeCache();
+        internalCluster().getInstance(CacheService.class, secondDataNode).synchronizeCache();
         internalCluster().restartNode(firstDataNode);
+        internalCluster().restartNode(secondDataNode);
         ensureStableCluster(internalCluster().numDataAndMasterNodes());
 
         setAllocation(EnableAllocationDecider.Allocation.ALL);

@@ -75,24 +75,21 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 log.trace("Attempting to resolve {}", plan.nodeString());
             }
 
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof UnresolvedAttribute) {
-                    UnresolvedAttribute u = (UnresolvedAttribute) e;
-                    Collection<Attribute> childrenOutput = new LinkedHashSet<>();
-                    for (LogicalPlan child : plan.children()) {
-                        childrenOutput.addAll(child.output());
-                    }
-                    NamedExpression named = resolveAgainstList(u, childrenOutput);
-                    // if resolved, return it; otherwise keep it in place to be resolved later
-                    if (named != null) {
-                        if (log.isTraceEnabled()) {
-                            log.trace("Resolved {} to {}", u, named);
-                        }
-                        return named;
-                    }
+            return plan.transformExpressionsUp(u -> {
+                Collection<Attribute> childrenOutput = new LinkedHashSet<>();
+                for (LogicalPlan child : plan.children()) {
+                    childrenOutput.addAll(child.output());
                 }
-                return e;
-            });
+                NamedExpression named = resolveAgainstList(u, childrenOutput);
+                // if resolved, return it; otherwise keep it in place to be resolved later
+                if (named != null) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("Resolved {} to {}", u, named);
+                    }
+                    return named;
+                }
+                return u;
+            }, UnresolvedAttribute.class);
         }
     }
 
@@ -100,30 +97,25 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof UnresolvedFunction) {
-                    UnresolvedFunction uf = (UnresolvedFunction) e;
-
-                    if (uf.analyzed()) {
-                        return uf;
-                    }
-
-                    String name = uf.name();
-
-                    if (uf.childrenResolved() == false) {
-                        return uf;
-                    }
-
-                    String functionName = functionRegistry.resolveAlias(name);
-                    if (functionRegistry.functionExists(functionName) == false) {
-                        return uf.missing(functionName, functionRegistry.listFunctions());
-                    }
-                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(configuration, def);
-                    return f;
+            return plan.transformExpressionsUp(uf -> {
+                if (uf.analyzed()) {
+                    return uf;
                 }
-                return e;
-            });
+
+                String name = uf.name();
+
+                if (uf.childrenResolved() == false) {
+                    return uf;
+                }
+
+                String functionName = functionRegistry.resolveAlias(name);
+                if (functionRegistry.functionExists(functionName) == false) {
+                    return uf.missing(functionName, functionRegistry.listFunctions());
+                }
+                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                Function f = uf.buildResolved(configuration, def);
+                return f;
+            }, UnresolvedFunction.class);
         }
     }
 }

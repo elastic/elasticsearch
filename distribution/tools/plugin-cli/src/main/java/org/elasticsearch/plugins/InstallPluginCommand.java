@@ -746,19 +746,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
     private Path stagingDirectory(Path pluginsDir) throws IOException {
         try {
             return Files.createTempDirectory(pluginsDir, ".installing-", PosixFilePermissions.asFileAttribute(PLUGIN_DIR_PERMS));
-        } catch (IllegalArgumentException e) {
-            // Jimfs throws an IAE where it should throw an UOE
-            // remove when google/jimfs#30 is integrated into Jimfs
-            // and the Jimfs test dependency is upgraded to include
-            // this pull request
-            final StackTraceElement[] elements = e.getStackTrace();
-            if (elements.length >= 1
-                && elements[0].getClassName().equals("com.google.common.jimfs.AttributeService")
-                && elements[0].getMethodName().equals("setAttributeInternal")) {
-                return stagingDirectoryWithoutPosixPermissions(pluginsDir);
-            } else {
-                throw e;
-            }
         } catch (UnsupportedOperationException e) {
             return stagingDirectoryWithoutPosixPermissions(pluginsDir);
         }

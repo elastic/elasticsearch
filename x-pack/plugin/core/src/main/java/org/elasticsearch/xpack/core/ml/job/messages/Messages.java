@@ -156,7 +156,8 @@ public final class Messages {
         "analysis_limits.model_memory_limit setting to ensure all data is analyzed";
 
     public static final String JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN = "Job requires at least [{0}] bytes of free memory "
-        + "on a machine learning capable node to run; [{1}] bytes are available. The current total capacity for ML [{2}].";
+        + "on a machine learning capable node to run; [{1}] bytes are available. "
+        + "The current total capacity for ML [total: {2}, largest node: {3}].";
 
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_DUPLICATES = "categorization_filters contain duplicates";
     public static final String JOB_CONFIG_CATEGORIZATION_FILTERS_CONTAINS_EMPTY =

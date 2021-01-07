@@ -408,12 +408,12 @@ public class QuotaAwareFileSystemProvider extends FileSystemProvider implements 
 
     @Override
     public void createLink(Path link, Path existing) throws IOException {
-        delegate.createLink(QuotaAwarePath.unwrap(link), QuotaAwarePath.unwrap(existing));
+        delegate.createLink(link, existing);
     }
 
     @Override
     public void createSymbolicLink(Path link, Path target, FileAttribute<?>... attrs) throws IOException {
-        delegate.createSymbolicLink(QuotaAwarePath.unwrap(link), QuotaAwarePath.unwrap(target), attrs);
+        delegate.createSymbolicLink(link, target, attrs);
     }
 
     void purge(FileSystem delegateFileSystem) {

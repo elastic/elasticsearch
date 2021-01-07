@@ -188,7 +188,7 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
             RootObjectMapper root = new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath());
             Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap());
-            List<FieldMapper> mappers = List.of(new MockFieldMapper(fieldType));
+            List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
             MappingLookup lookup = new MappingLookup(mapping, mappers, List.of(), List.of(), null, null, null);
             QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
                 null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,

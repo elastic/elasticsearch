@@ -67,6 +67,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -601,7 +602,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath());
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap());
-        MappingLookup mappingLookup = new MappingLookup(mapping, types, List.of(), List.of(), null, null, null);
+        MappingLookup mappingLookup = new MappingLookup(mapping, types, emptyList(), emptyList(), null, null, null);
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);

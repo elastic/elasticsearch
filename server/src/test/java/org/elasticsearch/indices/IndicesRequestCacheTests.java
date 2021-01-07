@@ -60,6 +60,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static java.util.Collections.emptyList;
+
 public class IndicesRequestCacheTests extends ESTestCase {
 
     public void testBasicOperationsCache() throws Exception {
@@ -637,7 +639,7 @@ public class IndicesRequestCacheTests extends ESTestCase {
     private static MappingLookup createMappingLookup() {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, List.of(), List.of(), List.of(), null, null, null);
+        return new MappingLookup(mapping, emptyList(), emptyList(), emptyList(), null, null, null);
     }
 
     private static class TestEntity extends AbstractIndexShardCacheEntity {

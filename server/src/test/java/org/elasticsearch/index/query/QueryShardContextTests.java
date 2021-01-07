@@ -334,7 +334,7 @@ public class QueryShardContextTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         runtimeFields.forEach(builder::addRuntime);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, mappers, List.of(), List.of(), null, null, null);
+        return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -373,7 +373,7 @@ public class QueryShardContextTests extends ESTestCase {
         return createQueryShardContext(
             "uuid",
             null,
-            createMappingLookup(List.of(), List.of(fieldTypes)),
+            createMappingLookup(Collections.emptyList(), List.of(fieldTypes)),
             Collections.emptyMap(),
             Collections.emptyList()
         );

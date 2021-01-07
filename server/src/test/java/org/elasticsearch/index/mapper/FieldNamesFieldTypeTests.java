@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 
 public class FieldNamesFieldTypeTests extends ESTestCase {
@@ -48,7 +49,7 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
         List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper root = new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath());
         Mapping mapping = new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap());
-        MappingLookup mappingLookup = new MappingLookup(mapping, mappers, List.of(), List.of(), null, null, null);
+        MappingLookup mappingLookup = new MappingLookup(mapping, mappers, emptyList(), emptyList(), null, null, null);
         QueryShardContext queryShardContext = new QueryShardContext(0, 0,
                 indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, mappingLookup,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());

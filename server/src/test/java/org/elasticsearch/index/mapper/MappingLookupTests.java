@@ -36,6 +36,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static java.util.Collections.emptyList;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MappingLookupTests extends ESTestCase {
@@ -46,11 +47,11 @@ public class MappingLookupTests extends ESTestCase {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         runtimeFields.forEach(builder::addRuntime);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, fieldMappers, objectMappers, List.of(), null, null, null);
+        return new MappingLookup(mapping, fieldMappers, objectMappers, emptyList(), null, null, null);
     }
 
     public void testOnlyRuntimeField() {
-        MappingLookup mappingLookup = createMappingLookup(Collections.emptyList(), Collections.emptyList(),
+        MappingLookup mappingLookup = createMappingLookup(emptyList(), emptyList(),
             Collections.singletonList(new TestRuntimeField("test", "type")));
         assertEquals(0, size(mappingLookup.fieldMappers()));
         assertEquals(0, mappingLookup.objectMappers().size());
@@ -60,7 +61,7 @@ public class MappingLookupTests extends ESTestCase {
 
     public void testRuntimeFieldLeafOverride() {
         MockFieldMapper fieldMapper = new MockFieldMapper("test");
-        MappingLookup mappingLookup = createMappingLookup(Collections.singletonList(fieldMapper), Collections.emptyList(),
+        MappingLookup mappingLookup = createMappingLookup(Collections.singletonList(fieldMapper), emptyList(),
             Collections.singletonList(new TestRuntimeField("test", "type")));
         assertThat(mappingLookup.getMapper("test"), instanceOf(MockFieldMapper.class));
         assertEquals(1, size(mappingLookup.fieldMappers()));
@@ -94,8 +95,8 @@ public class MappingLookupTests extends ESTestCase {
 
         MappingLookup mappingLookup = createMappingLookup(
             Arrays.asList(fieldMapper1, fieldMapper2),
-            Collections.emptyList(),
-            Collections.emptyList()
+            emptyList(),
+            emptyList()
         );
 
         assertAnalyzes(mappingLookup.indexAnalyzer("field1", f -> null), "field1", "index1");

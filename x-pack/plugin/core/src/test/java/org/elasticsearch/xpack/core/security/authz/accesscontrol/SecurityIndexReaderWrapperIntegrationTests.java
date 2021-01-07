@@ -63,6 +63,7 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singleton;
 import static java.util.Collections.singletonMap;
@@ -296,6 +297,6 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
         Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
-        return new MappingLookup(mapping, mappers, List.of(), List.of(), null, null, null);
+        return new MappingLookup(mapping, mappers, emptyList(), emptyList(), null, null, null);
     }
 }

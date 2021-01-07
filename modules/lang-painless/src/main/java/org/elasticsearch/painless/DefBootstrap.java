@@ -273,7 +273,7 @@ public final class DefBootstrap {
         /**
          * Does a slow lookup for the operator
          */
-        private MethodHandle lookup(Object[] args) throws Throwable {
+         private MethodHandle lookup(Object[] args) throws Throwable {
             switch(flavor) {
                 case UNARY_OPERATOR:
                 case SHIFT_OPERATOR:

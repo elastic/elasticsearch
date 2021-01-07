@@ -1552,13 +1552,22 @@ public class OptimizerRulesTests extends ESTestCase {
             Expression e = new BubbleUpNegations().rule(op);
             assertEquals(Neg.class, e.getClass());
             Neg upperNeg = (Neg) e;
-            assertEquals(1, upperNeg.children().size());
-            assertEquals(op.getClass(), upperNeg.children().get(0).getClass());
-            ArithmeticOperation newOp = (ArithmeticOperation) upperNeg.children().get(0);
+            assertEquals(op.getClass(), upperNeg.field().getClass());
+            ArithmeticOperation newOp = (ArithmeticOperation) upperNeg.field();
             assertEquals(TWO, newOp.left());
             assertEquals(FieldAttribute.class, newOp.right().getClass());
             FieldAttribute divFa = (FieldAttribute) newOp.right();
             assertEquals(fa, divFa);
         }
+    }
+
+    public void testCancelDoubleNegation() {
+        FieldAttribute fa = getFieldAttribute();
+        Neg innerNeg = new Neg(fa.source(), fa);
+        Neg outerNeg = new Neg(innerNeg.source(), innerNeg);
+
+        Expression e = new BubbleUpNegations().rule(outerNeg);
+        assertEquals(FieldAttribute.class, e.getClass());
+        assertEquals(fa, e);
     }
 }

@@ -155,6 +155,8 @@ public class OptimizerRunTests extends ESTestCase {
     public void testSimplifyComparisonArithmeticSkippedOnMulDivByZero() {
         assertNotSimplified("float / 0 " + randomBinaryComparison() + " 1");
         assertNotSimplified("float * 0 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("int / 0 " + randomBinaryComparison() + " 1");
+        assertNotSimplified("int * 0 " + randomBinaryComparison() + " 1");
     }
 
     public void testSimplifyComparisonArithmeticSkippedOnDiv() {

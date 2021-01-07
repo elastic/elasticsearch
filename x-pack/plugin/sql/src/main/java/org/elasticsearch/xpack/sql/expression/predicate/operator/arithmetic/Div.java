@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInvertible;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -15,7 +16,7 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 /**
  * Division function ({@code a / b}).
  */
-public class Div extends SqlArithmeticOperation {
+public class Div extends SqlArithmeticOperation implements BinaryComparisonInvertible {
 
     public Div(Source source, Expression left, Expression right) {
         super(source, left, right, SqlBinaryArithmeticOperation.DIV);
@@ -37,7 +38,7 @@ public class Div extends SqlArithmeticOperation {
     }
 
     @Override
-    public Mul inverse(Source source, Expression left, Expression right) {
-        return new Mul(source, left, right);
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Mul::new;
     }
 }

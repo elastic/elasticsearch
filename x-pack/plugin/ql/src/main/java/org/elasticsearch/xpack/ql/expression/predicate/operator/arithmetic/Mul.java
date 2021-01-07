@@ -16,7 +16,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 /**
  * Multiplication function ({@code a * b}).
  */
-public class Mul extends ArithmeticOperation {
+public class Mul extends ArithmeticOperation implements BinaryComparisonInvertible {
 
     public Mul(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.MUL);
@@ -54,7 +54,7 @@ public class Mul extends ArithmeticOperation {
     }
 
     @Override
-    public Div inverse(Source source, Expression left, Expression right) {
-        return new Div(source, left, right);
+    public ArithmeticOperationFactory binaryComparisonInverse() {
+        return Div::new;
     }
 }

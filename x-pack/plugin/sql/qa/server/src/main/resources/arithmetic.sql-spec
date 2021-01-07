@@ -219,17 +219,26 @@ SELECT emp_no FROM test_emp WHERE 1000 + (1000000000 / salary::FLOAT) / 2 > 1600
 divFloatFieldDivPlus
 SELECT emp_no FROM test_emp WHERE (1000000000 / salary::FLOAT) / 2 + 1000 > 16000;
 
-noOptimisationOnOverflowAdd
+noOptimisationOnLongOverflowAdd
 SELECT emp_no FROM test_emp WHERE salary - 2 < 9223372036854775807;
-noOptimisationOnUnderflowSub
+noOptimisationOnLongUnderflowSub
 SELECT emp_no FROM test_emp WHERE -salary + 2 < -9223372036854775807;
+noOptimisationOnIntOverflowAdd
+SELECT emp_no FROM test_emp WHERE salary::INT - 2 < 2147483647;
+noOptimisationOnIntUnderflowSub
+SELECT emp_no FROM test_emp WHERE -salary::INT + 2 < -2147483648;
 noOptimisationOnOverflowMul
 SELECT emp_no FROM test_emp WHERE salary / 10 < 1.7976931348623157E308;
 noOptimisationOnPrecisionLossOnFloatFieldAdd
 SELECT emp_no FROM test_emp WHERE 1 - salary::FLOAT/1E21 < 1;
 noOptimisationOnPrecisionLossOnFloatFieldDiv
 SELECT emp_no FROM test_emp WHERE (1 - salary::FLOAT / 1E21) * (1 + 1E-15) > 1;
+noOptimisationOnIntegralDivByZero
+SELECT emp_no FROM test_emp WHERE (5/4 - 1) * salary > 1;
+noOptimisationOnFloatDivByZero
+SELECT emp_no FROM test_emp WHERE (5/4 - 1) * salary::FLOAT > 1;
 
+// negations optimiser
 multipleNegations
 SELECT emp_no FROM test_emp WHERE ((1000000000 / -salary) / 2) * (-1 / (2 / -emp_no::FLOAT)) / -1000 >= 50000;
 

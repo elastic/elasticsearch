@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInvertible;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -43,6 +45,7 @@ import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
+import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -62,6 +65,7 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.inCommo
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.ADD;
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.DIV;
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MOD;
 import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MUL;
@@ -1156,35 +1160,40 @@ public final class OptimizerRules {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof Neg) { // cancels out NEG - MUL/DIV - NEG - x ==> MUL/DIV - x
-                Expression child = e.children().get(0);
-                if (child instanceof ArithmeticOperation) {
+            if (e instanceof Neg) {
+                Expression child = ((Neg) e).field();
+                if (child instanceof ArithmeticOperation) { // cancels out NEG - MUL/DIV - NEG - x ==> MUL/DIV - x
                     ArithmeticOperation operation = (ArithmeticOperation) child;
-                    String opSymbol = operation.symbol();
-                    if (MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol)) {
+                    if (isMulOrDiv(operation)) {
                         if (operation.left() instanceof Neg) {
-                            return operation.replaceChildren(List.of(operation.left().children().get(0), operation.right()));
+                            return operation.replaceChildren(List.of(((Neg) operation.left()).field(), operation.right()));
                         }
                         if (operation.right() instanceof Neg) {
-                            return operation.replaceChildren(List.of(operation.left(), operation.right().children().get(0)));
+                            return operation.replaceChildren(List.of(operation.left(), ((Neg) operation.right()).field()));
                         }
                     }
+                } else if (child instanceof Neg) { // cancels out NEG - NEG - x ==> x
+                    return ((Neg) child).field();
                 }
             } else if (e instanceof ArithmeticOperation) { // pulls up MUL/DIV - NEG - x ==> NEG - MUL/DIV - x
                 ArithmeticOperation operation = (ArithmeticOperation) e;
-                String opSymbol = operation.symbol();
-                if (MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol)) {
+                if (isMulOrDiv(operation)) {
                     if (operation.left() instanceof Neg) {
                         Neg neg = (Neg) operation.left();
-                        return new Neg(operation.source(), operation.replaceChildren(List.of(neg.children().get(0), operation.right())));
+                        return new Neg(operation.source(), operation.replaceChildren(List.of(neg.field(), operation.right())));
                     }
                     if (operation.right() instanceof Neg) {
                         Neg neg = (Neg) operation.right();
-                        return new Neg(operation.source(), operation.replaceChildren(List.of(operation.left(), neg.children().get(0))));
+                        return new Neg(operation.source(), operation.replaceChildren(List.of(operation.left(), neg.field())));
                     }
                 }
             }
             return e;
+        }
+
+        public static boolean isMulOrDiv(ArithmeticOperation operation) {
+            String opSymbol = operation.symbol();
+            return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
         }
     }
 
@@ -1216,17 +1225,15 @@ public final class OptimizerRules {
 
         private static Expression reduceNegation(BinaryComparison bc) {
             Literal bcLiteral = (Literal) bc.right();
-            Expression neg = safeMaybeFold(new Neg(bcLiteral.source(), bcLiteral));
-            return neg == null ? bc : bc.reverse().replaceChildren(List.of(bc.left().children().get(0), neg));
+            Expression literalNeg = safeMaybeFold(new Neg(bcLiteral.source(), bcLiteral));
+            return literalNeg == null ? bc : bc.reverse().replaceChildren(List.of(((Neg) bc.left()).field(), literalNeg));
         }
 
         private static Expression safeMaybeFold(Expression expression) {
             if (expression.foldable()) {
                 try {
                     expression = new Literal(expression.source(), expression.fold(), expression.dataType());
-                } catch (Exception e) {
-                    // could only catch (ArithmeticException | DateTimeException e), but safer to just turn off the optimisation
-                    // should any exception arise.
+                } catch (ArithmeticException | DateTimeException e) {
                     expression = null;
                 }
             }
@@ -1284,7 +1291,12 @@ public final class OptimizerRules {
                     ? Literal.of(bcLiteral, ((Number) bcLiteral.value()).doubleValue())
                     : bcLiteral;
 
-                Expression bcRightExpression = safeMaybeFold(operation.inverse(bcl.source(), bcl, opRight));
+                if (operation instanceof BinaryComparisonInvertible == false) { // should be an assertion?
+                    throw new QlIllegalArgumentException("Unexpected [" + operation.symbol() + "] operation object");
+                }
+                Expression bcRightExpression = ((BinaryComparisonInvertible) operation).binaryComparisonInverse()
+                    .create(bcl.source(), bcl, opRight);
+                bcRightExpression = safeMaybeFold(bcRightExpression);
                 return bcRightExpression == null ? comparison : comparison.replaceChildren(List.of(opLeft, bcRightExpression));
             }
 
@@ -1296,11 +1308,18 @@ public final class OptimizerRules {
                 if (MOD.symbol().equals(opSymbol)) {
                     return comparison;
                 }
-                SimplifyOperation simplification = (MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol))
-                    ? new SimplifyMulDiv(comparison)
-                    : new SimplifyAddSub(comparison);
+                SimplifyOperation simplify = null;
+                if (BubbleUpNegations.isMulOrDiv(operation)) {
+                    simplify = new SimplifyMulDiv(comparison);
+                } else if (isAddOrSub(opSymbol)) {
+                    simplify = new SimplifyAddSub(comparison);
+                }
 
-                return (simplification.cannotSimplify(typesCompatible) == false) ? simplification.doSimplify() : comparison;
+                return (simplify == null || simplify.cannotSimplify(typesCompatible)) ? comparison : simplify.doSimplify();
+            }
+
+            private static boolean isAddOrSub(String opSymbol) {
+                return ADD.symbol().equals(opSymbol) || SUB.symbol().equals(opSymbol);
             }
         }
 
@@ -1358,7 +1377,8 @@ public final class OptimizerRules {
             Expression doSimplify() {
                 // If current operation is a multiplication, it's inverse will be a division: safe only if outcome is still integral.
                 if (isDiv == false && opLeft.dataType().isInteger()) {
-                    if (((Number) bcLiteral.value()).longValue() % ((Number) opLiteral.value()).longValue() != 0) {
+                    long opLiteralValue = ((Number) opLiteral.value()).longValue();
+                    if (opLiteralValue == 0 || ((Number) bcLiteral.value()).longValue() % opLiteralValue != 0) {
                         return comparison;
                     }
                 }

@@ -19,15 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import static java.util.Collections.unmodifiableMap;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Map;
-
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -36,11 +28,26 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * Wrapper around everything that defines a mapping, without references to
  * utility classes like MapperService, ...
  */
 public final class Mapping implements ToXContentFragment {
+
+    public static final Mapping EMPTY = new Mapping(
+        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()),
+        new MetadataFieldMapper[0],
+        Collections.emptyMap());
 
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;

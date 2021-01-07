@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -46,15 +45,11 @@ public final class MappingLookup {
         private CacheKey() {}
     }
 
-    private static final Mapping EMPTY_MAPPING = new Mapping(
-        new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath()),
-        new MetadataFieldMapper[0],
-        Collections.emptyMap());
     /**
      * A lookup representing an empty mapping.
      */
     public static final MappingLookup EMPTY = new MappingLookup(
-        EMPTY_MAPPING,
+        Mapping.EMPTY,
         List.of(),
         List.of(),
         List.of(),

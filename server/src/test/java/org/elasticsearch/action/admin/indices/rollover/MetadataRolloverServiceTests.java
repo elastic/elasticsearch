@@ -63,7 +63,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.IndicesService;
@@ -564,9 +563,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                     return null;
                 }
             };
-            RootObjectMapper root = new RootObjectMapper.Builder("_doc", Version.CURRENT).build(new ContentPath());
             MappingLookup mappingLookup = new MappingLookup(
-                new Mapping(root, new MetadataFieldMapper[0], Collections.emptyMap()),
+                Mapping.EMPTY,
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
                 List.of(),

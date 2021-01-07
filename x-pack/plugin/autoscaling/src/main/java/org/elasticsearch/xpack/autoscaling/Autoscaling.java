@@ -20,6 +20,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacity
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import org.elasticsearch.xpack.autoscaling.capacity.FixedAutoscalingDeciderService;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
 import org.elasticsearch.xpack.autoscaling.rest.RestDeleteAutoscalingPolicyHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingCapacityHandler;
 import org.elasticsearch.xpack.autoscaling.rest.RestGetAutoscalingPolicyHandler;
@@ -102,7 +104,16 @@ public class Autoscaling extends Plugin implements ActionPlugin, ExtensiblePlugi
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         this.clusterService.set(clusterService);
-        return List.of(new AutoscalingCalculateCapacityService.Holder(this), autoscalingLicenseChecker);
+        return List.of(
+            new AutoscalingCalculateCapacityService.Holder(this),
+            autoscalingLicenseChecker,
+            new AutoscalingMemoryInfoService(clusterService, client)
+        );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(AutoscalingMemoryInfoService.FETCH_TIMEOUT);
     }
 
     @Override

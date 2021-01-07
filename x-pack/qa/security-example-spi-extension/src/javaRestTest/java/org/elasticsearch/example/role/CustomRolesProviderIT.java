@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.is;
  */
 public class CustomRolesProviderIT extends ESRestTestCase {
     private static final String TEST_USER = "test_user";
-    private static final String TEST_PWD = "change_me";
+    private static final String TEST_PWD = "test-user-password";
 
     private static final RequestOptions AUTH_OPTIONS;
     static {

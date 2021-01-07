@@ -829,7 +829,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
-            IndexLongFieldRange timestampMillisRange = IndexLongFieldRange.NO_SHARDS
+            IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS
                 .extendWithShardRange(0, 1, ShardLongFieldRange.of(minTimeStamp, maxTimestamp));
 
             Settings.Builder indexSettings = settings(Version.CURRENT)
@@ -839,7 +839,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 .settings(indexSettings)
                 .numberOfShards(1)
                 .numberOfReplicas(0)
-                .timestampMillisRange(timestampMillisRange);
+                .timestampRange(timestampRange);
 
             Metadata.Builder metadataBuilder =
                 Metadata.builder(clusterState.metadata())

@@ -62,7 +62,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-final class PemUtils {
+public final class PemUtils {
 
     private static final String PKCS1_HEADER = "-----BEGIN RSA PRIVATE KEY-----";
     private static final String PKCS1_FOOTER = "-----END RSA PRIVATE KEY-----";
@@ -589,7 +589,7 @@ final class PemUtils {
             "] is not żsupported");
     }
 
-    static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
+    public static List<Certificate> readCertificates(Collection<Path> certPaths) throws CertificateException, IOException {
         CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
         List<Certificate> certificates = new ArrayList<>(certPaths.size());
         for (Path path : certPaths) {

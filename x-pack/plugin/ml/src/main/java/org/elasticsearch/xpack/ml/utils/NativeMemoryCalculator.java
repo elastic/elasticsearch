@@ -78,7 +78,13 @@ public final class NativeMemoryCalculator {
             return 0;
         }
         if (useAuto) {
+            // TODO utilize official ergonomic JVM size calculations when available.
             final long unboxedJvm;
+            // See dynamicallyCalculateJvm the following JVM calculations are arithmetic inverses of JVM calculation
+            //
+            // Example: For < 2GB node, the JVM is 0.4 * total_node_size. This means, the rest is 0.6 the node size.
+            // So, the `nativeAndOverhead` is == 0.6 * total_node_size => total_node_size = (nativeAndOverHead / 0.6)
+            // Consequently jvmSize = (nativeAndOverHead / 0.6)*0.4 = nativeAndOverHead * 2/3
             if (jvmSize == null) {
                 long nativeAndOverhead = nativeMachineMemory + OS_OVERHEAD;
                 if (nativeAndOverhead < (ByteSizeValue.ofGb(2).getBytes() * 0.60)) {

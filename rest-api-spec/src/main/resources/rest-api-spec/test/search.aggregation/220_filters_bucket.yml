@@ -344,6 +344,10 @@ setup:
 
 ---
 nested:
+  - skip:
+      version: " - 7.10.99"
+      reason:  fixed in 7.12.0 to be backported to 7.11.0
+
   # Tests that we don't accidentally match nested documents when the filter
   # matches it.
   - do:

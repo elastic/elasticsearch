@@ -29,6 +29,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
@@ -322,7 +323,7 @@ public class IndexNameExpressionResolver {
                 .sorted() // reliable order for testing
                 .collect(Collectors.toList());
             if (resolvedSystemIndices.isEmpty() == false) {
-                deprecationLogger.deprecate("open_system_index_access",
+                deprecationLogger.deprecate(DeprecationCategory.SYSTEM_INDICES, "open_system_index_access",
                     "this request accesses system indices: {}, but in a future major version, direct access to system " +
                         "indices will be prevented by default", resolvedSystemIndices);
             }

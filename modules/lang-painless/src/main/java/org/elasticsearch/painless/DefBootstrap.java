@@ -204,7 +204,7 @@ public final class DefBootstrap {
                 final MethodHandle target = this.createMegamorphicHandle();
 
                 if (target == null){
-                    throw new NullPointerException("error in creation of MegamorphicHandle. missing 'type' value ");
+                     throw new NullPointerException("error in creation of MegamorphicHandle. missing 'type' value ");
                 }
 
                 setTarget(target);

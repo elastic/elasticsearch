@@ -35,6 +35,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.SecureString;
@@ -129,12 +130,21 @@ public abstract class StreamInput extends InputStream {
     public abstract void readBytes(byte[] b, int offset, int len) throws IOException;
 
     /**
-     * Reads a bytes reference from this stream, might hold an actual reference to the underlying
-     * bytes of the stream.
+     * Reads a bytes reference from this stream, copying any bytes read to a new {@code byte[]}. Use {@link #readReleasableBytesReference()}
+     * when reading large bytes references where possible top avoid needless allocations and copying.
      */
     public BytesReference readBytesReference() throws IOException {
         int length = readArraySize();
         return readBytesReference(length);
+    }
+
+    /**
+     * Reads a releasable bytes reference from this stream. Unlike {@link #readBytesReference()} the returned bytes reference may reference
+     * bytes in a pooled buffer and must be explicitly released via {@link ReleasableBytesReference#close()} once no longer used.
+     * Prefer this method over {@link #readBytesReference()} when reading large bytes references to avoid allocations and copying.
+     */
+    public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+        return ReleasableBytesReference.wrap(readBytesReference());
     }
 
     /**
@@ -1290,7 +1300,7 @@ public abstract class StreamInput extends InputStream {
      * Reads a vint via {@link #readVInt()} and applies basic checks to ensure the read array size is sane.
      * This method uses {@link #ensureCanReadBytes(int)} to ensure this stream has enough bytes to read for the read array size.
      */
-    private int readArraySize() throws IOException {
+    protected int readArraySize() throws IOException {
         final int arraySize = readVInt();
         if (arraySize > ArrayUtil.MAX_ARRAY_LENGTH) {
             throw new IllegalStateException("array length must be <= to " + ArrayUtil.MAX_ARRAY_LENGTH  + " but was: " + arraySize);

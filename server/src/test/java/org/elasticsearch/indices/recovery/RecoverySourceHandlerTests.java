@@ -46,6 +46,7 @@ import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
@@ -181,7 +182,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
-            public void writeFileChunk(StoreFileMetadata md, long position, BytesReference content, boolean lastChunk,
+            public void writeFileChunk(StoreFileMetadata md, long position, ReleasableBytesReference content, boolean lastChunk,
                                        int totalTranslogOps, ActionListener<Void> listener) {
                 ActionListener.completeWith(listener, () -> {
                     multiFileWriter.writeFileChunk(md, position, content, lastChunk);
@@ -415,7 +416,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         MultiFileWriter multiFileWriter = new MultiFileWriter(targetStore, mock(RecoveryState.Index.class), "", logger, () -> {});
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
              @Override
-            public void writeFileChunk(StoreFileMetadata md, long position, BytesReference content, boolean lastChunk,
+            public void writeFileChunk(StoreFileMetadata md, long position, ReleasableBytesReference content, boolean lastChunk,
                                        int totalTranslogOps, ActionListener<Void> listener) {
                  ActionListener.completeWith(listener, () -> {
                      multiFileWriter.writeFileChunk(md, position, content, lastChunk);
@@ -471,7 +472,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final boolean throwCorruptedIndexException = randomBoolean();
         RecoveryTargetHandler target = new TestRecoveryTargetHandler() {
             @Override
-            public void writeFileChunk(StoreFileMetadata md, long position, BytesReference content, boolean lastChunk,
+            public void writeFileChunk(StoreFileMetadata md, long position, ReleasableBytesReference content, boolean lastChunk,
                                        int totalTranslogOps, ActionListener<Void> listener) {
                 if (throwCorruptedIndexException) {
                     listener.onFailure(new RuntimeException(new CorruptIndexException("foo", "bar")));
@@ -601,7 +602,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final TestRecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             final AtomicLong chunkNumberGenerator = new AtomicLong();
             @Override
-            public void writeFileChunk(StoreFileMetadata md, long position, BytesReference content, boolean lastChunk,
+            public void writeFileChunk(StoreFileMetadata md, long position, ReleasableBytesReference content, boolean lastChunk,
                                        int totalTranslogOps, ActionListener<Void> listener) {
                 final long chunkNumber = chunkNumberGenerator.getAndIncrement();
                 logger.info("--> write chunk name={} seq={}, position={}", md.name(), chunkNumber, position);
@@ -659,7 +660,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         final TestRecoveryTargetHandler recoveryTarget = new TestRecoveryTargetHandler() {
             final AtomicLong chunkNumberGenerator = new AtomicLong();
             @Override
-            public void writeFileChunk(StoreFileMetadata md, long position, BytesReference content, boolean lastChunk,
+            public void writeFileChunk(StoreFileMetadata md, long position, ReleasableBytesReference content, boolean lastChunk,
                                        int totalTranslogOps, ActionListener<Void> listener) {
                 final long chunkNumber = chunkNumberGenerator.getAndIncrement();
                 logger.info("--> write chunk name={} seq={}, position={}", md.name(), chunkNumber, position);
@@ -730,7 +731,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
             }
 
             @Override
-            public void writeFileChunk(StoreFileMetadata md, long position, BytesReference content,
+            public void writeFileChunk(StoreFileMetadata md, long position, ReleasableBytesReference content,
                                        boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener) {
                 recoveryExecutor.execute(() -> listener.onResponse(null));
                 if (rarely()) {
@@ -889,7 +890,7 @@ public class RecoverySourceHandlerTests extends ESTestCase {
         }
 
         @Override
-        public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk,
+        public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content, boolean lastChunk,
                                    int totalTranslogOps, ActionListener<Void> listener) {
         }
     }

@@ -19,22 +19,29 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+
+import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
+public class RoutingFieldMapperTests extends MetadataMapperTestCase {
+
+    @Override
+    protected String fieldName() {
+        return RoutingFieldMapper.NAME;
+    }
+
+    @Override
+    protected void registerParameters(ParameterChecker checker) throws IOException {
+        checker.registerConflictCheck("required", b -> b.field("required", true));
+    }
 
     public void testRoutingMapper() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-                .endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
 
         ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1", BytesReference
             .bytes(XContentFactory.jsonBuilder()
@@ -48,16 +55,11 @@ public class RoutingFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testIncludeInObjectNotAllowed() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
+        Exception e = expectThrows(MapperParsingException.class,
+            () -> docMapper.parse(source(b -> b.field("_routing", "foo"))));
 
-        try {
-            docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject().field("_routing", "foo").endObject()),XContentType.JSON));
-            fail("Expected failure to parse metadata field");
-        } catch (MapperParsingException e) {
-            assertThat(e.getCause().getMessage(), e.getCause().getMessage(),
+        assertThat(e.getCause().getMessage(),
                 containsString("Field [_routing] is a metadata field and cannot be added inside a document"));
-        }
     }
 }

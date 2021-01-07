@@ -269,7 +269,7 @@ GET /_data_stream/my-data-stream
 To delete a data stream and its backing indices, open the {kib} menu and go to
 *Stack Management > Index Management*. In the *Data Streams* tab, click the
 trash icon. The trash icon only displays if you have the `delete_index`
-<<security-privileges, security privilege>> for the stream.
+<<security-privileges, security privilege>> for the data stream.
 
 [role="screenshot"]
 image::images/data-streams/data-streams-no-delete.png[Data Streams tab]

@@ -16,11 +16,9 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.hamcrest.Matchers;
 
 import java.util.Set;
-import java.util.StringTokenizer;
 import java.util.TreeMap;
 import java.util.TreeSet;
 
-import static org.apache.lucene.util.Constants.JVM_SPEC_VERSION;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.greaterThan;
 

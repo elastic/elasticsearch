@@ -40,17 +40,16 @@ public class URLFixture extends AbstractHttpFixture {
     /**
      * Creates a {@link URLFixture}
      */
-    private URLFixture(final String workingDir, final String repositoryDir) {
-        super(workingDir);
+    private URLFixture(final int port, final String workingDir, final String repositoryDir) {
+        super(workingDir, port);
         this.repositoryDir = dir(repositoryDir);
     }
 
     public static void main(String[] args) throws Exception {
-        if (args == null || args.length != 2) {
-            throw new IllegalArgumentException("URLFixture <working directory> <repository directory>");
+        if (args == null || args.length != 3) {
+            throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
-
-        final URLFixture fixture = new URLFixture(args[0], args[1]);
+        final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), args[1], args[2]);
         fixture.listen();
     }
 

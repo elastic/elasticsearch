@@ -62,8 +62,14 @@ public abstract class AbstractHttpFixture {
 
     /** Current working directory of the fixture **/
     private final Path workingDirectory;
+    private final int port;
 
     protected AbstractHttpFixture(final String workingDir) {
+        this(workingDir, 0);
+    }
+
+    protected AbstractHttpFixture(final String workingDir, int port) {
+        this.port = port;
         this.workingDirectory = PathUtils.get(Objects.requireNonNull(workingDir));
     }
 
@@ -71,7 +77,7 @@ public abstract class AbstractHttpFixture {
      * Opens a {@link HttpServer} and start listening on a random port.
      */
     public final void listen() throws IOException, InterruptedException {
-        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getLoopbackAddress(), 0);
+        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getByName("0.0.0.0"), port);
         final HttpServer httpServer = HttpServer.create(socketAddress, 0);
 
         try {

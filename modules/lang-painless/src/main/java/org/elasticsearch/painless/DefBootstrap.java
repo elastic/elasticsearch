@@ -203,6 +203,10 @@ public final class DefBootstrap {
                 // we revert the whole cache and build a new megamorphic one
                 final MethodHandle target = this.createMegamorphicHandle();
 
+                if (target == null){
+                    throw new NullPointerException("member 'target' inside CallSite class missing 'type' property");
+                }
+
                 setTarget(target);
                 return target.invokeWithArguments(callArgs);
             } else {

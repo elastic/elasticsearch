@@ -184,60 +184,53 @@ class ToCharFormatter {
     private static List<ToCharFormatter> parsePattern(String toCharPattern) {
         LinkedList<ToCharFormatter> formatters = new LinkedList<>();
 
-        boolean fillModeModifierActive = false;
-
         while (toCharPattern.isEmpty() == false) {
-            boolean foundPattern = false;
+            ToCharFormatter formatter = null;
+            boolean fillModeModifierActive = false;
+            
+            // we try to match the following: ( fill-modifier? ( ( pattern ordinal-suffix-modifier? ) | literal-non-pattern ) ) *
+            // and extract the individual patterns with the fill-modifiers and ordinal-suffix-modifiers or
+            // the non-matched literals (removing the potential fill modifiers specified for them, FMFM turns into FM)
+            
+            // check for fill-modifier first
+            if (toCharPattern.startsWith("FM") || toCharPattern.startsWith("fm")) {
+                // try to apply the fill mode modifier to the next formatter
+                fillModeModifierActive = true;
+                toCharPattern = toCharPattern.substring(2);
+            }
+
+            // try to find a potential pattern next
             for (int length = Math.min(MAX_TO_CHAR_FORMAT_STRING_LENGTH, toCharPattern.length()); length >= 1; length--) {
                 final String potentialPattern = toCharPattern.substring(0, length);
-                if (isFillModeModifier(potentialPattern)) {
-                    // try to apply the fill mode modifier to the next formatter
-                    fillModeModifierActive = true;
-                    foundPattern = true;
-                } else if (isOrdinalSuffixModifier(potentialPattern)) {
-                    // try to apply the ordinal suffix modifier to the last formatter
-                    ToCharFormatter lastFormatter = formatters.removeLast();
-                    if (lastFormatter == null) {
-                        // if there was no previous pattern, simply prints the ordinal suffix pattern
-                        lastFormatter = literal(potentialPattern);
-                    } else if (lastFormatter.hasOrdinalSuffix) {
-                        lastFormatter = lastFormatter.withModifier(s -> appendOrdinalSuffix(potentialPattern, s));
+                formatter = FORMATTER_MAP.get(potentialPattern);
+                // check if it is a known pattern string, if so apply it, with any modifier
+                if (formatter != null) {
+                    if (fillModeModifierActive && formatter.fillModeFn != null) {
+                        formatter = formatter.withModifier(formatter.fillModeFn);
                     }
-                    formatters.addLast(lastFormatter);
-                    foundPattern = true;
-                } else {
-                    ToCharFormatter formatter = FORMATTER_MAP.get(potentialPattern);
-                    // check if it is a known pattern string, if so apply it, with any modifier
-                    if (formatter != null) {
-                        if (fillModeModifierActive && formatter.fillModeFn != null) {
-                            formatter = formatter.withModifier(formatter.fillModeFn);
-                        }
-                        formatters.addLast(formatter);
-                        fillModeModifierActive = false;
-                        foundPattern = true;
-                    }
-                }
-                if (foundPattern) {
                     toCharPattern = toCharPattern.substring(length);
                     break;
                 }
             }
-            if (foundPattern == false) {
-                // the fill mode modifier does not apply in case of literals
-                formatters.addLast(literal(toCharPattern.substring(0, 1)));
+            
+            if (formatter == null) {
+                // the fill mode modifier is dropped in case of literals
+                formatter = literal(toCharPattern.substring(0, 1));
                 toCharPattern = toCharPattern.substring(1);
-                fillModeModifierActive = false;
+            } else {
+                // try to look for an ordinal suffix modifier in case we found a pattern
+                if (toCharPattern.startsWith("TH") || toCharPattern.startsWith("th")) {
+                    final String ordinalSuffixModifier = toCharPattern.substring(0, 2);
+                    if (formatter.hasOrdinalSuffix) {
+                        formatter = formatter.withModifier(s -> appendOrdinalSuffix(ordinalSuffixModifier, s));
+                    }
+                    toCharPattern = toCharPattern.substring(2);
+                }
             }
+            
+            formatters.addLast(formatter);
         }
         return formatters;
-    }
-
-    private static boolean isOrdinalSuffixModifier(String potentialPattern) {
-        return "TH".equals(potentialPattern) || "th".equals(potentialPattern);
-    }
-
-    private static boolean isFillModeModifier(String potentialPattern) {
-        return "FM".equals(potentialPattern) || "fm".equals(potentialPattern);
     }
 
     public static Function<TemporalAccessor, String> ofPattern(String pattern) {

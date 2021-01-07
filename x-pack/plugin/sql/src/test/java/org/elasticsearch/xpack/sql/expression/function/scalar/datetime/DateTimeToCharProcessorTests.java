@@ -11,8 +11,6 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigDecimal;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -44,11 +42,10 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
      *     </li>
      * </ol>
      */
-    public void testAgainstPostgreSQLOutput() throws Exception {
+    public void testAgainstPostgreSQLOutput() {
         String testFile = "tochar.generated.csv";
-        Path testFilePath = Path.of(DateTimeToCharProcessorTests.class.getResource(testFile).toURI());
         int lineNumber = 0;
-        for (String line : Files.readAllLines(testFilePath)) {
+        for (String line : ToCharTestScript.readAllLinesWithoutComment(DateTimeToCharProcessorTests.class.getResource(testFile))) {
             lineNumber += 1;
             if (line.startsWith("#")) {
                 continue;

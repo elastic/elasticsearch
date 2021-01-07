@@ -11,6 +11,8 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.math.BigDecimal;
+import java.net.URI;
+import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -34,21 +36,6 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
 public class ToCharTestScript {
 
     private static class TestRecord {
-
-        // timezones that are valid both in Java and in Postgres
-        public static final List<String> POSTGRES_TEST_ZONE_LIST = asList(
-            // location-based and long-names
-            "US/Samoa", "Pacific/Honolulu", "Pacific/Marquesas", "Pacific/Gambier", "America/Juneau", "Canada/Yukon", "America/Vancouver",
-            "Pacific/Easter", "US/Mountain", "America/Chicago", "US/Michigan", "Atlantic/Bermuda", "Canada/Newfoundland",
-            "Atlantic/Cape_Verde", "Pacific/Kiritimati", "Pacific/Chatham", "Pacific/Auckland", "Asia/Sakhalin", "Australia/Tasmania",
-            "Australia/North", "Asia/Tokyo", "Australia/Eucla", "Asia/Singapore", "Asia/Rangoon", "Indian/Chagos", "Asia/Calcutta",
-            "Asia/Tashkent", "Asia/Tehran", "Asia/Dubai", "Africa/Nairobi", "Europe/Brussels", "Europe/Vienna", "Europe/London",
-            "Etc/GMT+12",
-            // short names of zones
-            "GMT", "UTC", "CET",
-            // offsets
-            "+11:00", "+04:30", "+01:00", "+00:00", "-00:00", "-01:15", "-02:00", "-11:00");
-        
         private final BigDecimal secondsAndFractionsSinceEpoch;
         private final String formatString;
         private final String zoneId;
@@ -56,9 +43,8 @@ public class ToCharTestScript {
         TestRecord(BigDecimal secondsAndFractionsSinceEpoch, String formatString) {
             this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
             this.formatString = formatString;
-            this.zoneId = ToCharTestScript.randomFromCollection(POSTGRES_TEST_ZONE_LIST);
+            this.zoneId = ToCharTestScript.randomFromCollection(TIMEZONES_TO_TEST);
         }
-
     }
 
     private static final long SECONDS_IN_YEAR = 365 * 24 * 60 * 60L;
@@ -71,6 +57,9 @@ public class ToCharTestScript {
     private static final List<String> PATTERNS = new ArrayList<>(ToCharFormatter.FORMATTER_MAP.keySet());
     private static final List<String> FILL_MODIFIERS = asList("FM", "fm", "");
     private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
+    // timezones that are valid both in Java and in Postgres
+    public static final List<String> TIMEZONES_TO_TEST =
+            readAllLinesWithoutComment(ToCharTestScript.class.getResource("tochar.test_timezones.txt"));
 
     private final List<TestRecord> testRecords = new ArrayList<>();
     private final List<BigDecimal> testEpochSeconds = new ArrayList<>();
@@ -138,6 +127,8 @@ public class ToCharTestScript {
         testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "YYYYYYYYYYYYYYY,YYYYYYYYY"));
         testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "SSSSSSSSSSSSSSSS"));
         testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "DDDDDDDD"));
+        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "FMFMFMFMAAthththth"));
+        testRecords.add(new TestRecord(randomFromCollection(testEpochSeconds), "1FMth"));
     }
 
     private void monthsAsRomanNumbers() {
@@ -151,8 +142,8 @@ public class ToCharTestScript {
     private void randomizedPatternStrings() {
         final String randomCharacters = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy _-.:;";
 
-        final int randomizedPatternCount = 20;
-        final int lengthOfRandomizedPattern = 30;
+        final int randomizedPatternCount = 50;
+        final int lengthOfRandomizedPattern = 50;
         final int pctChanceOfRandomCharacter = 80;
         for (int i = 0; i < randomizedPatternCount; i++) {
             String patternWithLiterals = IntStream.rangeClosed(1, lengthOfRandomizedPattern)
@@ -203,6 +194,19 @@ public class ToCharTestScript {
             zoneId = zoneId.replaceFirst(quote("-"), "+");
         }
         return zoneId;
+    }
+
+    static List<String> readAllLinesWithoutComment(URL url) {
+        try {
+            URI uri = url.toURI();
+            return Files.readAllLines(Path.of(uri))
+                .stream()
+                .filter(s -> s.startsWith("#") == false)
+                .filter(s -> s.isBlank() == false)
+                .collect(Collectors.toList());
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     /**

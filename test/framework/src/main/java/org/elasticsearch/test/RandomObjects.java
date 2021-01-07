@@ -136,7 +136,7 @@ public final class RandomObjects {
      */
     public static Object getExpectedParsedValue(XContentType xContentType, Object value) {
         if (value instanceof BytesArray) {
-            if (xContentType == XContentType.JSON) {
+            if (xContentType.canonical() == XContentType.JSON) {
                 //JSON writes base64 format
                 return Base64.getEncoder().encodeToString(((BytesArray)value).toBytesRef().bytes);
             }

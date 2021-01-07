@@ -74,7 +74,7 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpressions(Literal.class, l -> {
+        project.forEachExpression(Literal.class, l -> {
             if (l.fold().equals(42)) {
                 list.add(l.fold());
             }
@@ -88,7 +88,7 @@ public class QueryPlanTests extends ESTestCase {
         OrderBy o = new OrderBy(EMPTY, limit, emptyList());
 
         List<Object> list = new ArrayList<>();
-        o.forEachExpressionsDown(Literal.class, l -> {
+        o.forEachExpressionDown(Literal.class, l -> {
             if (l.fold().equals(42)) {
                 list.add(l.fold());
             }
@@ -104,7 +104,7 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
 
         List<NamedExpression> list = new ArrayList<>();
-        project.forEachExpressions(NamedExpression.class, n -> {
+        project.forEachExpression(NamedExpression.class, n -> {
             if (n.name().equals("one")) {
                 list.add(n);
             }
@@ -120,7 +120,7 @@ public class QueryPlanTests extends ESTestCase {
         Project project = new Project(EMPTY, relation(), asList(one, two));
 
         List<Object> list = new ArrayList<>();
-        project.forEachExpressions(Literal.class, l -> {
+        project.forEachExpression(Literal.class, l -> {
             if (l.fold().equals(42)) {
                 list.add(l.fold());
             }

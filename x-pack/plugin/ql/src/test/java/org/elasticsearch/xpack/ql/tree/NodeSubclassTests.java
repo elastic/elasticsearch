@@ -638,7 +638,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
             }
             // for folders, just use the FileSystems API
             else {
-                Files.walkFileTree(root, new SimpleFileVisitor<>() {
+                Files.walkFileTree(root, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (Files.isRegularFile(file) && file.getFileName().toString().endsWith(".class")) {

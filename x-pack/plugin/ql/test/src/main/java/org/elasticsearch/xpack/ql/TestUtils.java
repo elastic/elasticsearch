@@ -221,7 +221,7 @@ public final class TestUtils {
             }
             // normal file access
             else if (Files.isDirectory(path)) {
-                Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<>() {
+                Files.walkFileTree(path, EnumSet.allOf(FileVisitOption.class), 1, new SimpleFileVisitor<Path>() {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                         if (Regex.simpleMatch(filePattern, file.toString())) {

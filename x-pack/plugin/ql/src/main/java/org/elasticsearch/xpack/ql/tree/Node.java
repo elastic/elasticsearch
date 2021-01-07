@@ -92,15 +92,15 @@ public abstract class Node<T extends Node<T>> {
         });
     }
 
-    public <E> void forEachPropertiesOnly(Class<E> typeToken, Consumer<? super E> rule) {
+    public <E> void forEachPropertyOnly(Class<E> typeToken, Consumer<? super E> rule) {
         forEachProperty(typeToken, rule);
     }
 
-    public <E> void forEachPropertiesDown(Class<E> typeToken, Consumer<? super E> rule) {
+    public <E> void forEachPropertyDown(Class<E> typeToken, Consumer<? super E> rule) {
         forEachDown(e -> e.forEachProperty(typeToken, rule));
     }
 
-    public <E> void forEachPropertiesUp(Class<E> typeToken, Consumer<? super E> rule) {
+    public <E> void forEachPropertyUp(Class<E> typeToken, Consumer<? super E> rule) {
         forEachUp(e -> e.forEachProperty(typeToken, rule));
     }
 

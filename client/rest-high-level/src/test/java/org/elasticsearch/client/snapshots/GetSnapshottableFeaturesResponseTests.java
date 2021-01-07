@@ -32,16 +32,23 @@ import org.elasticsearch.client.AbstractResponseTestCase;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 
-public class GetSnapshottableFeaturesResponseTests
-    extends AbstractResponseTestCase<org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse,
+public class GetSnapshottableFeaturesResponseTests extends AbstractResponseTestCase<
+    org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse,
     GetSnapshottableFeaturesResponse> {
 
     @Override
-    protected org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse createServerTestInstance(XContentType xContentType) {
-        return new org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse(randomList(10,
-            () -> new org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse.SnapshottableFeature(
-                randomAlphaOfLengthBetween(4, 10),
-                randomAlphaOfLengthBetween(5, 10))));
+    protected org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse createServerTestInstance(
+        XContentType xContentType
+    ) {
+        return new org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse(
+            randomList(
+                10,
+                () -> new org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse.SnapshottableFeature(
+                    randomAlphaOfLengthBetween(4, 10),
+                    randomAlphaOfLengthBetween(5, 10)
+                )
+            )
+        );
 
     }
 
@@ -51,15 +58,20 @@ public class GetSnapshottableFeaturesResponseTests
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse serverTestInstance, GetSnapshottableFeaturesResponse clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesResponse serverTestInstance,
+        GetSnapshottableFeaturesResponse clientInstance
+    ) {
         assertNotNull(serverTestInstance.getSnapshottableFeatures());
         assertNotNull(serverTestInstance.getSnapshottableFeatures());
 
         assertThat(clientInstance.getFeatures(), hasSize(serverTestInstance.getSnapshottableFeatures().size()));
 
-        Map<String, String> clientFeatures = clientInstance.getFeatures().stream()
+        Map<String, String> clientFeatures = clientInstance.getFeatures()
+            .stream()
             .collect(Collectors.toMap(f -> f.getFeatureName(), f -> f.getDescription()));
-        Map<String, String> serverFeatures = serverTestInstance.getSnapshottableFeatures().stream()
+        Map<String, String> serverFeatures = serverTestInstance.getSnapshottableFeatures()
+            .stream()
             .collect(Collectors.toMap(f -> f.getFeatureName(), f -> f.getDescription()));
 
         assertThat(clientFeatures.entrySet(), everyItem(is(in(serverFeatures.entrySet()))));

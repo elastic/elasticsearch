@@ -284,13 +284,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 return p;
             }
 
-            return p.transformExpressionsDown(e -> {
-                if (e instanceof SubQueryExpression) {
-                    SubQueryExpression sq = (SubQueryExpression) e;
-                    return sq.withQuery(substituteCTE(sq.query(), subQueries));
-                }
-                return e;
-            });
+            return p.transformExpressionsDown(sq -> sq.withQuery(substituteCTE(sq.query(), subQueries)), SubQueryExpression.class);
         }
 
         @Override
@@ -392,25 +386,22 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 log.trace("Attempting to resolve {}", plan.nodeString());
             }
 
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof UnresolvedAttribute) {
-                    UnresolvedAttribute u = (UnresolvedAttribute) e;
-                    List<Attribute> childrenOutput = new ArrayList<>();
-                    for (LogicalPlan child : plan.children()) {
-                        childrenOutput.addAll(child.output());
+            return plan.transformExpressionsUp(u -> {
+                List<Attribute> childrenOutput = new ArrayList<>();
+                for (LogicalPlan child : plan.children()) {
+                    childrenOutput.addAll(child.output());
+                }
+                NamedExpression named = resolveAgainstList(u, childrenOutput);
+                // if resolved, return it; otherwise keep it in place to be resolved later
+                if (named != null) {
+                    if (log.isTraceEnabled()) {
+                        log.trace("Resolved {} to {}", u, named);
                     }
-                    NamedExpression named = resolveAgainstList(u, childrenOutput);
-                    // if resolved, return it; otherwise keep it in place to be resolved later
-                    if (named != null) {
-                        if (log.isTraceEnabled()) {
-                            log.trace("Resolved {} to {}", u, named);
-                        }
-                        return named;
-                    }
+                    return named;
                 }
                 //TODO: likely have to expand * inside functions as well
-                return e;
-            });
+                return u;
+            }, UnresolvedAttribute.class);
         }
 
         private List<NamedExpression> expandProjections(List<? extends NamedExpression> projections, LogicalPlan child) {
@@ -884,38 +875,33 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(e -> {
-                if (e instanceof UnresolvedFunction) {
-                    UnresolvedFunction uf = (UnresolvedFunction) e;
+            return plan.transformExpressionsUp(uf -> {
+                if (uf.analyzed()) {
+                    return uf;
+                }
 
+                String name = uf.name();
+
+                if (hasStar(uf.arguments())) {
+                    uf = uf.preprocessStar();
                     if (uf.analyzed()) {
                         return uf;
                     }
-
-                    String name = uf.name();
-
-                    if (hasStar(uf.arguments())) {
-                        uf = uf.preprocessStar();
-                        if (uf.analyzed()) {
-                            return uf;
-                        }
-                    }
-
-                    if (!uf.childrenResolved()) {
-                        return uf;
-                    }
-
-                    String functionName = functionRegistry.resolveAlias(name);
-                    if (functionRegistry.functionExists(functionName) == false) {
-                        return uf.missing(functionName, functionRegistry.listFunctions());
-                    }
-                    // TODO: look into Generator for significant terms, etc..
-                    FunctionDefinition def = functionRegistry.resolveFunction(functionName);
-                    Function f = uf.buildResolved(configuration, def);
-                    return f;
                 }
-                return e;
-            });
+
+                if (!uf.childrenResolved()) {
+                    return uf;
+                }
+
+                String functionName = functionRegistry.resolveAlias(name);
+                if (functionRegistry.functionExists(functionName) == false) {
+                    return uf.missing(functionName, functionRegistry.listFunctions());
+                }
+                // TODO: look into Generator for significant terms, etc..
+                FunctionDefinition def = functionRegistry.resolveFunction(functionName);
+                Function f = uf.buildResolved(configuration, def);
+                return f;
+            }, UnresolvedFunction.class);
         }
     }
 
@@ -1258,12 +1244,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                         cleanChildrenAliases(p.aggregates()));
             }
 
-            return plan.transformExpressionsOnly(e -> {
-                if (e instanceof Alias) {
-                    return ((Alias) e).child();
-                }
-                return e;
-            });
+            return plan.transformExpressionsOnly(a -> a.child(), Alias.class);
         }
 
         private List<NamedExpression> cleanChildrenAliases(List<? extends NamedExpression> args) {

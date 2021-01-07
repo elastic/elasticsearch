@@ -10,12 +10,10 @@ import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.tree.Node;
 import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -52,24 +50,38 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return lazyInputSet;
     }
 
-    public PlanType transformExpressionsOnly(Function<? super Expression, ? extends Expression> rule) {
-        return transformPropertiesOnly(e -> doTransformExpression(e, exp -> exp.transformDown(rule)), Object.class);
+    //
+    // pass Object.class as a type token to pick Collections of expressions not just expressions
+    //
+
+    public PlanType transformExpressionsOnly(Function<Expression, ? extends Expression> rule) {
+        return transformPropertiesOnly(rule, Expression.class);
     }
 
-    public PlanType transformExpressionsDown(Function<? super Expression, ? extends Expression> rule) {
-        return transformPropertiesDown(e -> doTransformExpression(e, exp -> exp.transformDown(rule)), Object.class);
+    public <E extends Expression> PlanType transformExpressionsOnly(Function<E, ? extends Expression> rule, Class<E> typeToken) {
+        return transformPropertiesOnly(e -> doTransformExpression(e, exp -> exp.transformDown(rule, typeToken)), Object.class);
     }
 
-    public PlanType transformExpressionsUp(Function<? super Expression, ? extends Expression> rule) {
-        return transformPropertiesUp(e -> doTransformExpression(e, exp -> exp.transformUp(rule)), Object.class);
+    public PlanType transformExpressionsDown(Function<Expression, ? extends Expression> rule) {
+        return transformExpressionsDown(rule, Expression.class);
     }
 
-    private <E extends Expression> Object doTransformExpression(Object arg, Function<? super Expression, E> traversal) {
+    public <E extends Expression> PlanType transformExpressionsDown(Function<E, ? extends Expression> rule, Class<E> typeToken) {
+        return transformPropertiesDown(e -> doTransformExpression(e, exp -> exp.transformDown(rule, typeToken)), Object.class);
+    }
+
+    public PlanType transformExpressionsUp(Function<Expression, ? extends Expression> rule) {
+        return transformExpressionsUp(rule, Expression.class);
+    }
+
+    public <E extends Expression> PlanType transformExpressionsUp(Function<E, ? extends Expression> rule, Class<E> typeToken) {
+        return transformPropertiesUp(e -> doTransformExpression(e, exp -> exp.transformUp(rule, typeToken)), Object.class);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Object doTransformExpression(Object arg, Function<Expression, ? extends Expression> traversal) {
         if (arg instanceof Expression) {
             return traversal.apply((Expression) arg);
-        }
-        if (arg instanceof DataType || arg instanceof Map) {
-            return arg;
         }
 
         // WARNING: if the collection is typed, an incompatible function will be applied to it
@@ -83,12 +95,11 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             boolean hasChanged = false;
             for (Object e : c) {
                 Object next = doTransformExpression(e, traversal);
-                if (!e.equals(next)) {
-                    hasChanged = true;
-                }
-                else {
+                if (e.equals(next)) {
                     // use the initial value
                     next = e;
+                } else {
+                    hasChanged = true;
                 }
                 transformed.add(next);
             }
@@ -99,23 +110,35 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
         return arg;
     }
 
+    public void forEachExpressions(Consumer<? super Expression> rule) {
+        forEachExpressions(rule, Expression.class);
+    }
+
+    public <E extends Expression> void forEachExpressions(Consumer<? super E> rule, Class<E> typeToken) {
+        forEachPropertiesOnly(e -> doForEachExpression(e, exp -> exp.forEachDown(rule, typeToken)), Object.class);
+    }
+
     public void forEachExpressionsDown(Consumer<? super Expression> rule) {
-        forEachPropertiesDown(e -> doForEachExpression(e, exp -> exp.forEachDown(rule)), Object.class);
+        forEachExpressionsDown(rule, Expression.class);
+    }
+
+    public <E extends Expression> void forEachExpressionsDown(Consumer<? super E> rule, Class<? extends E> typeToken) {
+        forEachPropertiesDown(e -> doForEachExpression(e, exp -> exp.forEachDown(rule, typeToken)), Object.class);
     }
 
     public void forEachExpressionsUp(Consumer<? super Expression> rule) {
-        forEachPropertiesUp(e -> doForEachExpression(e, exp -> exp.forEachUp(rule)), Object.class);
+        forEachExpressionsUp(rule, Expression.class);
     }
 
-    public void forEachExpressions(Consumer<? super Expression> rule) {
-        forEachPropertiesOnly(e -> doForEachExpression(e, rule::accept), Object.class);
+    public <E extends Expression> void forEachExpressionsUp(Consumer<? super E> rule, Class<E> typeToken) {
+        forEachPropertiesUp(e -> doForEachExpression(e, exp -> exp.forEachUp(rule, typeToken)), Object.class);
     }
 
-    private void doForEachExpression(Object arg, Consumer<? super Expression> traversal) {
+    @SuppressWarnings("unchecked")
+    private void doForEachExpression(Object arg, Consumer<Expression> traversal) {
         if (arg instanceof Expression) {
             traversal.accept((Expression) arg);
-        }
-        else if (arg instanceof Collection) {
+        } else if (arg instanceof Collection) {
             Collection<?> c = (Collection<?>) arg;
             for (Object o : c) {
                 doForEachExpression(o, traversal);

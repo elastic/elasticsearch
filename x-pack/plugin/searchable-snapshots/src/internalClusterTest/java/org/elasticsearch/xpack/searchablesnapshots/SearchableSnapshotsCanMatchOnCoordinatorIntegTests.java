@@ -103,7 +103,8 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseSear
             indexRandomDocs(indexOutsideSearchRange, between(0, 1000));
         }
 
-        int numDocsWithinRange = between(0, 1000);
+        // Index enough documents to ensure that all shards have at least some documents
+        int numDocsWithinRange = between(100, 1000);
         indexDocumentsWithTimestampWithinDate(indexWithinSearchRange, numDocsWithinRange, "2020-11-28T%02d:%02d:%02d.%09dZ");
 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

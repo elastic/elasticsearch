@@ -240,10 +240,6 @@ public interface IndexAbstraction {
             return referenceIndexMetadatas.stream().allMatch(IndexMetadata::isSystem);
         }
 
-        public AliasMetadata getFirstAliasMetadata() {
-            return referenceIndexMetadatas.get(0).getAliases().get(aliasName);
-        }
-
         private void validateAliasProperties() {
             // Validate hidden status
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = referenceIndexMetadatas.stream()

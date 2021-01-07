@@ -9,6 +9,8 @@ apply plugin: 'elasticsearch.standalone-rest-test'
 apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
+import org.elasticsearch.gradle.info.BuildParams
+
 dependencies {
     testImplementation project(path: xpackModule('rollup'))
 }
@@ -20,6 +22,11 @@ restResources {
     }
 }
 
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("integTest").configure{enabled = false }
+  tasks.named("testingConventions").configure{enabled = false }
+}
 testClusters.matching { it.name == "integTest" }.configureEach {
     testDistribution = 'DEFAULT'
     setting 'xpack.license.self_generated.type', 'basic'

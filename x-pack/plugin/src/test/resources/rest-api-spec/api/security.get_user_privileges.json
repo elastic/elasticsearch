@@ -5,6 +5,7 @@
       "description":"Retrieves application privileges."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

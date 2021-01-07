@@ -38,9 +38,6 @@ testClusters.all {
   numberOfNodes = 3
   testDistribution = 'DEFAULT'
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.autoscaling_feature_flag_registered', 'true'
-  }
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.monitoring.elasticsearch.collection.enabled', 'false'
   setting 'xpack.ml.enabled', 'true'

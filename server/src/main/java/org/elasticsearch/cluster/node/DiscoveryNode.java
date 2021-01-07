@@ -81,6 +81,15 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return getRolesFromSettings(settings).stream().anyMatch(DiscoveryNodeRole::canContainData);
     }
 
+    /**
+     * Allows determining the "data" property without the need to load plugins, but does this purely based on
+     * naming conventions. Prefer using {@link #isDataNode(Settings)} if possible.
+     */
+    public static boolean isDataNodeBasedOnNamingConvention(final Settings settings) {
+        return DiscoveryNode.hasRole(settings, DiscoveryNodeRole.DATA_ROLE) ||
+            settings.getAsList("node.roles").stream().anyMatch(DiscoveryNodeRole::isDataRoleBasedOnNamingConvention);
+    }
+
     public static boolean isIngestNode(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.INGEST_ROLE);
     }

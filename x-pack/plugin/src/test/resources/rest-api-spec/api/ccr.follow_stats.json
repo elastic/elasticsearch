@@ -5,6 +5,7 @@
       "description": "Retrieves follower stats. return shard-level stats about the following tasks associated with each shard for the specified indices."
     },
     "stability":"stable",
+    "visibility":"public",
     "headers":{
       "accept": [ "application/json"]
     },

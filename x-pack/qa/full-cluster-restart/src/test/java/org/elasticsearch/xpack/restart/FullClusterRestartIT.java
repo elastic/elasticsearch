@@ -532,7 +532,7 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         Request request = new Request("PUT", "/_security/user/" + id);
         request.setJsonEntity(
             "{\n" +
-            "   \"password\" : \"j@rV1s\",\n" +
+            "   \"password\" : \"l0ng-r4nd0m-p@ssw0rd\",\n" +
             "   \"roles\" : [ \"admin\", \"other_role1\" ],\n" +
             "   \"full_name\" : \"" + randomAlphaOfLength(5) + "\",\n" +
             "   \"email\" : \"" + id + "@example.com\",\n" +
@@ -718,7 +718,10 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         List<Map<String, String>> indices = (List<Map<String, String>>) ds.get("indices");
         assertEquals("ds", ds.get("name"));
         assertEquals(1, indices.size());
-        assertEquals(DataStream.getDefaultBackingIndexName("ds", 1), indices.get(0).get("index_name"));
+        assertEquals(getOldClusterVersion().onOrAfter(Version.V_7_11_0)
+            ? DataStream.getDefaultBackingIndexName("ds", 1)
+            : DataStream.getLegacyDefaultBackingIndexName("ds", 1),
+            indices.get(0).get("index_name"));
         assertNumHits("ds", 1, 1);
     }
 

@@ -105,7 +105,7 @@ public enum CoreValuesSourceType implements ValuesSourceType {
 
         }
     },
-    BYTES() {
+    KEYWORD() {
         @Override
         public ValuesSource getEmpty() {
             return ValuesSource.Bytes.WithOrdinals.EMPTY;
@@ -208,23 +208,23 @@ public enum CoreValuesSourceType implements ValuesSourceType {
     IP() {
         @Override
         public ValuesSource getEmpty() {
-            return BYTES.getEmpty();
+            return KEYWORD.getEmpty();
         }
 
         @Override
         public ValuesSource getScript(AggregationScript.LeafFactory script, ValueType scriptValueType) {
-            return BYTES.getScript(script, scriptValueType);
+            return KEYWORD.getScript(script, scriptValueType);
         }
 
         @Override
         public ValuesSource getField(FieldContext fieldContext, AggregationScript.LeafFactory script, AggregationContext context) {
-            return BYTES.getField(fieldContext, script, context);
+            return KEYWORD.getField(fieldContext, script, context);
         }
 
         @Override
         public ValuesSource replaceMissing(ValuesSource valuesSource, Object rawMissing, DocValueFormat docValueFormat,
                                            AggregationContext context) {
-            return BYTES.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
+            return KEYWORD.replaceMissing(valuesSource, rawMissing, docValueFormat, context);
         }
 
         @Override

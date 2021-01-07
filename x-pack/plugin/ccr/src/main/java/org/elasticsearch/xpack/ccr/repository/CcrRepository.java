@@ -17,6 +17,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -24,7 +25,6 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ListenerTimeouts;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -554,16 +554,40 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
 
                 @Override
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
-                    final ActionListener<GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse> threadedListener
-                        = new ThreadedActionListener<>(logger, threadPool, ThreadPool.Names.GENERIC, ActionListener.wrap(r -> {
-                            writeFileChunk(request.md, r);
-                            listener.onResponse(null);
-                        }, listener::onFailure), false);
-
                     remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE,
                         new GetCcrRestoreFileChunkRequest(node, sessionUUID, request.md.name(), request.bytesRequested),
-                        ListenerTimeouts.wrapWithTimeout(threadPool, threadedListener, ccrSettings.getRecoveryActionTimeout(),
-                            ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME));
+                            ListenerTimeouts.wrapWithTimeout(threadPool, new ActionListener<>() {
+                                @Override
+                                public void onResponse(
+                                        GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse getCcrRestoreFileChunkResponse) {
+                                    getCcrRestoreFileChunkResponse.incRef();
+                                    threadPool.generic().execute(new ActionRunnable<>(listener) {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
+                                            listener.onResponse(null);
+                                        }
+
+                                        @Override
+                                        public void onAfter() {
+                                            getCcrRestoreFileChunkResponse.decRef();
+                                        }
+                                    });
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    threadPool.generic().execute(() -> {
+                                        try {
+                                            listener.onFailure(e);
+                                        } catch (Exception ex) {
+                                            e.addSuppressed(ex);
+                                            logger.warn(() ->
+                                                    new ParameterizedMessage("failed to execute failure callback for chunk request"), e);
+                                        }
+                                    });
+                                }
+                            }, ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME));
                 }
 
                 private void writeFileChunk(StoreFileMetadata md,

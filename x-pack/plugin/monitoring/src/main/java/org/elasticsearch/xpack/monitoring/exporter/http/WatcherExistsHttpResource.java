@@ -141,7 +141,7 @@ public class WatcherExistsHttpResource extends PublishableHttpResource {
      * Add Watches to the remote cluster.
      */
     @Override
-    protected void doPublish(final RestClient client, final ActionListener<Boolean> listener) {
+    protected void doPublish(final RestClient client, final ActionListener<ResourcePublishResult> listener) {
         watches.checkAndPublish(client, listener);
     }
 }

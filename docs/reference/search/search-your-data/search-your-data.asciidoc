@@ -215,7 +215,7 @@ should be tracked.
 Given that it is often enough to have a lower bound of the number of hits,
 such as "there are at least 10000 hits", the default is set to `10,000`.
 This means that requests will count the total hit accurately up to `10,000` hits.
-It's is a good trade off to speed up searches if you don't need the accurate number
+It is a good trade off to speed up searches if you don't need the accurate number
 of hits after a certain threshold.
 
 When set to `true` the search response will always track the number of hits that

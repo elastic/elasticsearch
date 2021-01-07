@@ -341,3 +341,50 @@ setup:
   - length: { aggregations.f.buckets: 2 }
   - match: { aggregations.f.buckets.foo.doc_count: 4 }
   - match: { aggregations.f.buckets.foo_bar.doc_count: 4 }
+
+---
+nested:
+  # Tests that we don't accidentally match nested documents when the filter
+  # matches it.
+  - do:
+      indices.create:
+          index: test_nested
+          body:
+            settings:
+              number_of_replicas: 0
+            mappings:
+              properties:
+                i:
+                  type: integer
+                nested:
+                  type: nested
+                  properties:
+                    j:
+                      type: integer
+
+  - do:
+       bulk:
+         refresh: true
+         index: test_nested
+         body:
+           - index: {}
+           - i: 1
+             nested:
+              - j: 2
+              - j: 3
+              - j: 4
+
+  - do:
+      search:
+        index: test_nested
+        body:
+          size: 0
+          aggs:
+            f:
+              filters:
+                filters:
+                  foo:
+                    match_all: {}
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.f.buckets: 1 }
+  - match: { aggregations.f.buckets.foo.doc_count: 1 }

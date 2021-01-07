@@ -67,8 +67,7 @@ public class QueryPlanTests extends ESTestCase {
         assertEquals("changed", o.name());
     }
 
-
-    public void testTransformWithExpressionTreeInCollection() throws Exception {
+    public void testForEachWithExpressionTopLevel() throws Exception {
         Alias one = new Alias(EMPTY, "one", of(42));
         FieldAttribute two = fieldAttribute();
 

@@ -65,6 +65,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: index-2
   - is_true: acknowledged
 
@@ -106,6 +107,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: index-2
   - is_true: acknowledged
 
@@ -248,6 +250,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: bar
 
   - do:

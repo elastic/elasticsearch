@@ -25,6 +25,7 @@ setup:
 "All indices":
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: _all
   - is_true: acknowledged
 
@@ -52,6 +53,7 @@ setup:
 "Trailing wildcard":
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: test_*
   - is_true: acknowledged
 
@@ -79,6 +81,7 @@ setup:
 "Only wildcard":
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: '*'
   - is_true: acknowledged
 

@@ -229,6 +229,7 @@ teardown:
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: ".ds-simple-data-stream1-*000001,.ds-simple-data-stream1-*000002"
   - is_true: acknowledged
 

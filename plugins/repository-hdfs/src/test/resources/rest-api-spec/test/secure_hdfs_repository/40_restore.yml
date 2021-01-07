@@ -48,6 +48,7 @@
   # Close index
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index : test_index
 
   # Restore index

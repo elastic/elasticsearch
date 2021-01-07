@@ -105,6 +105,7 @@ setup:
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: closed_index
 
   - do:

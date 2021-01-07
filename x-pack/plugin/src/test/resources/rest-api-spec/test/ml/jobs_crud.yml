@@ -1222,6 +1222,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: ".ml-anomalies-shared"
 
   - do:
@@ -1249,6 +1250,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: ".ml-state-000001"
 
   - do:

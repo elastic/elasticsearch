@@ -71,6 +71,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: follower_index
   - is_true: acknowledged
 

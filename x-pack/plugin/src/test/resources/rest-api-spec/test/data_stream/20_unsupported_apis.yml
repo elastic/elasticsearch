@@ -44,6 +44,7 @@
   # close request will not fail but will not match any data streams
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: logs-*
   - is_true: acknowledged
   - length: { indices: 0 }
@@ -164,6 +165,7 @@
   - do:
       catch: bad_request
       indices.close:
+        wait_for_active_shards: 0
         index: ".ds-simple-data-stream1-*000001"
 
   - do:

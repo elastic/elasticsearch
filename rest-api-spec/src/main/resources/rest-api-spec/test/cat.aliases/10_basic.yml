@@ -398,6 +398,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: test_index
 
   - do:
@@ -431,6 +432,7 @@
 
   - do:
       indices.close:
+        wait_for_active_shards: 0
         index: test_index
 
   - do:

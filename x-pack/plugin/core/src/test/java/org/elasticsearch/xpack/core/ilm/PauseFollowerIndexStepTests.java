@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.ilm;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.xpack.core.ccr.action.PauseFollowAction;
 import org.mockito.Mockito;
@@ -34,7 +35,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
-
+        ClusterState clusterState = setupClusterStateWithFollowingIndex(indexMetadata);
 
         Mockito.doAnswer(invocation -> {
             PauseFollowAction.Request request = (PauseFollowAction.Request) invocation.getArguments()[1];
@@ -48,7 +49,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;
@@ -70,6 +71,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        ClusterState clusterState = setupClusterStateWithFollowingIndex(indexMetadata);
 
         // Mock pause follow api call:
         Exception error = new RuntimeException();
@@ -84,7 +86,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         Boolean[] completed = new Boolean[1];
         Exception[] failure = new Exception[1];
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        step.performAction(indexMetadata, null, null, new AsyncActionStep.Listener() {
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
             @Override
             public void onResponse(boolean complete) {
                 completed[0] = complete;

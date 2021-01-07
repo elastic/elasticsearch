@@ -343,9 +343,14 @@ setup:
   - match: { aggregations.f.buckets.foo_bar.doc_count: 4 }
 
 ---
+
 nested:
   # Tests that we don't accidentally match nested documents when the filter
   # matches it.
+  - skip:
+      version: " - 7.10.99"
+      reason:  fixed in 7.11.0
+
   - do:
       indices.create:
           index: test_nested

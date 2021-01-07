@@ -121,7 +121,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             .masterNodeTimeout(request.masterNodeTimeout())
             .aliases(aliases)
             .waitForActiveShards(ActiveShardCount.ALL)
-            .mappings(singletonMap(descriptor.getIndexType(), descriptor.getMappingsWithType()))
+            .mappings(singletonMap(descriptor.getIndexType(), descriptor.getMappings()))
             .settings(settings);
     }
 }

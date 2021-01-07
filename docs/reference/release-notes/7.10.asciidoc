@@ -3,6 +3,14 @@
 
 Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
 
+[[known-issues-7.10.1]]
+[discrete]
+=== Known issues
+* In {es} 7.10.0 there were several regressions around loading nested documents. These have been addressed in {es} 7.10.2.
+** With multiple layers of nested `inner_hits`, we can fail to load the _source. ({es-issue}66577[#66577])
+** With nested `inner_hits`, the fast vector highlighter may load snippets from the wrong document. ({es-issue}65533[#65533])
+** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
+
 [[bug-7.10.1]]
 [float]
 === Bug fixes
@@ -80,6 +88,11 @@ with a `NOT IN` operator.
 +
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
+
+* There were several regressions around loading nested documents. These have been addressed in {es} 7.10.2.
+** With multiple layers of nested `inner_hits`, we can fail to load the _source. ({es-issue}66577[#66577])
+** With nested `inner_hits`, the fast vector highlighter may load snippets from the wrong document. ({es-issue}65533[#65533])
+** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
 
 [[breaking-7.10.0]]
 [float]

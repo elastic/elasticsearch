@@ -280,7 +280,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         return new ProductionAggregationContext(
             queryShardContext,
-            query,
+            () -> query,
             null,
             consumer,
             () -> buildSubSearchContext(indexSettings, queryShardContext, bitsetFilterCache),

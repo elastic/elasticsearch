@@ -28,8 +28,9 @@ public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTes
 
     public void testCurrentCapacity() throws Exception {
         final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
-        final boolean anyDebian8Nodes =
-            response.getNodes().stream().anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
+        final boolean anyDebian8Nodes = response.getNodes()
+            .stream()
+            .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
         boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
         // see: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
         assumeTrue("cannot run on debian 8 prior to java 15", java15Plus || anyDebian8Nodes == false);

@@ -239,7 +239,6 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 deleteOnFailure.add(extractedZip);
                 final PluginInfo pluginInfo = installPlugin(terminal, isBatch, extractedZip, env, deleteOnFailure);
                 terminal.println("-> Installed " + pluginInfo.getName());
-                terminal.println("-> Please restart Elasticsearch to activate " + pluginInfo.getName());
                 // swap the entry by plugin id for one with the installed plugin name, it gives a cleaner error message for URL installs
                 deleteOnFailures.remove(pluginId);
                 deleteOnFailures.put(pluginInfo.getName(), deleteOnFailure);
@@ -266,6 +265,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 throw installProblem;
             }
         }
+        terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
     }
 
     Build.Flavor buildFlavor() {

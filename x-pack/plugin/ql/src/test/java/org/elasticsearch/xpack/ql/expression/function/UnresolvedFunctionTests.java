@@ -90,23 +90,23 @@ public class UnresolvedFunctionTests extends AbstractNodeTestCase<UnresolvedFunc
         String newName = randomValueOtherThan(uf.name(), () -> randomAlphaOfLength(5));
         assertEquals(new UnresolvedFunction(uf.source(), newName, uf.resolutionType(), uf.children(),
                     uf.analyzed(), uf.unresolvedMessage()),
-                uf.transformPropertiesOnly(p -> Objects.equals(p, uf.name()) ? newName : p, Object.class));
+                uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.name()) ? newName : p));
 
         UnresolvedFunction.ResolutionType newResolutionType = randomValueOtherThan(uf.resolutionType(),
                 () -> randomFrom(UnresolvedFunction.ResolutionType.values()));
         assertEquals(new UnresolvedFunction(uf.source(), uf.name(), newResolutionType, uf.children(),
                     uf.analyzed(), uf.unresolvedMessage()),
-                uf.transformPropertiesOnly(p -> Objects.equals(p, uf.resolutionType()) ? newResolutionType : p, Object.class));
+                uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.resolutionType()) ? newResolutionType : p));
 
         String newUnresolvedMessage = randomValueOtherThan(uf.unresolvedMessage(),
                 UnresolvedFunctionTests::randomUnresolvedMessage);
         assertEquals(new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionType(), uf.children(),
                     uf.analyzed(), newUnresolvedMessage),
-                uf.transformPropertiesOnly(p -> Objects.equals(p, uf.unresolvedMessage()) ? newUnresolvedMessage : p, Object.class));
+                uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.unresolvedMessage()) ? newUnresolvedMessage : p));
 
         assertEquals(new UnresolvedFunction(uf.source(), uf.name(), uf.resolutionType(), uf.children(),
                 !uf.analyzed(), uf.unresolvedMessage()),
-            uf.transformPropertiesOnly(p -> Objects.equals(p, uf.analyzed()) ? !uf.analyzed() : p, Object.class));
+            uf.transformPropertiesOnly(Object.class, p -> Objects.equals(p, uf.analyzed()) ? !uf.analyzed() : p));
 
     }
 

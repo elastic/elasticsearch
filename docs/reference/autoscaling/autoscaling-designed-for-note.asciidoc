@@ -1,0 +1,2 @@
+[NOTE]
+Autoscaling is designed for indirect use by ECE/ESS and ECK. Direct use is not supported.

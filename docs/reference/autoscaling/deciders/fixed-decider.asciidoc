@@ -1,0 +1,62 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[autoscaling-fixed-decider]]
+=== Fixed decider
+
+experimental[]
+[NOTE]
+The purpose of this decider is purely for testing, it is not intended for
+production use.
+
+The `fixed` decider responds with a fixed required capacity. It is not enabled
+by default but can be enabled for any policy by explicitly configuring it.
+
+It has three configuration options:
+
+* storage: the node level storage necessary, default -1 (disabled).
+* memory: the node level memory necessary, default -1 (disabled).
+* nodes: the number of nodes to use for calculating total required capacities,
+default 1.
+
+[[autoscaling-fixed-decider-examples]]
+==== {api-examples-title}
+
+This example puts an autoscaling policy named `my_autoscaling_policy`, enabling
+and configuring the fixed decider.
+
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/my_autoscaling_policy
+{
+  "roles" : [ "data_hot" ],
+  "deciders": {
+    "fixed": {
+      "storage": "1tb",
+      "memory": "32gb",
+      "nodes": 8
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+

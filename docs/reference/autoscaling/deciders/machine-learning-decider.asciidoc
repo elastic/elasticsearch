@@ -1,0 +1,57 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[autoscaling-machine-learning-decider]]
+=== Machine learning decider
+
+The machine learning decider (`ml`) calculates the required memory to run the
+set of machine learning jobs created by users.
+
+It is enabled for policies governing `ml` nodes and has following
+configuration options:
+
+* `num_anomaly_jobs_in_queue`, default 0
+* `num_analytics_jobs_in_queue`, default 0
+* `down_scale_delay`, default 1 hour
+
+[[autoscaling-machine-learning-decider-examples]]
+==== {api-examples-title}
+
+This example puts an autoscaling policy named `my_autoscaling_policy`,
+overriding the machine learning decider's configuration.
+
+[source,console]
+--------------------------------------------------
+PUT /_autoscaling/policy/my_autoscaling_policy
+{
+  "roles" : [ "ml" ],
+  "deciders": {
+    "ml": {
+      "num_anomaly_jobs_in_queue": 5,
+      "num_analytics_jobs_in_queue": 3,
+      "down_scale_delay": "30m"
+    }
+  }
+}
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "acknowledged": true
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_autoscaling/policy/my_autoscaling_policy
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+

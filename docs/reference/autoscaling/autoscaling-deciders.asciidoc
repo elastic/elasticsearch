@@ -1,0 +1,24 @@
+[role="xpack"]
+[testenv="enterprise"]
+[[autoscaling-deciders]]
+== Autoscaling deciders
+
+<<autoscaling-reactive-storage-decider,Reactive storage decider>>::
+Estimate required storage capacity of current data set. Available for policies
+governing data nodes.
+
+<<autoscaling-proactive-storage-decider,Proactive storage decider>>::
+Estimate required storage capacity based on current ingestion into hot nodes.
+Available for policies governing hot data nodes.
+
+<<autoscaling-machine-learning-decider,Machine learning decider>>::
+Estimate required memory capacity based on machine learning jobs.
+Available for policies governing machine learning nodes.
+
+<<autoscaling-fixed-decider,Fixed decider>>::
+A decider useful for testing, responding a fixed required capacity.
+
+include::deciders/reactive-storage-decider.asciidoc[]
+include::deciders/proactive-storage-decider.asciidoc[]
+include::deciders/machine-learning-decider.asciidoc[]
+include::deciders/fixed-decider.asciidoc[]

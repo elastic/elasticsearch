@@ -206,7 +206,7 @@ public final class DefBootstrap {
                     throw new NullPointerException("member 'target' inside CallSite class missing 'type' property");
                 }
                 setTarget(target);
-                return target.invokeWithArguments(callArgs);
+                 return target.invokeWithArguments(callArgs);
             } else {
                 final Class<?> receiver = callArgs[0].getClass();
                 final MethodHandle target = lookup(flavor, name, receiver).asType(type());

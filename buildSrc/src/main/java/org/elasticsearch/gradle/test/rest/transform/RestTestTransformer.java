@@ -68,17 +68,17 @@ public class RestTestTransformer {
                     setupSection = test;
                 }
                 Map<String, ObjectKeyFinder> objectKeyFinders = transformations.stream()
-                    .filter(a -> a instanceof ObjectKeyFinder)
-                    .map(b -> (ObjectKeyFinder) b)
-                    .collect(Collectors.toMap(ObjectKeyFinder::getKeyToFind, d -> d));
+                    .filter(transform -> transform instanceof ObjectKeyFinder)
+                    .map(transform-> (ObjectKeyFinder) transform)
+                    .collect(Collectors.toMap(ObjectKeyFinder::getKeyToFind, transform -> transform));
 
                 transformByObjectKeyName(test, objectKeyFinders);
             }
         }
 
         List<RestTestSetupTransform> setupTransforms = transformations.stream()
-            .filter(a -> a instanceof RestTestSetupTransform)
-            .map(b -> (RestTestSetupTransform) b)
+            .filter(transform -> transform instanceof RestTestSetupTransform)
+            .map(transform -> (RestTestSetupTransform) transform)
             .collect(Collectors.toList());
 
         assert setupTransforms.isEmpty() || setupTransforms.size() == 1;

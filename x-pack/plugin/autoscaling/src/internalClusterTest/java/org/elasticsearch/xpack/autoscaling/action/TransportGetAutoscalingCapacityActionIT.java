@@ -6,9 +6,10 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
-import org.apache.lucene.util.Constants;
+import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
@@ -26,10 +27,12 @@ import static org.hamcrest.Matchers.greaterThan;
 public class TransportGetAutoscalingCapacityActionIT extends AutoscalingIntegTestCase {
 
     public void testCurrentCapacity() throws Exception {
-        boolean looksLikeDebian8 = Constants.LINUX && Constants.OS_VERSION.startsWith("3.16.0");
+        final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
+        final boolean anyDebian8Nodes =
+            response.getNodes().stream().anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
         boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
         // see: https://github.com/elastic/elasticsearch/issues/67089#issuecomment-756114654
-        assumeTrue("cannot run on debian 8 prior to java 15", java15Plus || looksLikeDebian8 == false);
+        assumeTrue("cannot run on debian 8 prior to java 15", java15Plus || anyDebian8Nodes == false);
 
         assertThat(capacity().results().keySet(), Matchers.empty());
         long memory = OsProbe.getInstance().getTotalPhysicalMemorySize();

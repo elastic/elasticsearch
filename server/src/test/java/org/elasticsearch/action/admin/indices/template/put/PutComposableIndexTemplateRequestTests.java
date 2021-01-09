@@ -69,6 +69,12 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
         assertThat(error, is("global composable templates may not specify the setting " + IndexMetadata.SETTING_INDEX_HIDDEN));
+
+        // Solve the NPE problem. See https://github.com/elastic/elasticsearch/issues/66949.
+        globalTemplate = new ComposableIndexTemplate(List.of("*"), null, null, null, null, null, null, null);
+        request.indexTemplate(globalTemplate);
+        validationException = request.validate();
+        assertNull(validationException);
     }
 
     public void testPutIndexTemplateV2RequestMustContainTemplate() {

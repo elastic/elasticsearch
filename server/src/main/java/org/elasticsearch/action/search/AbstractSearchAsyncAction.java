@@ -38,11 +38,14 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.transport.Transport;
@@ -478,7 +481,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             } else {
                 // the failure is already present, try and not override it with an exception that is less meaningless
                 // for example, getting illegal shard state
-                if (TransportActions.isReadOverrideException(e)) {
+                if (TransportActions.isReadOverrideException(e) && (e instanceof SearchContextMissingException == false)) {
                     shardFailures.set(shardIndex, new ShardSearchFailure(e, shardTarget));
                 }
             }
@@ -567,6 +570,16 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return request;
     }
 
+    @Override
+    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
+        final PointInTimeBuilder pointInTimeBuilder = request.pointInTimeBuilder();
+        if (pointInTimeBuilder != null) {
+            return request.pointInTimeBuilder().getSearchContextId(searchTransportService.getNamedWriteableRegistry()).contains(contextId);
+        } else {
+            return false;
+        }
+    }
+
     protected final SearchResponse buildSearchResponse(InternalSearchResponse internalSearchResponse, ShardSearchFailure[] failures,
                                                        String scrollId, String searchContextId) {
         int numSuccess = successfulOps.get();
@@ -598,7 +611,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 searchContextId = SearchContextId.encode(queryResults.asList(), aliasFilter, minNodeVersion);
             } else {
                 if (request.source() != null && request.source().pointInTimeBuilder() != null) {
-                    searchContextId = request.source().pointInTimeBuilder().getId();
+                    searchContextId = request.source().pointInTimeBuilder().getEncodedId();
                 } else {
                     searchContextId = null;
                 }
@@ -619,21 +632,19 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param exception the exception explaining or causing the phase failure
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
-        // we don't release persistent readers (point in time).
-        if (request.pointInTimeBuilder() == null) {
-            results.getSuccessfulResults().forEach((entry) -> {
-                if (entry.getContextId() != null) {
-                    try {
-                        SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
-                        Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                        sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
-                    } catch (Exception inner) {
-                        inner.addSuppressed(exception);
-                        logger.trace("failed to release context", inner);
-                    }
+        results.getSuccessfulResults().forEach((entry) -> {
+            // Do not release search contexts that are part of the point in time
+            if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
+                try {
+                    SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
+                    Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
+                    sendReleaseSearchContext(entry.getContextId(), connection, searchShardTarget.getOriginalIndices());
+                } catch (Exception inner) {
+                    inner.addSuppressed(exception);
+                    logger.trace("failed to release context", inner);
                 }
-            });
-        }
+            }
+        });
         Releasables.close(releasables);
         listener.onFailure(exception);
     }

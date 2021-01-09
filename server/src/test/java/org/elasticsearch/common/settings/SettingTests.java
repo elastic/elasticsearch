@@ -362,7 +362,7 @@ public class SettingTests extends ESTestCase {
         final Settings settings = Settings.builder().put("foo", "bar").build();
 
         final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> setting.get(settings));
-        assertNull(e.getCause());
+        assertThat(e, hasToString(containsString("No enum constant org.elasticsearch.common.settings.SettingTests.TestEnumSetting.BAR")));
     }
 
     public void testUpdateNotDynamic() {

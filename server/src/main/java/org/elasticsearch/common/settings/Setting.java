@@ -1378,7 +1378,7 @@ public class Setting<T> implements ToXContentObject {
      * @param clazz the enum class
      * @param key the key for the setting
      * @param defaultValue the default value for this setting
-     * @param properties properties properties for this setting like scope, filtering...
+     * @param properties properties for this setting like scope, filtering...
      * @param <T> the generics type parameter reflecting the actual type of the enum
      * @return the setting object
      */

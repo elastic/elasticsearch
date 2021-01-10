@@ -349,7 +349,6 @@ public class AttachmentProcessorTests extends ESTestCase {
 
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66086")
     public void testIndexedCharsWithResourceName() throws Exception {
         processor = new AttachmentProcessor(randomAlphaOfLength(10), null, "source_field",
             "target_field", EnumSet.allOf(AttachmentProcessor.Property.class), 100,
@@ -375,7 +374,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentData = parseDocument("text-cjk-euc-jp.txt", processor, Collections.singletonMap("max_length", 100), true);
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、\n我が黍を食らう無かれ！"));
+        assertThat(attachmentData.get("content").toString(), containsString("碩鼠よ碩鼠よ、" + System.lineSeparator() + "我が黍を食らう無かれ！"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_type").toString(), containsString("charset=EUC-JP"));
         assertThat(attachmentData.get("content_length"), is(100L));

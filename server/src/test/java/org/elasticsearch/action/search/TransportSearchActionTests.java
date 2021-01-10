@@ -975,7 +975,7 @@ public class TransportSearchActionTests extends ESTestCase {
             clusterState,
             OriginalIndices.NONE,
             null,
-            new SearchContextId(contexts, Map.of()),
+            new SearchContextId(contexts, Collections.emptyMap()),
             keepAlive
         );
         shardIterators.sort(Comparator.comparing(SearchShardIterator::shardId));

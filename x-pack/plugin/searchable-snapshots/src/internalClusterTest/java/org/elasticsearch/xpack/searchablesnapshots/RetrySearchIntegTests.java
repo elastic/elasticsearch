@@ -113,12 +113,12 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build())
-                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}")
+                .addMapping("_doc", "created_date", "type=date, format=yyyy-MM-dd")
         );
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         final int docCount = between(0, 100);
         for (int i = 0; i < docCount; i++) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("created_date", "2011-02-02"));
+            indexRequestBuilders.add(client().prepareIndex(indexName, "_doc").setSource("created_date", "2011-02-02"));
         }
         indexRandom(true, false, indexRequestBuilders);
         assertThat(
@@ -131,7 +131,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
         final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createRepository(repositoryName, "fs");
 
-        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", Collections.singletonList(indexName)).snapshotId();
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
         final int numberOfReplicas = between(0, 2);

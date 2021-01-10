@@ -50,7 +50,7 @@ public final class ShardSearchContextId implements Writeable {
         } else {
             this.sessionId = "";
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             this.searcherId = in.readOptionalString();
         } else {
             this.searcherId = null;
@@ -63,7 +63,7 @@ public final class ShardSearchContextId implements Writeable {
         if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
             out.writeString(sessionId);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalString(searcherId);
         }
     }

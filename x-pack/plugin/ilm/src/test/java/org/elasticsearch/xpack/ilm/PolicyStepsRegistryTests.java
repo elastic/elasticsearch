@@ -323,7 +323,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         Mockito.when(client.settings()).thenReturn(Settings.EMPTY);
         String policyName = randomAlphaOfLength(5);
         Map<String, LifecycleAction> actions = new HashMap<>();
-        actions.put("shrink", new ShrinkAction(1));
+        actions.put("shrink", new ShrinkAction(1, null));
         Map<String, Phase> phases = new HashMap<>();
         Phase warmPhase = new Phase("warm", TimeValue.ZERO, actions);
         PhaseExecutionInfo pei = new PhaseExecutionInfo(policyName, warmPhase, 1, randomNonNegativeLong());
@@ -332,7 +332,7 @@ public class PolicyStepsRegistryTests extends ESTestCase {
         LifecyclePolicy newPolicy = new LifecyclePolicy(policyName, phases);
         // Modify the policy
         actions = new HashMap<>();
-        actions.put("shrink", new ShrinkAction(2));
+        actions.put("shrink", new ShrinkAction(2, null));
         phases = new HashMap<>();
         phases.put("warm", new Phase("warm", TimeValue.ZERO, actions));
         LifecyclePolicy updatedPolicy = new LifecyclePolicy(policyName, phases);

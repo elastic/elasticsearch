@@ -71,7 +71,7 @@ public class ExplainLifecycleIT extends ESRestTestCase {
         {
             // Create a "shrink-only-policy"
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(17, null));
             Map<String, Phase> phases = new HashMap<>();
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
             LifecyclePolicy lifecyclePolicy = new LifecyclePolicy("shrink-only-policy", phases);

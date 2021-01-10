@@ -264,7 +264,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             PutLifecyclePolicyRequest putRequest = new PutLifecyclePolicyRequest(myPolicyAsPut);
 
             Map<String, Phase> otherPolicyPhases = new HashMap<>(phases);
-            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1));
+            Map<String, LifecycleAction> warmActions = Collections.singletonMap(ShrinkAction.NAME, new ShrinkAction(1, null));
             otherPolicyPhases.put("warm", new Phase("warm", new TimeValue(30, TimeUnit.DAYS), warmActions));
             otherPolicyAsPut = new LifecyclePolicy("other_policy", otherPolicyPhases);
 
@@ -614,7 +614,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         {
             Map<String, Phase> phases = new HashMap<>();
             Map<String, LifecycleAction> warmActions = new HashMap<>();
-            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3));
+            warmActions.put(ShrinkAction.NAME, new ShrinkAction(3, null));
             phases.put("warm", new Phase("warm", TimeValue.ZERO, warmActions));
 
             LifecyclePolicy policy = new LifecyclePolicy("my_policy",

@@ -156,7 +156,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Map<String, LifecycleAction> warmActions = new HashMap<>();
         warmActions.put(UnfollowAction.NAME, new UnfollowAction());
         warmActions.put(AllocateAction.NAME, new AllocateAction(null, null, null, Collections.singletonMap("_name", "node-1")));
-        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1));
+        warmActions.put(ShrinkAction.NAME, new ShrinkAction(1, null));
         warmActions.put(ForceMergeAction.NAME, new ForceMergeAction(1000));
         lifecyclePhases.put("warm", new Phase("warm", TimeValue.timeValueSeconds(1000), warmActions));
 

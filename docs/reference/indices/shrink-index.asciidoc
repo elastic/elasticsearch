@@ -53,7 +53,7 @@ PUT /my_source_index/_settings
 // TEST[s/^/PUT my_source_index\n{"settings":{"index.number_of_shards":2}}\n/]
 
 <1> Removes replica shards for the index.
-<2> Relocates the index's shards to the `shrink_node_name` node. 
+<2> Relocates the index's shards to the `shrink_node_name` node.
     See <<shard-allocation-filtering>>.
 <3> Prevents write operations to this index. Metadata changes, such as deleting
     the index, are still allowed.
@@ -227,3 +227,13 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-aliases]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=target-index-settings]
+
+`max_single_primary_shard_size`::
+(Optional, <<byte-units, byte units>>)
+The max single primary shard size of the target index, it's used to find an optimum shards number of the target index.
+When this parameter is set, each shard's storage of the target index will not be greater than the parameter,
+ while the shards number of the target index still be a factor of the source index's shards number. For example,
+when this parameter is set to `50GB`, if the source index has `60` primary shards with `100GB` storage, then the
+target index will have `2` primary shards, each shard's storage is `50GB`; if the source index has `60` primary shards
+with `1000GB` storage, then the target index will have `20` primary shards. This parameter is conflict with
+`number_of_shards` in the `settings` parameter, either of them can be set.

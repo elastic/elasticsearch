@@ -140,6 +140,7 @@ final class IndicesRequestConverters {
         parameters.withTimeout(closeIndexRequest.timeout());
         parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
+        parameters.withWaitForActiveShards(closeIndexRequest.waitForActiveShards());
         request.addParameters(parameters.asMap());
         return request;
     }

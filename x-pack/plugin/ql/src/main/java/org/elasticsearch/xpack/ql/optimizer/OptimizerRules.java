@@ -20,6 +20,8 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
@@ -57,6 +59,8 @@ import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.inCommo
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitAnd;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.splitOr;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.DIV;
+import static org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.DefaultBinaryArithmeticOperation.MUL;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 
@@ -226,6 +230,7 @@ public final class OptimizerRules {
         }
     }
 
+    // TODO: should this be renamed to just `LiteralsOnTheRight`? It swaps all literals, not just booleans. Or `MaybeLiteralsOnTheRight`?
     public static final class BooleanLiteralsOnTheRight extends OptimizerExpressionRule {
 
         public BooleanLiteralsOnTheRight() {
@@ -1134,6 +1139,51 @@ public final class OptimizerRules {
                 e = ((SurrogateFunction) e).substitute();
             }
             return e;
+        }
+    }
+
+    public static final class BubbleUpNegations extends OptimizerExpressionRule {
+
+        public BubbleUpNegations() {
+            super(TransformDirection.DOWN);
+        }
+
+        @Override
+        protected Expression rule(Expression e) {
+            if (e instanceof Neg) {
+                Expression child = ((Neg) e).field();
+                if (child instanceof ArithmeticOperation) { // cancels out NEG - MUL/DIV - NEG - x ==> MUL/DIV - x
+                    ArithmeticOperation operation = (ArithmeticOperation) child;
+                    if (isMulOrDiv(operation)) {
+                        if (operation.left() instanceof Neg) {
+                            return operation.replaceChildren(List.of(((Neg) operation.left()).field(), operation.right()));
+                        }
+                        if (operation.right() instanceof Neg) {
+                            return operation.replaceChildren(List.of(operation.left(), ((Neg) operation.right()).field()));
+                        }
+                    }
+                } else if (child instanceof Neg) { // cancels out NEG - NEG - x ==> x
+                    return ((Neg) child).field();
+                }
+            } else if (e instanceof ArithmeticOperation) { // pulls up MUL/DIV - NEG - x ==> NEG - MUL/DIV - x
+                ArithmeticOperation operation = (ArithmeticOperation) e;
+                if (isMulOrDiv(operation)) {
+                    if (operation.left() instanceof Neg) {
+                        Neg neg = (Neg) operation.left();
+                        return new Neg(operation.source(), operation.replaceChildren(List.of(neg.field(), operation.right())));
+                    }
+                    if (operation.right() instanceof Neg) {
+                        Neg neg = (Neg) operation.right();
+                        return new Neg(operation.source(), operation.replaceChildren(List.of(operation.left(), neg.field())));
+                    }
+                }
+            }
+            return e;
+        }
+
+        public static boolean isMulOrDiv(ArithmeticOperation operation) {
+            String opSymbol = operation.symbol();
+            return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
         }
     }
 

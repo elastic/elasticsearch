@@ -87,3 +87,7 @@ orderByModulo
 SELECT emp_no FROM test_emp ORDER BY emp_no % 10000 LIMIT 10;
 orderByMul
 SELECT emp_no FROM test_emp ORDER BY emp_no * 2 LIMIT 10;
+
+// negations optimiser
+multipleNegations
+SELECT emp_no FROM test_emp WHERE ((1000000000 / -salary) / 2) * (-1 / (2 / -emp_no::FLOAT)) / -1000 >= 50000;

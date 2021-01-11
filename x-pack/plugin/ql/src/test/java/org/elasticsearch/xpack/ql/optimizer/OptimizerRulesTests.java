@@ -20,9 +20,11 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Add;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Mul;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
@@ -52,6 +54,7 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Function;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyMap;
@@ -69,6 +72,7 @@ import static org.elasticsearch.xpack.ql.TestUtils.rangeOf;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.NULL;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
+import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BubbleUpNegations;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ReplaceRegexMatch;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
@@ -1027,7 +1031,7 @@ public class OptimizerRulesTests extends ESTestCase {
         Expression exp = rule.rule(or);
         assertEquals(r2, exp);
     }
-    
+
     public void testBinaryComparisonAndOutOfRangeNotEqualsDifferentFields() {
         FieldAttribute doubleOne = fieldAttribute("double", DOUBLE);
         FieldAttribute doubleTwo = fieldAttribute("double2", DOUBLE);
@@ -1045,12 +1049,12 @@ public class OptimizerRulesTests extends ESTestCase {
             new And(EMPTY, notEqualsOf(keywordOne, L("2021")), lessThanOrEqualOf(datetimeOne, L("2020-12-04T17:48:22.954240Z"))),
             // double > 10.1 AND double2 != -10.1
             new And(EMPTY, greaterThanOf(doubleOne, L(10.1d)), notEqualsOf(doubleTwo, L(-10.1d))));
-        
+
         for (And and : testCases) {
             CombineBinaryComparisons rule = new CombineBinaryComparisons();
             Expression exp = rule.rule(and);
             assertEquals("Rule should not have transformed [" + and.nodeString() + "]", and, exp);
-        }   
+        }
     }
 
     // Equals & NullEquals
@@ -1536,5 +1540,34 @@ public class OptimizerRulesTests extends ESTestCase {
         In in = (In) or.right();
         assertEquals(fa, in.value());
         assertThat(in.list(), contains(one, three));
+    }
+
+    public void testBubbleUpNegation() {
+        for (Function<Expression, Expression> f : List.<Function<Expression, Expression>>of(x -> new Div(EMPTY, TWO, x),
+            x -> new Mul(EMPTY, TWO, x))) {
+            FieldAttribute fa = getFieldAttribute();
+            Neg neg = new Neg(fa.source(), fa);
+            Expression op = f.apply(neg);
+
+            Expression e = new BubbleUpNegations().rule(op);
+            assertEquals(Neg.class, e.getClass());
+            Neg upperNeg = (Neg) e;
+            assertEquals(op.getClass(), upperNeg.field().getClass());
+            ArithmeticOperation newOp = (ArithmeticOperation) upperNeg.field();
+            assertEquals(TWO, newOp.left());
+            assertEquals(FieldAttribute.class, newOp.right().getClass());
+            FieldAttribute divFa = (FieldAttribute) newOp.right();
+            assertEquals(fa, divFa);
+        }
+    }
+
+    public void testCancelDoubleNegation() {
+        FieldAttribute fa = getFieldAttribute();
+        Neg innerNeg = new Neg(fa.source(), fa);
+        Neg outerNeg = new Neg(innerNeg.source(), innerNeg);
+
+        Expression e = new BubbleUpNegations().rule(outerNeg);
+        assertEquals(FieldAttribute.class, e.getClass());
+        assertEquals(fa, e);
     }
 }

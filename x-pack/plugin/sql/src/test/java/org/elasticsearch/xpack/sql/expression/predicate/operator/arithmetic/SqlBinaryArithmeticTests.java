@@ -136,7 +136,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     public void testAddNumberToIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> add(r, L(1)));
-        assertEquals("Cannot compute [+] between [IntervalDayTime] [Integer]", expect.getMessage());
+        assertEquals("Cannot compute [+] between [IntervalDayTime] and [Integer]", expect.getMessage());
     }
 
     public void testSubYearMonthIntervals() {
@@ -210,7 +210,7 @@ public class SqlBinaryArithmeticTests extends ESTestCase {
     public void testSubNumberFromIntervalIllegal() {
         Literal r = interval(Duration.ofHours(2), INTERVAL_HOUR);
         QlIllegalArgumentException expect = expectThrows(QlIllegalArgumentException.class, () -> sub(r, L(1)));
-        assertEquals("Cannot compute [-] between [IntervalDayTime] [Integer]", expect.getMessage());
+        assertEquals("Cannot compute [-] between [IntervalDayTime] and [Integer]", expect.getMessage());
     }
 
     public void testMulIntervalNumber() {

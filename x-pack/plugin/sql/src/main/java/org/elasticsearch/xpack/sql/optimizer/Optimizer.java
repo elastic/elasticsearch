@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEq
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BubbleUpNegations;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerExpressionRule;
@@ -148,6 +149,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
                 new CombineDisjunctionsToIn(),
+                new BubbleUpNegations(),
                 // prune/elimination
                 new PruneLiteralsInGroupBy(),
                 new PruneDuplicatesInGroupBy(),
@@ -158,7 +160,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new PruneCast(),
                 // order by alignment of the aggs
                 new SortAggregateOnOrderBy()
-                );
+        );
 
         Batch aggregate = new Batch("Aggregation Rewrite",
                 new ReplaceMinMaxWithTopHits(),

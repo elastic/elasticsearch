@@ -278,6 +278,7 @@ POST _ml/find_file_structure
 {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
 {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 ----
+// TEST[warning:[POST /_ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure] instead.]
 
 If the request does not encounter errors, you receive the following result:
 

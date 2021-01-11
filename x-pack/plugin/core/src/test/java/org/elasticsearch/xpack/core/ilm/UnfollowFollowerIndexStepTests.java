@@ -66,7 +66,7 @@ public class UnfollowFollowerIndexStepTests extends AbstractUnfollowIndexStepTes
         assertThat(failure[0], nullValue());
     }
 
-    public void testResponseNotAcknowledged() {
+    public void testRequestNotAcknowledged() {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())

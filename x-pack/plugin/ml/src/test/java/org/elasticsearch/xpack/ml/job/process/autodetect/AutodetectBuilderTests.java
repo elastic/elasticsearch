@@ -117,19 +117,15 @@ public class AutodetectBuilderTests extends ESTestCase {
     }
 
     public void testBuildAutodetectCommand_givenPersistModelState() {
-        settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(AutodetectBuilder.DONT_PERSIST_MODEL_STATE_SETTING.getKey(), true).build();
+
         Job.Builder job = buildJobBuilder("unit-test-job");
 
         int expectedPersistInterval = 10800 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
 
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertFalse(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
-
         settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
         env = TestEnvironment.newEnvironment(settings);
 
-        command = autodetectBuilder(job.build()).buildAutodetectCommand();
+        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
         assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
     }
 

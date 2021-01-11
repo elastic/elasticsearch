@@ -7,34 +7,48 @@
 package org.elasticsearch.index.engine;
 
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateStalePrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.frozen.FreezeRequest;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.frozen.action.FreezeIndexAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.frozen.FrozenIndices;
 import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
@@ -170,4 +184,56 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
     }
 
+    public void testRetryPointInTime() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(1);
+        final List<String> dataNodes =
+            StreamSupport.stream(internalCluster().clusterService().state().nodes().getDataNodes().spliterator(), false)
+                .map(e -> e.value.getName())
+                .collect(Collectors.toList());
+        final String assignedNode = randomFrom(dataNodes);
+        final String indexName = "test";
+        assertAcked(
+            client().admin().indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.routing.allocation.require._name", assignedNode)
+                    .build())
+                .setMapping("{\"properties\":{\"created_date\":{\"type\": \"date\", \"format\": \"yyyy-MM-dd\"}}}"));
+        int numDocs = randomIntBetween(1, 100);
+        for (int i = 0; i < numDocs; i++) {
+            client().prepareIndex(indexName).setSource("created_date", "2011-02-02").get();
+        }
+        assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName)).actionGet());
+        final String pitId = client().execute(OpenPointInTimeAction.INSTANCE,
+            new OpenPointInTimeRequest(new String[]{indexName}, IndicesOptions.STRICT_EXPAND_OPEN_FORBID_CLOSED,
+                TimeValue.timeValueMinutes(2), null, null)).actionGet().getSearchContextId();
+        try {
+            SearchResponse resp = client().prepareSearch()
+                .setIndices(indexName)
+                .setPreference(null)
+                .setPointInTime(new PointInTimeBuilder(pitId))
+                .get();
+            assertNoFailures(resp);
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertHitCount(resp, numDocs);
+            internalCluster().restartNode(assignedNode);
+            ensureGreen(indexName);
+            resp = client().prepareSearch()
+                .setIndices(indexName)
+                .setQuery(new RangeQueryBuilder("created_date").gte("2011-01-01").lte("2011-12-12"))
+                .setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setPreference(null)
+                .setPreFilterShardSize(between(1, 10))
+                .setAllowPartialSearchResults(true)
+                .setPointInTime(new PointInTimeBuilder(pitId))
+                .get();
+            assertNoFailures(resp);
+            assertThat(resp.pointInTimeId(), equalTo(pitId));
+            assertHitCount(resp, numDocs);
+        } finally {
+            assertAcked(client().execute(FreezeIndexAction.INSTANCE, new FreezeRequest(indexName).setFreeze(false)).actionGet());
+            client().execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId)).actionGet();
+        }
+    }
 }

@@ -39,10 +39,7 @@ automatically, just by indexing a document. You can add fields to the top-level
 mapping, and to inner <<object,`object`>>  and <<nested,`nested`>> fields.
 
 Use <<dynamic-templates,dynamic templates>> to define custom mappings that are
-applied to dynamically added fields based on the matching condition. You can
-<<match-mapping-runtime-fields,map runtime fields in a dynamic template>>
-so that new fields are automatically added to the index mapping as runtime
-fields.
+applied to dynamically added fields based on the matching condition.
 
 [discrete]
 [[mapping-explicit]]
@@ -56,10 +53,10 @@ define the mapping definition, such as:
 * Custom rules to control the mapping for
   <<dynamic-mapping,dynamically added fields>>.
 
-<<runtime-mapping-fields,Explicitly mapping runtime fields>> allows you to make
-schema changes without reindexing. You can use runtime fields in conjunction
-with indexed fields to balance resource usage and performance. Your index will
-be smaller, but with slower search performance.
+Use <<runtime-mapping-fields,runtime fields>> to make schema changes without
+reindexing. You can use runtime fields in conjunction with indexed fields to
+balance resource usage and performance. Your index will be smaller, but with
+slower search performance.
 
 [discrete]
 [[mapping-limit-settings]]

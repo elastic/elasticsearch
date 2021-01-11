@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -493,7 +494,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            assertThat(getNumberOfSegments(client(), index), equalTo(1));
+            assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
@@ -503,7 +504,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         forceMergeActionWithCodec(null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65171")
     public void testForceMergeActionWithCompressionCodec() throws Exception {
         forceMergeActionWithCodec("best_compression");
     }

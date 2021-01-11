@@ -538,7 +538,7 @@ public class Node implements Closeable {
                     indicesService,
                     clusterModule.getAllocationService(),
                     aliasValidator,
-                shardLimitValidator,
+                    shardLimitValidator,
                     environment,
                     settingsModule.getIndexScopedSettings(),
                     threadPool,

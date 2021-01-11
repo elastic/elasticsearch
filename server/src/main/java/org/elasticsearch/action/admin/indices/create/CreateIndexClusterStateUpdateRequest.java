@@ -40,6 +40,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final String index;
     private String dataStreamName;
     private final String providedName;
+    private long nameResolvedAt;
     private Index recoverFrom;
     private ResizeType resizeType;
     private boolean copySettings;
@@ -53,6 +54,7 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     private final Set<ClusterBlock> blocks = new HashSet<>();
 
     private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+
 
     public CreateIndexClusterStateUpdateRequest(String cause, String index, String providedName) {
         this.cause = cause;
@@ -95,6 +97,14 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
         return this;
     }
 
+    /**
+     * At what point in time the provided name was resolved into the index name
+     */
+    public CreateIndexClusterStateUpdateRequest nameResolvedInstant(long nameResolvedAt) {
+        this.nameResolvedAt = nameResolvedAt;
+        return this;
+    }
+
     public String cause() {
         return cause;
     }
@@ -130,6 +140,11 @@ public class CreateIndexClusterStateUpdateRequest extends ClusterStateUpdateRequ
     public String getProvidedName() {
         return providedName;
     }
+
+    /**
+     * The instant at which the name provided by the user was resolved
+     */
+    public long getNameResolvedAt() { return nameResolvedAt;}
 
     public ActiveShardCount waitForActiveShards() {
         return waitForActiveShards;

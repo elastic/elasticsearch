@@ -487,7 +487,8 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
@@ -520,7 +521,8 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -566,7 +568,8 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap()),
+                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt())),
             List.of(), metadataTransformer);
     }
 
@@ -767,6 +770,7 @@ public class MetadataCreateIndexService {
                                                                 List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
                                                                 AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
                                                                 QueryShardContext queryShardContext) {
+
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);
@@ -811,6 +815,30 @@ public class MetadataCreateIndexService {
             }
         }
         return resolvedAliases;
+    }
+
+    /**
+     * Validate and resolve the aliases explicitly set for the index, together with the ones inherited from the specified
+     * templates.
+     *
+     * The template mappings are applied in the order they are encountered in the list (clients should make sure the lower index, closer
+     * to the head of the list, templates have the highest {@link IndexTemplateMetadata#order()})
+     *
+     * @return the list of resolved aliases, with the explicitly provided aliases occurring first (having a higher priority) followed by
+     * the ones inherited from the templates
+     */
+    public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
+                                                                List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
+                                                                AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
+                                                                QueryShardContext queryShardContext, Function<String, String> indexNameExpressionResolver) {
+
+        Set<Alias> dateMathExpressionResolvedAliases = new HashSet<>();
+        for (Alias alias : aliases) {
+            String resolvedName = indexNameExpressionResolver.apply(alias.name());
+            dateMathExpressionResolvedAliases.add(alias.name(resolvedName));
+        }
+
+        return resolveAndValidateAliases(index, dateMathExpressionResolvedAliases, templateAliases, metadata, aliasValidator, xContentRegistry, queryShardContext);
     }
 
     /**

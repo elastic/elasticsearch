@@ -73,23 +73,27 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             cause = "api";
         }
 
-        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+
+        IndexNameExpressionResolver.ResolvedContext resolvedContext = indexNameExpressionResolver.resolveDateMathExpressionAndInstant(request.index());
+        final String indexName = resolvedContext.name();
+        final long resolvedAt = resolvedContext.instant();
 
         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
         final CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
             ? buildSystemIndexUpdateRequest(request, cause, descriptor)
-            : buildUpdateRequest(request, cause, indexName);
+            : buildUpdateRequest(request, cause, indexName, resolvedAt);
 
         createIndexService.createIndex(updateRequest, listener.map(response ->
             new CreateIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged(), indexName)));
     }
 
-    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause, String indexName) {
+    private CreateIndexClusterStateUpdateRequest buildUpdateRequest(CreateIndexRequest request, String cause, String indexName, long nameResolvedAt) {
         return new CreateIndexClusterStateUpdateRequest(cause, indexName, request.index()).ackTimeout(request.timeout())
             .masterNodeTimeout(request.masterNodeTimeout())
             .settings(request.settings())
             .mappings(request.mappings())
             .aliases(request.aliases())
+            .nameResolvedInstant(nameResolvedAt)
             .waitForActiveShards(request.waitForActiveShards());
     }
 

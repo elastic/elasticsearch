@@ -105,18 +105,22 @@ public class MetadataIndexTemplateService {
     private final MetadataCreateIndexService metadataCreateIndexService;
     private final IndexScopedSettings indexScopedSettings;
     private final NamedXContentRegistry xContentRegistry;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
 
     @Inject
     public MetadataIndexTemplateService(ClusterService clusterService,
                                         MetadataCreateIndexService metadataCreateIndexService,
                                         AliasValidator aliasValidator, IndicesService indicesService,
-                                        IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry) {
+                                        IndexScopedSettings indexScopedSettings, NamedXContentRegistry xContentRegistry,
+                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         this.clusterService = clusterService;
         this.aliasValidator = aliasValidator;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
         this.indexScopedSettings = indexScopedSettings;
         this.xContentRegistry = xContentRegistry;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
@@ -256,7 +260,7 @@ public class MetadataIndexTemplateService {
                 final ComposableIndexTemplate composableTemplate = entry.getValue();
                 try {
                     validateCompositeTemplate(tempStateWithComponentTemplateAdded, composableTemplateName,
-                        composableTemplate, indicesService, xContentRegistry);
+                        composableTemplate, indicesService, xContentRegistry, indexNameExpressionResolver);
                 } catch (Exception e) {
                     if (validationFailure == null) {
                         validationFailure = new IllegalArgumentException("updating component template [" + name +
@@ -498,7 +502,7 @@ public class MetadataIndexTemplateService {
         // Finally, right before adding the template, we need to ensure that the composite settings,
         // mappings, and aliases are valid after it's been composed with the component templates
         try {
-            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry);
+            validateCompositeTemplate(currentState, name, finalIndexTemplate, indicesService, xContentRegistry, indexNameExpressionResolver);
         } catch (Exception e) {
             throw new IllegalArgumentException("composable template [" + name +
                 "] template after composition " +
@@ -1080,7 +1084,8 @@ public class MetadataIndexTemplateService {
                                                   final String templateName,
                                                   final ComposableIndexTemplate template,
                                                   final IndicesService indicesService,
-                                                  final NamedXContentRegistry xContentRegistry) throws Exception {
+                                                  final NamedXContentRegistry xContentRegistry,
+                                                  final IndexNameExpressionResolver indexNameExpressionResolver) throws Exception {
         final ClusterState stateWithTemplate = ClusterState.builder(state)
             .metadata(Metadata.builder(state.metadata()).put(templateName, template))
             .build();
@@ -1111,6 +1116,7 @@ public class MetadataIndexTemplateService {
                 .build())
             .build();
         final IndexMetadata tmpIndexMetadata = stateWithIndex.metadata().index(temporaryIndexName);
+
         indicesService.withTempIndexService(tmpIndexMetadata,
             tempIndexService -> {
                 // Validate aliases
@@ -1119,7 +1125,7 @@ public class MetadataIndexTemplateService {
                     new AliasValidator(),
                     // the context is only used for validation so it's fine to pass fake values for the
                     // shard id and the current timestamp
-                    xContentRegistry, tempIndexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap()));
+                    xContentRegistry, tempIndexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())); //TXX Will this work ?
 
                 // triggers inclusion of _timestamp field and its validation:
                 String indexName = DataStream.BACKING_INDEX_PREFIX + temporaryIndexName;

@@ -113,7 +113,7 @@ public class RetrySearchIntegTests extends BaseSearchableSnapshotsIntegTestCase 
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build())
-                .addMapping("_doc", "created_date", "type=date, format=yyyy-MM-dd")
+                .addMapping("_doc", "created_date", "type=date,format=yyyy-MM-dd")
         );
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         final int docCount = between(0, 100);

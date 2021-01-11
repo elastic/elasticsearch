@@ -27,6 +27,10 @@
 ---
 "Closed index":
 
+  - skip:
+      version: " - 7.1.99"
+      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
+
   - do:
       indices.create:
           index:  index_closed

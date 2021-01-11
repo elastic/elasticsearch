@@ -103,6 +103,7 @@ import java.util.stream.Collectors;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.rest.action.admin.indices.RestCloseIndexAction.WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -1257,7 +1258,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     protected static void closeIndex(String index) throws IOException {
         final Request closeRequest = new Request("POST", "/" + index + "/_close");
-        closeRequest.addParameter("wait_for_active_shards", "0");
+        closeRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            v.current(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+            v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
+        }));
         assertOK(client().performRequest(closeRequest));
     }
 

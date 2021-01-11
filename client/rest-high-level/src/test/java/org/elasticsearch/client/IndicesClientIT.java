@@ -50,6 +50,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -904,6 +905,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         }
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+        closeIndexRequest.waitForActiveShards(ActiveShardCount.from(0));
         CloseIndexResponse closeIndexResponse = execute(closeIndexRequest,
             highLevelClient().indices()::close, highLevelClient().indices()::closeAsync);
         assertTrue(closeIndexResponse.isAcknowledged());
@@ -926,6 +928,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
         assertFalse(indexExists(nonExistentIndex));
 
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(nonExistentIndex);
+        closeIndexRequest.waitForActiveShards(ActiveShardCount.from(0));
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
                 () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
         assertEquals(RestStatus.NOT_FOUND, exception.status());
@@ -934,6 +937,7 @@ public class IndicesClientIT extends ESRestHighLevelClientTestCase {
     public void testCloseEmptyOrNullIndex() {
         String[] indices = randomBoolean() ? Strings.EMPTY_ARRAY : null;
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest(indices);
+        closeIndexRequest.waitForActiveShards(ActiveShardCount.from(0));
         org.elasticsearch.client.ValidationException exception = expectThrows(org.elasticsearch.client.ValidationException.class,
             () -> execute(closeIndexRequest, highLevelClient().indices()::close, highLevelClient().indices()::closeAsync));
         assertThat(exception.validationErrors().get(0), equalTo("index is missing"));

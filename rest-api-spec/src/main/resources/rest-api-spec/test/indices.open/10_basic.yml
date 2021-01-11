@@ -1,5 +1,9 @@
 ---
 "Basic test for index open/close":
+  - skip:
+      version: " - 7.1.99"
+      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
+
   - do:
       indices.create:
         index: test_index
@@ -40,8 +44,8 @@
 ---
 "Open index with wait_for_active_shards set to all":
   - skip:
-      version: " - 6.0.99"
-      reason: wait_for_active_shards parameter was added in 6.1.0
+      version: " - 7.1.99"
+      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
 
   - do:
       indices.create:

@@ -19,8 +19,6 @@
 package org.elasticsearch.benchmark.time;
 
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.joda.Joda;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -32,7 +30,6 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
-import java.time.temporal.TemporalAccessor;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
@@ -47,6 +44,7 @@ public class ParsedMediaTypeBenchmark {
 
     IndexRequest oldIndexRequest = new IndexRequest("oldindex");
     IndexRequest newIndexRequest = new IndexRequest("oldindex");
+
     @Benchmark
     public IndexRequest oldIndexRequest() {
         return oldIndexRequest.sourceOld(Collections.emptyMap(), XContentType.JSON);

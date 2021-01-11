@@ -178,7 +178,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     //old
     public XContentBuilder(XContent xContent, OutputStream bos, Object xxx) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), ParsedMediaType.parseMediaType(xContent.type().mediaTypeWithoutParameters()));
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(),
+            ParsedMediaType.parseMediaType(xContent.type().mediaTypeWithoutParameters()));
     }
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
         this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType());

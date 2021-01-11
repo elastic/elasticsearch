@@ -510,7 +510,7 @@ public class HttpRequest implements ToXContentObject {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              XContentBuilder filteredBuilder = new XContentBuilder(xContentType.xContent(), bos,
                  Collections.emptySet(), Collections.singleton(excludeField),
-                 ParsedMediaType.parseMediaType(xContentType.mediaType()))) {
+                 xContentType.toParsedMediaType())) {
             request.toXContent(filteredBuilder, params);
             filteredBuilder.flush();
             return new ByteArrayInputStream(bos.toByteArray());

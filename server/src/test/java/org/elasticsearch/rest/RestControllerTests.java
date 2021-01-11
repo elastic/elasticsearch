@@ -732,7 +732,7 @@ public class RestControllerTests extends ESTestCase {
 
     private String randomCompatibleMimeType(byte version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
-        return ParsedMediaType.parseMediaType(type.mediaType())
+        return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));
     }
 

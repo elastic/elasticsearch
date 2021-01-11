@@ -107,7 +107,7 @@ public class ParsedMediaType {
     }
 
     public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
-        ParsedMediaType parsedMediaType = parseMediaType(requestContentType.mediaTypeWithoutParameters());
+        ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
         parsedMediaType.parameters.putAll(parameters);
         return parsedMediaType;
     }

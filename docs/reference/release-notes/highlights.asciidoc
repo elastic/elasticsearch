@@ -25,6 +25,7 @@ Other versions:
 | {ref-bare}/7.0/release-highlights-7.0.0.html[7.0]
 
 
+
 // Use the notable-highlights tag to mark entries that
 // should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]

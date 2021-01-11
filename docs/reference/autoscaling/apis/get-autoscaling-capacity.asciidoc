@@ -40,10 +40,10 @@ The operator should verify that the `current_nodes` match
 the operator's knowledge of the cluster to avoid making autoscaling decisions
 based on stale or incomplete information.
 
-The response contains decider specific information, helping to diagnose how/why
-autoscaling determined a certain capacity was required. This information should
-not be relied upon for making autoscaling decisions, it's intended use is only
-for diagnosing the autoscaling decision.
+The response contains decider-specific information you can use to diagnose how
+and why autoscaling determined a certain capacity was required. This information
+is provided for diagnosis only. Do not use this information to make autoscaling
+decisions.
 
 [role="child_attributes"]
 [[autoscaling-get-autoscaling-capacity-api-response-body]]
@@ -65,42 +65,42 @@ Contains capacity information for the policy
 =====
 `required_capacity`::
 (object)
-Contains the required capacity for the policy
+Contains the required capacity for the policy.
 +
 .Properties of `required_capacity`
 [%collapsible%open]
 ======
 `node`::
 (object)
-Contains the minimum node sizes required per node (ensuring that individual
-shards or ML jobs can fit into a single node)
+Contains the minimum node sizes required per node, ensuring that individual
+shards or ML jobs can fit into a single node.
 +
 .Properties of `node`
 [%collapsible%open]
 =======
 `storage`::
 (integer)
-Contains the amount of storage required per node, in bytes
+Bytes of storage required per node.
 
 `memory`::
 (integer)
-Contains the amount of memory required per node, in bytes
+Bytes of memory required per node.
 
 =======
 `total`::
 (object)
-Contains the total size required for the policy
+Contains the total size required for the policy.
 +
 .Properties of `total`
 [%collapsible%open]
 =======
 `storage`::
 (integer)
-Contains the amount of storage required total for the policy, in bytes
+Total bytes of storage required for the policy.
 
 `memory`::
 (integer)
-Contains the amount of memory required total for the policy, in bytes
+Total bytes of memory required for the policy.
 =======
 ======
 `current_capacity`::
@@ -113,7 +113,7 @@ that {es} bases its calculation on.
 ======
 `node`::
 (object)
-Contains the maximum sizes of nodes governed by the policy
+Contains the maximum sizes of nodes governed by the policy.
 +
 .Properties of `node`
 [%collapsible%open]
@@ -129,30 +129,30 @@ Maximum bytes of memory of a node.
 =======
 `total`::
 (object)
-Contains the current total sizes for nodes governed by the policy
+Contains the current total storage and memory sizes for nodes governed by the policy.
 +
 .Properties of `total`
 [%collapsible%open]
 =======
 `storage`::
 (integer)
-Contains the current total amount of storage available for the policy, in bytes
+Current bytes of storage available for the policy.
 
 `memory`::
 (integer)
-Contains the current total amount of memory available for the policy, in bytes
+Current bytes of memory available for the policy.
 =======
 ======
 `current_nodes`::
 (array of objects)
-List of current nodes that {es} used as basis for the capacity calculation
+List of nodes used for capacity calculation.
 +
 .Properties of elements in `current_nodes`
 [%collapsible%open]
 ======
 `name`::
 (string)
-The name of the node
+Name of the node.
 ======
 `deciders`::
 (object)
@@ -164,60 +164,60 @@ outer level `required_capacity` was calculated.
 =======
 `<decider_name>`::
 (object)
-The capacity result for a specific decider that is enabled for the policy
+The capacity result for a specific decider enabled for the policy.
 +
 .Properties of `<decider_name>`
 [%collapsible%open]
 ========
 `required_capacity`::
 (object)
-The required capacity determined by the decider
+Required capacity determined by the decider.
 +
 .Properties of `required_capacity`
 [%collapsible%open]
 =========
 `node`::
 (object)
-Contains the minimum node sizes required per node (ensuring that individual
-shards or ML jobs can fit into a single node)
+Contains the minimum node sizes required per node, ensuring that individual
+shards or {ml} jobs can fit into a single node.
 +
 .Properties of `node`
 [%collapsible%open]
 ==========
 `storage`::
 (integer)
-Contains the amount of storage required per node, in bytes
+Bytes of storage required per node.
 
 `memory`::
 (integer)
-Contains the amount of memory required per node, in bytes
+Bytes of memory required per node.
 
 ==========
 `total`::
 (object)
-Contains the total size required for the policy
+Contains the total size required for the policy.
 +
 .Properties of `total`
 [%collapsible%open]
 ==========
 `storage`::
 (integer)
-Contains the amount of storage required total for the policy, in bytes
+Total bytes of storage required for the policy.
 
 `memory`::
 (integer)
-Contains the amount of memory required total for the policy, in bytes
+Total bytes of memory required for the policy.
 ==========
 =========
 `reason_summary`::
 (string)
-A textual description of the basis for the decider's result
+Description of the basis for the decider's result.
 
 `reason_details`::
 (object)
-A per decider structure containing details forming the basis for the deciders' result.
+A per-decider structure containing details about the basis for the deciders' result.
 The contents should not be relied on for application purposes and are not subject
-to normal backwards compatibility guarantees.
+to backwards compatibility guarantees.
 ========
 =======
 =====

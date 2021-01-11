@@ -47,11 +47,9 @@ You can open and close multiple indices. An error is thrown
 if the request explicitly refers to a missing index. This behaviour can be
 disabled using the `ignore_unavailable=true` parameter.
 
-All indices can be opened or closed at once using `_all` as the index name
-or specifying patterns that identify them all (e.g. `*`).
 
-By default, you must explicitly name the indices you are adding blocks to.
-To allow the adding of blocks to indices with `_all`, `*``, or other wildcard
+By default, you must explicitly name the indices you are opening or closing.
+To open or close indices with `_all`, `*``, or other wildcard
 expressions, change the `action.destructive_requires_name` setting to `false`.
 This setting can also be changed via the cluster update settings api.
 
@@ -88,10 +86,9 @@ index creation applies to the `_open` and `_close` index actions as well.
 Comma-separated list of data streams, indices, and index aliases used to limit
 the request. Wildcard (`*`) expressions are supported.
 +
-To target all data streams and indices, use `_all` or `*`.
 +
-By default, you must explicitly name the indices you are adding blocks to.
-To allow the adding of blocks to indices with `_all`, `*``, or other wildcard
+By default, you must explicitly name the indices you using to limit the request.
+To limit a request using `_all`, `*``, or other wildcard
 expressions, change the `action.destructive_requires_name` setting to `false`.
 You can update this setting in the `elasticsearch.yml` file
 or using the <<cluster-update-settings,cluster update settings>> API.

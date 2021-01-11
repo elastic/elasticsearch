@@ -149,7 +149,7 @@ check the number of shards per node.
 
 [source,console]
 ----
-GET _cat/shards
+GET _cat/shards?v=true
 ----
 // TEST[setup:my_index]
 
@@ -218,7 +218,7 @@ You can find these empty indices using the <<cat-count,cat count API>>.
 
 [source,console]
 ----
-GET /_cat/count/my-index-000001?v
+GET /_cat/count/my-index-000001?v=true
 ----
 // TEST[setup:my_index]
 

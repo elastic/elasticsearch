@@ -59,6 +59,12 @@ interface SearchPhaseContext extends Executor {
     SearchRequest getRequest();
 
     /**
+     * Checks if the given context id is part of the point in time of this search (if exists).
+     * We should not release search contexts that belong to the point in time during or after searches.
+     */
+    boolean isPartOfPointInTime(ShardSearchContextId contextId);
+
+    /**
      * Builds and sends the final search response back to the user.
      *
      * @param internalSearchResponse the internal search response
@@ -108,6 +114,7 @@ interface SearchPhaseContext extends Executor {
     default void sendReleaseSearchContext(ShardSearchContextId contextId,
                                           Transport.Connection connection,
                                           OriginalIndices originalIndices) {
+        assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }

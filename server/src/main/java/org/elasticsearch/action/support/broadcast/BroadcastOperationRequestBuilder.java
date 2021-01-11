@@ -19,10 +19,11 @@
 
 package org.elasticsearch.action.support.broadcast;
 
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.common.unit.TimeValue;
 
 public abstract class BroadcastOperationRequestBuilder<
             Request extends BroadcastRequest<Request>,
@@ -43,6 +44,12 @@ public abstract class BroadcastOperationRequestBuilder<
     @SuppressWarnings("unchecked")
     public final RequestBuilder setIndicesOptions(IndicesOptions indicesOptions) {
         request.indicesOptions(indicesOptions);
+        return (RequestBuilder) this;
+    }
+
+    @SuppressWarnings("unchecked")
+    public RequestBuilder setTimeout(TimeValue timeout) {
+        request.timeout(timeout);
         return (RequestBuilder) this;
     }
 }

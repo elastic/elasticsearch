@@ -3,8 +3,8 @@
 [[autoscaling-machine-learning-decider]]
 === Machine learning decider
 
-The machine learning decider (`ml`) calculates the required memory to run the
-set of machine learning jobs created by users.
+The {ml} decider (`ml`) calculates the memory required to run
+{ml} jobs created by users.
 
 It is enabled for policies governing `ml` nodes and has following
 configuration options:
@@ -53,5 +53,4 @@ DELETE /_autoscaling/policy/my_autoscaling_policy
 // TEST[continued]
 
 //////////////////////////
-
 

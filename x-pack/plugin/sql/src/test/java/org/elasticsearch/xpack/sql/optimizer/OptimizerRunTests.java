@@ -250,7 +250,7 @@ public class OptimizerRunTests extends ESTestCase {
         List<Expression> resolvedFields = fieldAttributeExp.collectFirstChildren(x -> x instanceof FieldAttribute);
         for (Expression field : resolvedFields) {
             FieldAttribute fa = (FieldAttribute) field;
-            unresolvedUpdated = unresolvedUpdated.transformDown(x -> x.name().equals(fa.name()) ? fa : x, UnresolvedAttribute.class);
+            unresolvedUpdated = unresolvedUpdated.transformDown(UnresolvedAttribute.class, x -> x.name().equals(fa.name()) ? fa : x);
         }
 
         assertTrue(unresolvedUpdated.semanticEquals(fieldAttributeExp));

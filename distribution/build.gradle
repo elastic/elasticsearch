@@ -675,6 +675,7 @@ subprojects {
 
 ['archives:windows-zip', 'archives:oss-windows-zip',
  'archives:darwin-tar', 'archives:oss-darwin-tar',
+ 'archives:darwin-aarch64-tar', 'archives:oss-darwin-aarch64-tar',
  'archives:linux-aarch64-tar', 'archives:oss-linux-aarch64-tar',
  'archives:linux-tar', 'archives:oss-linux-tar',
  'archives:integ-test-zip',

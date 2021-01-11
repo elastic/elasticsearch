@@ -203,7 +203,7 @@ public abstract class AnalysisFactoryTestCase extends ESTestCase {
             // TODO: these charfilters are not yet exposed: useful?
             // handling of zwnj for persian
             "persian", Void.class,
-            // LUCENE-9413
+            // LUCENE-9413 : it might useful for dictionary-based CJK analyzers
             "cjkwidth", Void.class);
 
     /**

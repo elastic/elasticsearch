@@ -85,7 +85,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     }
 
     /**
-     * test file has a setup: block , but no relevant children
+     * test file has a setup: block, but no relevant children
      */
     @Test
     public void testInjectHeadersWithSetupBlock() throws Exception {
@@ -135,8 +135,9 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             .map(node -> getSkipNode((ArrayNode) node.get("setup")))
             .collect(Collectors.toList());
 
-        // validate features does not exists
+        //validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
+        // validate features does not exists
         assertNull(skipNodes.get(0).get("features"));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
@@ -177,8 +178,9 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             .map(node -> getSkipNode((ArrayNode) node.get("setup")))
             .collect(Collectors.toList());
 
-        // validate features exists
+        //validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
+        // validate features exists
         assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(
@@ -219,8 +221,9 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             .map(node -> getSkipNode((ArrayNode) node.get("setup")))
             .collect(Collectors.toList());
 
-        // validate features exists
+        //validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
+        // validate features exists
         assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
 
         JsonNode featureValues = skipNodes.get(0).get("features");
@@ -234,6 +237,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         } else if (featureValues.isTextual()) {
             features.add(featureValues.asText());
         }
+        //validate that features block has a headers value
         assertThat(features, IsCollectionContaining.hasItem("headers"));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(

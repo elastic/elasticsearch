@@ -21,6 +21,12 @@ package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-public interface ObjectKeyFinder extends RestTestTransform<ObjectNode> {
+/**
+ * A type of {@link RestTestTransform} that finds the transformation by a given key in to an {@link ObjectNode}.
+ */
+public interface RestTestTransformByObjectKey extends RestTestTransform<ObjectNode> {
+    /**
+     * @return The name of key to find in the REST test
+     */
     String getKeyToFind();
 }

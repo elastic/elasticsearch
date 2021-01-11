@@ -24,12 +24,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import javax.annotation.Nullable;
 
 /**
- * A single instruction to transforms a REST test.
+ * A type of {@link RestTestTransform} that transformations or adds a global "setup" section.
  */
-public interface RestTestSetupTransform {
+public interface RestTestTransformGlobalSetup {
 
     /**
-     * @param setupNode The existing setup ObjectNode, null otherwise. If null a new setup section should be added.
+     * @param setupNodeParent The parent of an existing "setup" ObjectNode, null otherwise. If null a new setup section should be added.
      */
-    ObjectNode transformSetup(@Nullable ObjectNode setupNode);
+    ObjectNode transformSetup(@Nullable ObjectNode setupNodeParent);
 }

@@ -29,19 +29,26 @@ import javax.annotation.Nullable;
 import java.util.Iterator;
 import java.util.Map;
 
-public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
+/**
+ * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
+ * as well as adding headers as a features to the "setup" section.
+ */
+public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTransformGlobalSetup {
 
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
     private final Map<String, String> headers;
 
+    /**
+     * @param headers The headers to inject
+     */
     public InjectHeaders(Map<String, String> headers) {
         this.headers = headers;
     }
 
     @Override
-    public void transformTest(ObjectNode doNode) {
-        ObjectNode doNodeValue = (ObjectNode) doNode.get(getKeyToFind());
+    public void transformTest(ObjectNode doNodeParent) {
+        ObjectNode doNodeValue = (ObjectNode) doNodeParent.get(getKeyToFind());
         ObjectNode headersNode = (ObjectNode) doNodeValue.get("headers");
         if (headersNode == null) {
             headersNode = new ObjectNode(jsonNodeFactory);

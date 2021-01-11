@@ -20,10 +20,7 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -35,50 +32,45 @@ import java.util.stream.Collectors;
  * Perform the transformations against the set of RestTests from a given file.
  */
 public class RestTestTransformer {
-
-    private static final YAMLFactory yaml = new YAMLFactory();
-    private static final ObjectMapper mapper = new ObjectMapper(yaml);
-    private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
-
     /**
      * Transforms a REST test based on the requested {@link RestTestTransform}'s
+     *
      * @param tests           The REST tests from the same file.
      * @param transformations The set of transformations to perform against the test
      * @return the transformed tests
      */
     public List<ObjectNode> transformRestTests(LinkedList<ObjectNode> tests, List<RestTestTransform<?>> transformations) {
-        if (transformations == null || transformations.isEmpty()) {
-            return tests;
-        }
-
         ObjectNode setupSection = null;
+
+        // Collect any global setup transformations
+        List<RestTestTransformGlobalSetup> setupTransforms = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformGlobalSetup)
+            .map(transform -> (RestTestTransformGlobalSetup) transform)
+            .collect(Collectors.toList());
+
+        assert setupTransforms.isEmpty() || setupTransforms.size() == 1;
+
+        // transform the tests and include the global setup and teardown as part of the transform
         for (ObjectNode test : tests) {
             Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
-
             while (testsIterator.hasNext()) {
                 Map.Entry<String, JsonNode> testObject = testsIterator.next();
                 String testName = testObject.getKey();
                 if ("setup".equals(testName)) {
                     setupSection = test;
                 }
-                Map<String, ObjectKeyFinder> objectKeyFinders = transformations.stream()
-                    .filter(transform -> transform instanceof ObjectKeyFinder)
-                    .map(transform -> (ObjectKeyFinder) transform)
-                    .collect(Collectors.toMap(ObjectKeyFinder::getKeyToFind, transform -> transform));
+                Map<String, RestTestTransformByObjectKey> objectKeyFinders = transformations.stream()
+                    .filter(transform -> transform instanceof RestTestTransformByObjectKey)
+                    .map(transform -> (RestTestTransformByObjectKey) transform)
+                    .collect(Collectors.toMap(RestTestTransformByObjectKey::getKeyToFind, transform -> transform));
 
                 transformByObjectKeyName(test, objectKeyFinders);
             }
         }
 
-        List<RestTestSetupTransform> setupTransforms = transformations.stream()
-            .filter(transform -> transform instanceof RestTestSetupTransform)
-            .map(transform -> (RestTestSetupTransform) transform)
-            .collect(Collectors.toList());
-
-        assert setupTransforms.isEmpty() || setupTransforms.size() == 1;
-
+        // transform the global setup
         if (setupTransforms.isEmpty() == false) {
-            RestTestSetupTransform setupTransform = setupTransforms.iterator().next();
+            RestTestTransformGlobalSetup setupTransform = setupTransforms.iterator().next();
             ObjectNode result = setupTransform.transformSetup(setupSection);
             if (setupSection == null) {
                 tests.addFirst(result);
@@ -87,12 +79,20 @@ public class RestTestTransformer {
         return tests;
     }
 
-    private void transformByObjectKeyName(JsonNode currentNode, Map<String, ObjectKeyFinder> objectKeyFinders) {
+    /**
+     * Recursive method to find any matching object key names.
+     *
+     * @param currentNode      The current node that is being evaluated.
+     * @param objectKeyFinders A Map of the key to find to the
+     */
+    private void transformByObjectKeyName(JsonNode currentNode, Map<String, RestTestTransformByObjectKey> objectKeyFinders) {
         if (currentNode.isArray()) {
-            currentNode.elements().forEachRemaining(node -> { transformByObjectKeyName(node, objectKeyFinders); });
+            currentNode.elements().forEachRemaining(node -> {
+                transformByObjectKeyName(node, objectKeyFinders);
+            });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
-                ObjectKeyFinder transform = objectKeyFinders.get(entry.getKey());
+                RestTestTransformByObjectKey transform = objectKeyFinders.get(entry.getKey());
                 if (transform == null) {
                     transformByObjectKeyName(entry.getValue(), objectKeyFinders);
                 } else {

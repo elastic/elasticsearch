@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.optimizer;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
@@ -13,13 +12,6 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NullEquals;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
@@ -34,19 +26,8 @@ import org.elasticsearch.xpack.sql.parser.SqlParser;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
-import java.time.ZonedDateTime;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.EQ;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.GT;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.GTE;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.LT;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.LTE;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.NEQ;
-import static org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparisonProcessor.BinaryComparisonOperation.NULLEQ;
 
 public class OptimizerRunTests extends ESTestCase {
 

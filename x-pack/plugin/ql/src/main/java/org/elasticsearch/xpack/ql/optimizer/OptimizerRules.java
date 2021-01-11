@@ -1181,7 +1181,7 @@ public final class OptimizerRules {
             return e;
         }
 
-        public static boolean isMulOrDiv(ArithmeticOperation operation) {
+        protected static boolean isMulOrDiv(ArithmeticOperation operation) {
             String opSymbol = operation.symbol();
             return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
         }

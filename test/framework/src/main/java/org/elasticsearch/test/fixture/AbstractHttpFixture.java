@@ -77,16 +77,25 @@ public abstract class AbstractHttpFixture {
      * Opens a {@link HttpServer} and start listening on a random port.
      */
     public final void listen() throws IOException, InterruptedException {
+        listen(true);
+    }
+
+    /**
+     * Opens a {@link HttpServer} and start listening on a provided or random port.
+     */
+    public final void listen(boolean exposePidAndPort) throws IOException, InterruptedException {
         final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getByName("0.0.0.0"), port);
         final HttpServer httpServer = HttpServer.create(socketAddress, 0);
 
         try {
-            /// Writes the PID of the current Java process in a `pid` file located in the working directory
-            writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
+            if(exposePidAndPort) {
+                /// Writes the PID of the current Java process in a `pid` file located in the working directory
+                writeFile(workingDirectory, "pid", ManagementFactory.getRuntimeMXBean().getName().split("@")[0]);
 
-            final String addressAndPort = addressToString(httpServer.getAddress());
-            // Writes the address and port of the http server in a `ports` file located in the working directory
-            writeFile(workingDirectory, "ports", addressAndPort);
+                final String addressAndPort = addressToString(httpServer.getAddress());
+                // Writes the address and port of the http server in a `ports` file located in the working directory
+                writeFile(workingDirectory, "ports", addressAndPort);
+            }
 
             httpServer.createContext("/", exchange -> {
                 try {
@@ -104,7 +113,6 @@ public abstract class AbstractHttpFixture {
                         try {
                             final long requestId = requests.getAndIncrement();
                             final String method = exchange.getRequestMethod();
-
 
                             final Map<String, String> headers = new HashMap<>();
                             for (Map.Entry<String, List<String>> header : exchange.getRequestHeaders().entrySet()) {
@@ -200,11 +208,7 @@ public abstract class AbstractHttpFixture {
 
         @Override
         public String toString() {
-            return "Response{" +
-                "status=" + status +
-                ", headers=" + headers +
-                ", body=" + new String(body, UTF_8) +
-                '}';
+            return "Response{" + "status=" + status + ", headers=" + headers + ", body=" + new String(body, UTF_8) + '}';
         }
     }
 
@@ -224,8 +228,8 @@ public abstract class AbstractHttpFixture {
             this.id = id;
             this.method = Objects.requireNonNull(method);
             this.uri = Objects.requireNonNull(uri);
-            this.headers =  Objects.requireNonNull(headers);
-            this.body =  Objects.requireNonNull(body);
+            this.headers = Objects.requireNonNull(headers);
+            this.body = Objects.requireNonNull(body);
 
             final Map<String, String> params = new HashMap<>();
             if (uri.getQuery() != null && uri.getQuery().length() > 0) {
@@ -289,13 +293,19 @@ public abstract class AbstractHttpFixture {
 
         @Override
         public String toString() {
-            return "Request{" +
-                "method='" + method + '\'' +
-                ", uri=" + uri +
-                ", parameters=" + parameters +
-                ", headers=" + headers +
-                ", body=" + body +
-                '}';
+            return "Request{"
+                + "method='"
+                + method
+                + '\''
+                + ", uri="
+                + uri
+                + ", parameters="
+                + parameters
+                + ", headers="
+                + headers
+                + ", body="
+                + body
+                + '}';
         }
     }
 

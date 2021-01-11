@@ -50,7 +50,7 @@ public class URLFixture extends AbstractHttpFixture {
             throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
         final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), args[1], args[2]);
-        fixture.listen();
+        fixture.listen(false);
     }
 
     @Override

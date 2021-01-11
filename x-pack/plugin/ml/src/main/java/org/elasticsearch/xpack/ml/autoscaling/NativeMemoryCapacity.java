@@ -10,6 +10,8 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
+import java.util.Objects;
+
 // Used for storing native memory capacity and then transforming it into an autoscaling capacity
 // which takes into account the whole node size
 public class NativeMemoryCapacity  {
@@ -24,7 +26,7 @@ public class NativeMemoryCapacity  {
     private long node;
     private Long jvmSize;
 
-    NativeMemoryCapacity(long tier, long node, Long jvmSize) {
+    public NativeMemoryCapacity(long tier, long node, Long jvmSize) {
         this.tier = tier;
         this.node = node;
         this.jvmSize = jvmSize;
@@ -77,5 +79,26 @@ public class NativeMemoryCapacity  {
 
     public Long getJvmSize() {
         return jvmSize;
+    }
+
+    @Override
+    public String toString() {
+        return "NativeMemoryCapacity{" +
+            "total bytes=" + ByteSizeValue.ofBytes(tier) +
+            ", largest node bytes=" + ByteSizeValue.ofBytes(node) +
+            '}';
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        NativeMemoryCapacity that = (NativeMemoryCapacity) o;
+        return tier == that.tier && node == that.node && Objects.equals(jvmSize, that.jvmSize);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(tier, node, jvmSize);
     }
 }

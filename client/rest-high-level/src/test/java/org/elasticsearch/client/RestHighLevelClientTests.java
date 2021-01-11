@@ -832,6 +832,8 @@ public class RestHighLevelClientTests extends ESTestCase {
             "dangling_indices.import_dangling_index",
             "dangling_indices.list_dangling_indices",
             "indices.shard_stores",
+            "indices.get_upgrade",
+            "indices.upgrade",
             "indices.recovery",
             "indices.segments",
             "indices.stats",
@@ -915,6 +917,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                                 apiName.startsWith("ccr.") == false &&
                                 apiName.startsWith("enrich.") == false &&
                                 apiName.startsWith("transform.") == false &&
+                                apiName.startsWith("text_structure.") == false &&
                                 apiName.startsWith("eql.") == false &&
                                 apiName.endsWith("freeze") == false &&
                                 apiName.endsWith("reload_analyzers") == false &&

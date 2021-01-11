@@ -58,8 +58,8 @@ SQL::
 * QL: Verify filter's condition type {es-pull}66268[#66268] (issue: {es-issue}66254[#66254])
 
 Search::
-* Fix regressions around nested hits and disabled _source. {es-pull}66572[#66572] (issues: {es-issue}60494[#60494], {es-issue}66524[#66524])
-* Make sure shared source always represents the top-level root document. {es-pull}66725[#66725] (issues: {es-issue}60494[#60494], {es-issue}66577[#66577])
+* Fix regressions around nested hits and disabled _source {es-pull}66572[#66572] (issues: {es-issue}60494[#60494], {es-issue}66524[#66524])
+* Make sure shared source always represents the top-level root document {es-pull}66725[#66725] (issues: {es-issue}60494[#60494], {es-issue}66577[#66577])
 
 Security::
 * Store and use only internal security headers {es-pull}66365[#66365]

@@ -88,7 +88,7 @@ public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
                         ArrayNode featuresNodeArray = new ArrayNode(jsonNodeFactory);
                         featuresNodeArray.add(featuresNode.asText());
                         featuresNodeArray.add("headers");
-                        //overwrite the features object
+                        // overwrite the features object
                         skipNode.set("features", featuresNodeArray);
                     }
                 }

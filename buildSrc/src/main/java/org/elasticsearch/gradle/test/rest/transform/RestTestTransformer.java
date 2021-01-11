@@ -21,19 +21,14 @@ package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ContainerNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 
-
-import java.io.File;
-import java.io.IOException;
-import java.util.*;
-import java.util.function.Consumer;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -41,13 +36,12 @@ import java.util.stream.Collectors;
  */
 public class RestTestTransformer {
 
-
     private static final YAMLFactory yaml = new YAMLFactory();
     private static final ObjectMapper mapper = new ObjectMapper(yaml);
     private static JsonNodeFactory jsonNodeFactory = JsonNodeFactory.withExactBigDecimals(false);
 
-
     /**
+     * Transforms a REST test based on the requested {@link RestTestTransform}'s
      * @param tests           The REST tests from the same file.
      * @param transformations The set of transformations to perform against the test
      * @return the transformed tests
@@ -64,12 +58,12 @@ public class RestTestTransformer {
             while (testsIterator.hasNext()) {
                 Map.Entry<String, JsonNode> testObject = testsIterator.next();
                 String testName = testObject.getKey();
-                if("setup".equals(testName)){
+                if ("setup".equals(testName)) {
                     setupSection = test;
                 }
                 Map<String, ObjectKeyFinder> objectKeyFinders = transformations.stream()
                     .filter(transform -> transform instanceof ObjectKeyFinder)
-                    .map(transform-> (ObjectKeyFinder) transform)
+                    .map(transform -> (ObjectKeyFinder) transform)
                     .collect(Collectors.toMap(ObjectKeyFinder::getKeyToFind, transform -> transform));
 
                 transformByObjectKeyName(test, objectKeyFinders);
@@ -86,21 +80,16 @@ public class RestTestTransformer {
         if (setupTransforms.isEmpty() == false) {
             RestTestSetupTransform setupTransform = setupTransforms.iterator().next();
             ObjectNode result = setupTransform.transformSetup(setupSection);
-            if(setupSection == null){
+            if (setupSection == null) {
                 tests.addFirst(result);
             }
         }
-        tests.forEach(t -> {
-            System.out.println(t.toPrettyString());
-        });
         return tests;
     }
 
     private void transformByObjectKeyName(JsonNode currentNode, Map<String, ObjectKeyFinder> objectKeyFinders) {
         if (currentNode.isArray()) {
-            currentNode.elements().forEachRemaining(node -> {
-                transformByObjectKeyName(node, objectKeyFinders);
-            });
+            currentNode.elements().forEachRemaining(node -> { transformByObjectKeyName(node, objectKeyFinders); });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 ObjectKeyFinder transform = objectKeyFinders.get(entry.getKey());

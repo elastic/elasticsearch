@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gradle.test.rest.transform;
 
-
 import com.fasterxml.jackson.databind.JsonNode;
 
 /**

@@ -120,11 +120,11 @@ Contains the maximum sizes of nodes governed by the policy
 =======
 `storage`::
 (integer)
-Contains the maximum current storage of a node, in bytes
+Maximum bytes of storage of a node.
 
 `memory`::
 (integer)
-Contains the maximum current memory of a node, in bytes
+Maximum bytes of memory of a node.
 
 =======
 `total`::

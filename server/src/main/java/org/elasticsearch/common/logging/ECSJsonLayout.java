@@ -35,7 +35,7 @@ import java.nio.charset.StandardCharsets;
  * in order to avoid a duplication of configuration in log4j2.properties
  */
 @Plugin(name = "ECSJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
-public class ECSJsonLayout  {
+public class ECSJsonLayout {
 
     @PluginBuilderFactory
     public static ECSJsonLayout.Builder newBuilder() {
@@ -64,13 +64,12 @@ public class ECSJsonLayout  {
         }
 
         private KeyValuePair[] additionalFields() {
-            return new KeyValuePair[]{
-                new KeyValuePair("type",type),
-                new KeyValuePair("cluster.uuid","%cluster_id"),
-                new KeyValuePair("node.id","%node_id"),
-                new KeyValuePair("node.name","%ESnode_name"),
-                new KeyValuePair("cluster.name","${sys:es.logs.cluster_name}"),
-            };
+            return new KeyValuePair[] {
+                new KeyValuePair("event.dataset", type),
+                new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
+                new KeyValuePair("elasticsearch.node.id", "%node_id"),
+                new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
+                new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
         }
 
         public String getType() {

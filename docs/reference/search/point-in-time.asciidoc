@@ -35,7 +35,7 @@ POST /_search <1>
         }
     },
     "pit": {
-	    "id":  "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWICBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <2>
+	    "id":  "48myAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwEAA2lkeAV1dWlkMQIGbm9kZV8xAAAAAAAAAAABAWEBAANpZHkFdXVpZDIqBm5vZGVfMgAAAAAAAAAADAFiAQACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA==", <2>
 	    "keep_alive": "1m"  <3>
     }
 }
@@ -95,7 +95,7 @@ as soon as they are no longer used in search requests.
 ---------------------------------------
 DELETE /_pit
 {
-    "id" : "46ToAwMDaWR4BXV1aWQxAgZub2RlXzEAAAAAAAAAAAEBYQNpZHkFdXVpZDIrBm5vZGVfMwAAAAAAAAAAKgFjA2lkeQV1dWlkMioGbm9kZV8yAAAAAAAAAAAMAWIBBXV1aWQyAAA="
+    "id" : "48myAwMDaWR5BXV1aWQyKwZub2RlXzMAAAAAAAAAACoBYwEAA2lkeAV1dWlkMQIGbm9kZV8xAAAAAAAAAAABAWEBAANpZHkFdXVpZDIqBm5vZGVfMgAAAAAAAAAADAFiAQACBXV1aWQyAAAFdXVpZDEAAQltYXRjaF9hbGw_gAAAAA=="
 }
 ---------------------------------------
 // TEST[catch:missing]

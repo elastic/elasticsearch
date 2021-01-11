@@ -76,10 +76,12 @@ dynamic templates to map specific fields as runtime fields. You set
 `dynamic:true` in your index mapping, and then create a dynamic template to map
 new fields of a certain type as runtime fields.
 
-Although the default <<match-mapping-type,dynamic mapping rules>> map an
-`integer` JSON type to a `long` type in {es}, the following dynamic template
-named `integers` maps any new `long` fields as runtime fields of type
-`integer`:
+Let's say you have data where each of the fields start with `ip_`. Based on the
+<<match-mapping-type,dynamic mapping rules>>, {es} maps any `string` that passes
+`numeric` detection as a `float` or `long`. However, you can create a dynamic
+template that maps new strings as runtime fields of type `ip`. When {es}
+detects new `string` fields matching the `ip*` pattern, it maps those fields as
+runtime fields of type `ip`.
 
 [source,console]
 ----
@@ -88,10 +90,11 @@ PUT my-index-000001/
   "mappings": {
     "dynamic_templates": [
       {
-        "integers": {
-          "match_mapping_type": "long",
+        "strings_as_ip": {
+          "match_mapping_type": "string",
+          "match": "ip*",
           "runtime": {
-            "type": "integer"
+            "type": "ip"
           }
         }
       }

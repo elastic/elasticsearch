@@ -20,12 +20,8 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
-import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -96,22 +92,9 @@ public class RestTestTransformer {
             int i = 0;
             for (RestTestTransformGlobalTeardown teardownTransform : teardownTransforms) {
                 ObjectNode result = teardownTransform.transformTeardown(teardownSection);
-                if (result != null && setupSection == null && i++ == 0) {
+                if (result != null && teardownSection == null && i++ == 0) {
                     tests.addLast(result);
                 }
-            }
-        }
-
-        boolean debug = true;
-        if(debug == true) {
-            YAMLFactory yaml = new YAMLFactory();
-            ObjectMapper mapper = new ObjectMapper(yaml);
-            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(System.out)) {
-                for (ObjectNode transformedTest : tests) {
-                    sequenceWriter.write(transformedTest);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
             }
         }
 
@@ -126,9 +109,7 @@ public class RestTestTransformer {
      */
     private void transformByObjectKeyName(JsonNode currentNode, Map<String, RestTestTransformByObjectKey> objectKeyFinders) {
         if (currentNode.isArray()) {
-            currentNode.elements().forEachRemaining(node -> {
-                transformByObjectKeyName(node, objectKeyFinders);
-            });
+            currentNode.elements().forEachRemaining(node -> { transformByObjectKeyName(node, objectKeyFinders); });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 RestTestTransformByObjectKey transform = objectKeyFinders.get(entry.getKey());

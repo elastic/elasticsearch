@@ -31,7 +31,7 @@ import java.util.Map;
 
 /**
  * A {@link RestTestTransform} that injects HTTP headers into a REST test. This includes adding the necessary values to the "do" section
- * as well as adding headers as a features to the "setup" section.
+ * as well as adding headers as a features to the "setup" and "teardown" sections.
  */
 public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTransformGlobalSetup, RestTestTransformGlobalTeardown {
 
@@ -66,14 +66,14 @@ public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTran
 
     @Override
     public ObjectNode transformSetup(ObjectNode setupNodeParent) {
-        //check to ensure that headers feature does not already exist
+        // check to ensure that headers feature does not already exist
         if (setupNodeParent != null) {
             ArrayNode setupNode = (ArrayNode) setupNodeParent.get("setup");
             if (hasHeadersFeature(setupNode)) {
                 return setupNodeParent;
             }
         }
-        //transform or insert the headers feature into setup/skip/features
+        // transform or insert the headers feature into setup/skip/features
         ArrayNode setupNode;
         if (setupNodeParent == null) {
             setupNodeParent = new ObjectNode(jsonNodeFactory);
@@ -89,9 +89,9 @@ public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTran
     public ObjectNode transformTeardown(@Nullable ObjectNode teardownNodeParent) {
         if (teardownNodeParent != null) {
             ArrayNode teardownNode = (ArrayNode) teardownNodeParent.get("teardown");
-            //only transform an existing teardown section since a teardown does not inherit from setup but still needs the skip section
-            if(teardownNode != null) {
-                //check to ensure that headers feature does not already exist
+            // only transform an existing teardown section since a teardown does not inherit from setup but still needs the skip section
+            if (teardownNode != null) {
+                // check to ensure that headers feature does not already exist
                 if (hasHeadersFeature(teardownNode)) {
                     return teardownNodeParent;
                 }
@@ -140,7 +140,7 @@ public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTran
                         ArrayNode featuresNodeArray = (ArrayNode) featuresNode;
                         featuresNodeArray.add("headers");
                     } else if (featuresNode.isTextual()) {
-                        //convert to an array
+                        // convert to an array
                         ArrayNode featuresNodeArray = new ArrayNode(jsonNodeFactory);
                         featuresNodeArray.add(featuresNode.asText());
                         featuresNodeArray.add("headers");
@@ -157,8 +157,5 @@ public class InjectHeaders implements RestTestTransformByObjectKey, RestTestTran
             featuresNode.set("features", TextNode.valueOf("headers"));
             skipNode.set("skip", featuresNode);
         }
-
     }
-
-
 }

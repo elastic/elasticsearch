@@ -137,7 +137,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             .map(node -> getSkipNode((ArrayNode) node.get("setup")))
             .collect(Collectors.toList());
 
-        //validate skip node exists
+        // validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
         // validate features does not exists
         assertNull(skipNodes.get(0).get("features"));
@@ -182,7 +182,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             .map(node -> getSkipNode((ArrayNode) node.get("setup")))
             .collect(Collectors.toList());
 
-        //validate skip node exists
+        // validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
         // validate features exists
         assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
@@ -226,7 +226,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             .map(node -> getSkipNode((ArrayNode) node.get("setup")))
             .collect(Collectors.toList());
 
-        //validate skip node exists
+        // validate skip node exists
         assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
         // validate features exists
         assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
@@ -242,7 +242,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         } else if (featureValues.isTextual()) {
             features.add(featureValues.asText());
         }
-        //validate that features block has a headers value
+        // validate that features block has a headers value
         assertThat(features, IsCollectionContaining.hasItem("headers"));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(

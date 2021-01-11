@@ -80,7 +80,7 @@ If you have two nodes, we recommend they both be data nodes. You should also
 ensure every shard is stored redundantly on both nodes by setting
 <<dynamic-index-settings,`index.number_of_replicas`>> to `1` on every index.
 This is the default number of replicas but may be overridden by an
-<<indices-templates,index template>>. <<dynamic-index-settings,Auto-expand
+<<index-templates,index template>>. <<dynamic-index-settings,Auto-expand
 replicas>> can also achieve the same thing, but it's not necessary to use this
 feature in such a small cluster.
 

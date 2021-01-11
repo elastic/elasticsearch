@@ -4,7 +4,7 @@
 <titleabbrev>cat templates</titleabbrev>
 ++++
 
-Returns information about <<indices-templates,index templates>> in a cluster.
+Returns information about <<indices-templates-v1,index templates>> in a cluster.
 You can use index templates to apply <<index-modules-settings,index settings>>
 and <<mapping,field mappings>> to new indices at creation.
 

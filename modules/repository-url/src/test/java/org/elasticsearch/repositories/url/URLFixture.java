@@ -23,6 +23,7 @@ import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -50,7 +51,7 @@ public class URLFixture extends AbstractHttpFixture {
             throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
         final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), args[1], args[2]);
-        fixture.listen(false);
+        fixture.listen(InetAddress.getByName("0.0.0.0"), false);
     }
 
     @Override

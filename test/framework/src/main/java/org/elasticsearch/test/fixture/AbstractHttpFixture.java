@@ -74,17 +74,17 @@ public abstract class AbstractHttpFixture {
     }
 
     /**
-     * Opens a {@link HttpServer} and start listening on a random port.
+     * Opens a {@link HttpServer} and start listening on a provided or random port.
      */
     public final void listen() throws IOException, InterruptedException {
-        listen(true);
+        listen(InetAddress.getLoopbackAddress(), true);
     }
 
     /**
      * Opens a {@link HttpServer} and start listening on a provided or random port.
      */
-    public final void listen(boolean exposePidAndPort) throws IOException, InterruptedException {
-        final InetSocketAddress socketAddress = new InetSocketAddress(InetAddress.getByName("0.0.0.0"), port);
+    public final void listen(InetAddress inetAddress, boolean exposePidAndPort) throws IOException, InterruptedException {
+        final InetSocketAddress socketAddress = new InetSocketAddress(inetAddress, port);
         final HttpServer httpServer = HttpServer.create(socketAddress, 0);
 
         try {

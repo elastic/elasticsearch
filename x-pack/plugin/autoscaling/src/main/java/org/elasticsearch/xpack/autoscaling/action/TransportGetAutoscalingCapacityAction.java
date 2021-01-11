@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCalculateCapacityService;
+import org.elasticsearch.xpack.autoscaling.capacity.memory.AutoscalingMemoryInfoService;
 
 import java.util.Objects;
 
@@ -32,6 +33,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
     private final AutoscalingCalculateCapacityService capacityService;
     private final ClusterInfoService clusterInfoService;
     private final SnapshotsInfoService snapshotsInfoService;
+    private final AutoscalingMemoryInfoService memoryInfoService;
     private final AutoscalingLicenseChecker autoscalingLicenseChecker;
 
     @Inject
@@ -44,6 +46,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
         final AutoscalingCalculateCapacityService.Holder capacityServiceHolder,
         final ClusterInfoService clusterInfoService,
         final SnapshotsInfoService snapshotsInfoService,
+        final AutoscalingMemoryInfoService memoryInfoService,
         final AllocationDeciders allocationDeciders,
         final AutoscalingLicenseChecker autoscalingLicenseChecker
     ) {
@@ -59,6 +62,7 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             ThreadPool.Names.SAME
         );
         this.snapshotsInfoService = snapshotsInfoService;
+        this.memoryInfoService = memoryInfoService;
         this.capacityService = capacityServiceHolder.get(allocationDeciders);
         this.clusterInfoService = clusterInfoService;
         this.autoscalingLicenseChecker = Objects.requireNonNull(autoscalingLicenseChecker);
@@ -78,7 +82,12 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
 
         listener.onResponse(
             new GetAutoscalingCapacityAction.Response(
-                capacityService.calculate(state, clusterInfoService.getClusterInfo(), snapshotsInfoService.snapshotShardSizes())
+                capacityService.calculate(
+                    state,
+                    clusterInfoService.getClusterInfo(),
+                    snapshotsInfoService.snapshotShardSizes(),
+                    memoryInfoService.snapshot()
+                )
             )
         );
     }

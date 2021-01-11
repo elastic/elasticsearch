@@ -185,7 +185,7 @@ Machine Learning::
 * Add total ML memory to ML info {es-pull}65195[#65195] (issue: {es-issue}64225[#64225])
 * Adding `result_type` and `mlcategory` fields to category definitions {es-pull}63326[#63326] (issue: {es-issue}60108[#60108])
 * Increase log level for forecast disk storage problems {es-pull}64766[#64766] (issue: {es-issue}58806[#58806])
-* Provide a way to revert an AD job to an empty snapshot {es-pull}65431[#65431]
+* Provide a way to revert an {anomaly-job} to an empty snapshot {es-pull}65431[#65431]
 
 Mapping::
 * Add xpack info and usage endpoints for runtime fields {es-pull}65600[#65600] (issue: {es-issue}59332[#59332])
@@ -314,4 +314,3 @@ Transform::
 * Improve bucket key normalization {es-pull}64196[#64196] (issue: {es-issue}64070[#64070])
 * Make state handling more robust when stop is called while indexer shuts down {es-pull}64922[#64922] (issue: {es-issue}62204[#62204])
 * Weighted average should map to double {es-pull}64586[#64586]
-

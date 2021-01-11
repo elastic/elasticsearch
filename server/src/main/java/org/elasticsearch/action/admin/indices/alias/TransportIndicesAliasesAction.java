@@ -122,8 +122,11 @@ public class TransportIndicesAliasesAction extends AcknowledgedTransportMasterNo
                 switch (action.actionType()) {
                 case ADD:
 
+                    long now = System.currentTimeMillis();
                     for (String alias : concreteAliases(action, state.metadata(), index.getName())) {
-                        finalActions.add(new AliasAction.Add(index.getName(), this.indexNameExpressionResolver.resolveDateMathExpression(alias), action.filter(), action.indexRouting(),
+                        String resolvedName = this.indexNameExpressionResolver.resolveDateMathExpressionAtInstant(alias, now);
+                        finalActions.add(new AliasAction.Add(index.getName(), resolvedName,
+                            action.filter(), action.indexRouting(),
                             action.searchRouting(), action.writeIndex(), action.isHidden()));
                     }
                     break;

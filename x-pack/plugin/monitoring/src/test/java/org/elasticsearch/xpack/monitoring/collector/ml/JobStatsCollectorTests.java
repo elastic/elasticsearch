@@ -5,17 +5,19 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.ml;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Request;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response;
 import org.elasticsearch.xpack.core.ml.action.GetJobsStatsAction.Response.JobStats;
-import org.elasticsearch.xpack.core.action.util.QueryPage;
 import org.elasticsearch.xpack.core.ml.client.MachineLearningClient;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
@@ -112,8 +115,8 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
         final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
         final Response response = new Response(new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
 
-        when(client.getJobsStats(eq(new Request(Metadata.ALL)))).thenReturn(future);
-        when(future.actionGet(timeout)).thenReturn(response);
+        when(client.getJobsStats(eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
+        when(future.actionGet()).thenReturn(response);
 
         final long interval = randomNonNegativeLong();
 
@@ -137,6 +140,35 @@ public class JobStatsCollectorTests extends BaseCollectorTestCase {
 
             assertThat(jobStatsMonitoringDoc.getJobStats(), is(jobStat));
         }
+    }
+
+    public void testDoCollectThrowsTimeoutException() throws Exception {
+        final String clusterUuid = randomAlphaOfLength(5);
+        whenClusterStateWithUUID(clusterUuid);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+        final MachineLearningClient client = mock(MachineLearningClient.class);
+        final ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(JobStatsCollector.JOB_STATS_TIMEOUT, timeout);
+
+        final JobStatsCollector collector = new JobStatsCollector(Settings.EMPTY, clusterService, licenseState, client, threadContext);
+        assertEquals(timeout, collector.getCollectionTimeout());
+
+        final List<JobStats> jobStats = mockJobStats();
+
+        @SuppressWarnings("unchecked")
+        final ActionFuture<Response> future = (ActionFuture<Response>)mock(ActionFuture.class);
+        final Response response = new Response(Collections.emptyList(), Collections.singletonList(new FailedNodeException("node", "msg",
+                new ElasticsearchTimeoutException("test timeout"))), new QueryPage<>(jobStats, jobStats.size(), Job.RESULTS_FIELD));
+
+        when(client.getJobsStats(eq(new Request(Metadata.ALL).setTimeout(timeout)))).thenReturn(future);
+        when(future.actionGet()).thenReturn(response);
+
+        final long interval = randomNonNegativeLong();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
     }
 
     private List<JobStats> mockJobStats() {

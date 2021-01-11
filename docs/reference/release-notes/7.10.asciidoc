@@ -55,7 +55,7 @@ Network::
 
 SQL::
 * Abort sorting in case of local agg sort queue overflow {es-pull}65687[#65687] (issue: {es-issue}65685[#65685])
-* QL: Verify filter's condition type {es-pull}66268[#66268] (issue: {es-issue}66254[#66254])
+* Verify filter's condition type {es-pull}66268[#66268] (issue: {es-issue}66254[#66254])
 
 Search::
 * Fix regressions around nested hits and disabled _source {es-pull}66572[#66572] (issues: {es-issue}60494[#60494], {es-issue}66524[#66524])

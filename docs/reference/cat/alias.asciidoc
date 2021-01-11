@@ -73,7 +73,7 @@ PUT test1
 
 [source,console]
 --------------------------------------------------
-GET /_cat/aliases?v
+GET /_cat/aliases?v=true
 --------------------------------------------------
 // TEST[continued]
 

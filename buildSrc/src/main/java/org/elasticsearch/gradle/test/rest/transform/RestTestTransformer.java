@@ -20,8 +20,12 @@
 package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 
+import java.io.IOException;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -35,12 +39,13 @@ public class RestTestTransformer {
     /**
      * Transforms a REST test based on the requested {@link RestTestTransform}'s
      *
-     * @param tests           The REST tests from the same file.
+     * @param tests           The REST tests from the same file. Uses linked list so we can easily add to the beginning of the list.
      * @param transformations The set of transformations to perform against the test
      * @return the transformed tests
      */
     public List<ObjectNode> transformRestTests(LinkedList<ObjectNode> tests, List<RestTestTransform<?>> transformations) {
         ObjectNode setupSection = null;
+        ObjectNode teardownSection = null;
 
         // Collect any global setup transformations
         List<RestTestTransformGlobalSetup> setupTransforms = transformations.stream()
@@ -48,7 +53,11 @@ public class RestTestTransformer {
             .map(transform -> (RestTestTransformGlobalSetup) transform)
             .collect(Collectors.toList());
 
-        assert setupTransforms.isEmpty() || setupTransforms.size() == 1;
+        // Collect any global setup transformations
+        List<RestTestTransformGlobalTeardown> teardownTransforms = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformGlobalTeardown)
+            .map(transform -> (RestTestTransformGlobalTeardown) transform)
+            .collect(Collectors.toList());
 
         // transform the tests and include the global setup and teardown as part of the transform
         for (ObjectNode test : tests) {
@@ -58,6 +67,9 @@ public class RestTestTransformer {
                 String testName = testObject.getKey();
                 if ("setup".equals(testName)) {
                     setupSection = test;
+                }
+                if ("teardown".equals(testName)) {
+                    teardownSection = test;
                 }
                 Map<String, RestTestTransformByObjectKey> objectKeyFinders = transformations.stream()
                     .filter(transform -> transform instanceof RestTestTransformByObjectKey)
@@ -70,12 +82,39 @@ public class RestTestTransformer {
 
         // transform the global setup
         if (setupTransforms.isEmpty() == false) {
-            RestTestTransformGlobalSetup setupTransform = setupTransforms.iterator().next();
-            ObjectNode result = setupTransform.transformSetup(setupSection);
-            if (setupSection == null) {
-                tests.addFirst(result);
+            int i = 0;
+            for (RestTestTransformGlobalSetup setupTransform : setupTransforms) {
+                ObjectNode result = setupTransform.transformSetup(setupSection);
+                if (result != null && setupSection == null && i++ == 0) {
+                    tests.addFirst(result);
+                }
             }
         }
+
+        // transform the global teardown
+        if (setupTransforms.isEmpty() == false) {
+            int i = 0;
+            for (RestTestTransformGlobalTeardown teardownTransform : teardownTransforms) {
+                ObjectNode result = teardownTransform.transformTeardown(teardownSection);
+                if (result != null && setupSection == null && i++ == 0) {
+                    tests.addLast(result);
+                }
+            }
+        }
+
+        boolean debug = true;
+        if(debug == true) {
+            YAMLFactory yaml = new YAMLFactory();
+            ObjectMapper mapper = new ObjectMapper(yaml);
+            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(System.out)) {
+                for (ObjectNode transformedTest : tests) {
+                    sequenceWriter.write(transformedTest);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
         return tests;
     }
 

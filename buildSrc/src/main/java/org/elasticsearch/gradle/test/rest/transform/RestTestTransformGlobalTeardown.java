@@ -24,13 +24,13 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import javax.annotation.Nullable;
 
 /**
- * A type of {@link RestTestTransform} that transformations or adds a global "setup" section.
+ * A type of {@link RestTestTransform} that transformations or adds a global "teardown" section.
  */
-public interface RestTestTransformGlobalSetup {
+public interface RestTestTransformGlobalTeardown {
 
     /**
-     * @param setupNodeParent The parent of an existing "setup" ObjectNode, null otherwise. If null implementations may create choose to
-     *                        create the section.
+     * @param teardownNodeParent The parent of an existing "teardown" ObjectNode, null otherwise. If null implementations may create choose
+     *                           to create the section.
      */
-    ObjectNode transformSetup(@Nullable ObjectNode setupNodeParent);
+    ObjectNode transformTeardown(@Nullable ObjectNode teardownNodeParent);
 }

@@ -78,7 +78,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
                         map(s.until().child()),
                         s.timestamp(),
                         s.tiebreaker(),
-                        s.direction(), 
+                        s.direction(),
                         s.maxSpan());
             }
 
@@ -127,7 +127,7 @@ class Mapper extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, UnplannedExec.class);
+            return plan.transformUp(UnplannedExec.class, this::rule);
         }
 
         @SuppressWarnings("unchecked")

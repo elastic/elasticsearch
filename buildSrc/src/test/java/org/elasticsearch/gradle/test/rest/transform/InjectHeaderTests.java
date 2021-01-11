@@ -34,6 +34,7 @@ import org.junit.Test;
 import java.io.File;
 import java.util.*;
 import java.util.concurrent.atomic.LongAdder;
+import java.util.stream.Collectors;
 
 
 public class InjectHeaderTests extends GradleUnitTestCase {
@@ -41,19 +42,22 @@ public class InjectHeaderTests extends GradleUnitTestCase {
     private static final YAMLFactory yaml = new YAMLFactory();
     private static final ObjectMapper mapper = new ObjectMapper(yaml);
 
+    private static final Map<String, String> headers =
+        Map.of("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7",
+            "Accept", "application/vnd.elasticsearch+json;compatible-with=7"
+        );
 
+    /**
+     * test file does not have setup: block
+     */
     @Test
     public void testInjectHeadersWithoutSetupBlock() throws Exception {
-
-        File testFile = new File(getClass().getResource("/rest/header_inject_no_setup.yml").toURI());
+        File testFile = new File(getClass().getResource("/rest/header_inject/no_setup.yml").toURI());
         YAMLParser yamlParser = yaml.createParser(testFile);
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
-
-        Map<String, String> headers =
-            Map.of("Content-Type", "application/vnd.elasticsearch+json;compatible-with=7",
-                "Accept", "application/vnd.elasticsearch+json;compatible-with=7"
-            );
+        //validate no setup
+        assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(0L));
 
         List<ObjectNode> transformedTests = transformer.transformRestTests(new LinkedList<>(tests),
             Collections.singletonList(new InjectHeaders(headers)));
@@ -61,44 +65,205 @@ public class InjectHeaderTests extends GradleUnitTestCase {
         assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
         transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetupForHeaders);
         //ensure do body is correct
-        transformedTests.stream()
-            .filter(node -> node.get("setup") == null)
-            .filter(node -> node.get("teardown") == null)
+        transformedTests
             .forEach(test -> {
                 Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
                 while (testsIterator.hasNext()) {
                     Map.Entry<String, JsonNode> testObject = testsIterator.next();
-                    String testName = testObject.getKey();
                     assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
-                    //an array of objects
                     ArrayNode testBody = (ArrayNode) testObject.getValue();
-                    testBody.forEach(arrayObject -> {
-                        assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
-                        ObjectNode testSection = (ObjectNode) arrayObject;
-                        if (testSection.get("do") != null) {
-                            ObjectNode doSection = (ObjectNode) testSection.get("do");
-                            assertThat(doSection.get("headers"), CoreMatchers.notNullValue());
-                            ObjectNode headersNode = (ObjectNode) doSection.get("headers");
-                            LongAdder assertions = new LongAdder();
-                            headers.forEach((k, v) -> {
-                                assertThat(headersNode.get(k), CoreMatchers.notNullValue());
-                                TextNode textNode = (TextNode) headersNode.get(k);
-                                assertThat(textNode.asText(), CoreMatchers.equalTo(v));
-                                assertions.increment();
-                            });
-                            assertThat(assertions.intValue(), CoreMatchers.equalTo(headers.size()));
-                        }
-                    });
+                    assertTestBodyForHeaders(testBody, headers);
+                }
+            });
+    }
+
+    /**
+     * test file has a setup: block , but no relevant children
+     */
+    @Test
+    public void testInjectHeadersWithSetupBlock() throws Exception {
+        File testFile = new File(getClass().getResource("/rest/header_inject/with_setup.yml").toURI());
+        YAMLParser yamlParser = yaml.createParser(testFile);
+        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        RestTestTransformer transformer = new RestTestTransformer();
+
+        //validate setup exists
+        assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+
+        List<ObjectNode> transformedTests = transformer.transformRestTests(new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers)));
+        //ensure setup is correct
+        assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+        transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetupForHeaders);
+        //ensure do body is correct
+        transformedTests
+            .forEach(test -> {
+                Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+                while (testsIterator.hasNext()) {
+                    Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                    assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                    ArrayNode testBody = (ArrayNode) testObject.getValue();
+                    assertTestBodyForHeaders(testBody, headers);
+                }
+            });
+    }
+
+    /**
+     * test file has a setup: then skip: but does not have the features: block
+     */
+    @Test
+    public void testInjectHeadersWithSkipBlock() throws Exception {
+        File testFile = new File(getClass().getResource("/rest/header_inject/with_skip.yml").toURI());
+        YAMLParser yamlParser = yaml.createParser(testFile);
+        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        RestTestTransformer transformer = new RestTestTransformer();
+
+        //validate setup exists
+        assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+
+        List<ObjectNode> skipNodes = tests.stream().filter(node -> node.get("setup") != null)
+            .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
+            .map(node -> getSkipNode((ArrayNode) node.get("setup"))).collect(Collectors.toList());
+
+        //validate features does not exists
+        assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
+        assertNull(skipNodes.get(0).get("features"));
+
+        List<ObjectNode> transformedTests = transformer.transformRestTests(new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers)));
+        //ensure setup is correct
+        assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+        transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetupForHeaders);
+        //ensure do body is correct
+        transformedTests
+            .forEach(test -> {
+                Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+                while (testsIterator.hasNext()) {
+                    Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                    assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                    ArrayNode testBody = (ArrayNode) testObject.getValue();
+                    assertTestBodyForHeaders(testBody, headers);
                 }
             });
     }
 
 
+    /**
+     * test file has a setup: then skip:, then features: block , but does not have the headers feature defined
+     */
+    @Test
+    public void testInjectHeadersWithFeaturesBlock() throws Exception {
+        File testFile = new File(getClass().getResource("/rest/header_inject/with_features.yml").toURI());
+        YAMLParser yamlParser = yaml.createParser(testFile);
+        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        RestTestTransformer transformer = new RestTestTransformer();
+
+        //validate setup exists
+        assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+
+        List<ObjectNode> skipNodes = tests.stream().filter(node -> node.get("setup") != null)
+            .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
+            .map(node -> getSkipNode((ArrayNode) node.get("setup"))).collect(Collectors.toList());
+
+        //validate features exists
+        assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
+        assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
+
+        List<ObjectNode> transformedTests = transformer.transformRestTests(new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers)));
+        //ensure setup is correct
+        assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+        transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetupForHeaders);
+        //ensure do body is correct
+        transformedTests
+            .forEach(test -> {
+                Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+                while (testsIterator.hasNext()) {
+                    Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                    assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                    ArrayNode testBody = (ArrayNode) testObject.getValue();
+                    assertTestBodyForHeaders(testBody, headers);
+                }
+            });
+    }
+
+    /**
+     * test file has a setup: then skip:, then features: block , and already has the headers feature defined
+     */
+    @Test
+    public void testInjectHeadersWithHeadersBlock() throws Exception {
+        File testFile = new File(getClass().getResource("/rest/header_inject/with_headers.yml").toURI());
+        YAMLParser yamlParser = yaml.createParser(testFile);
+        List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+        RestTestTransformer transformer = new RestTestTransformer();
+
+        //validate setup exists
+        assertThat(tests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+
+        List<ObjectNode> skipNodes = tests.stream().filter(node -> node.get("setup") != null)
+            .filter(node -> getSkipNode((ArrayNode) node.get("setup")) != null)
+            .map(node -> getSkipNode((ArrayNode) node.get("setup"))).collect(Collectors.toList());
+
+        //validate features exists
+        assertThat(skipNodes.size(), CoreMatchers.equalTo(1));
+        assertThat(skipNodes.get(0).get("features"), CoreMatchers.notNullValue());
+
+        JsonNode featureValues = skipNodes.get(0).get("features");
+        List<String> features = new ArrayList<>(1);
+        if (featureValues.isArray()) {
+            Iterator<JsonNode> featuresIt = featureValues.elements();
+            while (featuresIt.hasNext()) {
+                JsonNode feature = featuresIt.next();
+                features.add(feature.asText());
+            }
+        } else if (featureValues.isTextual()) {
+            features.add(featureValues.asText());
+        }
+        assertThat(features, IsCollectionContaining.hasItem("headers"));
+
+        List<ObjectNode> transformedTests = transformer.transformRestTests(new LinkedList<>(tests),
+            Collections.singletonList(new InjectHeaders(headers)));
+        //ensure setup is correct
+        assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
+        transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetupForHeaders);
+        //ensure do body is correct
+        transformedTests
+            .forEach(test -> {
+                Iterator<Map.Entry<String, JsonNode>> testsIterator = test.fields();
+                while (testsIterator.hasNext()) {
+                    Map.Entry<String, JsonNode> testObject = testsIterator.next();
+                    assertThat(testObject.getValue(), CoreMatchers.instanceOf(ArrayNode.class));
+                    ArrayNode testBody = (ArrayNode) testObject.getValue();
+                    assertTestBodyForHeaders(testBody, headers);
+                }
+            });
+    }
+
+    private void assertTestBodyForHeaders(ArrayNode testBody, Map<String, String> headers) {
+        testBody.forEach(arrayObject -> {
+            assertThat(arrayObject, CoreMatchers.instanceOf(ObjectNode.class));
+            ObjectNode testSection = (ObjectNode) arrayObject;
+            if (testSection.get("do") != null) {
+                ObjectNode doSection = (ObjectNode) testSection.get("do");
+                assertThat(doSection.get("headers"), CoreMatchers.notNullValue());
+                ObjectNode headersNode = (ObjectNode) doSection.get("headers");
+                LongAdder assertions = new LongAdder();
+                headers.forEach((k, v) -> {
+                    assertThat(headersNode.get(k), CoreMatchers.notNullValue());
+                    TextNode textNode = (TextNode) headersNode.get(k);
+                    assertThat(textNode.asText(), CoreMatchers.equalTo(v));
+                    assertions.increment();
+                });
+                assertThat(assertions.intValue(), CoreMatchers.equalTo(headers.size()));
+            }
+        });
+    }
+
     private void assertSetupForHeaders(ObjectNode setupNode) {
-        assertThat(setupNode.get("setup"), CoreMatchers.instanceOf(ObjectNode.class));
-        ObjectNode setupValue = (ObjectNode) setupNode.get("setup");
-        assertThat(setupValue.get("skip"), CoreMatchers.instanceOf(ObjectNode.class));
-        ObjectNode skipNode = (ObjectNode) setupValue.get("skip");
+        assertThat(setupNode.get("setup"), CoreMatchers.instanceOf(ArrayNode.class));
+        ObjectNode skipNode = getSkipNode((ArrayNode) setupNode.get("setup"));
+        assertThat(skipNode, CoreMatchers.notNullValue());
+        //transforms always results in an array of features, even if it is an array of 1
         assertThat(skipNode.get("features"), CoreMatchers.instanceOf(ArrayNode.class));
         ArrayNode features = (ArrayNode) skipNode.get("features");
         List<String> featureValues = new ArrayList<>();
@@ -108,5 +273,20 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             }
         });
         assertThat(featureValues, IsCollectionContaining.hasItem("headers"));
+    }
+
+    private ObjectNode getSkipNode(ArrayNode setupNodeValue) {
+        Iterator<JsonNode> setupIt = setupNodeValue.elements();
+        while (setupIt.hasNext()) {
+            JsonNode arrayEntry = setupIt.next();
+            if (arrayEntry.isObject()) {
+                ObjectNode skipCandidate = (ObjectNode) arrayEntry;
+                if (skipCandidate.get("skip") != null) {
+                    ObjectNode skipNode = (ObjectNode) skipCandidate.get("skip");
+                    return skipNode;
+                }
+            }
+        }
+        return null;
     }
 }

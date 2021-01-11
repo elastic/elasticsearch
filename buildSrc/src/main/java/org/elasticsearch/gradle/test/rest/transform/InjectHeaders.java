@@ -19,12 +19,14 @@
 
 package org.elasticsearch.gradle.test.rest.transform;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 
 import javax.annotation.Nullable;
+import java.util.Iterator;
 import java.util.Map;
 
 public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
@@ -57,25 +59,50 @@ public class InjectHeaders implements ObjectKeyFinder, RestTestSetupTransform {
 
     @Override
     public ObjectNode transformSetup(@Nullable ObjectNode setupNodeParent) {
+        ArrayNode setupNode;
         if (setupNodeParent == null) {
             setupNodeParent = new ObjectNode(jsonNodeFactory);
-        }
-        ObjectNode setupNode = (ObjectNode) setupNodeParent.get("setup");
-        if (setupNode == null) {
-            setupNode = new ObjectNode(jsonNodeFactory);
+            setupNode = new ArrayNode(jsonNodeFactory);
             setupNodeParent.set("setup", setupNode);
         }
-        ObjectNode skipNode = (ObjectNode) setupNode.get("skip");
-        if (skipNode == null) {
-            skipNode = new ObjectNode(jsonNodeFactory);
-            setupNode.set("skip", skipNode);
+        setupNode = (ArrayNode) setupNodeParent.get("setup");
+        Iterator<JsonNode> setupIt = setupNode.elements();
+        boolean foundSkipNode = false;
+        while (setupIt.hasNext()) {
+            JsonNode arrayEntry = setupIt.next();
+            if (arrayEntry.isObject()) {
+                ObjectNode skipCandidate = (ObjectNode) arrayEntry;
+                if (skipCandidate.get("skip") != null) {
+                    ObjectNode skipNode = (ObjectNode) skipCandidate.get("skip");
+                    foundSkipNode = true;
+                    JsonNode featuresNode = skipNode.get("features");
+                    if (featuresNode == null) {
+                        ArrayNode featuresNodeArray = new ArrayNode(jsonNodeFactory);
+                        featuresNodeArray.add("headers");
+                        skipNode.set("features", featuresNodeArray);
+                    } else if (featuresNode.isArray()) {
+                        ArrayNode featuresNodeArray = (ArrayNode) featuresNode;
+                        featuresNodeArray.add("headers");
+
+                    } else if (featuresNode.isTextual()) {
+                        ArrayNode featuresNodeArray = new ArrayNode(jsonNodeFactory);
+                        featuresNodeArray.add(featuresNode.asText());
+                        featuresNodeArray.add("headers");
+                        //overwrite the features object
+                        skipNode.set("features", featuresNodeArray);
+                    }
+                }
+            }
         }
-        ArrayNode featuresNode = (ArrayNode) skipNode.get("features");
-        if (featuresNode == null) {
-            featuresNode = new ArrayNode(jsonNodeFactory);
-            skipNode.set("features", featuresNode);
+        if (foundSkipNode == false) {
+            ObjectNode skipNode = new ObjectNode(jsonNodeFactory);
+            ObjectNode featuresNode = new ObjectNode(jsonNodeFactory);
+            ArrayNode featuresNodeContent = new ArrayNode(jsonNodeFactory);
+            setupNode.add(skipNode);
+            skipNode.set("skip", featuresNode);
+            featuresNode.set("features", featuresNodeContent);
+            featuresNodeContent.add("headers");
         }
-        featuresNode.add("headers");
         return setupNodeParent;
     }
 }

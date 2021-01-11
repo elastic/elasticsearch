@@ -55,7 +55,7 @@ Index templates automatically apply settings, mappings, and aliases to new indic
 They are most often used to configure rolling indices for time series data to 
 ensure that each new index has the same configuration as the previous one. 
 The index template associated with a data stream configures its backing indices. 
-For more information, see <<indices-templates, Index Templates>>.
+For more information, see <<index-templates, Index Templates>>.
 
 * <<indices-put-template>>
 * <<indices-get-template>>

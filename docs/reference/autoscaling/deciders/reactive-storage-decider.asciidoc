@@ -6,4 +6,4 @@ The reactive storage decider (`reactive_storage`) calculates the storage require
 the current data set. It signals that additional storage capacity is necessary
 when existing capacity has been exceeded (reactively).
 
-It is enabled for all policies governing data nodes and has no configuration options.
+The reactive storage decider is enabled for all policies governing data nodes and has no configuration options.

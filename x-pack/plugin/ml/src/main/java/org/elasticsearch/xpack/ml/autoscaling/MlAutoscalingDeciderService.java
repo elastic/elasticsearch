@@ -21,6 +21,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
@@ -365,9 +366,11 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 return scaleDownDecision.get();
             }
             logger.debug(() -> new ParameterizedMessage(
-                "not scaling down as the current scale down delay [{}] is not satisfied. The last time scale down was detected [{}]",
+                "not scaling down as the current scale down delay [{}] is not satisfied." +
+                    " The last time scale down was detected [{}]. Calculated scaled down capacity [{}] ",
                 downScaleDelay.getStringRep(),
-                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected)));
+                XContentElasticsearchExtension.DEFAULT_DATE_PRINTER.print(scaleDownDetected),
+                scaleDownDecision.get().requiredCapacity()));
             return new AutoscalingDeciderResult(
                 context.currentCapacity(),
                 reasonBuilder
@@ -420,9 +423,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
 
             updatedCapacity.merge(anomalyCapacity.orElse(NativeMemoryCapacity.ZERO))
                 .merge(analyticsCapacity.orElse(NativeMemoryCapacity.ZERO));
+            AutoscalingCapacity requiredCapacity = updatedCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto);
             return Optional.of(new AutoscalingDeciderResult(
-                updatedCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto),
-                reasonBuilder.setSimpleReason("requesting scale up as number of jobs in queues exceeded configured limit").build()));
+                requiredCapacity,
+                reasonBuilder
+                    .setRequiredCapacity(requiredCapacity)
+                    .setSimpleReason("requesting scale up as number of jobs in queues exceeded configured limit")
+                    .build()
+            ));
         }
 
         // Could the currently waiting jobs ever be assigned?
@@ -435,10 +443,15 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                     .filter(Objects::nonNull)
                     .max(Long::compareTo);
                 if (maxSize.isPresent() && maxSize.get() > currentScale.getNode()) {
+                    AutoscalingCapacity requiredCapacity = new NativeMemoryCapacity(
+                        Math.max(currentScale.getTier(), maxSize.get()),
+                        maxSize.get()
+                    ).autoscalingCapacity(maxMachineMemoryPercent, useAuto);
                     return Optional.of(new AutoscalingDeciderResult(
-                        new NativeMemoryCapacity(Math.max(currentScale.getTier(), maxSize.get()), maxSize.get())
-                            .autoscalingCapacity(maxMachineMemoryPercent, useAuto),
-                        reasonBuilder.setSimpleReason("requesting scale up as there is no node large enough to handle queued jobs")
+                        requiredCapacity,
+                        reasonBuilder
+                            .setSimpleReason("requesting scale up as there is no node large enough to handle queued jobs")
+                            .setRequiredCapacity(requiredCapacity)
                             .build()));
                 }
                 // we have no info, allow the caller to make the appropriate action, probably returning a no_scale
@@ -473,11 +486,16 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
             }
             if (newNodeMax > currentScale.getNode() || newTierNeeded > 0L) {
                 NativeMemoryCapacity newCapacity = new NativeMemoryCapacity(newTierNeeded, newNodeMax);
+                AutoscalingCapacity requiredCapacity = NativeMemoryCapacity
+                    .from(currentScale)
+                    .merge(newCapacity)
+                    .autoscalingCapacity(maxMachineMemoryPercent, useAuto);
                 return Optional.of(new AutoscalingDeciderResult(
                     // We need more memory in the tier, or our individual node size requirements has increased
-                    NativeMemoryCapacity.from(currentScale).merge(newCapacity).autoscalingCapacity(maxMachineMemoryPercent, useAuto),
+                    requiredCapacity,
                     reasonBuilder
                         .setSimpleReason("scaling up as adequate space would not automatically become available when running jobs finish")
+                        .setRequiredCapacity(requiredCapacity)
                         .build()
                 ));
             }
@@ -591,10 +609,14 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService,
                 currentlyNecessaryNode,
                 // If our newly suggested native capacity is the same, we can use the previously stored jvm size
                 currentlyNecessaryNode == currentCapacity.getNode() ? currentCapacity.getJvmSize() : null);
+            AutoscalingCapacity requiredCapacity = nativeMemoryCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto);
             return Optional.of(
                 new AutoscalingDeciderResult(
-                    nativeMemoryCapacity.autoscalingCapacity(maxMachineMemoryPercent, useAuto),
-                    reasonBuilder.setSimpleReason("Requesting scale down as tier and/or node size could be smaller").build()
+                    requiredCapacity,
+                    reasonBuilder
+                        .setRequiredCapacity(requiredCapacity)
+                        .setSimpleReason("Requesting scale down as tier and/or node size could be smaller")
+                        .build()
                 )
             );
         }

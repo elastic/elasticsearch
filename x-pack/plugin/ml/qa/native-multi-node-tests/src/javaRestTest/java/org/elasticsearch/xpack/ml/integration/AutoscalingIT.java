@@ -103,7 +103,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
                 + currentScale.getTier()
             ) * 100 / 30.0
         );
-        expectedNodeBytes = (long)Math.ceil(ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
+        expectedNodeBytes = (long) (ByteSizeValue.ofMb(60_000 + BASELINE_OVERHEAD_MB).getBytes() * 100 / 30.0);
 
 
         assertMlCapacity(

@@ -47,17 +47,24 @@ public class NativeMemoryCapacity  {
     }
 
     AutoscalingCapacity autoscalingCapacity(int maxMemoryPercent, boolean useAuto) {
-        int memoryPercentForMl = jvmSize == null ?
-            NativeMemoryCalculator.modelMemoryPercent(node, maxMemoryPercent, useAuto) :
-            // We make the assumption that the JVM size is the same across the entire tier
-            // This simplifies calculating the tier as it means that each node in the tier
-            // will have the same dynamic memory calculation. And thus the tier is simply the sum of the memory necessary
-            // times that scaling factor.
-            NativeMemoryCalculator.modelMemoryPercent(node, jvmSize, maxMemoryPercent, useAuto);
+        // We first need to calculate the actual node size given the current native memory size.
+        // This way we can accurately determine the required node size AND what the overall memory percentage will be
+        long actualNodeSize = NativeMemoryCalculator.calculateApproxNecessaryNodeSize(node, jvmSize, maxMemoryPercent, useAuto);
+        // We make the assumption that the JVM size is the same across the entire tier
+        // This simplifies calculating the tier as it means that each node in the tier
+        // will have the same dynamic memory calculation. And thus the tier is simply the sum of the memory necessary
+        // times that scaling factor.
+        int memoryPercentForMl = (int)Math.floor(NativeMemoryCalculator.modelMemoryPercent(
+            actualNodeSize,
+            jvmSize,
+            maxMemoryPercent,
+            useAuto
+        ));
         double inverseScale = memoryPercentForMl <= 0 ? 0 : 100.0 / memoryPercentForMl;
         return new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes((long)Math.ceil(tier * inverseScale))),
-            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes((long)Math.ceil(node * inverseScale))));
+            new AutoscalingCapacity.AutoscalingResources(null, ByteSizeValue.ofBytes(actualNodeSize))
+        );
     }
 
     public long getTier() {

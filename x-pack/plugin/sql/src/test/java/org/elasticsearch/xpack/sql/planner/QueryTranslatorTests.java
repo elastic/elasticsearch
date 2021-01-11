@@ -2508,7 +2508,7 @@ public class QueryTranslatorTests extends ESTestCase {
 
         assertEquals(expectedCondition, condition);
     }
-    
+
     public void testSubqueryBasicSelect() throws Exception {
         PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
             "( SELECT int FROM test )");
@@ -2529,6 +2529,22 @@ public class QueryTranslatorTests extends ESTestCase {
         PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
             "( SELECT int AS i FROM test ) " +
             "GROUP BY i");
+    }
+
+    public void testSubqueryFilterOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "ORDER BY i");
+    }
+
+    @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
+    public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "GROUP BY i " +
+            "ORDER BY i");
     }
 
     public void testSubqueryFilterByAlias() throws Exception {

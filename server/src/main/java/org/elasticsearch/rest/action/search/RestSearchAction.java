@@ -321,7 +321,7 @@ public class RestSearchAction extends BaseRestHandler {
             indicesOptions.ignoreUnavailable(), indicesOptions.allowNoIndices(), false, false, false,
             true, true, indicesOptions.ignoreThrottled());
         request.indicesOptions(stricterIndicesOptions);
-        final SearchContextId searchContextId = SearchContextId.decode(namedWriteableRegistry, request.pointInTimeBuilder().getId());
+        final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
         request.indices(searchContextId.getActualIndices());
     }
 

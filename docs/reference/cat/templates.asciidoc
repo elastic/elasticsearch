@@ -48,7 +48,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----
-GET _cat/templates/my-template-*?v&s=name
+GET _cat/templates/my-template-*?v=true&s=name
 ----
 // TEST[s/^/PUT _index_template\/my-template-0\n{"index_patterns": "te*", "priority": 200}\n/]
 // TEST[s/^/PUT _index_template\/my-template-1\n{"index_patterns": "tea*", "priority": 201}\n/]

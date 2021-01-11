@@ -88,7 +88,7 @@ following `fieldata` API request retrieves heap memory size information for the
 
 [source,console]
 --------------------------------------------------
-GET /_cat/fielddata?v&fields=body
+GET /_cat/fielddata?v=true&fields=body
 --------------------------------------------------
 // TEST[continued]
 
@@ -112,7 +112,7 @@ information for the `body` and `soul` fields.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/fielddata/body,soul?v
+GET /_cat/fielddata/body,soul?v=true
 --------------------------------------------------
 // TEST[continued]
 
@@ -138,7 +138,7 @@ information all fields.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/fielddata?v
+GET /_cat/fielddata?v=true
 --------------------------------------------------
 // TEST[continued]
 

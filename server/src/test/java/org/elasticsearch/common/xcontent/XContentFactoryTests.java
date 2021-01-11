@@ -49,6 +49,13 @@ public class XContentFactoryTests extends ESTestCase {
         testGuessType(XContentType.CBOR);
     }
 
+    public void testGuessVndTypes() throws IOException {
+        testGuessType(XContentType.VND_JSON);
+        testGuessType(XContentType.VND_SMILE);
+        testGuessType(XContentType.VND_YAML);
+        testGuessType(XContentType.VND_CBOR);
+    }
+
     private void testGuessType(XContentType type) throws IOException {
         XContentBuilder builder = XContentFactory.contentBuilder(type);
         builder.startObject();
@@ -56,7 +63,7 @@ public class XContentFactoryTests extends ESTestCase {
         builder.endObject();
 
         final BytesReference bytes;
-        if (type == XContentType.JSON && randomBoolean()) {
+        if (type.canonical() == XContentType.JSON && randomBoolean()) {
             final int length = randomIntBetween(0, 8 * XContentFactory.GUESS_HEADER_LENGTH);
             final String content = Strings.toString(builder);
             final StringBuilder sb = new StringBuilder(length + content.length());
@@ -68,12 +75,12 @@ public class XContentFactoryTests extends ESTestCase {
             bytes = BytesReference.bytes(builder);
         }
 
-        assertThat(XContentHelper.xContentType(bytes), equalTo(type));
-        assertThat(XContentFactory.xContentType(bytes.streamInput()), equalTo(type));
+        assertThat(XContentHelper.xContentType(bytes), equalTo(type.canonical()));
+        assertThat(XContentFactory.xContentType(bytes.streamInput()), equalTo(type.canonical()));
 
         // CBOR is binary, cannot use String
-        if (type != XContentType.CBOR && type != XContentType.SMILE) {
-            assertThat(XContentFactory.xContentType(Strings.toString(builder)), equalTo(type));
+        if (type.canonical() != XContentType.CBOR && type.canonical() != XContentType.SMILE) {
+            assertThat(XContentFactory.xContentType(Strings.toString(builder)), equalTo(type.canonical()));
         }
     }
 

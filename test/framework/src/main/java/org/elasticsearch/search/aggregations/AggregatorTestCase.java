@@ -295,7 +295,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         AggregationContext context = new ProductionAggregationContext(
             queryShardContext,
             bytesToPreallocate,
-            query,
+            () -> query,
             null,
             consumer,
             () -> buildSubSearchContext(indexSettings, queryShardContext, bitsetFilterCache),

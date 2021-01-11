@@ -34,7 +34,9 @@ final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
         UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged() : "unfollow response is not acknowledged";
+                if (r.isAcknowledged() == false) {
+                    throw new ElasticsearchException("unfollow request failed to be acknowledged");
+                }
                 listener.onResponse(true);
             },
             exception -> {

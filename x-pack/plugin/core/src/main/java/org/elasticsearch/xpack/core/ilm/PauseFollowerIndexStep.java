@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
@@ -52,7 +53,9 @@ final class PauseFollowerIndexStep extends AbstractUnfollowIndexStep {
         PauseFollowAction.Request request = new PauseFollowAction.Request(followerIndex);
         getClient().execute(PauseFollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged() : "pause follow response is not acknowledged";
+                if (r.isAcknowledged() == false) {
+                    throw new ElasticsearchException("pause follow request failed to be acknowledged");
+                }
                 listener.onResponse(true);
             },
             listener::onFailure

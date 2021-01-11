@@ -26,6 +26,7 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -70,6 +71,41 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
         });
         assertThat(completed[0], is(true));
         assertThat(failure[0], nullValue());
+    }
+
+    public void testResponseNotAcknowledged() {
+        IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
+            .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
+            .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+        ClusterState clusterState = setupClusterStateWithFollowingIndex(indexMetadata);
+
+        Mockito.doAnswer(invocation -> {
+            @SuppressWarnings("unchecked")
+            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
+            listener.onResponse(AcknowledgedResponse.FALSE);
+            return null;
+        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+
+        Boolean[] completed = new Boolean[1];
+        Exception[] failure = new Exception[1];
+        PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                completed[0] = complete;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure[0] = e;
+            }
+        });
+        assertThat(completed[0], nullValue());
+        assertThat(failure[0], notNullValue());
+        assertThat(failure[0].getMessage(), is("pause follow request failed to be acknowledged"));
     }
 
     public void testPauseFollowingIndexFailed() {

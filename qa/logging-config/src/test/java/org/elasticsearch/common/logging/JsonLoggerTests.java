@@ -49,6 +49,8 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
+import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasEntry;
@@ -100,18 +102,17 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "deprecation"),
+                    hasEntry("event.dataset", "deprecation"),
                     hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
+                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                    hasEntry("elasticsearch.node.name", "sample-name"),
                     hasEntry("message", "deprecated message1"),
                     hasEntry("data_stream.type", "logs"),
-                    hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
-                    hasEntry("data_stream.namespace", "default"),
+                    hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                     hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
-                    hasEntry("key", "a key"),
-                    not(hasKey("x-opaque-id"))
+                    hasEntry(KEY_FIELD_NAME, "a key"),
+                    not(hasKey(X_OPAQUE_ID_FIELD_NAME))
                 )
                 )
             );
@@ -138,18 +139,17 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("event.dataset", "deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "deprecated message1"),
                             hasEntry("data_stream.type", "logs"),
-                            hasEntry("data_stream.dataset", "deprecation.elasticsearch"),
-                            hasEntry("data_stream.namespace", "default"),
+                            hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
                             hasEntry("ecs.version", DeprecatedMessage.ECS_VERSION),
-                            hasEntry("key", "someKey"),
-                            hasEntry("x-opaque-id", "someId")
+                            hasEntry(KEY_FIELD_NAME, "someKey"),
+                            hasEntry(X_OPAQUE_ID_FIELD_NAME, "someId")
                         )
                     )
                 );
@@ -175,11 +175,11 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "file"),
+                    hasEntry("event.dataset", "file"),
                     hasEntry("log.level", "INFO"),
                     hasEntry("log.logger", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
+                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                    hasEntry("elasticsearch.node.name", "sample-name"),
                     hasEntry("message", "some message value0 value1"),
                     hasEntry("key1", "value1"),
                     hasEntry("key2", "value2"))
@@ -203,11 +203,11 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("type", "file"),
+                    hasEntry("event.dataset", "file"),
                     hasEntry("log.level", "INFO"),
                     hasEntry("log.logger", "test"),
-                    hasEntry("cluster.name", "elasticsearch"),
-                    hasEntry("node.name", "sample-name"),
+                    hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                    hasEntry("elasticsearch.node.name", "sample-name"),
                     hasEntry("field1", "value1"),
                     hasEntry("field2", "value2"),
                     hasEntry("message", "some message"))
@@ -348,13 +348,13 @@ public class JsonLoggerTests extends ESTestCase {
 
                 assertThat(jsonLogs, contains(
                     allOf(
-                        hasEntry("type", "deprecation"),
+                        hasEntry("event.dataset", "deprecation"),
                         hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "deprecation.test"),
-                        hasEntry("cluster.name", "elasticsearch"),
-                        hasEntry("node.name", "sample-name"),
+                        hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                        hasEntry("elasticsearch.node.name", "sample-name"),
                         hasEntry("message", "message1"),
-                        hasEntry("x-opaque-id", "ID1"))
+                        hasEntry(X_OPAQUE_ID_FIELD_NAME, "ID1"))
                     )
                 );
             }
@@ -379,22 +379,22 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("event.dataset", "deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID1")
+                            hasEntry(X_OPAQUE_ID_FIELD_NAME, "ID1")
                         ),
                         allOf(
-                            hasEntry("type", "deprecation"),
+                            hasEntry("event.dataset", "deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
-                            hasEntry("cluster.name", "elasticsearch"),
-                            hasEntry("node.name", "sample-name"),
+                            hasEntry("elasticsearch.cluster.name", "elasticsearch"),
+                            hasEntry("elasticsearch.node.name", "sample-name"),
                             hasEntry("message", "message1"),
-                            hasEntry("x-opaque-id", "ID2")
+                            hasEntry(X_OPAQUE_ID_FIELD_NAME, "ID2")
                         )
                     )
                 );

@@ -44,7 +44,7 @@ Infra/Settings::
 * Do not interpret SecurityException in KeystoreAwareCommand {es-pull}65366[#65366]
 
 QL::
-* QL: handle IP type fields extraction with ignore_malformed property {es-pull}66622[#66622] (issue: {es-issue}66675[#66675])
+* Handle IP type fields extraction with ignore_malformed property {es-pull}66622[#66622] (issue: {es-issue}66675[#66675])
 
 Machine Learning::
 * Change to only calculate model size on initial load to prevent slow cache promotions {es-pull}66451[#66451]

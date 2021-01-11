@@ -61,7 +61,7 @@ The API returns the following response:
 name      index_patterns priority version composed_of
 template0 [te*]          200
 template1 [tea*]         201
-template2 [teak*]        202     7
+template2 [teak*]        202      7
 ----
 // TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
 

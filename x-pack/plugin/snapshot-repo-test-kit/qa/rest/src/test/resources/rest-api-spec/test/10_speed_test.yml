@@ -1,0 +1,57 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo
+        body:
+          type: fs
+          settings:
+            location: "test_repo_loc"
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_readonly
+        body:
+          type: fs
+          settings:
+            readonly: true
+            location: "test_repo_loc"
+
+---
+"Speed test fails on readonly repositories":
+  - skip:
+      version: "- 7.99.99"
+      reason: "introduced in 8.0"
+
+  - do:
+      catch: bad_request
+      snapshot.repository_speed_test:
+        repository: test_repo_readonly
+
+  - match: { status: 400 }
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "repository [test_repo_readonly] is read-only" }
+
+---
+"Speed test":
+  - skip:
+      version: "- 7.99.99"
+      reason: "introduced in 8.0"
+
+  - do:
+      snapshot.repository_speed_test:
+        repository: test_repo
+        blob_count: 10
+        concurrency: 5
+        max_blob_size: 1mb
+
+  - match: { repository:    test_repo }
+  - match: { blob_count:    10 }
+  - match: { concurrency:   5 }
+  - match: { max_blob_size: 1mb }
+  - is_true: seed
+  - is_true: blob_path
+  - is_true: blobs
+  - gte: { listing_nanos: 0}
+  - gte: { delete_nanos:  0}

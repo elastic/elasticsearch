@@ -1,0 +1,30 @@
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'snapshot-repo-test-kit'
+  description 'A plugin for a test kit for snapshot repositories'
+  classname 'org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit'
+  extendedPlugins = ['x-pack-core']
+}
+archivesBaseName = 'x-pack-snapshot-repo-test-kit'
+
+dependencies {
+  compileOnly project(path: xpackModule('core'), configuration: 'default')
+  internalClusterTestImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
+}
+
+addQaCheckDependencies()
+
+configurations {
+  testArtifacts.extendsFrom testRuntime
+  testArtifacts.extendsFrom testImplementation
+}
+
+def testJar = tasks.register("testJar", Jar) {
+  appendix 'test'
+  from sourceSets.test.output
+}
+
+artifacts {
+  testArtifacts testJar
+}

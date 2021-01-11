@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.core.textstructure.action.FindFileStructureAction
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
 import org.elasticsearch.xpack.textstructure.structurefinder.FileStructureFinderManager;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
@@ -35,9 +34,19 @@ public class RestFindFileStructureAction extends BaseRestHandler {
 
     @Override
     public List<ReplacedRoute> replacedRoutes() {
-        return Arrays.asList(
-            new ReplacedRoute(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure"),
-            new ReplacedRoute(POST, BASE_PATH + "find_structure", POST, "/_xpack/ml/find_file_structure")
+        return Collections.singletonList(new ReplacedRoute(POST, BASE_PATH + "find_structure", POST, "/_ml/find_file_structure"));
+    }
+
+    @Override
+    public List<DeprecatedRoute> deprecatedRoutes() {
+        return Collections.singletonList(
+            // There is no way to indicate multiple replaced routes to point to the same new route
+            // So adding a deprecated route here to handle that scenario
+            new DeprecatedRoute(
+                POST,
+                "/_xpack/ml/find_file_structure",
+                "[POST /_xpack/ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure instead."
+            )
         );
     }
 

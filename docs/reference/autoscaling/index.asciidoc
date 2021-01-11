@@ -17,9 +17,8 @@ autoscaling API would report that the cluster needs to scale due to disk space.
 It remains the responsibility of the operator to add the additional resources
 that the cluster signals it requires.
 
-[NOTE]
-Autoscaling supports scale up and down of pure machine learning nodes and scale
-up based on storage of data nodes.
+Autoscaling supports the scale-up and scale-down of dedicated {ml}
+nodes. Autoscaling also supports the scale-up of data nodes based on storage.
 [NOTE]
 Autoscaling is not supported on Debian 8.
 

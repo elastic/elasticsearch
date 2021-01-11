@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -38,15 +39,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
         DeprecationInfoAction.Response> {
@@ -104,8 +96,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                     final DeprecationInfoAction.Response finalResponse;
                     try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().newStoredContext(false)) {
                         // We store the context here and drop any new response headers to prevent getting a deprecation warning on the
-                        // deprecation info API call when we resolve indices. This is a temporary hack, and this should be removed
-                        // once REST system index access has been disabled.
+                        // deprecation info API call when we resolve indices.
                         finalResponse = DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
                             request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS, deprecationIssues);
                     }

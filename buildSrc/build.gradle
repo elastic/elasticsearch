@@ -99,7 +99,6 @@ dependencies {
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.5.0"
   api 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
-  // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.1'
   api 'com.avast.gradle:gradle-docker-compose-plugin:0.13.4'
   api 'org.apache.maven:maven-model:3.6.2'

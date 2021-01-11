@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.InternalSettingsPlugin;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.monitoring.cleaner.AbstractIndicesCleanerTestCase;
 import org.elasticsearch.xpack.monitoring.cleaner.CleanerService;
 import org.elasticsearch.xpack.monitoring.exporter.local.LocalExporter;
@@ -37,6 +38,11 @@ public class LocalIndicesCleanerTests extends AbstractIndicesCleanerTestCase {
                 .put(super.nodeSettings(nodeOrdinal))
                 .put("xpack.monitoring.exporters._local.type", LocalExporter.TYPE)
                 .put("xpack.watcher.history.cleaner_service.enabled", cleanUpWatcherHistory)
+                // Disable watcher, so that no composable index template gets added for watcher history.
+                // This allows this test to add individual watcher indices and test the cleaning feature,
+                // without failing because an index can't be created because a template matches that creates
+                // a data stream.
+                .put(XPackSettings.WATCHER_ENABLED.getKey(), false)
                 .build();
     }
 

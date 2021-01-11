@@ -75,7 +75,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 log.trace("Attempting to resolve {}", plan.nodeString());
             }
 
-            return plan.transformExpressionsUp(u -> {
+            return plan.transformExpressionsUp(UnresolvedAttribute.class, u -> {
                 Collection<Attribute> childrenOutput = new LinkedHashSet<>();
                 for (LogicalPlan child : plan.children()) {
                     childrenOutput.addAll(child.output());
@@ -89,7 +89,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     return named;
                 }
                 return u;
-            }, UnresolvedAttribute.class);
+            });
         }
     }
 
@@ -97,7 +97,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(LogicalPlan plan) {
-            return plan.transformExpressionsUp(uf -> {
+            return plan.transformExpressionsUp(UnresolvedFunction.class, uf -> {
                 if (uf.analyzed()) {
                     return uf;
                 }
@@ -115,7 +115,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 FunctionDefinition def = functionRegistry.resolveFunction(functionName);
                 Function f = uf.buildResolved(configuration, def);
                 return f;
-            }, UnresolvedFunction.class);
+            });
         }
     }
 }

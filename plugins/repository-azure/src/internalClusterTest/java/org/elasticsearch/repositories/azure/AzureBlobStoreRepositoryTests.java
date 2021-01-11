@@ -222,6 +222,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67119")
     public void testLargeBlobCountDeletion() throws Exception {
         int numberOfBlobs = randomIntBetween(257, 2000);
         try (BlobStore store = newBlobStore()) {

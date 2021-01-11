@@ -52,6 +52,6 @@ public class ParsedMediaTypeBenchmark {
 
     @Benchmark
     public IndexRequest newIndexRequest() {
-        return oldIndexRequest.source(Collections.emptyMap(), XContentType.JSON);
+        return newIndexRequest.source(Collections.emptyMap(), XContentType.JSON);
     }
 }

@@ -166,8 +166,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
             indexAnalyzers.put(ft.name(), indexAnalyzer);
 
             // set up the prefix field
-            FieldType prefixft = new FieldType(fieldType);
-            prefixft.setStoreTermVectors(false);
+            FieldType prefixft = new FieldType();
+            prefixft.setIndexOptions(fieldType.indexOptions());
             prefixft.setOmitNorms(true);
             prefixft.setStored(false);
             final String fullName = buildFullName(contentPath);
@@ -179,10 +179,8 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 SearchAsYouTypeAnalyzer.withShingle(searchAnalyzer.analyzer(), maxShingleSize.getValue()));
             // don't wrap the root field's search quote analyzer as prefix field doesn't support phrase queries
             TextSearchInfo prefixSearchInfo = new TextSearchInfo(prefixft, similarity.getValue(), prefixSearchWrapper, searchAnalyzer);
-            final PrefixFieldType prefixFieldType
-                = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
-            final NamedAnalyzer prefixAnalyzer
-                = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
+            final PrefixFieldType prefixFieldType = new PrefixFieldType(fullName, prefixSearchInfo, Defaults.MIN_GRAM, Defaults.MAX_GRAM);
+            final NamedAnalyzer prefixAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, prefixIndexWrapper);
             final PrefixFieldMapper prefixFieldMapper = new PrefixFieldMapper(prefixft, prefixFieldType);
             indexAnalyzers.put(prefixFieldType.name(), prefixAnalyzer);
 
@@ -206,8 +204,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
                 final ShingleFieldType shingleFieldType = new ShingleFieldType(fieldName, shingleSize, textSearchInfo);
                 shingleFieldType.setPrefixFieldType(prefixFieldType);
                 shingleFieldTypes[i] = shingleFieldType;
-                NamedAnalyzer shingleAnalyzer
-                    = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
+                NamedAnalyzer shingleAnalyzer = new NamedAnalyzer(indexAnalyzer.name(), AnalyzerScope.INDEX, shingleIndexWrapper);
                 shingleFieldMappers[i] = new ShingleFieldMapper(shingleft, shingleFieldType);
                 indexAnalyzers.put(shingleFieldType.name(), shingleAnalyzer);
             }

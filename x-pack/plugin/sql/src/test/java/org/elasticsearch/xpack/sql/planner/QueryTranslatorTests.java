@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.ql.index.EsIndex;
 import org.elasticsearch.xpack.ql.index.IndexResolution;
@@ -88,6 +89,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -95,6 +97,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
@@ -2385,11 +2388,11 @@ public class QueryTranslatorTests extends ESTestCase {
                 "   PERCENTILE(int, 50), " +
                 // 4: this has a different method parameter
                 // just to make sure we don't fold everything to default
-                "   PERCENTILE(int, 50, 'tdigest', 22) " 
+                "   PERCENTILE(int, 50, 'tdigest', 22) "
                 + "FROM test").replaceAll("PERCENTILE", fnName);
-            
+
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-            
+
             // 0-3
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(aggs.get(0), aggs.get(2));
@@ -2401,7 +2404,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(new PercentilesConfig.TDigest(22), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[] { 50 }, pctOrValFn.apply(aggs.get(4)), 0);
         };
-        
+
         test.accept("PERCENTILE", p -> ((PercentilesAggregationBuilder)p).percentiles());
         test.accept("PERCENTILE_RANK", p -> ((PercentileRanksAggregationBuilder)p).values());
     }
@@ -2414,17 +2417,17 @@ public class QueryTranslatorTests extends ESTestCase {
                 // 0-1: fold into the same aggregation
                 "   PERCENTILE(int, 50, 'tdigest'), " +
                 "   PERCENTILE(int, 60, 'tdigest'), " +
-                
+
                 // 2-3: fold into one aggregation
                 "   PERCENTILE(int, 50, 'hdr'), " +
                 "   PERCENTILE(int, 60, 'hdr', 3), " +
-                
+
                 // 4: folds into a separate aggregation
                 "   PERCENTILE(int, 60, 'hdr', 4)" +
                 "FROM test").replaceAll("PERCENTILE", fnName);
 
             List<AbstractPercentilesAggregationBuilder> aggs = percentilesAggsByField(optimizeAndPlan(sql), fieldCount);
-            
+
             // 0-1
             assertEquals(aggs.get(0), aggs.get(1));
             assertEquals(new PercentilesConfig.TDigest(), aggs.get(0).percentilesConfig());
@@ -2434,7 +2437,7 @@ public class QueryTranslatorTests extends ESTestCase {
             assertEquals(aggs.get(2), aggs.get(3));
             assertEquals(new PercentilesConfig.Hdr(), aggs.get(2).percentilesConfig());
             assertArrayEquals(new double[]{50, 60}, pctOrValFn.apply(aggs.get(2)), 0);
-            
+
             // 4
             assertEquals(new PercentilesConfig.Hdr(4), aggs.get(4).percentilesConfig());
             assertArrayEquals(new double[]{60}, pctOrValFn.apply(aggs.get(4)), 0);
@@ -2445,7 +2448,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     // Tests the workaround for the SUM(all zeros) = NULL issue raised in https://github.com/elastic/elasticsearch/issues/45251 and
-    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes) 
+    // should be removed as soon as root cause is fixed and the sum aggregation results can differentiate between SUM(all zeroes)
     // and SUM(all nulls)
     public void testReplaceSumWithStats() {
         List<String> testCases = asList(
@@ -2458,5 +2461,139 @@ public class QueryTranslatorTests extends ESTestCase {
             EsQueryExec eqe = (EsQueryExec) physicalPlan;
             assertThat(eqe.queryContainer().toString().replaceAll("\\s+", ""), containsString("{\"stats\":{\"field\":\"int\"}}"));
         }
+    }
+
+    public void testAddMissingEqualsToBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test WHERE bool");
+        assertTrue(p instanceof Project);
+
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+
+        Expression condition = ((Filter) p).condition();
+        assertTrue(condition instanceof Equals);
+        Equals eq = (Equals) condition;
+
+        assertTrue(eq.left() instanceof FieldAttribute);
+        assertEquals("bool", ((FieldAttribute) eq.left()).name());
+
+        assertTrue(eq.right() instanceof Literal);
+        assertEquals(TRUE, eq.right());
+    }
+
+    public void testAddMissingEqualsToNestedBoolField() {
+        LogicalPlan p = plan("SELECT bool FROM test " +
+            "WHERE int > 1 and (bool or int < 2) or (int = 3 and bool) or (int = 4 and bool = false) or bool");
+        LogicalPlan expectedPlan = plan("SELECT bool FROM test " +
+            "WHERE int > 1 and (bool = true or int < 2) or (int = 3 and bool = true) or (int = 4 and bool = false) or bool = true");
+
+        assertTrue(p instanceof Project);
+        p = ((Project) p).child();
+        assertTrue(p instanceof Filter);
+        Expression condition = ((Filter) p).condition();
+
+        Expression expectedCondition = ((Filter) ((Project) expectedPlan).child()).condition();
+
+        List<Expression> expectedFields = expectedCondition.collect(x -> x instanceof FieldAttribute);
+        Set<Expression> expectedBools = expectedFields.stream()
+            .filter(x -> ((FieldAttribute) x).name().equals("bool")).collect(Collectors.toSet());
+        assertEquals(1, expectedBools.size());
+        Set<Expression> expectedInts = expectedFields.stream()
+            .filter(x -> ((FieldAttribute) x).name().equals("int")).collect(Collectors.toSet());
+        assertEquals(1, expectedInts.size());
+
+        condition = condition
+            .transformDown(FieldAttribute.class, x -> x.name().equals("bool") ? (FieldAttribute) expectedBools.toArray()[0] : x)
+            .transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
+
+        assertEquals(expectedCondition, condition);
+    }
+
+    public void testSubqueryBasicSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test )");
+    }
+
+    public void testSubquerySelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test )");
+    }
+
+    public void testSubqueryGroupByNoAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test ) " +
+            "GROUP BY int");
+    }
+
+    public void testSubqueryGroupByOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "GROUP BY i");
+    }
+
+    public void testSubqueryFilterOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "ORDER BY i");
+    }
+
+    @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
+    public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "GROUP BY i " +
+            "ORDER BY i");
+    }
+
+    public void testSubqueryFilterByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i > 10");
+    }
+
+    public void testSubqueryOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "ORDER BY i");
+    }
+
+    public void testSubqueryWithAliasBasicSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasBasicQualifiedSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT s.int FROM " +
+            "( SELECT int FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasSelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasQualifiedSelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT s.i FROM " +
+            "( SELECT int AS i FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasGroupBy() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "GROUP BY s.i");
+    }
+
+    public void testSubqueryWithAliasFilterByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "WHERE s.i > 10");
+    }
+
+    public void testSubqueryWithAliasOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "ORDER BY s.i > 10");
     }
 }

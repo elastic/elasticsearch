@@ -37,6 +37,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -54,11 +55,11 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.joda.time.Instant;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -153,7 +154,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .getState()
                 .metadata()
                 .index(indexName)
-                .getTimestampMillisRange(),
+                .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
@@ -250,7 +251,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                 .getState()
                 .metadata()
                 .index(restoredIndexName)
-                .getTimestampMillisRange(),
+                .getTimestampRange(),
             sameInstance(IndexLongFieldRange.UNKNOWN)
         );
 
@@ -712,6 +713,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         final int numShards = between(1, 3);
 
+        final String dateType = randomFrom("date", "date_nanos");
         assertAcked(
             client().admin()
                 .indices()
@@ -721,7 +723,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
                         .startObject()
                         .startObject("properties")
                         .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
-                        .field("type", "date_nanos")
+                        .field("type", dateType)
                         .field("format", "strict_date_optional_time_nanos")
                         .endObject()
                         .endObject()
@@ -766,7 +768,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
         ensureGreen(indexName);
 
-        final IndexLongFieldRange timestampMillisRange = client().admin()
+        final IndexLongFieldRange timestampRange = client().admin()
             .cluster()
             .prepareState()
             .clear()
@@ -776,16 +778,19 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .getState()
             .metadata()
             .index(indexName)
-            .getTimestampMillisRange();
+            .getTimestampRange();
 
-        assertTrue(timestampMillisRange.isComplete());
-        assertThat(timestampMillisRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        assertTrue(timestampRange.isComplete());
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
         if (docCount == 0) {
-            assertThat(timestampMillisRange, sameInstance(IndexLongFieldRange.EMPTY));
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
         } else {
-            assertThat(timestampMillisRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
-            assertThat(timestampMillisRange.getMin(), greaterThanOrEqualTo(Instant.parse("2020-11-26T00:00:00Z").getMillis()));
-            assertThat(timestampMillisRange.getMin(), lessThanOrEqualTo(Instant.parse("2020-11-27T00:00:00Z").getMillis()));
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+            DateFieldMapper.Resolution resolution = dateType.equals("date")
+                ? DateFieldMapper.Resolution.MILLISECONDS
+                : DateFieldMapper.Resolution.NANOSECONDS;
+            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
         }
     }
 

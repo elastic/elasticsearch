@@ -657,7 +657,9 @@
 ---
 "Test close job":
   - skip:
-      features: headers
+      features:
+        - "headers"
+        - "warnings"
   - do:
       ml.put_job:
         job_id: jobs-crud-close-job
@@ -682,6 +684,8 @@
         job_id: jobs-crud-close-job
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: jobs-crud-close-job
         body: >
@@ -915,7 +919,9 @@
 ---
 "Test force close job":
   - skip:
-      features: headers
+      features:
+        - "headers"
+        - "warnings"
   - do:
       ml.put_job:
         job_id: jobs-crud-force-close-job
@@ -943,6 +949,8 @@
         job_id: jobs-crud-force-close-job
 
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: jobs-crud-force-close-job
         body: >

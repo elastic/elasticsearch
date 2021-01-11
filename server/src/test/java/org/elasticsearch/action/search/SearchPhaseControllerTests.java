@@ -976,7 +976,8 @@ public class SearchPhaseControllerTests extends ESTestCase {
                         new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
                     new DocValueFormat[0]);
                 InternalAggregations aggs = InternalAggregations.from(
-                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap())));
+                    Collections.singletonList(new InternalMax("test", 0d, DocValueFormat.RAW, Collections.emptyMap()))
+                );
                 result.aggregations(aggs);
                 result.setShardIndex(index);
                 result.size(1);
@@ -1003,6 +1004,35 @@ public class SearchPhaseControllerTests extends ESTestCase {
         assertThat(circuitBreaker.allocated, equalTo(0L));
     }
 
+    public void testFailConsumeAggs() throws Exception {
+        int expectedNumResults = randomIntBetween(20, 200);
+        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
+        SearchRequest request = new SearchRequest();
+
+        request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
+        request.setBatchedReduceSize(bufferSize);
+        AtomicBoolean hasConsumedFailure = new AtomicBoolean();
+        try (QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST), SearchProgressListener.NOOP,
+            request, expectedNumResults, exc -> hasConsumedFailure.set(true))) {
+            for (int i = 0; i < expectedNumResults; i++) {
+                final int index = i;
+                QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
+                    new SearchShardTarget("node", new ShardId("a", "b", index), null, OriginalIndices.NONE),
+                    null);
+                result.topDocs(new TopDocsAndMaxScore(
+                        new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Lucene.EMPTY_SCORE_DOCS), Float.NaN),
+                    new DocValueFormat[0]);
+                result.aggregations(null);
+                result.setShardIndex(index);
+                result.size(1);
+                expectThrows(Exception.class, () -> consumer.consumeResult(result, () -> {
+                }));
+            }
+            assertNull(consumer.reduce().aggregations);
+        }
+    }
+
     private static class AssertingCircuitBreaker extends NoopCircuitBreaker {
         private final AtomicBoolean shouldBreak = new AtomicBoolean(false);
 
@@ -1013,19 +1043,17 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             assert bytes >= 0;
             if (shouldBreak.get()) {
                 throw new CircuitBreakingException(label, getDurability());
             }
             allocated += bytes;
-            return allocated;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
+        public void addWithoutBreaking(long bytes) {
             allocated += bytes;
-            return allocated;
         }
     }
 }

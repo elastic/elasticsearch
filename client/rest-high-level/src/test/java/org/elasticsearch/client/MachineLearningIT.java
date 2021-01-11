@@ -232,6 +232,10 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class MachineLearningIT extends ESRestHighLevelClientTestCase {
 
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
+
     @After
     public void cleanUp() throws IOException {
         new MlTestStateCleaner(logger, highLevelClient().machineLearning()).clearMlMetadata();
@@ -435,7 +439,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
-        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        machineLearningClient.postData(postDataRequest, POST_DATA_OPTIONS);
         machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
 
         ForecastJobRequest request = new ForecastJobRequest(jobId);
@@ -461,7 +466,9 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
 
-        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync);
+        // Post data is deprecated, so expect a deprecation warning
+        PostDataResponse response = execute(postDataRequest, machineLearningClient::postData, machineLearningClient::postDataAsync,
+            POST_DATA_OPTIONS);
         assertEquals(10, response.getDataCounts().getInputRecordCount());
         assertEquals(0, response.getDataCounts().getOutOfOrderTimeStampCount());
     }
@@ -1038,7 +1045,8 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(jobId, builder);
-        machineLearningClient.postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        machineLearningClient.postData(postDataRequest, POST_DATA_OPTIONS);
         machineLearningClient.flushJob(new FlushJobRequest(jobId), RequestOptions.DEFAULT);
         ForecastJobResponse forecastJobResponse1 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
         ForecastJobResponse forecastJobResponse2 = machineLearningClient.forecastJob(new ForecastJobRequest(jobId), RequestOptions.DEFAULT);
@@ -2887,8 +2895,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         FindFileStructureRequest request = new FindFileStructureRequest();
         request.setSample(sample.getBytes(StandardCharsets.UTF_8));
 
-        FindFileStructureResponse response =
-            execute(request, machineLearningClient::findFileStructure, machineLearningClient::findFileStructureAsync);
+        FindFileStructureResponse response = execute(
+            request,
+            machineLearningClient::findFileStructure,
+            machineLearningClient::findFileStructureAsync,
+            RequestOptions.DEFAULT
+                .toBuilder()
+                .setWarningsHandler(
+                    warnings -> Collections.singletonList(
+                        "[POST /_ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure] instead."
+                    ).equals(warnings) == false
+                ).build());
 
         FileStructure structure = response.getFileStructure();
 

@@ -76,7 +76,7 @@ template is used for data streams.
 ====
 {es} has built-in index templates for the `metrics-*-*`, `logs-*-*`, and
 `synthetics-*-*` index patterns, each with a priority of `100`.
-{ingest-guide}/fleet-overview.html[{agent}] uses these templates to
+{fleet-guide}/fleet-overview.html[{agent}] uses these templates to
 create data streams.
 
 If you use {agent}, assign your index templates a priority lower than `100` to
@@ -268,10 +268,11 @@ GET /_data_stream/my-data-stream
 
 To delete a data stream and its backing indices, open the {kib} menu and go to
 *Stack Management > Index Management*. In the *Data Streams* tab, click the
-trash can icon.
+trash icon. The trash icon only displays if you have the `delete_index`
+<<security-privileges, security privilege>> for the data stream.
 
 [role="screenshot"]
-image::images/data-streams/data-streams-list.png[Data Streams tab]
+image::images/data-streams/data-streams-no-delete.png[Data Streams tab]
 
 [%collapsible]
 .API example

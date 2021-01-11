@@ -41,6 +41,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.index.mapper.MappingLookup;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -113,9 +114,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
     }
 
     BytesReference getOrCompute(CacheEntity cacheEntity, CheckedSupplier<BytesReference, IOException> loader,
-                                DirectoryReader reader, BytesReference cacheKey) throws Exception {
+                                MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) throws Exception {
         assert reader.getReaderCacheHelper() != null;
-        final Key key =  new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey);
+        final Key key =  new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey);
         Loader cacheLoader = new Loader(cacheEntity, loader);
         BytesReference value = cache.computeIfAbsent(key, cacheLoader);
         if (cacheLoader.isLoaded()) {
@@ -128,6 +129,15 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
                     ElasticsearchDirectoryReader.addReaderCloseListener(reader, cleanupKey);
                 }
             }
+            /*
+             * Note that we don't use a closed listener for the mapping. Instead
+             * we let cache entries for out of date mappings age out. We do this
+             * because we don't reference count the MappingLookup so we can't tell
+             * when one is no longer used. Mapping updates should be a lot less
+             * frequent than reader closes so this is probably ok. On the other
+             * hand, for read only indices mapping changes are, well, possible,
+             * and readers are never changed. Oh well.
+             */
         } else {
             key.entity.onHit();
         }
@@ -140,9 +150,9 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
      * @param reader the reader to invalidate the cache entry for
      * @param cacheKey the cache key to invalidate
      */
-    void invalidate(CacheEntity cacheEntity, DirectoryReader reader, BytesReference cacheKey) {
+    void invalidate(CacheEntity cacheEntity, MappingLookup.CacheKey mappingCacheKey, DirectoryReader reader, BytesReference cacheKey) {
         assert reader.getReaderCacheHelper() != null;
-        cache.invalidate(new Key(cacheEntity, reader.getReaderCacheHelper().getKey(), cacheKey));
+        cache.invalidate(new Key(cacheEntity, mappingCacheKey, reader.getReaderCacheHelper().getKey(), cacheKey));
     }
 
     private static class Loader implements CacheLoader<Key, BytesReference> {
@@ -211,11 +221,13 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(Key.class);
 
         public final CacheEntity entity; // use as identity equality
+        public final MappingLookup.CacheKey mappingCacheKey;
         public final IndexReader.CacheKey readerCacheKey;
         public final BytesReference value;
 
-        Key(CacheEntity entity, IndexReader.CacheKey readerCacheKey, BytesReference value) {
+        Key(CacheEntity entity, MappingLookup.CacheKey mappingCacheKey, IndexReader.CacheKey readerCacheKey, BytesReference value) {
             this.entity = entity;
+            this.mappingCacheKey = Objects.requireNonNull(mappingCacheKey);
             this.readerCacheKey = Objects.requireNonNull(readerCacheKey);
             this.value = value;
         }
@@ -236,7 +248,8 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Key key = (Key) o;
-            if (Objects.equals(readerCacheKey, key.readerCacheKey) == false) return false;
+            if (mappingCacheKey.equals(key.mappingCacheKey) == false) return false;
+            if (readerCacheKey.equals(key.readerCacheKey) == false) return false;
             if (!entity.getCacheIdentity().equals(key.entity.getCacheIdentity())) return false;
             if (!value.equals(key.value)) return false;
             return true;
@@ -245,6 +258,7 @@ public final class IndicesRequestCache implements RemovalListener<IndicesRequest
         @Override
         public int hashCode() {
             int result = entity.getCacheIdentity().hashCode();
+            result = 31 * result + mappingCacheKey.hashCode();
             result = 31 * result + readerCacheKey.hashCode();
             result = 31 * result + value.hashCode();
             return result;

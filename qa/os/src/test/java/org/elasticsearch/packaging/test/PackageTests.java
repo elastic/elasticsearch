@@ -133,31 +133,14 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test34CustomJvmOptionsDirectoryFile() throws Exception {
-        final Path heapOptions = installation.config(Paths.get("jvm.options.d", "heap.options"));
-        try {
-            append(heapOptions, "-Xms512m\n-Xmx512m\n");
+        setHeap("512m");
 
-            startElasticsearch();
+        startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
+        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
-            stopElasticsearch();
-        } finally {
-            rm(heapOptions);
-        }
-    }
-
-    public void test42BundledJdkRemoved() throws Exception {
-        assumeThat(distribution().hasJdk, is(true));
-
-        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
-        try {
-            mv(installation.bundledJdk, relocatedJdk);
-            assertRunsWithJavaHome();
-        } finally {
-            mv(relocatedJdk, installation.bundledJdk);
-        }
+        stopElasticsearch();
     }
 
     public void test40StartServer() throws Exception {
@@ -175,6 +158,18 @@ public class PackageTests extends PackagingTestCase {
         runElasticsearchTests();
         verifyPackageInstallation(installation, distribution(), sh); // check startup script didn't change permissions
         stopElasticsearch();
+    }
+
+    public void test42BundledJdkRemoved() throws Exception {
+        assumeThat(distribution().hasJdk, is(true));
+
+        Path relocatedJdk = installation.bundledJdk.getParent().resolve("jdk.relocated");
+        try {
+            mv(installation.bundledJdk, relocatedJdk);
+            assertRunsWithJavaHome();
+        } finally {
+            mv(relocatedJdk, installation.bundledJdk);
+        }
     }
 
     public void test50Remove() throws Exception {
@@ -300,12 +295,12 @@ public class PackageTests extends PackagingTestCase {
         stopElasticsearch();
 
         withCustomConfig(tempConf -> {
-            append(installation.envFile, "ES_JAVA_OPTS=-XX:-UseCompressedOops");
+            append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
             final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
-            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":1073741824"));
+            assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
             stopElasticsearch();

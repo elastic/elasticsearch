@@ -53,6 +53,7 @@ import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_F
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_THREE;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_QUERIES_TWO;
 import static org.elasticsearch.xpack.eql.stats.FeatureMetric.SEQUENCE_UNTIL;
+import static org.elasticsearch.xpack.ql.analyzer.VerifierChecks.checkFilterConditionType;
 import static org.elasticsearch.xpack.ql.common.Failure.fail;
 
 /**
@@ -91,7 +92,7 @@ public class Verifier {
             if (p instanceof Unresolvable) {
                 localFailures.add(fail(p, ((Unresolvable) p).unresolvedMessage()));
             } else {
-                p.forEachExpressions(e -> {
+                p.forEachExpression(e -> {
                     // everything is fine, skip expression
                     if (e.resolved()) {
                         return;
@@ -153,6 +154,7 @@ public class Verifier {
                     return;
                 }
 
+                checkFilterConditionType(p, localFailures);
                 checkJoinKeyTypes(p, localFailures);
                 // mark the plan as analyzed
                 // if everything checks out

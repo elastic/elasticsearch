@@ -34,6 +34,9 @@ import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.search.sort.ShardDocSortField;
 import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
@@ -283,6 +286,14 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         if (pointInTimeBuilder() != null) {
             if (scroll) {
                 validationException = addValidationError("using [point in time] is not allowed in a scroll context", validationException);
+            }
+        } else if (source != null && source.sorts() != null) {
+            for (SortBuilder<?> sortBuilder : source.sorts()) {
+                if (sortBuilder instanceof FieldSortBuilder
+                        && ShardDocSortField.NAME.equals(((FieldSortBuilder) sortBuilder).getFieldName())) {
+                    validationException = addValidationError("[" + FieldSortBuilder.SHARD_DOC_FIELD_NAME
+                        + "] sort field cannot be used without [point in time]", validationException);
+                }
             }
         }
         return validationException;

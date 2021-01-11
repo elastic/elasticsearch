@@ -1729,7 +1729,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     @Override
-    public ShardLongFieldRange getTimestampMillisRange() {
+    public ShardLongFieldRange getTimestampRange() {
         if (mapperService() == null) {
             return ShardLongFieldRange.UNKNOWN; // no mapper service, no idea if the field even exists
         }
@@ -1753,14 +1753,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             return ShardLongFieldRange.EMPTY;
         }
 
-        try {
-            return ShardLongFieldRange.of(
-                    dateFieldType.resolution().roundDownToMillis(rawTimestampFieldRange.getMin()),
-                    dateFieldType.resolution().roundUpToMillis(rawTimestampFieldRange.getMax()));
-        } catch (IllegalArgumentException e) {
-            logger.debug(new ParameterizedMessage("could not convert {} to a millisecond time range", rawTimestampFieldRange), e);
-            return ShardLongFieldRange.UNKNOWN; // any search might match this shard
-        }
+        return ShardLongFieldRange.of(rawTimestampFieldRange.getMin(), rawTimestampFieldRange.getMax());
     }
 
     /**
@@ -2035,8 +2028,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     public Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
                                                     long toSeqNo, boolean requiredFullRange) throws IOException {
-        return getEngine().newChangesSnapshot(source, mapperService == null ? null : mapperService::fieldType,
-            fromSeqNo, toSeqNo, requiredFullRange);
+        return getEngine().newChangesSnapshot(source, fromSeqNo, toSeqNo, requiredFullRange);
     }
 
     public List<Segment> segments(boolean verbose) {
@@ -2729,7 +2721,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         markAsRecovering(reason, recoveryState); // mark the shard as recovering on the cluster state thread
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
                 if (r) {
-                    recoveryListener.onRecoveryDone(recoveryState, getTimestampMillisRange());
+                    recoveryListener.onRecoveryDone(recoveryState, getTimestampRange());
                 }
             },
             e -> recoveryListener.onRecoveryFailure(recoveryState, new RecoveryFailedException(recoveryState, null, e), true)), action));

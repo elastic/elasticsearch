@@ -23,6 +23,14 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SerialMergeScheduler;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
@@ -56,13 +64,17 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.IntPredicate;
 
 import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
@@ -113,7 +125,7 @@ public class PersistentCache implements Closeable {
             return writers.stream()
                 .filter(writer -> path.startsWith(writer.nodePath().path))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("Failed to find a Lucene index for cache file path [" + path + ']'));
+                .orElseThrow(() -> new PersistentCacheIndexNotFoundException(nodeEnvironment, cacheFile));
         }
     }
 
@@ -125,6 +137,50 @@ public class PersistentCache implements Closeable {
     public void removeCacheFile(CacheFile cacheFile) throws IOException {
         ensureStarted();
         getWriter(cacheFile).deleteCacheFile(cacheFile);
+    }
+
+    public long getCacheSize(ShardId shardId, SnapshotId snapshotId) {
+        long aggregateSize = 0L;
+        for (CacheIndexWriter writer : writers) {
+            try (IndexReader indexReader = DirectoryReader.open(writer.indexWriter)) {
+                final IndexSearcher searcher = new IndexSearcher(indexReader);
+                searcher.setQueryCache(null);
+                final Weight weight = searcher.createWeight(
+                    new BooleanQuery.Builder().add(
+                        new TermQuery(new Term(SNAPSHOT_ID_FIELD, snapshotId.getUUID())),
+                        BooleanClause.Occur.MUST
+                    )
+                        .add(new TermQuery(new Term(SHARD_INDEX_ID_FIELD, shardId.getIndex().getUUID())), BooleanClause.Occur.MUST)
+                        .add(new TermQuery(new Term(SHARD_ID_FIELD, String.valueOf(shardId.getId()))), BooleanClause.Occur.MUST)
+                        .build(),
+                    ScoreMode.COMPLETE_NO_SCORES,
+                    0.0f
+                );
+                for (LeafReaderContext leafReaderContext : searcher.getIndexReader().leaves()) {
+                    final Scorer scorer = weight.scorer(leafReaderContext);
+                    if (scorer != null) {
+                        final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
+                        final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
+                        final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                        while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                            if (isLiveDoc.test(docIdSetIterator.docID())) {
+                                final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                                var ranges = buildCacheFileRanges(document);
+                                for (Tuple<Long, Long> range : ranges) {
+                                    aggregateSize += range.v2() - range.v1();
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            if (aggregateSize > 0L) {
+                return aggregateSize;
+            }
+        }
+        return 0L;
     }
 
     /**
@@ -212,9 +268,6 @@ public class PersistentCache implements Closeable {
     void commit() throws IOException {
         ensureOpen();
         try {
-            for (CacheIndexWriter writer : writers) {
-                writer.prepareCommit();
-            }
             for (CacheIndexWriter writer : writers) {
                 writer.commit();
             }
@@ -457,16 +510,14 @@ public class PersistentCache implements Closeable {
             indexWriter.deleteDocuments(term);
         }
 
-        void prepareCommit() throws IOException {
-            logger.debug("preparing commit");
-            final Map<String, String> commitData = new HashMap<>(1);
-            commitData.put(NODE_VERSION_COMMIT_KEY, Integer.toString(Version.CURRENT.id));
-            indexWriter.setLiveCommitData(commitData.entrySet());
-            indexWriter.prepareCommit();
-        }
+        private static final Set<Map.Entry<String, String>> LUCENE_COMMIT_DATA = Collections.singletonMap(
+            NODE_VERSION_COMMIT_KEY,
+            Integer.toString(Version.CURRENT.id)
+        ).entrySet();
 
         void commit() throws IOException {
             logger.debug("committing");
+            indexWriter.setLiveCommitData(LUCENE_COMMIT_DATA);
             indexWriter.commit();
         }
 
@@ -601,5 +652,20 @@ public class PersistentCache implements Closeable {
             Files.createDirectories(snapshotCacheRootDir);
         }
         return snapshotCacheRootDir;
+    }
+
+    /**
+     * Exception thrown when the {@link CacheIndexWriter} corresponding to a given {@link CacheFile} cannot be found.
+     */
+    static class PersistentCacheIndexNotFoundException extends IllegalArgumentException {
+
+        PersistentCacheIndexNotFoundException(NodeEnvironment nodeEnvironment, CacheFile cacheFile) {
+            super(
+                "Persistent cache index not found for cache file path ["
+                    + cacheFile.getFile()
+                    + "] using node paths "
+                    + Arrays.toString(nodeEnvironment.nodeDataPaths())
+            );
+        }
     }
 }

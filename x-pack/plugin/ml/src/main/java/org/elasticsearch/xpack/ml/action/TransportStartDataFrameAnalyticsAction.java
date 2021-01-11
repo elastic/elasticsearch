@@ -631,7 +631,7 @@ public class TransportStartDataFrameAnalyticsAction
                     node -> nodeFilter(node, params));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
-            return jobNodeSelector.selectNode(
+            PersistentTasksCustomMetadata.Assignment assignment = jobNodeSelector.selectNode(
                 maxOpenJobs,
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
@@ -639,6 +639,8 @@ public class TransportStartDataFrameAnalyticsAction
                 isMemoryTrackerRecentlyRefreshed,
                 useAutoMemoryPercentage
             );
+            auditRequireMemoryIfNecessary(params.getId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);
+            return assignment;
         }
 
         @Override

@@ -435,9 +435,6 @@ public class GeoShapeQueryTests extends GeoQueryTests {
         // Create a random geometry collection to index.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(random());
         double[] pt = new double[] {GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude()};
-        // Quantize the point to make sure we intersect it (Points currently behave as bounding boxes).
-        pt[0] = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(pt[0]));
-        pt[1] = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(pt[1]));
         PointBuilder pb = new PointBuilder(pt[0], pt[1]);
         gcb.shape(pb);
 

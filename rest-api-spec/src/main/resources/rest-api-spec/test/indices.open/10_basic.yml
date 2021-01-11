@@ -81,10 +81,6 @@
   - match: { shards_acknowledged: true }
 ---
 "Close index response with result per index":
-  - skip:
-      version: " - 7.2.99"
-      reason: "close index response reports result per index starting version 7.3.0"
-
   - do:
       indices.create:
         index: index_1
@@ -115,3 +111,26 @@
   - match: { indices.index_1.closed: true }
   - match: { indices.index_2.closed: true }
   - match: { indices.index_3.closed: true }
+
+---
+"?wait_for_active_shards=index-setting is deprecated":
+  - skip:
+      version: " - 7.99.99"
+      reason: "required deprecation warning is only emitted in 8.0 and later"
+      features: ["warnings", "node_selector"]
+
+  - do:
+      indices.create:
+        index: index_1
+        body:
+          settings:
+            number_of_replicas: 0
+
+  - do:
+      indices.close:
+        index: "index_*"
+        wait_for_active_shards: index-setting
+      node_selector:
+        version: "8.0.0 - "
+      warnings:
+        - "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter should no longer be used since it will become unsupported in version 9"

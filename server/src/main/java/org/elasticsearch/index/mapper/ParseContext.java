@@ -19,6 +19,15 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.plugins.MapperPlugin;
+
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -31,18 +40,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.plugins.MapperPlugin;
-
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
-
 public abstract class ParseContext {
 
     /** Fork of {@link org.apache.lucene.document.Document} with additional functionality. */
@@ -52,7 +49,7 @@ public abstract class ParseContext {
         private final String path;
         private final String prefix;
         private final List<IndexableField> fields;
-        private ObjectObjectMap<Object, IndexableField> keyedFields;
+        private Map<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -108,7 +105,7 @@ public abstract class ParseContext {
         /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
         public void addWithKey(Object key, IndexableField field) {
             if (keyedFields == null) {
-                keyedFields = new ObjectObjectHashMap<>();
+                keyedFields = new HashMap<>();
             } else if (keyedFields.containsKey(key)) {
                 throw new IllegalStateException("Only one field can be stored per key");
             }

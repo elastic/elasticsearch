@@ -48,18 +48,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----
-GET /_cat/templates/te*?v&s=name
+GET _cat/templates/te*?v&s=name
 ----
-// TEST[s/templates/templates\/template*/]
 // TEST[s/^/PUT _index_template\/template0\n{"index_patterns": "te*", "priority": 200}\n/]
 // TEST[s/^/PUT _index_template\/template1\n{"index_patterns": "tea*", "priority": 201}\n/]
 // TEST[s/^/PUT _index_template\/template2\n{"index_patterns": "teak*", "priority": 202, "version": 7}\n/]
-// The substitutions do two things:
-// 1. Filter the response to just templates matching the te* pattern
-//    so that we only get the templates we expect regardless of which
-//    templates exist. If xpack is installed there will be unexpected
-//    templates.
-// 2. Create some templates to expect in the response.
 
 The API returns the following response:
 

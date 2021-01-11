@@ -6,12 +6,20 @@
 The {ml} decider (`ml`) calculates the memory required to run
 {ml} jobs created by users.
 
-The {ml} decider is enabled for policies governing `ml` nodes and has following
-configuration options:
+The {ml} decider is enabled for policies governing `ml` nodes.
 
-* `num_anomaly_jobs_in_queue`, default 0
-* `num_analytics_jobs_in_queue`, default 0
-* `down_scale_delay`, default 1 hour
+[[autoscaling-machine-learning-decider-settings]]
+==== Configuration settings
+
+`num_anomaly_jobs_in_queue`::
+(Optional, integer)
+Number of queued anomaly jobs to allow. Default 0.
+
+`num_analytics_jobs_in_queue`::
+Number of queued analytics jobs to allow. Default 0.
+`down_scale_delay`::
+(Optional, <<time-units,time value>>
+Delay before scaling down. Default 1 hour.
 
 [[autoscaling-machine-learning-decider-examples]]
 ==== {api-examples-title}

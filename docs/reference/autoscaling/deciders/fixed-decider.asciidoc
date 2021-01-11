@@ -10,7 +10,7 @@ The fixed decider is intended for testing only. Do not use this decider in produ
 The `fixed` decider responds with a fixed required capacity. It is not enabled
 by default but can be enabled for any policy by explicitly configuring it.
 
-It has three configuration options:
+==== Configuration settings
 
 `storage`::
 (Optional, <<byte-units,byte value>>)

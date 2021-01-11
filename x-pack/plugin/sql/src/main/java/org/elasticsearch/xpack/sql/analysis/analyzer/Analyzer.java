@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.common.Failure;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.expression.AttributeMap;
 import org.elasticsearch.xpack.ql.expression.AttributeSet;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
@@ -59,7 +60,6 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -630,10 +630,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
                 // if there's a match, remove the item from the reference stream
                 if (Expressions.hasReferenceAttribute(child.outputSet())) {
-                    final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
-
+                    AttributeMap.Builder<Expression> builder = AttributeMap.builder();
                     // collect aliases
-                    child.forEachUp(p -> p.forEachExpressionUp(Alias.class, a -> collectRefs.put(a.toAttribute(), a.child())));
+                    child.forEachUp(p -> p.forEachExpressionUp(Alias.class, a -> builder.put(a.toAttribute(), a.child())));
+                    final Map<Attribute, Expression> collectRefs = builder.build();
 
                     referencesStream = referencesStream.filter(r -> {
                         for (Attribute attr : child.outputSet()) {

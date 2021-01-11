@@ -832,8 +832,6 @@ public class RestHighLevelClientTests extends ESTestCase {
             "dangling_indices.import_dangling_index",
             "dangling_indices.list_dangling_indices",
             "indices.shard_stores",
-            "indices.get_upgrade",
-            "indices.upgrade",
             "indices.recovery",
             "indices.segments",
             "indices.stats",

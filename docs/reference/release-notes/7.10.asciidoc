@@ -1,3 +1,73 @@
+[[release-notes-7.10.2]]
+== {es} version 7.10.2
+
+coming[7.10.2]
+
+Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
+
+[[bug-7.10.2]]
+[float]
+=== Bug fixes
+
+EQL::
+* Fix early trimming of in-flight data {es-pull}66493[#66493]
+
+Engine::
+* Fix the earliest last modified age of translog issue. {es-pull}64753[#64753]
+* Fix the version and term field initialization error of NoOpResult {es-pull}66269[#66269] (issue: {es-issue}66267[#66267])
+
+Features/Data streams::
+* Allow more legit cases in Metadata.Builder.validateDataStreams {es-pull}65791[#65791]
+
+Features/Features::
+* Make FilterAllocationDecider totally ignore tier-based allocation settings {es-pull}67019[#67019] (issue: {es-issue}66679[#66679])
+
+Features/Ingest::
+* Fix whitespace as a separator in CSV processor {es-pull}67045[#67045] (issue: {es-issue}67013[#67013])
+
+Highlighting::
+* Fix bug where fvh fragments could be loaded from wrong doc {es-pull}65641[#65641] (issues: {es-issue}60179[#60179], {es-issue}65533[#65533])
+
+Features/ILM+SLM::
+* Create AllocationDeciders in the main method of the ILM step {es-pull}65037[#65037] (issue: {es-issue}64529[#64529])
+
+Infra/REST API::
+* Fix cat tasks api params in spec and handler {es-pull}66272[#66272] (issue: {es-issue}59493[#59493])
+* Mark Cat Tasks API as experimental in rest-api-spec {es-pull}66536[#66536] (issues: {es-issue}51628[#51628], {es-issue}65823[#65823])
+* Mark Task APIs as experimental in rest-api-spec {es-pull}65823[#65823] (issue: {es-issue}51628[#51628])
+
+Infra/Scripting::
+* Fix static inner class resolution in Painless {es-pull}67027[#67027] (issue: {es-issue}66823[#66823])
+
+Infra/Settings::
+* Correctly determine defaults of settings which depend on other settings {es-pull}65989[#65989] (issue: {es-issue}47890[#47890])
+* Do not interpret SecurityException in KeystoreAwareCommand {es-pull}65366[#65366]
+
+QL::
+* Handle IP type fields extraction with ignore_malformed property {es-pull}66622[#66622] (issue: {es-issue}66675[#66675])
+
+Machine Learning::
+* Change to only calculate model size on initial load to prevent slow cache promotions {es-pull}66451[#66451]
+
+Network::
+* Ensure notify when proxy connections disconnect {es-pull}65697[#65697] (issue: {es-issue}65443[#65443])
+* Fix AbstractClient#execute Listener Leak {es-pull}65415[#65415] (issue: {es-issue}65405[#65405])
+
+SQL::
+* Abort sorting in case of local agg sort queue overflow {es-pull}65687[#65687] (issue: {es-issue}65685[#65685])
+* Verify filter's condition type {es-pull}66268[#66268] (issue: {es-issue}66254[#66254])
+
+Search::
+* Fix regressions around nested hits and disabled _source {es-pull}66572[#66572] (issues: {es-issue}60494[#60494], {es-issue}66524[#66524])
+* Make sure shared source always represents the top-level root document {es-pull}66725[#66725] (issues: {es-issue}60494[#60494], {es-issue}66577[#66577])
+
+Security::
+* Store and use only internal security headers {es-pull}66365[#66365]
+
+Snapshot/Restore::
+* Also reroute after shard snapshot size fetch failure {es-pull}65436[#65436] (issues: {es-issue}61906[#61906], {es-issue}64372[#64372])
+
+
 [[release-notes-7.10.1]]
 == {es} version 7.10.1
 

@@ -96,12 +96,6 @@ public class AutodetectBuilder {
     public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting("xpack.ml.max_anomaly_records",
             DEFAULT_MAX_NUM_RECORDS, Setting.Property.NodeScope, Setting.Property.Dynamic);
 
-    /**
-     * Config setting storing the flag that disables model persistence
-     */
-    public static final Setting<Boolean> DONT_PERSIST_MODEL_STATE_SETTING = Setting.boolSetting("no.model.state.persist", false,
-            Setting.Property.NodeScope);
-
     private static final int SECONDS_IN_HOUR = 3600;
 
     /**
@@ -238,17 +232,11 @@ public class AutodetectBuilder {
         int intervalStagger = calculateStaggeringInterval(job.getId());
         logger.debug("[{}] Periodic operations staggered by {} seconds", job.getId(), intervalStagger);
 
-        // Supply a URL for persisting/restoring model state unless model
-        // persistence has been explicitly disabled.
-        if (DONT_PERSIST_MODEL_STATE_SETTING.get(settings)) {
-            logger.info("[{}] Will not persist model state - {} setting was set", job.getId(), DONT_PERSIST_MODEL_STATE_SETTING);
-        } else {
-            // Persist model state every few hours even if the job isn't closed
-            long persistInterval = (job.getBackgroundPersistInterval() == null) ?
-                    (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) :
-                    job.getBackgroundPersistInterval().getSeconds();
-            command.add(PERSIST_INTERVAL_ARG + persistInterval);
-        }
+        // Persist model state every few hours even if the job isn't closed
+        long persistInterval = (job.getBackgroundPersistInterval() == null) ?
+                (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) :
+                job.getBackgroundPersistInterval().getSeconds();
+        command.add(PERSIST_INTERVAL_ARG + persistInterval);
 
         int maxQuantileInterval = BASE_MAX_QUANTILE_INTERVAL + intervalStagger;
         command.add(MAX_QUANTILE_INTERVAL_ARG + maxQuantileInterval);

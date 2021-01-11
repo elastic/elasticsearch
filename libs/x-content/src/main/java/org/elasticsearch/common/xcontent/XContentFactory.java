@@ -127,7 +127,23 @@ public class XContentFactory {
         }
         throw new IllegalArgumentException("No matching content type for " + type);
     }
+    /**
+     * Returns a binary content builder for the provided content type.
+     */
+    public static XContentBuilder contentBuilderOld(XContentType type) throws IOException {
+        XContentType canonical = type.canonical();
 
+        if (canonical == XContentType.JSON) {
+            return JsonXContent.contentBuilderOld();
+        } else if (canonical == XContentType.SMILE) {
+            return SmileXContent.contentBuilder();
+        } else if (canonical == XContentType.YAML) {
+            return YamlXContent.contentBuilder();
+        } else if (canonical == XContentType.CBOR) {
+            return CborXContent.contentBuilder();
+        }
+        throw new IllegalArgumentException("No matching content type for " + type);
+    }
     /**
      * Returns the {@link org.elasticsearch.common.xcontent.XContent} for the provided content type.
      */

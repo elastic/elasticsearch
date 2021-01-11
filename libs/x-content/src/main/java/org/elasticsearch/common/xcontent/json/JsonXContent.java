@@ -41,7 +41,9 @@ import java.util.Set;
  * A JSON based content implementation using Jackson.
  */
 public class JsonXContent implements XContent {
-
+    public static XContentBuilder contentBuilderOld() throws IOException {
+        return XContentBuilder.builderOld(jsonXContent);
+    }
     public static XContentBuilder contentBuilder() throws IOException {
         return XContentBuilder.builder(jsonXContent);
     }

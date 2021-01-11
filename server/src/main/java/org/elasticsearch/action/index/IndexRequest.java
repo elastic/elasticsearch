@@ -369,7 +369,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
             throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
         }
     }
-
+    public IndexRequest sourceOld(Map<String, ?> source, XContentType contentType) throws ElasticsearchGenerationException {
+        try {
+            XContentBuilder builder = XContentFactory.contentBuilderOld(contentType);
+            builder.map(source);
+            return source(builder);
+        } catch (IOException e) {
+            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
+        }
+    }
     /**
      * Sets the document source to index.
      *

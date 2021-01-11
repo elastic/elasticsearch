@@ -61,7 +61,9 @@ public final class XContentBuilder implements Closeable, Flushable {
     public static XContentBuilder builder(XContent xContent) throws IOException {
         return new XContentBuilder(xContent, new ByteArrayOutputStream());
     }
-
+    public static XContentBuilder builderOld(XContent xContent) throws IOException {
+        return new XContentBuilder(xContent, new ByteArrayOutputStream(), null);
+    }
     /**
      * Create a new {@link XContentBuilder} using the given {@link XContentType} xContentType and some inclusive and/or exclusive filters.
      * <p>
@@ -174,10 +176,13 @@ public final class XContentBuilder implements Closeable, Flushable {
      * Constructs a new builder using the provided XContent and an OutputStream. Make sure
      * to call {@link #close()} when the builder is done with.
      */
-    public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType()));
+    //old
+    public XContentBuilder(XContent xContent, OutputStream bos, Object xxx) throws IOException {
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), ParsedMediaType.parseMediaType(xContent.type().mediaTypeWithoutParameters()));
     }
-
+    public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType());
+    }
     /**
      * Constructs a new builder using the provided XContent, an OutputStream and
      * some filters. If filters are specified, only those values matching a

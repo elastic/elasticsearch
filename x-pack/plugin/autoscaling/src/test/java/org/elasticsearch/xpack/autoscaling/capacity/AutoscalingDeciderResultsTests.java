@@ -31,19 +31,19 @@ import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AutoscalingDeciderResultsTests extends AutoscalingTestCase {
 
-    public void testAutoscalingDeciderResultsRejectsEmptyResults() {
-        final IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new AutoscalingDeciderResults(
-                new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
-                randomNodes(),
-                new TreeMap<>()
-            )
+    public void testEmptyResults() {
+        AutoscalingDeciderResults results = new AutoscalingDeciderResults(
+            new AutoscalingCapacity(randomAutoscalingResources(), randomAutoscalingResources()),
+            randomNodes(),
+            new TreeMap<>()
         );
-        assertThat(e.getMessage(), equalTo("results can not be empty"));
+
+        assertThat(results.requiredCapacity(), is(nullValue()));
     }
 
     public void testRequiredCapacity() {

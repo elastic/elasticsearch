@@ -52,9 +52,6 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
         this.currentCapacity = currentCapacity;
         this.currentNodes = Objects.requireNonNull(currentNodes);
         Objects.requireNonNull(results);
-        if (results.isEmpty()) {
-            throw new IllegalArgumentException("results can not be empty");
-        }
         this.results = results;
     }
 
@@ -107,6 +104,9 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
     }
 
     public AutoscalingCapacity requiredCapacity() {
+        if (results.isEmpty()) {
+            return null;
+        }
         if (results.values().stream().map(AutoscalingDeciderResult::requiredCapacity).anyMatch(Objects::isNull)) {
             // any undetermined decider cancels out all required capacities
             return null;

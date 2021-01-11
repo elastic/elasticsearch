@@ -4,19 +4,25 @@
 === Fixed decider
 
 experimental[]
-[NOTE]
-The purpose of this decider is purely for testing, it is not intended for
-production use.
+[WARNING]
+The fixed decider is intended for testing only. Do not use this decider in production.
 
 The `fixed` decider responds with a fixed required capacity. It is not enabled
 by default but can be enabled for any policy by explicitly configuring it.
 
 It has three configuration options:
 
-* storage: the node level storage necessary, default -1 (disabled).
-* memory: the node level memory necessary, default -1 (disabled).
-* nodes: the number of nodes to use for calculating total required capacities,
-default 1.
+`storage`::
+(Optional, <<byte-units,byte value>>)
+Required amount of node-level storage. Defaults to `-1` (disabled).
+
+`memory`::
+(Optional, <<byte-units,byte value>>)
+Required amount of node-level memory. Defaults to `-1` (disabled).
+
+`nodes`::
+(Optional, integer)
+Number of nodes to use when calculating capacity. Defaults to `1`.
 
 [[autoscaling-fixed-decider-examples]]
 ==== {api-examples-title}
@@ -58,5 +64,4 @@ DELETE /_autoscaling/policy/my_autoscaling_policy
 // TEST[continued]
 
 //////////////////////////
-
 

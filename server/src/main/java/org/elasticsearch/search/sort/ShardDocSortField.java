@@ -46,9 +46,19 @@ public class ShardDocSortField extends SortField {
 
     @Override
     public FieldComparator<?> getComparator(int numHits, int sortPos) {
-        final DocComparator delegate = new DocComparator(numHits, false, sortPos);
+        final DocComparator delegate = new DocComparator(numHits, getReverse(), sortPos);
 
         return new FieldComparator<Long>() {
+            @Override
+            public void setSingleSort() {
+                delegate.setSingleSort();
+            }
+
+            @Override
+            public void disableSkipping() {
+                delegate.disableSkipping();
+            }
+
             @Override
             public int compare(int slot1, int slot2) {
                 return delegate.compare(slot1, slot2);

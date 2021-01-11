@@ -19,6 +19,14 @@
 
 package org.elasticsearch.index.mapper;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Iterator;
+import java.util.List;
+import java.util.function.Function;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
@@ -33,14 +41,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.QueryShardContext;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.function.Function;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -158,7 +158,6 @@ final class DocumentParser {
         return false;
     }
 
-
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
             context.version(),
@@ -171,7 +170,6 @@ final class DocumentParser {
             update
         );
     }
-
 
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
         // if its already a mapper parsing exception, no need to wrap it...
@@ -282,7 +280,6 @@ final class DocumentParser {
         assert parentMappers.size() == 1;
         return (RootObjectMapper)parentMappers.get(0);
     }
-
 
     private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
         assert keepBefore >= 1; // never remove the root mapper

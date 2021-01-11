@@ -11,6 +11,7 @@ Closes an index.
 POST /my-index-000001/_close
 --------------------------------------------------
 // TEST[setup:my_index]
+// TEST[warning:the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour]
 
 
 [[close-index-api-request]]
@@ -77,7 +78,8 @@ The following example shows how to close an index:
 --------------------------------------------------
 POST /my-index-000001/_close
 --------------------------------------------------
-// TEST[s/^/PUT my-index-000001\n/]
+// TEST[setup:my_index]
+// TEST[warning:the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour]
 
 The API returns following response:
 

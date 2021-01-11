@@ -12,7 +12,7 @@ opens any closed backing indices.
 POST /my-index-000001/_open
 --------------------------------------------------
 // TEST[setup:my_index]
-// TEST[s/^/POST \/my-index-000001\/_close\n/]
+// TEST[s/^/POST \/my-index-000001\/_close?wait_for_active_shards=0\n/]
 
 
 [[open-index-api-request]]
@@ -122,7 +122,7 @@ The following request re-opens a closed index named `my-index-000001`.
 --------------------------------------------------
 POST /my-index-000001/_open
 --------------------------------------------------
-// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close\n/]
+// TEST[s/^/PUT my-index-000001\nPOST my-index-000001\/_close?wait_for_active_shards=0\n/]
 
 The API returns the following response:
 

@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -87,13 +88,17 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         ThreadPool tp = mock(ThreadPool.class);
         ExecutorService executorService = EsExecutors.newDirectExecutorService();
         when(tp.generic()).thenReturn(executorService);
-        Settings settings = Settings.builder().put("node.name", "OpenJobPersistentTasksExecutorTests").build();
+        Settings settings = Settings.builder()
+            .put("node.name", "OpenJobPersistentTasksExecutorTests")
+            .put("client.type", "node")
+            .build();
         ClusterSettings clusterSettings = new ClusterSettings(settings,
             new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
                 MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
                 OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                 ClusterService.USER_DEFINED_METADATA,
                 ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
                 MachineLearning.CONCURRENT_JOB_ALLOCATIONS,
                 MachineLearning.MAX_MACHINE_MEMORY_PERCENT,
                 MachineLearning.MAX_LAZY_ML_NODES,
@@ -104,6 +109,7 @@ public class OpenJobPersistentTasksExecutorTests extends ESTestCase {
         autodetectProcessManager = mock(AutodetectProcessManager.class);
         datafeedConfigProvider = mock(DatafeedConfigProvider.class);
         client = mock(Client.class);
+        when(client.settings()).thenReturn(settings);
         mlMemoryTracker = mock(MlMemoryTracker.class);
     }
 

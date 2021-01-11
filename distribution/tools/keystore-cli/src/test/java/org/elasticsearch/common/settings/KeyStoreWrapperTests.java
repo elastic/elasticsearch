@@ -140,8 +140,10 @@ public class KeyStoreWrapperTests extends ESTestCase {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         keystore.save(env.configFile(), "alongenoughpassword".toCharArray());
         final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
-        final GeneralSecurityException exception = expectThrows(GeneralSecurityException.class,
-            () -> loadedkeystore.decrypt("shortpwd".toCharArray()));
+        final GeneralSecurityException exception = expectThrows(
+            GeneralSecurityException.class,
+            () -> loadedkeystore.decrypt("shortpwd".toCharArray())
+        );
         assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
     }
 

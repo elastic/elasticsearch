@@ -42,6 +42,10 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.test.ESTestCase;
 
+
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -2190,6 +2194,13 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(names, empty());
     }
 
+    public void testMathExpressionSupport() {
+
+        Instant instant = LocalDate.of(2021, 01, 11).atStartOfDay().toInstant(ZoneOffset.UTC);
+        String resolved = this.indexNameExpressionResolver.resolveDateMathExpressionAtInstant("<test-name-{now/M{yyyy-MM}}>", instant.toEpochMilli());
+
+        assertEquals(resolved, "test-name-2021-01");
+    }
     private ClusterState systemIndexTestClusterState() {
         Settings settings = Settings.builder().build();
         Metadata.Builder mdBuilder = Metadata.builder()

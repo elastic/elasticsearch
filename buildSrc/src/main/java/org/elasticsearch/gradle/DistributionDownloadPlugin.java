@@ -181,7 +181,9 @@ public class DistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == Type.ARCHIVE) {
             extension = distribution.getPlatform() == Platform.WINDOWS ? "zip" : "tar.gz";
             if (distroVersion.onOrAfter("7.0.0")) {
-                classifier = ":" + distribution.getPlatform() + "-"
+                classifier = ":"
+                    + distribution.getPlatform()
+                    + "-"
                     + (Architecture.current() == Architecture.AARCH64 ? "aarch64" : "x86_64");
             } else {
                 classifier = "";

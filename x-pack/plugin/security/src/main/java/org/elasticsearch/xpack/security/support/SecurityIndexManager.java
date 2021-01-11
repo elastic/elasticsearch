@@ -30,7 +30,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
-import org.elasticsearch.xpack.core.template.TemplateUtils;
 
 import java.time.Instant;
 import java.util.HashSet;
@@ -211,11 +210,6 @@ public class SecurityIndexManager implements ClusterStateListener {
         } else {
             return true;
         }
-    }
-
-    public static boolean checkTemplateExistsAndVersionMatches(String templateName, ClusterState state, Logger logger,
-                                                               Predicate<Version> predicate) {
-        return TemplateUtils.checkTemplateExistsAndVersionMatches(templateName, SECURITY_VERSION_STRING, state, logger, predicate);
     }
 
     private boolean checkIndexMappingUpToDate(ClusterState clusterState) {

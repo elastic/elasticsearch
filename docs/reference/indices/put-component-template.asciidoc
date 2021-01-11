@@ -162,7 +162,7 @@ actual index name that the template gets applied to, during index creation.
 ===== Applying component templates
 
 You cannot directly apply a component template to a data stream or index.
-To be applied, a component template must be included in an index template's `composed_of` list. See <<indices-templates>>.
+To be applied, a component template must be included in an index template's `composed_of` list. See <<index-templates>>.
 
 [[component-templates-version]]
 ===== Component template versioning

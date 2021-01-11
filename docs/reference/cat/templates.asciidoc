@@ -4,7 +4,7 @@
 <titleabbrev>cat templates</titleabbrev>
 ++++
 
-Returns information about <<indices-templates-v1,index templates>> in a cluster.
+Returns information about <<index-templates,index templates>> in a cluster.
 You can use index templates to apply <<index-modules-settings,index settings>>
 and <<mapping,field mappings>> to new indices at creation.
 
@@ -47,39 +47,30 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 ==== {api-examples-title}
 
 [source,console]
---------------------------------------------------
-GET /_cat/templates?v&s=name
---------------------------------------------------
-// TEST[s/templates/templates\/template*/]
-// TEST[s/^/PUT _template\/template0\n{"index_patterns": "te*", "order": 0}\n/]
-// TEST[s/^/PUT _template\/template1\n{"index_patterns": "tea*", "order": 1}\n/]
-// TEST[s/^/PUT _template\/template2\n{"index_patterns": "teak*", "order": 2, "version": 7}\n/]
-// The substitutions do two things:
-// 1. Filter the response to just templates matching the te* pattern
-//    so that we only get the templates we expect regardless of which
-//    templates exist. If xpack is installed there will be unexpected
-//    templates.
-// 2. Create some templates to expect in the response.
+----
+GET _cat/templates/my-template-*?v&s=name
+----
+// TEST[s/^/PUT _index_template\/my-template-0\n{"index_patterns": "te*", "priority": 200}\n/]
+// TEST[s/^/PUT _index_template\/my-template-1\n{"index_patterns": "tea*", "priority": 201}\n/]
+// TEST[s/^/PUT _index_template\/my-template-2\n{"index_patterns": "teak*", "priority": 202, "version": 7}\n/]
 
 The API returns the following response:
 
 [source,txt]
---------------------------------------------------
-name      index_patterns order version composed_of
-template0 [te*]          0
-template1 [tea*]         1
-template2 [teak*]        2     7
---------------------------------------------------
+----
+name          index_patterns order version composed_of
+my-template-0 [te*]          200           []
+my-template-1 [tea*]         201           []
+my-template-2 [teak*]        202   7       []
+----
 // TESTRESPONSE[s/\*/\\*/ s/\[/\\[/ s/\]/\\]/ non_json]
 
-//////////////////////////
-
+////
 [source,console]
---------------------------------------------------
-DELETE /_template/template0
-DELETE /_template/template1
-DELETE /_template/template2
---------------------------------------------------
+----
+DELETE _index_template/my-template-0
+DELETE _index_template/my-template-1
+DELETE _index_template/my-template-2
+----
 // TEST[continued]
-
-//////////////////////////
+////

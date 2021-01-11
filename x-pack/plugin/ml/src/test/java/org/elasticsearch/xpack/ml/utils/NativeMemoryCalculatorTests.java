@@ -40,7 +40,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             Settings settings = newSettings(percent, false);
             ClusterSettings clusterSettings = newClusterSettings(percent, false);
 
-            long expected = nodeSize * percent / 100;
+            long expected = (long)(nodeSize * (percent / 100.0));
 
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
@@ -60,7 +60,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
             int truePercent = Math.min(
                 90,
                 (int)Math.ceil(((nodeSize - jvmSize - ByteSizeValue.ofMb(200).getBytes()) / (double)nodeSize) * 100.0D));
-            long expected = nodeSize * truePercent / 100;
+            long expected = (long)(nodeSize * (truePercent / 100.0));
 
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
             assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));
@@ -75,7 +75,7 @@ public class NativeMemoryCalculatorTests extends ESTestCase{
         Settings settings = newSettings(percent, true);
         ClusterSettings clusterSettings = newClusterSettings(percent, true);
 
-        long expected = nodeSize * percent / 100;
+        long expected = (long)(nodeSize * (percent / 100.0));
 
         assertThat(NativeMemoryCalculator.allowedBytesForMl(node, settings).getAsLong(), equalTo(expected));
         assertThat(NativeMemoryCalculator.allowedBytesForMl(node, clusterSettings).getAsLong(), equalTo(expected));

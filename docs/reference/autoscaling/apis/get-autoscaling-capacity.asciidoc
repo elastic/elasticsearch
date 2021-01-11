@@ -49,20 +49,27 @@ for diagnosing the autoscaling decision.
 [[autoscaling-get-autoscaling-capacity-api-response-body]]
 ==== {api-response-body-title}
 
+`policies`::
+(object)
+Contains the map of policy name to capacity result
++
+.Properties of `policies`
+[%collapsible%open]
+====
 `<policy_name>`::
 (object)
-Contains capacity for the policy
+Contains capacity information for the policy
 +
 .Properties of `<policy_name>`
 [%collapsible%open]
-====
+=====
 `required_capacity`::
 (object)
 Contains the required capacity for the policy
 +
 .Properties of `required_capacity`
 [%collapsible%open]
-=====
+======
 `node`::
 (object)
 Contains the minimum node sizes required per node (ensuring that individual
@@ -70,7 +77,7 @@ shards or ML jobs can fit into a single node)
 +
 .Properties of `node`
 [%collapsible%open]
-======
+=======
 `storage`::
 (integer)
 Contains the amount of storage required per node, in bytes
@@ -79,14 +86,14 @@ Contains the amount of storage required per node, in bytes
 (integer)
 Contains the amount of memory required per node, in bytes
 
-======
+=======
 `total`::
 (object)
 Contains the total size required for the policy
 +
 .Properties of `total`
 [%collapsible%open]
-======
+=======
 `storage`::
 (integer)
 Contains the amount of storage required total for the policy, in bytes
@@ -94,8 +101,8 @@ Contains the amount of storage required total for the policy, in bytes
 `memory`::
 (integer)
 Contains the amount of memory required total for the policy, in bytes
+=======
 ======
-=====
 `current_capacity`::
 (object)
 Contains the current capacity for nodes governed by the policy, i.e. the nodes
@@ -103,14 +110,14 @@ that {es} bases its calculation on.
 +
 .Properties of `current_capacity`
 [%collapsible%open]
-=====
+======
 `node`::
 (object)
 Contains the maximum sizes of nodes governed by the policy
 +
 .Properties of `node`
 [%collapsible%open]
-======
+=======
 `storage`::
 (integer)
 Contains the maximum current storage of a node, in bytes
@@ -119,14 +126,14 @@ Contains the maximum current storage of a node, in bytes
 (integer)
 Contains the maximum current memory of a node, in bytes
 
-======
+=======
 `total`::
 (object)
 Contains the current total sizes for nodes governed by the policy
 +
 .Properties of `total`
 [%collapsible%open]
-======
+=======
 `storage`::
 (integer)
 Contains the current total amount of storage available for the policy, in bytes
@@ -134,19 +141,19 @@ Contains the current total amount of storage available for the policy, in bytes
 `memory`::
 (integer)
 Contains the current total amount of memory available for the policy, in bytes
+=======
 ======
-=====
 `current_nodes`::
 (array of objects)
 List of current nodes that {es} used as basis for the capacity calculation
 +
 .Properties of elements in `current_nodes`
 [%collapsible%open]
-=====
+======
 `name`::
 (string)
 The name of the node
-=====
+======
 `deciders`::
 (object)
 The capacity results from individual deciders, allowing insight into how the
@@ -154,21 +161,21 @@ outer level `required_capacity` was calculated.
 +
 .Properties of `deciders`
 [%collapsible%open]
-======
+=======
 `<decider_name>`::
 (object)
 The capacity result for a specific decider that is enabled for the policy
 +
 .Properties of `<decider_name>`
 [%collapsible%open]
-=======
+========
 `required_capacity`::
 (object)
 The required capacity determined by the decider
 +
 .Properties of `required_capacity`
 [%collapsible%open]
-========
+=========
 `node`::
 (object)
 Contains the minimum node sizes required per node (ensuring that individual
@@ -176,7 +183,7 @@ shards or ML jobs can fit into a single node)
 +
 .Properties of `node`
 [%collapsible%open]
-=========
+==========
 `storage`::
 (integer)
 Contains the amount of storage required per node, in bytes
@@ -185,14 +192,14 @@ Contains the amount of storage required per node, in bytes
 (integer)
 Contains the amount of memory required per node, in bytes
 
-=========
+==========
 `total`::
 (object)
 Contains the total size required for the policy
 +
 .Properties of `total`
 [%collapsible%open]
-=========
+==========
 `storage`::
 (integer)
 Contains the amount of storage required total for the policy, in bytes
@@ -200,8 +207,8 @@ Contains the amount of storage required total for the policy, in bytes
 `memory`::
 (integer)
 Contains the amount of memory required total for the policy, in bytes
+==========
 =========
-========
 `reason_summary`::
 (string)
 A textual description of the basis for the decider's result
@@ -211,10 +218,10 @@ A textual description of the basis for the decider's result
 A per decider structure containing details forming the basis for the deciders' result.
 The contents should not be relied on for application purposes and are not subject
 to normal backwards compatibility guarantees.
+========
 =======
-======
+=====
 ====
-
 
 [[autoscaling-get-autoscaling-capacity-examples]]
 ==== {api-examples-title}

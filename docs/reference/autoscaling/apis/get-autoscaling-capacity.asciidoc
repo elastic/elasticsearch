@@ -129,11 +129,11 @@ Contains the current total storage and memory sizes for nodes governed by the po
 ======
 `storage`::
 (integer)
-Contains the current total amount of storage available for the policy, in bytes
+Current bytes of storage available for the policy.
 
 `memory`::
 (integer)
-Contains the current total amount of memory available for the policy, in bytes
+Current bytes of memory available for the policy.
 ======
 =====
 `current_nodes`::

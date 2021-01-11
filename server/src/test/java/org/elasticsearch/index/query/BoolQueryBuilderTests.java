@@ -459,8 +459,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
             XContentParseException e = expectThrows(XContentParseException.class,
                 () -> parseInnerQueryBuilder(parser));
             assertThat(e.getCause().getCause(), Matchers.instanceOf(IllegalArgumentException.class));
-            assertEquals(e.getCause().getCause().getMessage(), "The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
-                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]");
+            assertEquals("The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
+                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]", e.getCause().getCause().getMessage());
         }
     }
 }

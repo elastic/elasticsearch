@@ -49,32 +49,32 @@ public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTes
         Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
 
         {
-            // tag::find-file-structure-request
+            // tag::find-structure-request
             FindStructureRequest request = new FindStructureRequest(); // <1>
             request.setSample(Files.readAllBytes(anInterestingFile)); // <2>
-            // end::find-file-structure-request
+            // end::find-structure-request
 
-            // tag::find-file-structure-request-options
+            // tag::find-structure-request-options
             request.setLinesToSample(500); // <1>
             request.setExplain(true); // <2>
-            // end::find-file-structure-request-options
+            // end::find-structure-request-options
 
-            // tag::find-file-structure-execute
+            // tag::find-structure-execute
             FindStructureResponse response = client
                 .textStructure()
                 .findStructure(
                     request,
                     RequestOptions.DEFAULT
                 );
-            // end::find-file-structure-execute
+            // end::find-structure-execute
 
-            // tag::find-file-structure-response
+            // tag::find-structure-response
             TextStructure structure = response.getFileStructure(); // <1>
-            // end::find-file-structure-response
+            // end::find-structure-response
             assertEquals(2, structure.getNumLinesAnalyzed());
         }
         {
-            // tag::find-file-structure-execute-listener
+            // tag::find-structure-execute-listener
             ActionListener<FindStructureResponse> listener = new ActionListener<>() {
                 @Override
                 public void onResponse(FindStructureResponse response) {
@@ -86,7 +86,7 @@ public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTes
                     // <2>
                 }
             };
-            // end::find-file-structure-execute-listener
+            // end::find-structure-execute-listener
             FindStructureRequest request = new FindStructureRequest();
             request.setSample(Files.readAllBytes(anInterestingFile));
 
@@ -94,11 +94,11 @@ public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTes
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
-            // tag::find-file-structure-execute-async
+            // tag::find-structure-execute-async
             client
                 .textStructure()
                 .findStructureAsync(request, RequestOptions.DEFAULT, listener); // <1>
-            // end::find-file-structure-execute-async
+            // end::find-structure-execute-async
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }

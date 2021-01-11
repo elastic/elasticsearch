@@ -533,9 +533,9 @@ include::security/invalidate-api-key.asciidoc[]
 
 The Java High Level REST Client supports the following Text Structure APIs:
 
-* <<{upid}-find-file-structure>>
+* <<{upid}-find-structure>>
 
-include::textstructure/find-file-structure.asciidoc[]
+include::textstructure/find-structure.asciidoc[]
 
 [role="xpack"]
 == Watcher APIs

@@ -279,7 +279,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
 
         searchResponse = client().prepareSearch("vector").setQuery(
-            geoShapeQuery("shape", new PointBuilder(180, 1))
+            geoShapeQuery("shape", new PointBuilder(179.75, 1))
         ).get();
 
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));

@@ -21,6 +21,6 @@ that the cluster signals it requires.
 Autoscaling supports scale up and down of pure machine learning nodes and scale
 up based on storage of data nodes.
 [NOTE]
-Autoscaling is not supported on Debian 8
+Autoscaling is not supported on Debian 8.
 
 include::autoscaling-deciders.asciidoc[]

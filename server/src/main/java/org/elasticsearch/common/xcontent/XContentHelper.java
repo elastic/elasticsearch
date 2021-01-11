@@ -209,7 +209,7 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        if (xContentType == XContentType.JSON && !reformatJson) {
+        if (xContentType.canonical() == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
         }
 

@@ -556,21 +556,38 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     remoteClient.execute(GetCcrRestoreFileChunkAction.INSTANCE,
                         new GetCcrRestoreFileChunkRequest(node, sessionUUID, request.md.name(), request.bytesRequested),
-                            ListenerTimeouts.wrapWithTimeout(threadPool, ActionListener.delegateFailure(listener, (l, r) -> {
-                                r.incRef();
-                                threadPool.generic().execute(new ActionRunnable<>(listener) {
-                                    @Override
-                                    protected void doRun() throws Exception {
-                                        writeFileChunk(request.md, r);
-                                        listener.onResponse(null);
-                                    }
+                            ListenerTimeouts.wrapWithTimeout(threadPool, new ActionListener<>() {
+                                @Override
+                                public void onResponse(
+                                        GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse getCcrRestoreFileChunkResponse) {
+                                    getCcrRestoreFileChunkResponse.incRef();
+                                    threadPool.generic().execute(new ActionRunnable<>(listener) {
+                                        @Override
+                                        protected void doRun() throws Exception {
+                                            writeFileChunk(request.md, getCcrRestoreFileChunkResponse);
+                                            listener.onResponse(null);
+                                        }
 
-                                    @Override
-                                    public void onAfter() {
-                                        r.decRef();
-                                    }
-                                });
-                            }), ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME));
+                                        @Override
+                                        public void onAfter() {
+                                            getCcrRestoreFileChunkResponse.decRef();
+                                        }
+                                    });
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    threadPool.generic().execute(() -> {
+                                        try {
+                                            listener.onFailure(e);
+                                        } catch (Exception ex) {
+                                            e.addSuppressed(ex);
+                                            logger.warn(() ->
+                                                    new ParameterizedMessage("failed to execute failure callback for chunk request"), e);
+                                        }
+                                    });
+                                }
+                            }, ccrSettings.getRecoveryActionTimeout(), ThreadPool.Names.GENERIC, GetCcrRestoreFileChunkAction.NAME));
                 }
 
                 private void writeFileChunk(StoreFileMetadata md,

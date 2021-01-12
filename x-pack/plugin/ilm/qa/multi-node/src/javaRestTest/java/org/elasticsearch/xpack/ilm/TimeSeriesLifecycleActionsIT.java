@@ -25,6 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -52,10 +53,10 @@ import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.WaitForActiveShardsStep;
 import org.elasticsearch.xpack.core.ilm.WaitForRolloverReadyStep;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.GroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
 import org.hamcrest.Matchers;
 import org.junit.Before;
 
@@ -501,7 +502,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> {
             assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
             Map<String, Object> settings = getOnlyIndexSettings(client(), index);
-            assertThat(getNumberOfSegments(client(), index), equalTo(1));
+            assertThat(settings.get(EngineConfig.INDEX_CODEC_SETTING.getKey()), equalTo(codec));
             assertThat(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()), equalTo("true"));
         });
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
@@ -511,7 +512,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         forceMergeActionWithCodec(null);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65171")
     public void testForceMergeActionWithCompressionCodec() throws Exception {
         forceMergeActionWithCodec("best_compression");
     }
@@ -1483,7 +1483,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String rollupIndex = index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX;
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
-            new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
             Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
@@ -1500,7 +1500,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String rollupIndex = index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX;
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
-            new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
             Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
@@ -1517,7 +1517,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         String rollupIndex = index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX;
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
-            new GroupConfig(new DateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
             Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));

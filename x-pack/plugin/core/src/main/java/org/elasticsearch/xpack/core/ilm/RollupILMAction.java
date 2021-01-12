@@ -18,14 +18,14 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
-import org.elasticsearch.xpack.core.rollup.v2.RollupActionConfig;
+import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
 /**
- * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.rollup.v2.RollupAction} on an index
+ * A {@link LifecycleAction} which calls {@link org.elasticsearch.xpack.core.rollup.action.RollupAction} on an index
  */
 public class RollupILMAction implements LifecycleAction {
     public static final String NAME = "rollup";

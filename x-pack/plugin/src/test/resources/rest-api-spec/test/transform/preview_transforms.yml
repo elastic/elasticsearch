@@ -151,6 +151,58 @@ setup:
   - match: { generated_dest_index.mappings.properties.avg_response.type: "double" }
 
 ---
+"Test preview transform latest":
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "latest": {
+              "unique_key": ["airline"],
+              "sort": "time"
+            }
+          }
+  - match: { preview.0.airline: bar }
+  - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - match: { preview.1.airline: foo }
+  - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - match: { generated_dest_index.mappings.properties: {} }
+
+  - do:
+      ingest.put_pipeline:
+        id: "transform_latest_simple_pipeline"
+        body:  >
+          {
+            "processors": [
+             {
+               "set" : {
+                 "field" : "my_field",
+                 "value": 42
+               }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+  - do:
+      transform.preview_transform:
+        body: >
+          {
+            "source": { "index": "airline-data" },
+            "dest": { "pipeline": "transform_latest_simple_pipeline" },
+            "latest": {
+              "unique_key": ["airline"],
+              "sort": "time"
+            }
+          }
+  - match: { preview.0.airline: bar }
+  - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - match: { preview.0.my_field: 42 }
+  - match: { preview.1.airline: foo }
+  - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - match: { preview.1.my_field: 42 }
+  - match: { generated_dest_index.mappings.properties: {} }
+
+---
 "Test preview transform with invalid config":
   - do:
       catch: /\[data_frame_terms_group\] unknown field \[not_a_terms_param\]/

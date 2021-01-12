@@ -26,9 +26,9 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
-import org.elasticsearch.xpack.core.rollup.job.DateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
-import org.elasticsearch.xpack.core.rollup.v2.RollupTask;
+import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupTask;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -88,7 +88,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
                     } else {
                         rollupGroups = new HashMap<>(rollupMetadata.rollupGroups());
                     }
-                    DateHistogramGroupConfig dateConfig = rollupTask.config().getGroupConfig().getDateHistogram();
+                    RollupActionDateHistogramGroupConfig dateConfig = rollupTask.config().getGroupConfig().getDateHistogram();
                     WriteableZoneId rollupDateZoneId = WriteableZoneId.of(dateConfig.getTimeZone());
                     if (rollupGroups.containsKey(rollupGroupKeyName)) {
                         RollupGroup group = rollupGroups.get(rollupGroupKeyName);

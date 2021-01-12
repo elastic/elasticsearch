@@ -24,6 +24,8 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
+
 /**
  * Collector for indices and singular index statistics.
  * <p>
@@ -54,7 +56,7 @@ public class IndexStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+                                                  final ClusterState clusterState) {
         final List<MonitoringDoc> results = new ArrayList<>();
         final IndicesStatsResponse indicesStatsResponse = client.admin().indices().prepareStats()
                 .setIndices(getCollectionIndices())
@@ -71,7 +73,10 @@ public class IndexStatsCollector extends Collector {
                 .setQueryCache(true)
                 .setRequestCache(true)
                 .setBulk(true)
-                .get(getCollectionTimeout());
+                .setTimeout(getCollectionTimeout())
+                .get();
+
+        ensureNoTimeouts(getCollectionTimeout(), indicesStatsResponse);
 
         final long timestamp = timestamp();
         final String clusterUuid = clusterUuid(clusterState);

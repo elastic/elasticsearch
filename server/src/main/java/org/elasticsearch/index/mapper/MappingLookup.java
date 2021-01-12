@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.ArrayList;
@@ -36,7 +37,7 @@ import java.util.stream.Stream;
  * A (mostly) immutable snapshot of the current mapping of an index with
  * access to everything we need for the search phase.
  */
-public class MappingLookup {
+public final class MappingLookup {
     /**
      * Key for the lookup to be used in caches.
      */
@@ -48,14 +49,13 @@ public class MappingLookup {
      * A lookup representing an empty mapping.
      */
     public static final MappingLookup EMPTY = new MappingLookup(
-        "_doc",
+        Mapping.EMPTY,
         List.of(),
         List.of(),
         List.of(),
-        List.of(),
-        0,
-        soucreToParse -> null,
-        false
+        null,
+        null,
+        null
     );
 
     private final CacheKey cacheKey = new CacheKey();
@@ -65,12 +65,16 @@ public class MappingLookup {
     private final Map<String, ObjectMapper> objectMappers;
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
-    private final int metadataFieldCount;
-    private final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
-    private final Function<SourceToParse, ParsedDocument> documentParser;
-    private final boolean sourceEnabled;
+    private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
+    private final DocumentParser documentParser;
+    private final Mapping mapping;
+    private final IndexSettings indexSettings;
+    private final IndexAnalyzers indexAnalyzers;
 
-    public static MappingLookup fromMapping(Mapping mapping, Function<SourceToParse, ParsedDocument> documentParser) {
+    public static MappingLookup fromMapping(Mapping mapping,
+                                            DocumentParser documentParser,
+                                            IndexSettings indexSettings,
+                                            IndexAnalyzers indexAnalyzers) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -83,14 +87,13 @@ public class MappingLookup {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
         }
         return new MappingLookup(
-            mapping.root().name(),
+            mapping,
             newFieldMappers,
             newObjectMappers,
             newFieldAliasMappers,
-            mapping.root.runtimeFieldTypes(),
-            mapping.metadataMappers.length,
             documentParser,
-            mapping.metadataMapper(SourceFieldMapper.class).enabled()
+            indexSettings,
+            indexAnalyzers
         );
     }
 
@@ -112,16 +115,17 @@ public class MappingLookup {
         }
     }
 
-    public MappingLookup(String type,
+    public MappingLookup(Mapping mapping,
                          Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
-                         Collection<RuntimeFieldType> runtimeFieldTypes,
-                         int metadataFieldCount,
-                         Function<SourceToParse, ParsedDocument> documentParser,
-                         boolean sourceEnabled) {
+                         DocumentParser documentParser,
+                         IndexSettings indexSettings,
+                         IndexAnalyzers indexAnalyzers) {
+        this.mapping = mapping;
+        this.indexSettings = indexSettings;
+        this.indexAnalyzers = indexAnalyzers;
         this.documentParser = documentParser;
-        this.sourceEnabled = sourceEnabled;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
@@ -143,9 +147,8 @@ public class MappingLookup {
             if (fieldMappers.put(mapper.name(), mapper) != null) {
                 throw new MapperParsingException("Field [" + mapper.name() + "] is defined more than once");
             }
-            indexAnalyzers.putAll(mapper.indexAnalyzers());
+            indexAnalyzersMap.putAll(mapper.indexAnalyzers());
         }
-        this.metadataFieldCount = metadataFieldCount;
 
         for (FieldAliasMapper aliasMapper : aliasMappers) {
             if (objects.containsKey(aliasMapper.name())) {
@@ -156,8 +159,7 @@ public class MappingLookup {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(type, mappers, aliasMappers, runtimeFieldTypes);
-
+        this.fieldTypeLookup = new FieldTypeLookup(mapping.root().name(), mappers, aliasMappers, mapping.root().runtimeFieldTypes());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
@@ -177,8 +179,8 @@ public class MappingLookup {
     }
 
     public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
-        if (this.indexAnalyzers.containsKey(field)) {
-            return this.indexAnalyzers.get(field);
+        if (this.indexAnalyzersMap.containsKey(field)) {
+            return this.indexAnalyzersMap.get(field);
         }
         return unmappedFieldAnalyzer.apply(field);
     }
@@ -198,7 +200,7 @@ public class MappingLookup {
     }
 
     private void checkFieldLimit(long limit) {
-        if (fieldMappers.size() + objectMappers.size() - metadataFieldCount > limit) {
+        if (fieldMappers.size() + objectMappers.size() - mapping.metadataMappers.length > limit) {
             throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded");
         }
     }
@@ -306,7 +308,7 @@ public class MappingLookup {
     }
 
     public ParsedDocument parseDocument(SourceToParse source) {
-        return documentParser.apply(source);
+        return documentParser.parseDocument(source, this);
     }
 
     public boolean hasMappings() {
@@ -314,7 +316,7 @@ public class MappingLookup {
     }
 
     public boolean isSourceEnabled() {
-        return sourceEnabled;
+        return mapping.metadataMapper(SourceFieldMapper.class).enabled();
     }
 
     /**
@@ -322,5 +324,17 @@ public class MappingLookup {
      */
     public CacheKey cacheKey() {
         return cacheKey;
+    }
+
+    Mapping getMapping() {
+        return mapping;
+    }
+
+    IndexSettings getIndexSettings() {
+        return indexSettings;
+    }
+
+    IndexAnalyzers getIndexAnalyzers() {
+        return indexAnalyzers;
     }
 }

@@ -219,10 +219,10 @@ Valid values are:
 Match any data stream, including <<hidden-indices,hidden>> ones.
 
 `open`::
-Matches any non-hidden data streams.
+Matches any non-hidden data stream.
 
 `closed`::
-Matches any non-hidden data streams. Data streams cannot be closed.
+Matches any non-hidden data stream. Data streams cannot be closed.
 
 `hidden`::
 Match hidden and non-hidden data streams.

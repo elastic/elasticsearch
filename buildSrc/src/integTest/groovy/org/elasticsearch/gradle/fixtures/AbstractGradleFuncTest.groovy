@@ -63,7 +63,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         true
     }
 
-    def assertOutputContainsNot(String givenOutput, String expected) {
+    def assertOutputMissing(String givenOutput, String expected) {
         assert normalized(givenOutput).contains(normalized(expected)) == false
         true
     }

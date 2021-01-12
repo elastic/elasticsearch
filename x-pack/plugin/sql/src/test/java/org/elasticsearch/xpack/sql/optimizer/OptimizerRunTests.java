@@ -106,19 +106,19 @@ public class OptimizerRunTests extends ESTestCase {
     }
 
     public void testSimplifyComparisonArithmeticWithFieldNegation() {
-        doTestSimplifyComparisonArithmetics("12 * (-int - 5) >= -120", "int", "<=", 5);
+        assertSemanticMatching("-int >= -5", "12 * (-int - 5) >= -120");
     }
 
     public void testSimplifyComparisonArithmeticWithFieldDoubleNegation() {
-        doTestSimplifyComparisonArithmetics("12 * -(-int - 5) <= 120", "int", "<=", 5);
+        assertSemanticMatching("-(-int - 5) <= 10", "12 * -(-int - 5) <= 120");
     }
 
     public void testSimplifyComparisonArithmeticWithConjunction() {
-        doTestSimplifyComparisonArithmetics("12 * (-int - 5) = -120 AND int < 6 ", "int", "==", 5);
+        assertSemanticMatching("-int = -5", "12 * (-int - 5) = -120 AND -int < 6 ");
     }
 
     public void testSimplifyComparisonArithmeticWithDisjunction() {
-        doTestSimplifyComparisonArithmetics("12 * (-int - 5) >= -120 OR int < 5", "int", "<=", 5);
+        assertSemanticMatching("-int >= -5", "12 * (-int - 5) >= -120 OR -int > -5");
     }
 
     public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
@@ -186,14 +186,6 @@ public class OptimizerRunTests extends ESTestCase {
         }
     }
 
-    public void testBubbleUpNegation() {
-        String provided = "(1 / -int) * (-float) * (-float / (2 / -int)) * -2 * (-float - int) * (-(-int)) * (-float / (-int + 1)) > 1";
-        String expected = "(1/int) * float * (float / (2 / int)) * -2 * (-float - int) * int * (float / (-int + 1)) < -1";
-        BinaryComparison bc = extractBinaryComparison(provided);
-        Expression exp = parser.createExpression(expected);
-        assertSemanticMatching(bc, exp);
-    }
-
     public void testSimplifyComparisonArithmeticWithDateTime() {
         doTestSimplifyComparisonArithmetics("date - INTERVAL 1 MONTH > '2010-01-01T01:01:01'::DATETIME", "date", ">",
             ZonedDateTime.parse("2010-02-01T01:01:01Z"));
@@ -211,7 +203,7 @@ public class OptimizerRunTests extends ESTestCase {
     }
 
     private void doTestSimplifyComparisonArithmetics(String expression, String fieldName, String compSymbol, Object bound) {
-        BinaryComparison bc = extractBinaryComparison(expression);
+        BinaryComparison bc = extractPlannedBinaryComparison(expression);
         assertTrue(COMPARISONS.get(compSymbol).isInstance(bc));
 
         assertTrue(bc.left() instanceof FieldAttribute);
@@ -224,10 +216,16 @@ public class OptimizerRunTests extends ESTestCase {
     }
 
     private void assertNotSimplified(String condition) {
-        assertSemanticMatching(extractBinaryComparison(condition), parser.createExpression(condition));
+        assertSemanticMatching(extractPlannedBinaryComparison(condition), parser.createExpression(condition));
     }
 
-    private BinaryComparison extractBinaryComparison(String expression) {
+    private void assertSemanticMatching(String expected, String provided) {
+        BinaryComparison bc = extractPlannedBinaryComparison(provided);
+        Expression exp = parser.createExpression(expected);
+        assertSemanticMatching(bc, exp);
+    }
+
+    private BinaryComparison extractPlannedBinaryComparison(String expression) {
         LogicalPlan plan = planWithArithmeticCondition(expression);
 
         assertTrue(plan instanceof UnaryPlan);

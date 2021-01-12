@@ -1152,51 +1152,6 @@ public final class OptimizerRules {
         }
     }
 
-    public static final class BubbleUpNegations extends OptimizerExpressionRule {
-
-        public BubbleUpNegations() {
-            super(TransformDirection.DOWN);
-        }
-
-        @Override
-        protected Expression rule(Expression e) {
-            if (e instanceof Neg) {
-                Expression child = ((Neg) e).field();
-                if (child instanceof ArithmeticOperation) { // cancels out NEG - MUL/DIV - NEG - x ==> MUL/DIV - x
-                    ArithmeticOperation operation = (ArithmeticOperation) child;
-                    if (isMulOrDiv(operation)) {
-                        if (operation.left() instanceof Neg) {
-                            return operation.replaceChildren(List.of(((Neg) operation.left()).field(), operation.right()));
-                        }
-                        if (operation.right() instanceof Neg) {
-                            return operation.replaceChildren(List.of(operation.left(), ((Neg) operation.right()).field()));
-                        }
-                    }
-                } else if (child instanceof Neg) { // cancels out NEG - NEG - x ==> x
-                    return ((Neg) child).field();
-                }
-            } else if (e instanceof ArithmeticOperation) { // pulls up MUL/DIV - NEG - x ==> NEG - MUL/DIV - x
-                ArithmeticOperation operation = (ArithmeticOperation) e;
-                if (isMulOrDiv(operation)) {
-                    if (operation.left() instanceof Neg) {
-                        Neg neg = (Neg) operation.left();
-                        return new Neg(operation.source(), operation.replaceChildren(List.of(neg.field(), operation.right())));
-                    }
-                    if (operation.right() instanceof Neg) {
-                        Neg neg = (Neg) operation.right();
-                        return new Neg(operation.source(), operation.replaceChildren(List.of(operation.left(), neg.field())));
-                    }
-                }
-            }
-            return e;
-        }
-
-        public static boolean isMulOrDiv(ArithmeticOperation operation) {
-            String opSymbol = operation.symbol();
-            return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
-        }
-    }
-
     // Simplifies arithmetic expressions with fixed point fields in BinaryComparisons.
     public static final class SimplifyComparisonsArithmetics extends OptimizerExpressionRule {
         BiFunction<DataType, DataType, Boolean> typesCompatible;
@@ -1208,36 +1163,15 @@ public final class OptimizerRules {
 
         @Override
         protected Expression rule(Expression e) {
-            return (e instanceof BinaryComparison) ? simplify((BinaryComparison) e) : e;
-        }
-
-        private Expression simplify(BinaryComparison bc) {
-            // optimize only once the expression has a literal on the right side of the binary comparison
-            if (bc.right() instanceof Literal) {
-                if (bc.left() instanceof ArithmeticOperation) {
+            if (e instanceof BinaryComparison) {
+                BinaryComparison bc = (BinaryComparison) e;
+                // optimize only once the expression has a literal on the right side of the binary comparison
+                if (bc.left() instanceof ArithmeticOperation && bc.right() instanceof Literal) {
                     return SimplifyOperation.simplify(bc, typesCompatible);
-                } else if (bc.left() instanceof Neg) {
-                    return reduceNegation(bc);
                 }
+                // Note: negations can't be optimized: `-int > 4` would fail for Integer.MIN_VALUE unoptimized, but succeed optimized.
             }
-            return bc;
-        }
-
-        private static Expression reduceNegation(BinaryComparison bc) {
-            Literal bcLiteral = (Literal) bc.right();
-            Expression literalNeg = safeMaybeFold(new Neg(bcLiteral.source(), bcLiteral));
-            return literalNeg == null ? bc : bc.reverse().replaceChildren(List.of(((Neg) bc.left()).field(), literalNeg));
-        }
-
-        private static Expression safeMaybeFold(Expression expression) {
-            if (expression.foldable()) {
-                try {
-                    expression = new Literal(expression.source(), expression.fold(), expression.dataType());
-                } catch (ArithmeticException | DateTimeException e) {
-                    expression = null;
-                }
-            }
-            return expression;
+            return e;
         }
 
         private static class SimplifyOperation {
@@ -1309,17 +1243,28 @@ public final class OptimizerRules {
                     return comparison;
                 }
                 SimplifyOperation simplify = null;
-                if (BubbleUpNegations.isMulOrDiv(operation)) {
+                if (isMulOrDiv(opSymbol)) {
                     simplify = new SimplifyMulDiv(comparison);
-                } else if (isAddOrSub(opSymbol)) {
+                } else if (ADD.symbol().equals(opSymbol) || SUB.symbol().equals(opSymbol)) {
                     simplify = new SimplifyAddSub(comparison);
                 }
 
                 return (simplify == null || simplify.cannotSimplify(typesCompatible)) ? comparison : simplify.doSimplify();
             }
 
-            private static boolean isAddOrSub(String opSymbol) {
-                return ADD.symbol().equals(opSymbol) || SUB.symbol().equals(opSymbol);
+            static boolean isMulOrDiv(String opSymbol) {
+                return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
+            }
+
+            static Expression safeMaybeFold(Expression expression) {
+                if (expression.foldable()) {
+                    try {
+                        expression = new Literal(expression.source(), expression.fold(), expression.dataType());
+                    } catch (ArithmeticException | DateTimeException e) {
+                        expression = null;
+                    }
+                }
+                return expression;
             }
         }
 
@@ -1382,17 +1327,31 @@ public final class OptimizerRules {
                         return comparison;
                     }
                 }
-                BinaryComparison bc = (BinaryComparison) super.doSimplify();
                 // negative multiplication/division changes the direction of the comparison
-                if (opRight instanceof Literal) {
-                    long expLiteralValue = ((Number) ((Literal) opRight).value()).longValue();
-                    if (expLiteralValue < 0) {
-                        bc = bc.reverse();
-                    } else if (expLiteralValue == 0) {
-                        bc = comparison; // keep the original
+                int sign = sign(opRight);
+                if (sign == 0) {
+                    return comparison;
+                }
+                BinaryComparison bc = (BinaryComparison) super.doSimplify();
+                return sign < 0 ? bc.reverse() : bc;
+            }
+
+            private int sign(Object obj) {
+                int sign = 1;
+                if (obj instanceof Number) {
+                    double d = ((Number) obj).doubleValue();
+                    sign = d == 0 ? 0 : (d < 0 ? -1 : 1);
+                } else if (obj instanceof Literal) {
+                    sign = sign(((Literal) obj).value());
+                } else if (obj instanceof Neg) {
+                    sign = -sign(((Neg) obj).field());
+                } else if (obj instanceof ArithmeticOperation) {
+                    ArithmeticOperation operation = (ArithmeticOperation) obj;
+                    if (isMulOrDiv(operation.symbol())) {
+                        sign = sign(operation.left()) * sign(operation.right());
                     }
                 }
-                return bc;
+                return sign;
             }
         }
     }

@@ -90,7 +90,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
@@ -155,7 +155,7 @@ import org.elasticsearch.xpack.core.rollup.action.StartRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.action.StopRollupJobAction;
 import org.elasticsearch.xpack.core.rollup.job.RollupJob;
 import org.elasticsearch.xpack.core.rollup.job.RollupJobStatus;
-import org.elasticsearch.xpack.core.rollup.v2.RollupAction;
+import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.runtimefields.RuntimeFieldsFeatureSetUsage;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -316,7 +316,6 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             GetCalendarEventsAction.INSTANCE,
             PostCalendarEventsAction.INSTANCE,
             PersistJobAction.INSTANCE,
-            FindFileStructureAction.INSTANCE,
             SetUpgradeModeAction.INSTANCE,
             PutDataFrameAnalyticsAction.INSTANCE,
             GetDataFrameAnalyticsAction.INSTANCE,
@@ -408,7 +407,9 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             // Async Search
             SubmitAsyncSearchAction.INSTANCE,
             GetAsyncSearchAction.INSTANCE,
-            DeleteAsyncResultAction.INSTANCE
+            DeleteAsyncResultAction.INSTANCE,
+            // Text Structure
+            FindFileStructureAction.INSTANCE
         ));
 
         // rollupV2

@@ -6,7 +6,19 @@
 
 package org.elasticsearch.xpack.eql.execution.assembler;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.ExceptionsHelper;
@@ -32,20 +44,12 @@ import org.elasticsearch.xpack.eql.session.Payload;
 import org.elasticsearch.xpack.eql.session.Results;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 public class SequenceSpecTests extends ESTestCase {
+
+    private static final String PARAM_FORMATTING = "%1$s";
+    private static final String QUERIES_FILENAME = "sequences.series-spec";
 
     private final List<Map<Integer, Tuple<String, String>>> events;
     private final List<List<String>> matches;
@@ -150,8 +154,8 @@ public class SequenceSpecTests extends ESTestCase {
 
             for (Entry<Integer, Tuple<String, String>> entry : events.entrySet()) {
                 Tuple<String, String> value = entry.getValue();
-                // save the timestamp as docId (int) and the key as id (string)
-                SearchHit searchHit = new SearchHit(entry.getKey(), value.v1(), null, null);
+                // save the timestamp both as docId (int) and as id (string)
+                SearchHit searchHit = new SearchHit(entry.getKey(), entry.getKey().toString(), null, null);
                 hits.add(searchHit);
             }
         }
@@ -186,6 +190,15 @@ public class SequenceSpecTests extends ESTestCase {
 
         @Override
         public void fetchHits(Iterable<List<HitReference>> refs, ActionListener<List<List<SearchHit>>> listener) {
+            List<List<SearchHit>> searchHits = new ArrayList<>();
+            for (List<HitReference> ref : refs) {
+                List<SearchHit> hits = new ArrayList<>(ref.size());
+                for (HitReference hitRef : ref) {
+                    hits.add(new SearchHit(-1, hitRef.id(), null, null));
+                }
+                searchHits.add(hits);
+            }
+            listener.onResponse(searchHits);
         }
     }
 
@@ -200,12 +213,12 @@ public class SequenceSpecTests extends ESTestCase {
         this.tbExtractor = null;
     }
 
-    @ParametersFactory(shuffle = false, argumentFormatting = "%0$s")
+    @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static Iterable<Object[]> parameters() throws Exception {
-        return SeriesUtils.readSpec("/sequences.series-spec");
+        return SeriesUtils.readSpec("/" + QUERIES_FILENAME);
     }
 
-    public void test() {
+    public void test() throws Exception {
         int stages = events.size();
         List<Criterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
         // pass the items for each query through the Criterion

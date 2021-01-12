@@ -638,17 +638,16 @@ public class MockBigArrays extends BigArrays {
         }
 
         @Override
-        public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+        public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
             long total = used.addAndGet(bytes);
             if (total > max.getBytes()) {
                 throw new CircuitBreakingException("test error", bytes, max.getBytes(), Durability.TRANSIENT);
             }
-            return total;
         }
 
         @Override
-        public long addWithoutBreaking(long bytes) {
-            return used.addAndGet(bytes);
+        public void addWithoutBreaking(long bytes) {
+            used.addAndGet(bytes);
         }
     }
 }

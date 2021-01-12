@@ -30,6 +30,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -252,7 +253,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
         ensureGreen("test");
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
-        clusterInfoService.refresh();
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
         Long test = clusterInfoService.getClusterInfo().getShardSize(state.getRoutingTable().index("test")
             .getShards().get(0).primaryShard());

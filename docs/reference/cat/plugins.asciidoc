@@ -36,7 +36,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ------------------------------------------------------------------------------
-GET /_cat/plugins?v&s=component&h=name,component,version,description
+GET /_cat/plugins?v=true&s=component&h=name,component,version,description
 ------------------------------------------------------------------------------
 
 The API returns the following response:

@@ -124,18 +124,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             Map<String, Object> expectedDoc = new HashMap<>();
             List<IngestDocument.Metadata> fields = Arrays.asList(INDEX, ID, ROUTING, VERSION, VERSION_TYPE, IF_SEQ_NO, IF_PRIMARY_TERM);
             for(IngestDocument.Metadata field : fields) {
-                if (field == VERSION) {
-                    Long value = randomLong();
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
-                } else if (field == VERSION_TYPE) {
+                if (field == VERSION_TYPE) {
                     String value = VersionType.toString(
                         randomFrom(VersionType.INTERNAL, VersionType.EXTERNAL, VersionType.EXTERNAL_GTE)
                     );
-                    doc.put(field.getFieldName(), value);
-                    expectedDoc.put(field.getFieldName(), value);
-                } else if (field == IF_SEQ_NO || field == IF_PRIMARY_TERM) {
-                    Long value = randomNonNegativeLong();
                     doc.put(field.getFieldName(), value);
                     expectedDoc.put(field.getFieldName(), value);
                 } else {

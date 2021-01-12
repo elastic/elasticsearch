@@ -21,15 +21,10 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
@@ -38,7 +33,7 @@ import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 
-public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
+public class FieldNamesFieldMapperTests extends MapperServiceTestCase {
 
     private static SortedSet<String> extract(String path) {
         SortedSet<String> set = new TreeSet<>();
@@ -68,11 +63,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testFieldType() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").endObject()
-            .endObject().endObject());
-
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping(b -> {}));
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().hasDocValues());
 
@@ -83,8 +74,7 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
     }
 
     public void testInjectIntoDocDuringParsing() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject());
-        DocumentMapper defaultMapper = createIndex("test").mapperService().parse("type", new CompressedXContent(mapping));
+        DocumentMapper defaultMapper = createDocumentMapper(mapping(b -> {}));
 
         ParsedDocument doc = defaultMapper.parse(new SourceToParse("test", "1",
             BytesReference.bytes(XContentFactory.jsonBuilder()
@@ -99,78 +89,53 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
         assertFieldNames(Collections.emptySet(), doc);
     }
 
-    public void testUsingEnabledSettingThrows() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("enabled", true).endObject()
-            .startObject("properties")
-            .startObject("field").field("type", "keyword").field("doc_values", false).endObject()
-            .endObject().endObject().endObject());
-        MapperParsingException ex = expectThrows(MapperParsingException.class,
-                () -> createIndex("test").mapperService().parse("type", new CompressedXContent(mapping)));
+    public void testUsingEnabledSettingThrows() {
+        MapperParsingException ex = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
+            b.startObject("_field_names").field("enabled", true).endObject();
+            b.startObject("properties");
+            {
+                b.startObject("field").field("type", "keyword").endObject();
+            }
+            b.endObject();
+        })));
 
-        assertEquals("The `enabled` setting for the `_field_names` field has been deprecated and removed. "
-                + "Please remove it from your mappings and templates.", ex.getMessage());
+        assertEquals("Failed to parse mapping: " +
+            "The `enabled` setting for the `_field_names` field has been deprecated and removed. " +
+            "Please remove it from your mappings and templates.", ex.getMessage());
     }
 
     /**
      * disabling the _field_names should still work for indices before 8.0
      */
     public void testUsingEnabledBefore8() throws Exception {
-        String mapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("enabled", false).endObject()
-            .endObject().endObject());
 
-        DocumentMapper docMapper = createIndex("test",
-                Settings.builder()
-                        .put(IndexMetadata.SETTING_VERSION_CREATED,
-                                VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
-                        .build()).mapperService()
-            .parse("type", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(
+            VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0),
+            topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject()));
+
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
         FieldNamesFieldMapper fieldNamesMapper = docMapper.metadataMapper(FieldNamesFieldMapper.class);
         assertFalse(fieldNamesMapper.fieldType().isEnabled());
 
-        ParsedDocument doc = docMapper.parse(new SourceToParse("test", "1",
-            BytesReference.bytes(XContentFactory.jsonBuilder()
-                .startObject()
-                .field("field", "value")
-                .endObject()),
-            XContentType.JSON));
-
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field", "value")));
         assertNull(doc.rootDoc().get("_field_names"));
-        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
     }
 
     /**
      * Merging the "_field_names" enabled setting is forbidden in 8.0, but we still want to tests the behavior on pre-8 indices
      */
     public void testMergingMappingsBefore8() throws Exception {
-        String enabledMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("enabled", true).endObject()
-            .endObject().endObject());
-        String disabledMapping = Strings.toString(XContentFactory.jsonBuilder().startObject().startObject("type")
-            .startObject("_field_names").field("enabled", false).endObject()
-            .endObject().endObject());
-        MapperService mapperService = createIndex("test", Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED,
-                        VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0))
-                .build()).mapperService();
+        MapperService mapperService = createMapperService(
+            VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0),
+            mapping(b -> {})
+        );
 
-        mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
-        DocumentMapper mapperDisabled = mapperService.merge("type", new CompressedXContent(disabledMapping),
-            MapperService.MergeReason.MAPPING_UPDATE);
-        assertFalse(mapperDisabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        merge(mapperService, topMapping(b -> b.startObject("_field_names").field("enabled", false).endObject()));
+        assertFalse(mapperService.documentMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
 
-        DocumentMapper mapperEnabled
-            = mapperService.merge("type", new CompressedXContent(enabledMapping), MapperService.MergeReason.MAPPING_UPDATE);
-        assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
-        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE.replace("{}", "test"));
-    }
-
-    @Override
-    protected boolean forbidPrivateIndexSettings() {
-        /**
-         * This is needed to force the index version with {@link IndexMetadata.SETTING_VERSION_CREATED}.
-         */
-        return false;
+        merge(mapperService, topMapping(b -> b.startObject("_field_names").field("enabled", true).endObject()));
+        assertTrue(mapperService.documentMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
+        assertWarnings(FieldNamesFieldMapper.ENABLED_DEPRECATION_MESSAGE);
     }
 }

@@ -37,7 +37,7 @@ public class CoreValuesSourceTypeTests extends MapperServiceTestCase {
 
     public void testFromString() {
         assertThat(CoreValuesSourceType.fromString("numeric"), equalTo(CoreValuesSourceType.NUMERIC));
-        assertThat(CoreValuesSourceType.fromString("bytes"), equalTo(CoreValuesSourceType.BYTES));
+        assertThat(CoreValuesSourceType.fromString("keyword"), equalTo(CoreValuesSourceType.KEYWORD));
         assertThat(CoreValuesSourceType.fromString("geopoint"), equalTo(CoreValuesSourceType.GEOPOINT));
         assertThat(CoreValuesSourceType.fromString("range"), equalTo(CoreValuesSourceType.RANGE));
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,

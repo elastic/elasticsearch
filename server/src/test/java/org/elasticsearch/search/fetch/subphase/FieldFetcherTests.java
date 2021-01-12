@@ -737,7 +737,27 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        return new QueryShardContext(0, 0, indexSettings, null, null, null, mapperService, null, null, null, null, null, null, null, null,
-            null, null, null, emptyMap());
+        return new QueryShardContext(
+            0,
+            0,
+            indexSettings,
+            null,
+            null,
+            null,
+            mapperService,
+            mapperService.mappingLookup(),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            emptyMap()
+        );
     }
 }

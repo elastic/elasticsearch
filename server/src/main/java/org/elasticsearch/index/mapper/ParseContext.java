@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
@@ -51,7 +49,7 @@ public abstract class ParseContext {
         private final String path;
         private final String prefix;
         private final List<IndexableField> fields;
-        private ObjectObjectMap<Object, IndexableField> keyedFields;
+        private Map<Object, IndexableField> keyedFields;
 
         private Document(String path, Document parent) {
             fields = new ArrayList<>();
@@ -107,7 +105,7 @@ public abstract class ParseContext {
         /** Add fields so that they can later be fetched using {@link #getByKey(Object)}. */
         public void addWithKey(Object key, IndexableField field) {
             if (keyedFields == null) {
-                keyedFields = new ObjectObjectHashMap<>();
+                keyedFields = new HashMap<>();
             } else if (keyedFields.containsKey(key)) {
                 throw new IllegalStateException("Only one field can be stored per key");
             }
@@ -233,8 +231,13 @@ public abstract class ParseContext {
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return in.docMapper();
+        public MappingLookup mappingLookup() {
+            return in.mappingLookup();
+        }
+
+        @Override
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return in.getMetadataMapper(mapperName);
         }
 
         @Override
@@ -309,7 +312,7 @@ public abstract class ParseContext {
     }
 
     public static class InternalParseContext extends ParseContext {
-        private final DocumentMapper docMapper;
+        private final MappingLookup mappingLookup;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -317,7 +320,7 @@ public abstract class ParseContext {
         private final List<Document> documents = new ArrayList<>();
         private final SourceToParse sourceToParse;
         private final long maxAllowedNumNestedDocs;
-        private final List<Mapper> dynamicMappers =  new ArrayList<>();
+        private final List<Mapper> dynamicMappers = new ArrayList<>();
         private final Map<String, ObjectMapper> dynamicObjectMappers = new HashMap<>();
         private final List<RuntimeFieldType> dynamicRuntimeFields = new ArrayList<>();
         private final DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder;
@@ -327,12 +330,12 @@ public abstract class ParseContext {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public InternalParseContext(DocumentMapper docMapper,
+        public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
                                     DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
-            this.docMapper = docMapper;
+            this.mappingLookup = mappingLookup;
             this.parserContextFunction = parserContextFunction;
             this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
@@ -340,7 +343,7 @@ public abstract class ParseContext {
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.maxAllowedNumNestedDocs = docMapper.indexSettings().getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
@@ -351,7 +354,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexSettings indexSettings() {
-            return this.docMapper.indexSettings();
+            return this.mappingLookup.getIndexSettings();
         }
 
         @Override
@@ -397,17 +400,22 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return docMapper.root();
+            return this.mappingLookup.getMapping().root();
         }
 
         @Override
-        public DocumentMapper docMapper() {
-            return this.docMapper;
+        public MappingLookup mappingLookup() {
+            return mappingLookup;
+        }
+
+        @Override
+        public MetadataFieldMapper getMetadataMapper(String mapperName) {
+            return mappingLookup.getMapping().getMetadataMapper(mapperName);
         }
 
         @Override
         public IndexAnalyzers indexAnalyzers() {
-            return docMapper.indexAnalyzers();
+            return mappingLookup.getIndexAnalyzers();
         }
 
         @Override
@@ -609,7 +617,9 @@ public abstract class ParseContext {
 
     public abstract RootObjectMapper root();
 
-    public abstract DocumentMapper docMapper();
+    public abstract MappingLookup mappingLookup();
+
+    public abstract MetadataFieldMapper getMetadataMapper(String mapperName);
 
     public abstract IndexAnalyzers indexAnalyzers();
 

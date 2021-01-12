@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -88,6 +89,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -100,7 +102,6 @@ import java.math.BigInteger;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -817,13 +818,6 @@ public class Lucene {
     }
 
     /**
-     * Returns a base64 encoded string of the commit id of the given {@link SegmentInfos}
-     */
-    public static String getCommitId(SegmentInfos segmentInfos) {
-        return Base64.getEncoder().encodeToString(segmentInfos.getId());
-    }
-
-    /**
      * Return a {@link Bits} view of the provided scorer.
      * <b>NOTE</b>: that the returned {@link Bits} instance MUST be consumed in order.
      * @see #asSequentialAccessBits(int, ScorerSupplier, long)
@@ -925,7 +919,7 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+        static final class LeafReaderWithLiveDocs extends SequentialStoredFieldsLeafReader {
             final Bits liveDocs;
             final int numDocs;
             LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
@@ -948,6 +942,10 @@ public class Lucene {
             @Override
             public CacheHelper getReaderCacheHelper() {
                 return null; // Modifying liveDocs
+            }
+            @Override
+            protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                return reader;
             }
         }
 

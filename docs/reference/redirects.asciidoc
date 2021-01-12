@@ -1082,6 +1082,11 @@ The `xpack.sql.enabled` setting has been deprecated. SQL access is always enable
 
 See <<index-templates>>.
 
+[role="exclude",id="indices-template-exists"]
+=== Index template exists (legacy)
+
+See <<indices-template-exists-v1>>.
+
 [role="exclude",id="run-a-search"]
 === Run a search
 

@@ -2895,8 +2895,17 @@ public class MachineLearningIT extends ESRestHighLevelClientTestCase {
         FindFileStructureRequest request = new FindFileStructureRequest();
         request.setSample(sample.getBytes(StandardCharsets.UTF_8));
 
-        FindFileStructureResponse response =
-            execute(request, machineLearningClient::findFileStructure, machineLearningClient::findFileStructureAsync);
+        FindFileStructureResponse response = execute(
+            request,
+            machineLearningClient::findFileStructure,
+            machineLearningClient::findFileStructureAsync,
+            RequestOptions.DEFAULT
+                .toBuilder()
+                .setWarningsHandler(
+                    warnings -> Collections.singletonList(
+                        "[POST /_ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure] instead."
+                    ).equals(warnings) == false
+                ).build());
 
         FileStructure structure = response.getFileStructure();
 

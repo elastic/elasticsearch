@@ -12,7 +12,7 @@ more about the Painless scripting language in the
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
-// * <<painless-group-by>>
+* <<painless-group-by>>
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>

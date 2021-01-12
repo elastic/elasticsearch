@@ -1163,15 +1163,36 @@ public final class OptimizerRules {
 
         @Override
         protected Expression rule(Expression e) {
-            if (e instanceof BinaryComparison) {
-                BinaryComparison bc = (BinaryComparison) e;
-                // optimize only once the expression has a literal on the right side of the binary comparison
-                if (bc.left() instanceof ArithmeticOperation && bc.right() instanceof Literal) {
+            return (e instanceof BinaryComparison) ? simplify((BinaryComparison) e) : e;
+        }
+
+        private Expression simplify(BinaryComparison bc) {
+            // optimize only once the expression has a literal on the right side of the binary comparison
+            if (bc.right() instanceof Literal) {
+                if (bc.left() instanceof ArithmeticOperation) {
                     return SimplifyOperation.simplify(bc, typesCompatible);
+                } else if (bc.left() instanceof Neg) {
+                    return reduceNegation(bc);
                 }
-                // Note: negations can't be optimized: `-int > 4` would fail for Integer.MIN_VALUE unoptimized, but succeed optimized.
             }
-            return e;
+            return bc;
+        }
+
+        private static Expression reduceNegation(BinaryComparison bc) {
+            Literal bcLiteral = (Literal) bc.right();
+            Expression literalNeg = safeMaybeFold(new Neg(bcLiteral.source(), bcLiteral));
+            return literalNeg == null ? bc : bc.reverse().replaceChildren(List.of(((Neg) bc.left()).field(), literalNeg));
+        }
+
+        static Expression safeMaybeFold(Expression expression) {
+            if (expression.foldable()) {
+                try {
+                    expression = new Literal(expression.source(), expression.fold(), expression.dataType());
+                } catch (ArithmeticException | DateTimeException e) {
+                    expression = null;
+                }
+            }
+            return expression;
         }
 
         private static class SimplifyOperation {
@@ -1255,17 +1276,6 @@ public final class OptimizerRules {
             static boolean isMulOrDiv(String opSymbol) {
                 return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
             }
-
-            static Expression safeMaybeFold(Expression expression) {
-                if (expression.foldable()) {
-                    try {
-                        expression = new Literal(expression.source(), expression.fold(), expression.dataType());
-                    } catch (ArithmeticException | DateTimeException e) {
-                        expression = null;
-                    }
-                }
-                return expression;
-            }
         }
 
         private static class SimplifyAddSub extends SimplifyOperation {
@@ -1304,18 +1314,7 @@ public final class OptimizerRules {
             @Override
             boolean cannotSimplify(BiFunction<DataType, DataType, Boolean> typesCompatible) {
                 // Integer divisions are not safe to optimise: x / 5 > 1 <=/=> x > 5 for x in [6, 9]; same for the `==` comp
-                if (operation.dataType().isInteger()) {
-                    if (isDiv) {
-                        return true;
-                    }
-                } else if (operation.dataType().isRational()) {
-                    Expression opNonLiteral = opLiteral == opLeft ? opRight : opLeft;
-                    if (opNonLiteral instanceof Neg) {
-                        // wait until Neg bubbles all the way up
-                        return true;
-                    }
-                }
-                return super.cannotSimplify(typesCompatible);
+                return operation.dataType().isInteger() && isDiv || super.cannotSimplify(typesCompatible);
             }
 
             @Override

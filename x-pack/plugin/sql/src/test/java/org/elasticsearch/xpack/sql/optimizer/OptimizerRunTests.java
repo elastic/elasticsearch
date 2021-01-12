@@ -106,19 +106,19 @@ public class OptimizerRunTests extends ESTestCase {
     }
 
     public void testSimplifyComparisonArithmeticWithFieldNegation() {
-        assertSemanticMatching("-int >= -5", "12 * (-int - 5) >= -120");
+        doTestSimplifyComparisonArithmetics("12 * (-int - 5) >= -120", "int", "<=", 5);
     }
 
     public void testSimplifyComparisonArithmeticWithFieldDoubleNegation() {
-        assertSemanticMatching("-(-int - 5) <= 10", "12 * -(-int - 5) <= 120");
+        doTestSimplifyComparisonArithmetics("12 * -(-int - 5) <= 120", "int", "<=", 5);
     }
 
     public void testSimplifyComparisonArithmeticWithConjunction() {
-        assertSemanticMatching("-int = -5", "12 * (-int - 5) = -120 AND -int < 6 ");
+        doTestSimplifyComparisonArithmetics("12 * (-int - 5) = -120 AND int < 6 ", "int", "==", 5);
     }
 
     public void testSimplifyComparisonArithmeticWithDisjunction() {
-        assertSemanticMatching("-int >= -5", "12 * (-int - 5) >= -120 OR -int > -5");
+        doTestSimplifyComparisonArithmetics("12 * (-int - 5) >= -120 OR int < 5", "int", "<=", 5);
     }
 
     public void testSimplifyComparisonArithmeticWithFloatsAndDirectionChange() {
@@ -126,11 +126,20 @@ public class OptimizerRunTests extends ESTestCase {
         doTestSimplifyComparisonArithmetics("float * -2 < 4", "float", ">", -2d);
     }
 
+    public void testSimplyComparisonArithmeticWithUnfoldedProd() {
+        assertSemanticMatching("int * int >= 3", "((int * int + 1) * 2 - 4) * 4 >= 16");
+    }
+
     public void testSimplifyComparisonArithmeticSkippedOnIntegerArithmeticalOverflow() {
         assertNotSimplified("int - 1 " + randomBinaryComparison() + " " + Long.MAX_VALUE);
         assertNotSimplified("1 - int " + randomBinaryComparison() + " " + Long.MIN_VALUE);
         assertNotSimplified("int - 1 " + randomBinaryComparison() + " " + Integer.MAX_VALUE);
         assertNotSimplified("1 - int " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
+    }
+
+    public void testSimplifyComparisonArithmeticSkippedOnIntegerArithmeticalOverflowOnNegation() {
+        assertNotSimplified("-int " + randomBinaryComparison() + " " + Long.MIN_VALUE);
+        assertNotSimplified("-int " + randomBinaryComparison() + " " + Integer.MIN_VALUE);
     }
 
     public void testSimplifyComparisonArithmeticSkippedOnFloatingPointArithmeticalOverflow() {

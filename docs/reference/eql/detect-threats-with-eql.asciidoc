@@ -50,7 +50,7 @@ curl -H "Content-Type: application/json" -XPOST "localhost:9200/my-index-000001/
 +
 [source,console]
 ----
-GET /_cat/indices/my-index-000001?v&h=health,status,index,docs.count
+GET /_cat/indices/my-index-000001?v=true&h=health,status,index,docs.count
 ----
 // TEST[setup:atomic_red_regsvr32]
 +

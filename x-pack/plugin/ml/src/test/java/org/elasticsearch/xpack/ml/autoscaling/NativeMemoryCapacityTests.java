@@ -51,8 +51,8 @@ public class NativeMemoryCapacityTests extends ESTestCase {
         }
         { // auto is true
             AutoscalingCapacity autoscalingCapacity = capacity.autoscalingCapacity(25, true);
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(1412818190L));
-            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(5651272758L));
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(1604321280L));
+            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(5174659393L));
         }
         { // auto is true with unknown jvm size
             capacity = new NativeMemoryCapacity(
@@ -60,8 +60,8 @@ public class NativeMemoryCapacityTests extends ESTestCase {
                 ByteSizeValue.ofGb(1).getBytes()
             );
             AutoscalingCapacity autoscalingCapacity = capacity.autoscalingCapacity(25, true);
-            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2618882498L));
-            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(10475529991L));
+            assertThat(autoscalingCapacity.node().memory().getBytes(), equalTo(2566914048L));
+            assertThat(autoscalingCapacity.total().memory().getBytes(), equalTo(6507526207L));
         }
 
     }

@@ -73,7 +73,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v
+GET _cat/recovery?v=true
 ----------------------------------------------------------------------------
 // TEST[setup:my_index]
 
@@ -102,7 +102,7 @@ host the replicas, you can retrieve information about an ongoing recovery.
 
 [source,console]
 ----------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,shost,thost,f,fp,b,bp
 ----------------------------------------------------------------------------
 // TEST[setup:my_index]
 
@@ -132,7 +132,7 @@ snapshot recovery.
 
 [source,console]
 --------------------------------------------------------------------------------
-GET _cat/recovery?v&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
+GET _cat/recovery?v=true&h=i,s,t,ty,st,rep,snap,f,fp,b,bp
 --------------------------------------------------------------------------------
 // TEST[skip:no need to execute snapshot/restore here]
 

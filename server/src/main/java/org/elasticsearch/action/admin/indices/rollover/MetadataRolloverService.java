@@ -87,7 +87,13 @@ public class MetadataRolloverService {
 
         @Override
         public String toString() {
-            return String.format(Locale.ROOT, "[%d] rollover index name [%s], source index name [%s]", clusterState.version(), rolloverIndexName, sourceIndexName);
+            return String.format(
+                Locale.ROOT,
+                "cluster state version [%d], rollover index name [%s], source index name [%s]",
+                clusterState.version(),
+                rolloverIndexName,
+                sourceIndexName
+            );
         }
     }
 

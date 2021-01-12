@@ -167,8 +167,4 @@ final class FieldTypeLookup {
         return () -> Stream.concat(fullNameToFieldType.values().stream(), dynamicKeyLookup.fieldTypes())
             .distinct().filter(predicate).iterator();
     }
-
-    public String getType() {
-        return type;
-    }
 }

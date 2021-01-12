@@ -10,25 +10,33 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
 
 import java.util.List;
 
-final class UnfollowFollowIndexStep extends AbstractUnfollowIndexStep {
-    private static final Logger logger = LogManager.getLogger(UnfollowFollowIndexStep.class);
+final class UnfollowFollowerIndexStep extends AbstractUnfollowIndexStep {
+    private static final Logger logger = LogManager.getLogger(UnfollowFollowerIndexStep.class);
 
     static final String NAME = "unfollow-follower-index";
 
-    UnfollowFollowIndexStep(StepKey key, StepKey nextStepKey, Client client) {
+    UnfollowFollowerIndexStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
     }
 
     @Override
-    void innerPerformAction(String followerIndex, Listener listener) {
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
+    void innerPerformAction(String followerIndex, ClusterState currentClusterState, Listener listener) {
         UnfollowAction.Request request = new UnfollowAction.Request(followerIndex);
         getClient().execute(UnfollowAction.INSTANCE, request, ActionListener.wrap(
             r -> {
-                assert r.isAcknowledged() : "unfollow response is not acknowledged";
+                if (r.isAcknowledged() == false) {
+                    throw new ElasticsearchException("unfollow request failed to be acknowledged");
+                }
                 listener.onResponse(true);
             },
             exception -> {

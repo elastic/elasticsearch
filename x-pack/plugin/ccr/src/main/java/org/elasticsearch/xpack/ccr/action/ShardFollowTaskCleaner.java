@@ -22,6 +22,7 @@ import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 /**
  * A {@link ClusterStateListener} that completes any {@link ShardFollowTask} which concerns a deleted index.

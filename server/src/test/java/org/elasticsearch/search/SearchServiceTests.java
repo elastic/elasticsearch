@@ -1126,8 +1126,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                 assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                 while (contextIds.isEmpty() == false) {
                     final ShardSearchContextId contextId = randomFrom(contextIds);
-                    expectThrows(SearchContextMissingException.class,
-                        () -> searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
+                    assertFalse(searchService.freeReaderContext(new ShardSearchContextId(UUIDs.randomBase64UUID(), contextId.getId())));
                     assertThat(searchService.getActiveContexts(), equalTo(contextIds.size()));
                     if (randomBoolean()) {
                         assertTrue(searchService.freeReaderContext(contextId));

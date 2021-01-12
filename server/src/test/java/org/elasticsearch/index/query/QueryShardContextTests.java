@@ -51,15 +51,19 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.MappingLookupUtils;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
@@ -84,6 +88,7 @@ import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
@@ -319,17 +324,17 @@ public class QueryShardContextTests extends ESTestCase {
         }
         assertEquals(
             org.elasticsearch.common.collect.List.of(expected.toString(), expected.toString()),
-            collect(
-                "root",
-                createQueryShardContext(
-                    "uuid",
-                    null,
-                    MappingLookupUtils.fromTypes(org.elasticsearch.common.collect.List.of(), fields),
-                    org.elasticsearch.common.collect.Map.of(),
-                    org.elasticsearch.common.collect.List.of()
-                )
-            )
+            collect("root", createQueryShardContext("uuid", null, createMappingLookup(org.elasticsearch.common.collect.List.of(), fields),
+                org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.List.of()))
         );
+    }
+
+    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
+        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+        runtimeFields.forEach(builder::addRuntime);
+        Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
+        return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
     }
 
     public void testSearchRequestRuntimeFields() {
@@ -345,7 +350,8 @@ public class QueryShardContextTests extends ESTestCase {
         QueryShardContext qsc = createQueryShardContext(
             "uuid",
             null,
-            MappingLookupUtils.fromTypes(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")),
+            createMappingLookup(org.elasticsearch.common.collect.List.of(new MockFieldMapper.FakeFieldType("pig"),
+                new MockFieldMapper.FakeFieldType("cat")), org.elasticsearch.common.collect.List.of()),
             runtimeMappings,
             Collections.singletonList(new TestRuntimeField.Plugin()));
         assertTrue(qsc.isFieldMapped("cat"));
@@ -374,7 +380,7 @@ public class QueryShardContextTests extends ESTestCase {
         return createQueryShardContext(
             "uuid",
             null,
-            MappingLookupUtils.fromTypes(org.elasticsearch.common.collect.List.of(), org.elasticsearch.common.collect.List.of(fieldTypes)),
+            createMappingLookup(Collections.emptyList(), org.elasticsearch.common.collect.List.of(fieldTypes)),
             Collections.emptyMap(),
             Collections.emptyList()
         );

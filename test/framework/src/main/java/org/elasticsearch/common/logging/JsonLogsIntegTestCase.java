@@ -74,7 +74,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser() )) {
             stream.limit(LINES_TO_CHECK)
                   .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.getType(), is(not(emptyOrNullString())));
+                      assertThat(jsonLogLine.getDataset(), is(not(emptyOrNullString())));
                       assertThat(jsonLogLine.getTimestamp(), is(not(emptyOrNullString())));
                       assertThat(jsonLogLine.getLevel(), is(not(emptyOrNullString())));
                       assertThat(jsonLogLine.getComponent(), is(not(emptyOrNullString())));

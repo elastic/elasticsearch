@@ -65,6 +65,6 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
     }
 
     private String formatIds(String nodeId, String clusterUUID) {
-        return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
+        return String.format(Locale.ROOT, "\"elasticsearch.cluster.uuid\": \"%s\", \"elasticsearch.node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }

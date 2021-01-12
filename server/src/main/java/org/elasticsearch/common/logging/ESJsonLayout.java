@@ -44,13 +44,13 @@ import java.util.Set;
  * log messages are formatted in {@link org.apache.logging.log4j.core.layout.JsonLayout}
  * There are fields which are always present in the log line:
  * <ul>
- * <li>dataset - the type of logs. These represent appenders and help docker distinguish log streams.</li>
+ * <li>event.dataset - the type of logs. These represent appenders and help docker distinguish log streams.</li>
  * <li>timestamp - ISO8601 with additional timezone ID</li>
  * <li>level - INFO, WARN etc</li>
  * <li>component - logger name, most of the times class name</li>
- * <li>cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
- * <li>node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
- * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeIdConverter and present
+ * <li>elasticsearch.cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
+ * <li>elasticsearch.node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
+ * <li>elasticsearch.node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeIdConverter and present
  * once clusterStateUpdate is first received</li>
  * <li>message - a json escaped message. Multiline messages will be converted to single line with new line explicitly
  * replaced to \n</li>
@@ -89,12 +89,12 @@ public class ESJsonLayout extends AbstractStringLayout {
             throw new IllegalArgumentException("layout parameter 'dataset' cannot be empty");
         }
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("dataset", inQuotes(dataset));
+        map.put("event.dataset", inQuotes(dataset));
         map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
         map.put("level", inQuotes("%p"));
         map.put("component", inQuotes("%c{1.}"));
-        map.put("cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
-        map.put("node.name", inQuotes("%node_name"));
+        map.put("elasticsearch.cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
+        map.put("elasticsearch.node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
 

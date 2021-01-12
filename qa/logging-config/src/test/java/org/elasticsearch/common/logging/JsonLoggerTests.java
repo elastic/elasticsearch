@@ -432,7 +432,7 @@ public class JsonLoggerTests extends ESTestCase {
 
     private Map<Function<JsonLogLine, Object>, Object> mapOfParamsToCheck(
         String type, Level level, String nodeName, String component, String message) {
-        return Map.of(JsonLogLine::getType, type,
+        return Map.of(JsonLogLine::getDataset, type,
             JsonLogLine::getLevel, level.toString(),
             JsonLogLine::getNodeName, nodeName,
             JsonLogLine::getComponent, component,

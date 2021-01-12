@@ -29,6 +29,7 @@ import org.elasticsearch.common.util.SingleObjectCache;
 import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.function.Supplier;
 
 public class FsService {
@@ -58,7 +59,16 @@ public class FsService {
         } else {
             final TimeValue refreshInterval = REFRESH_INTERVAL_SETTING.get(settings);
             logger.debug("using refresh_interval [{}]", refreshInterval);
-            fsInfoSupplier = new FsInfoCache(refreshInterval, initialValue, probe)::getOrRefresh;
+            final FsInfoCache fsInfoCache = new FsInfoCache(refreshInterval, initialValue, probe);
+            fsInfoSupplier = () -> {
+                try {
+                    return fsInfoCache.getOrRefresh();
+                } catch (UncheckedIOException e) {
+                    // catch exception here instead of just
+                    logger.debug("unexpected exception reading filesystem info", e);
+                    return null;
+                }
+            };
         }
     }
 
@@ -88,7 +98,11 @@ public class FsService {
 
         @Override
         protected FsInfo refresh() {
-            return stats(probe, initialValue);
+            try {
+                return probe.stats(initialValue);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
 
     }

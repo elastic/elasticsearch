@@ -210,7 +210,7 @@ tag::ds-expand-wildcards[]
 +
 --
 (Optional, string)
-Determines whether wildcard expressions match hidden data streams. Supports
+Type of data stream that wildcard expressions can match. Supports
 comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`, `hidden`::

@@ -24,6 +24,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -52,24 +53,22 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) {
-                hitExecute(index, fetchSourceContext, hitContext);
+                if (SourceFieldMapper.isEnabled(fetchContext.getQueryShardContext()::getFieldType) == false) {
+                    if (containsFilters(fetchSourceContext)) {
+                        throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
+                            "for index [" + index + "]");
+                    }
+                    return;
+                }
+                hitExecute(fetchSourceContext, hitContext);
             }
         };
     }
 
-    private void hitExecute(String index, FetchSourceContext fetchSourceContext, HitContext hitContext) {
+    private void hitExecute(FetchSourceContext fetchSourceContext, HitContext hitContext) {
 
         final boolean nestedHit = hitContext.hit().getNestedIdentity() != null;
         SourceLookup source = hitContext.sourceLookup();
-
-        // If source is disabled in the mapping, then attempt to return early.
-        if (source.source() == null && source.internalSourceRef() == null) {
-            if (containsFilters(fetchSourceContext)) {
-                throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                    "for index [" + index + "]");
-            }
-            return;
-        }
 
         // If this is a parent document and there are no source filters, then add the source as-is.
         if (nestedHit == false && containsFilters(fetchSourceContext) == false) {

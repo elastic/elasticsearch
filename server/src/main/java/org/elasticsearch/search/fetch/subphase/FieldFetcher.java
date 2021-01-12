@@ -111,7 +111,7 @@ public class FieldFetcher {
             }
         }
         if (this.includeUnmapped) {
-            collectUnmapped(documentFields, sourceLookup.loadSourceIfNeeded(), "", 0);
+            collectUnmapped(documentFields, sourceLookup.source(), "", 0);
         }
         return documentFields;
     }

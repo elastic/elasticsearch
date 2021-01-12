@@ -107,7 +107,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
         SourceLookup sourceLookup = mock(SourceLookup.class);
         when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-        when(sourceLookup.loadSourceIfNeeded()).thenReturn(Collections.singletonMap("test", 1));
+        when(sourceLookup.source()).thenReturn(Collections.singletonMap("test", 1));
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
 
@@ -134,7 +134,7 @@ public class ScriptedMetricAggContextsTests extends ScriptTestCase {
         when(lookup.getLeafSearchLookup(leafReaderContext)).thenReturn(leafLookup);
         SourceLookup sourceLookup = mock(SourceLookup.class);
         when(leafLookup.asMap()).thenReturn(Collections.singletonMap("_source", sourceLookup));
-        when(sourceLookup.loadSourceIfNeeded()).thenReturn(Collections.singletonMap("three", 3));
+        when(sourceLookup.source()).thenReturn(Collections.singletonMap("three", 3));
         ScriptedMetricAggContexts.MapScript.LeafFactory leafFactory = factory.newFactory(params, state, lookup);
         ScriptedMetricAggContexts.MapScript script = leafFactory.newInstance(leafReaderContext);
 

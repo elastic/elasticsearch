@@ -143,7 +143,7 @@ public class SchemaUtilTests extends ESTestCase {
         }
     }
 
-    private class FieldCapsMockClient extends NoOpClient {
+    private static class FieldCapsMockClient extends NoOpClient {
         FieldCapsMockClient(String testName) {
             super(testName);
         }
@@ -158,7 +158,7 @@ public class SchemaUtilTests extends ESTestCase {
             if (request instanceof FieldCapabilitiesRequest) {
                 FieldCapabilitiesRequest fieldCapsRequest = (FieldCapabilitiesRequest) request;
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
-                for (String field : ((FieldCapabilitiesRequest) request).fields()) {
+                for (String field : fieldCapsRequest.fields()) {
                     responseMap.put(field, Collections.singletonMap(field, createFieldCapabilities(field, "long")));
                 }
 

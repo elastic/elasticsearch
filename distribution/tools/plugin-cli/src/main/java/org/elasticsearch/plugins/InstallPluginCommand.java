@@ -265,6 +265,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
                 throw installProblem;
             }
         }
+        terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
     }
 
     Build.Flavor buildFlavor() {

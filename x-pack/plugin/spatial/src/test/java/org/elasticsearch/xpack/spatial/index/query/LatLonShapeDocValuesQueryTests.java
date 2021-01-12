@@ -26,6 +26,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryUtils;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
@@ -94,27 +95,9 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         IndexSearcher s = newSearcher(r);
         for (int i = 0; i < 25; i++) {
             LatLonGeometry[] geometries = randomLuceneQueryGeometries();
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
-                assertQueries(s, indexQuery, docValQuery, numDocs);
-            }
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
-                assertQueries(s, indexQuery, docValQuery, numDocs);
-            }
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
-                assertQueries(s, indexQuery, docValQuery, numDocs);
-            }
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, geometries);
-                // I open LUCENE-9606 so the query is wrap internally with a ConstantScoreQuery in the case of
-                // geometry collections.
-                indexQuery = new ConstantScoreQuery(indexQuery);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, geometries);
+            for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, geometries);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
@@ -155,26 +138,10 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
         IndexSearcher s = newSearcher(r);
         for (int i = 0; i < 25; i++) {
             LatLonGeometry[] geometries = randomLuceneQueryGeometries();
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.INTERSECTS, geometries);
+            for (ShapeField.QueryRelation relation : ShapeField.QueryRelation.values()) {
+                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, relation, geometries);
+                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, relation, geometries);
                 assertQueries(s, indexQuery, docValQuery, numDocs);
-            }
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.WITHIN, geometries);
-                assertQueries(s, indexQuery, docValQuery, numDocs);
-            }
-            {
-                Query indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
-                Query docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.DISJOINT, geometries);
-                assertQueries(s, indexQuery, docValQuery, numDocs);
-            }
-            {
-                // CONTAINS and multi-shapes fails due to LUCENE-9595
-                // indexQuery = LatLonShape.newGeometryQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
-                // docValQuery = new LatLonShapeDocValuesQuery(FIELD_NAME, ShapeField.QueryRelation.CONTAINS, q);
-                // assertQueries(s, indexQuery, docValQuery, numDocs);
             }
         }
         IOUtils.close(r, dir);

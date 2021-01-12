@@ -1,8 +1,4 @@
 setup:
-  - skip:
-      version: " - 7.1.99"
-      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
-
   - do:
       indices.create:
         index: test_index1
@@ -28,13 +24,13 @@ setup:
 ---
 "All indices":
   - skip:
-      version: " - 7.1.99"
-      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
+      features: ["allowed_warnings"]
 
   - do:
       indices.close:
-        wait_for_active_shards: 0
         index: _all
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -60,13 +56,13 @@ setup:
 ---
 "Trailing wildcard":
   - skip:
-      version: " - 7.1.99"
-      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
+      features: ["allowed_warnings"]
 
   - do:
       indices.close:
-        wait_for_active_shards: 0
         index: test_*
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:
@@ -92,13 +88,13 @@ setup:
 ---
 "Only wildcard":
   - skip:
-      version: " - 7.1.99"
-      reason:  "passes wait_for_active_shards parameter to _close API, requires 7.2.0 or later"
+      features: ["allowed_warnings"]
 
   - do:
       indices.close:
-        wait_for_active_shards: 0
         index: '*'
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
   - is_true: acknowledged
 
   - do:

@@ -241,7 +241,7 @@ public class JdbcSecurityIT extends SqlSecurityTestCase {
 
         private void expectUnauthorized(String action, String user, ThrowingRunnable r) {
             SQLInvalidAuthorizationSpecException e = expectThrows(SQLInvalidAuthorizationSpecException.class, r);
-            assertEquals("action [" + action + "] is unauthorized for user [" + user + "]", e.getMessage());
+            assertThat(e.getMessage(), containsString("action [" + action + "] is unauthorized for user [" + user + "]"));
         }
     }
 

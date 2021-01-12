@@ -66,7 +66,7 @@ all existing templates are overwritten. This allows for dynamic templates to be
 reordered or deleted after they were initially added.
 
 [[dynamic-mapping-runtime-fields]]
-===== Mapping runtime fields in a dynamic template
+==== Mapping runtime fields in a dynamic template
 If you want {es} to dynamically map new fields of a certain type as runtime
 fields, set `dynamic:runtime` in the index mappings. These fields are not
 indexed, and are loaded from `_source` at query time.

@@ -35,7 +35,7 @@ public class CloseIndexRequest extends TimedRequest implements Validatable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
+    private ActiveShardCount waitForActiveShards = null;
 
     /**
      * Creates a new close index request

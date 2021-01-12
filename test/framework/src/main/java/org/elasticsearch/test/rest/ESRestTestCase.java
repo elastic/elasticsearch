@@ -1257,7 +1257,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void closeIndex(String index) throws IOException {
-        final Request closeRequest = new Request("POST", "/" + index + "/_close");
+        final Request closeRequest = new Request(HttpPost.METHOD_NAME, "/" + index + "/_close");
         closeRequest.setOptions(expectVersionSpecificWarnings(v -> {
             v.current(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
             v.compatible(WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);

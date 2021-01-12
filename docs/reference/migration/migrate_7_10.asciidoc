@@ -21,6 +21,19 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [[breaking-changes-7.10]]
 === Breaking changes
 
+The following changes in {es} 7.10 might affect your applications
+and prevent them from operating normally.
+Before upgrading to 7.10, review these changes and take the described steps
+to mitigate the impact.
+
+NOTE: Breaking changes introduced in minor versions are
+normally limited to security and bug fixes.
+Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
+
+
 //tag::notable-breaking-changes[]
 
 [discrete]
@@ -61,7 +74,7 @@ To avoid errors, specify the `name` property when creating or granting API keys.
 To support future feature development, the existing
 `MappedFieldType#fielddataBuilder` method now accepts a new
 `Supplier<SearchLookup>` argument.
- 
+
 *Impact* +
 If you develop or maintain a mapper plugin, update your implementation of the
 `MappedFieldType#fielddataBuilder` method to accommodate the new signature.
@@ -113,6 +126,17 @@ If you use `inner_hits` or the `top_hits` aggregation, ensure
 [discrete]
 [[deprecated-7.10]]
 === Deprecations
+
+The following functionality has been deprecated in {es} 7.10
+and will be removed in 8.0
+While this won't have an immediate impact on your applications,
+we strongly encourage you take the described steps to update your code
+after upgrading to 7.10.
+
+NOTE: Significant changes in behavior are deprecated in a minor release and
+the old behavior is supported until the next major release.
+To find out if you are using any deprecated functionality,
+enable <<deprecation-logging, deprecation logging>>.
 
 [discrete]
 [[breaking_710_indices_changes]]
@@ -207,4 +231,3 @@ removed in 8.0.0.
 Use the {ref}/repositories-metering-apis.html[repositories metering APIs].
 Discontinue use of the repository stats API.
 ====
-

@@ -409,7 +409,6 @@ public class CacheService extends AbstractLifecycleComponent {
                 }
                 success = true;
             } finally {
-                assert success : "shard eviction should be successful: " + shardEviction;
                 if (success == false) {
                     final boolean added = evictedShards.add(shardEviction);
                     assert added : shardEviction;

@@ -147,6 +147,11 @@ public class RunTask extends DefaultTestClustersTask {
     public void runAndWait() throws IOException {
         List<BufferedReader> toRead = new ArrayList<>();
         List<BooleanSupplier> aliveChecks = new ArrayList<>();
+
+        if (getClusters().isEmpty()) {
+            throw new GradleException("Task " + getPath() + " is not configured to use any clusters. Be sure to call useCluster().");
+        }
+
         try {
             for (ElasticsearchCluster cluster : getClusters()) {
                 for (ElasticsearchNode node : cluster.getNodes()) {

@@ -26,9 +26,13 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
 import org.elasticsearch.gradle.info.BuildParams
 import org.elasticsearch.gradle.test.RestTestBasePlugin
+import org.elasticsearch.gradle.testclusters.ElasticsearchCluster
 import org.elasticsearch.gradle.testclusters.RunTask
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.util.GradleUtils
 import org.elasticsearch.gradle.util.Util
 import org.gradle.api.InvalidUserDataException
+import org.gradle.api.NamedDomainObjectContainer
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -56,7 +60,7 @@ class PluginBuildPlugin implements Plugin<Project> {
         PluginPropertiesExtension extension = project.extensions.create(PLUGIN_EXTENSION_NAME, PluginPropertiesExtension, project)
         configureDependencies(project)
 
-        createBundleTasks(project, extension)
+        TaskProvider<Zip> bundleTask = createBundleTasks(project, extension)
 
         project.afterEvaluate {
             project.extensions.getByType(PluginPropertiesExtension).extendedPlugins.each { pluginName ->
@@ -102,8 +106,8 @@ class PluginBuildPlugin implements Plugin<Project> {
                 inputs.properties(properties)
             }
             BuildParams.withInternalBuild {
-                boolean isXPackModule = project.path.startsWith(':x-pack:plugin') || project.path.startsWith(':x-pack:quota-aware-fs')
-                boolean isModule = project.path.startsWith(':modules:') || isXPackModule
+                boolean isModule = GradleUtils.isModuleProject(project.path)
+                boolean isXPackModule = isModule && project.path.startsWith(":x-pack")
                 if (isModule == false || isXPackModule) {
                     addNoticeGeneration(project, extension1)
                 }
@@ -144,8 +148,19 @@ class PluginBuildPlugin implements Plugin<Project> {
 
         project.configurations.getByName('default')
                 .extendsFrom(project.configurations.getByName('runtimeClasspath'))
+
         // allow running ES with this plugin in the foreground of a build
+        NamedDomainObjectContainer<ElasticsearchCluster> testClusters = project.extensions.getByName(TestClustersPlugin.EXTENSION_NAME)
+        ElasticsearchCluster runCluster = testClusters.create('runTask') { ElasticsearchCluster cluster ->
+            if (GradleUtils.isModuleProject(project.path)) {
+                cluster.module(bundleTask.flatMap { t -> t.getArchiveFile() })
+            } else {
+                cluster.plugin(bundleTask.flatMap { t -> t.getArchiveFile() })
+            }
+        }
+
         project.tasks.register('run', RunTask) {
+            useCluster(runCluster)
             dependsOn(project.tasks.named("bundlePlugin"))
         }
     }
@@ -180,7 +195,7 @@ class PluginBuildPlugin implements Plugin<Project> {
      * Adds a bundlePlugin task which builds the zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
-    private static void createBundleTasks(Project project, PluginPropertiesExtension extension) {
+    private static TaskProvider<Zip> createBundleTasks(Project project, PluginPropertiesExtension extension) {
         File pluginMetadata = project.file('src/main/plugin-metadata')
         File templateFile = new File(project.buildDir, "templates/plugin-descriptor.properties")
 
@@ -235,6 +250,8 @@ class PluginBuildPlugin implements Plugin<Project> {
         // also make the zip available as a configuration (used when depending on this project)
         project.configurations.create('zip')
         project.artifacts.add('zip', bundle)
+
+        return bundle
     }
 
     /** Configure the pom for the main jar of this plugin */
@@ -259,5 +276,9 @@ class PluginBuildPlugin implements Plugin<Project> {
                 from(generateNotice)
             }
         }
+    }
+
+    static boolean isModuleProject(String projectPath) {
+        return projectPath.contains("modules:") || projectPath.startsWith(":x-pack:plugin") || projectPath.path.startsWith(':x-pack:quota-aware-fs')
     }
 }

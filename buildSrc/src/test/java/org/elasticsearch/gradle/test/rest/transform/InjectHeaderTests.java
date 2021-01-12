@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.test.rest.transform;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
@@ -32,6 +33,7 @@ import org.hamcrest.core.IsCollectionContaining;
 import org.junit.Test;
 
 import java.io.File;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -45,20 +47,21 @@ public class InjectHeaderTests extends GradleUnitTestCase {
 
     private static final YAMLFactory yaml = new YAMLFactory();
     private static final ObjectMapper mapper = new ObjectMapper(yaml);
-
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
         "application/vnd.elasticsearch+json;compatible-with=7",
         "Accept",
         "application/vnd.elasticsearch+json;compatible-with=7"
     );
+    private static final boolean humanDebug = false; // useful for humans trying to debug these tests
 
     /**
      * test file does not have setup: block
      */
     @Test
     public void testInjectHeadersWithoutSetupBlock() throws Exception {
-        File testFile = new File(getClass().getResource("/rest/header_inject/no_setup.yml").toURI());
+        String testName = "/rest/header_inject/no_setup.yml";
+        File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = yaml.createParser(testFile);
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
@@ -69,6 +72,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             new LinkedList<>(tests),
             Collections.singletonList(new InjectHeaders(headers))
         );
+        printTest(testName, transformedTests);
         // ensure setup is correct
         assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
         transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
@@ -90,7 +94,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithSetupBlock() throws Exception {
-        File testFile = new File(getClass().getResource("/rest/header_inject/with_setup.yml").toURI());
+        String testName = "/rest/header_inject/with_setup.yml";
+        File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = yaml.createParser(testFile);
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
@@ -102,6 +107,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             new LinkedList<>(tests),
             Collections.singletonList(new InjectHeaders(headers))
         );
+        printTest(testName, transformedTests);
         // ensure setup is correct
         assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
         transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
@@ -123,7 +129,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithSkipBlock() throws Exception {
-        File testFile = new File(getClass().getResource("/rest/header_inject/with_skip.yml").toURI());
+        String testName = "/rest/header_inject/with_skip.yml";
+        File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = yaml.createParser(testFile);
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
@@ -146,6 +153,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             new LinkedList<>(tests),
             Collections.singletonList(new InjectHeaders(headers))
         );
+        printTest(testName, transformedTests);
         // ensure setup is correct
         assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
         transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
@@ -168,7 +176,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithFeaturesBlock() throws Exception {
-        File testFile = new File(getClass().getResource("/rest/header_inject/with_features.yml").toURI());
+        String testName = "/rest/header_inject/with_features.yml";
+        File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = yaml.createParser(testFile);
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
@@ -191,6 +200,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             new LinkedList<>(tests),
             Collections.singletonList(new InjectHeaders(headers))
         );
+        printTest(testName, transformedTests);
         // ensure setup is correct
         assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
         transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
@@ -212,7 +222,8 @@ public class InjectHeaderTests extends GradleUnitTestCase {
      */
     @Test
     public void testInjectHeadersWithHeadersBlock() throws Exception {
-        File testFile = new File(getClass().getResource("/rest/header_inject/with_headers.yml").toURI());
+        String testName = "/rest/header_inject/with_headers.yml";
+        File testFile = new File(getClass().getResource(testName).toURI());
         YAMLParser yamlParser = yaml.createParser(testFile);
         List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
         RestTestTransformer transformer = new RestTestTransformer();
@@ -249,6 +260,7 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             new LinkedList<>(tests),
             Collections.singletonList(new InjectHeaders(headers))
         );
+        printTest(testName, transformedTests);
         // ensure setup is correct
         assertThat(transformedTests.stream().filter(node -> node.get("setup") != null).count(), CoreMatchers.equalTo(1L));
         transformedTests.stream().filter(node -> node.get("setup") != null).forEach(this::assertSetup);
@@ -328,5 +340,19 @@ public class InjectHeaderTests extends GradleUnitTestCase {
             }
         }
         return null;
+    }
+
+    // only to help manually debug
+    private void printTest(String testName, List<ObjectNode> tests) {
+        if (humanDebug) {
+            System.out.println("\n************* " + testName + " *************");
+            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(System.out)) {
+                for (ObjectNode transformedTest : tests) {
+                    sequenceWriter.write(transformedTest);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
     }
 }

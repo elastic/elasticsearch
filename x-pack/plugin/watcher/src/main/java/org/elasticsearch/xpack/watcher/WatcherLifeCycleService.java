@@ -158,7 +158,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
             .sorted(Comparator.comparing(ShardRouting::hashCode))
             .collect(Collectors.toList());
 
-//        if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
+        if (previousShardRoutings.get().equals(localAffectedShardRoutings) == false) {
             if (watcherService.validate(event.state())) {
                 previousShardRoutings.set(localAffectedShardRoutings);
                 if (state.get() == WatcherState.STARTED) {
@@ -171,7 +171,7 @@ public class WatcherLifeCycleService implements ClusterStateListener {
                 clearAllocationIds();
                 this.state.set(WatcherState.STOPPED);
             }
-//        }
+        }
     }
 
     private void pauseExecution(String reason) {

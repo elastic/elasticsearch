@@ -62,8 +62,11 @@ import org.elasticsearch.client.ClusterAdminClient;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
+import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -548,6 +551,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     ensureClusterSizeConsistency();
                     ensureClusterStateConsistency();
                     ensureClusterStateCanBeReadByNodeTool();
+                    ensureClusterInfoServiceRunning();
                     beforeIndexDeletion();
                     cluster().wipe(excludeTemplates()); // wipe after to make sure we fail in the test that didn't ack the delete
                     if (afterClass || currentClusterScope == Scope.TEST) {
@@ -1137,6 +1141,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         XContentHelper.convertToMap(compareOriginalBytes, false, XContentType.SMILE).v2(),
                         XContentHelper.convertToMap(parsedBytes, false, XContentType.SMILE).v2()));
             }
+        }
+    }
+
+    private void ensureClusterInfoServiceRunning() {
+        if (isInternalCluster() && cluster().size() > 0) {
+            // ensures that the cluster info service didn't leak its async task, which would prevent future refreshes
+            refreshClusterInfo();
+        }
+    }
+
+    public static void refreshClusterInfo() {
+        final ClusterInfoService clusterInfoService
+                = internalCluster().getInstance(ClusterInfoService.class, internalCluster().getMasterName());
+        if (clusterInfoService instanceof InternalClusterInfoService) {
+            ClusterInfoServiceUtils.refresh(((InternalClusterInfoService) clusterInfoService));
         }
     }
 

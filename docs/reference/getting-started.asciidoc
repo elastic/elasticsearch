@@ -165,7 +165,7 @@ clients] when you're ready to start using {es} in your own applications.
 +
 [source,console]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
 +
 The response should indicate that the status of the `elasticsearch` cluster
@@ -351,7 +351,7 @@ To get some data into {es} that you can start searching and analyzing:
 [source,sh]
 --------------------------------------------------
 curl -H "Content-Type: application/json" -XPOST "localhost:9200/bank/_bulk?pretty&refresh" --data-binary "@accounts.json"
-curl "localhost:9200/_cat/indices?v"
+curl "localhost:9200/_cat/indices?v=true"
 --------------------------------------------------
 // NOTCONSOLE
 +
@@ -361,7 +361,7 @@ in the docs:
 +
 [source,console]
 --------------------------------------------------
-GET /_cat/indices?v
+GET /_cat/indices?v=true
 --------------------------------------------------
 // TEST[setup:bank]
 ////

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.MlFilter;
 import org.elasticsearch.xpack.core.ml.job.config.ModelPlotConfig;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
+import org.elasticsearch.xpack.ml.job.process.autodetect.writer.ScheduledEventToRuleWriter;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils;
 import org.elasticsearch.xpack.ml.process.ProcessPipes;
@@ -42,6 +43,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils.addIfNotNull;
 
@@ -69,6 +71,8 @@ public class AutodetectBuilder {
     private static final String JSON_EXTENSION = ".json";
     static final String JOB_ID_ARG = "--jobid=";
     private static final String CONFIG_ARG = "--config=";
+    private static final String EVENTS_CONFIG_ARG = "--eventsconfig=";
+    private static final String FILTERS_CONFIG_ARG = "--filtersconfig=";
     private static final String LIMIT_CONFIG_ARG = "--limitconfig=";
     private static final String MODEL_PLOT_CONFIG_ARG = "--modelplotconfig=";
     private static final String FIELD_CONFIG_ARG = "--fieldconfig=";
@@ -91,12 +95,6 @@ public class AutodetectBuilder {
     // Though this setting is dynamic, it is only set when a new job is opened. So, already running jobs will not get the updated value.
     public static final Setting<Integer> MAX_ANOMALY_RECORDS_SETTING_DYNAMIC = Setting.intSetting("xpack.ml.max_anomaly_records",
             DEFAULT_MAX_NUM_RECORDS, Setting.Property.NodeScope, Setting.Property.Dynamic);
-
-    /**
-     * Config setting storing the flag that disables model persistence
-     */
-    public static final Setting<Boolean> DONT_PERSIST_MODEL_STATE_SETTING = Setting.boolSetting("no.model.state.persist", false,
-            Setting.Property.NodeScope);
 
     private static final int SECONDS_IN_HOUR = 3600;
 
@@ -178,6 +176,9 @@ public class AutodetectBuilder {
 
         List<String> command = buildAutodetectCommand();
 
+        buildFiltersConfig(command);
+        buildScheduledEventsConfig(command);
+
         // While it may appear that the JSON formatted job config file contains data that
         // is duplicated in the existing limits, modelPlot and field config files, over time
         // the C++ backend will retrieve all its required configuration data from the new
@@ -231,17 +232,11 @@ public class AutodetectBuilder {
         int intervalStagger = calculateStaggeringInterval(job.getId());
         logger.debug("[{}] Periodic operations staggered by {} seconds", job.getId(), intervalStagger);
 
-        // Supply a URL for persisting/restoring model state unless model
-        // persistence has been explicitly disabled.
-        if (DONT_PERSIST_MODEL_STATE_SETTING.get(settings)) {
-            logger.info("[{}] Will not persist model state - {} setting was set", job.getId(), DONT_PERSIST_MODEL_STATE_SETTING);
-        } else {
-            // Persist model state every few hours even if the job isn't closed
-            long persistInterval = (job.getBackgroundPersistInterval() == null) ?
-                    (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) :
-                    job.getBackgroundPersistInterval().getSeconds();
-            command.add(PERSIST_INTERVAL_ARG + persistInterval);
-        }
+        // Persist model state every few hours even if the job isn't closed
+        long persistInterval = (job.getBackgroundPersistInterval() == null) ?
+                (DEFAULT_BASE_PERSIST_INTERVAL + intervalStagger) :
+                job.getBackgroundPersistInterval().getSeconds();
+        command.add(PERSIST_INTERVAL_ARG + persistInterval);
 
         int maxQuantileInterval = BASE_MAX_QUANTILE_INTERVAL + intervalStagger;
         command.add(MAX_QUANTILE_INTERVAL_ARG + maxQuantileInterval);
@@ -365,6 +360,28 @@ public class AutodetectBuilder {
         }
     }
 
+    private void buildScheduledEventsConfig(List<String> command) throws IOException {
+        if (scheduledEvents.isEmpty()) {
+            return;
+        }
+        Path eventsConfigFile = Files.createTempFile(env.tmpFile(), "eventsConfig", JSON_EXTENSION);
+        filesToDelete.add(eventsConfigFile);
+
+        List<ScheduledEventToRuleWriter> scheduledEventToRuleWriters = scheduledEvents.stream()
+            .map(x -> new ScheduledEventToRuleWriter(x.getDescription(), x.toDetectionRule(job.getAnalysisConfig().getBucketSpan())))
+            .collect(Collectors.toList());
+
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(eventsConfigFile),StandardCharsets.UTF_8);
+             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            osw.write(Strings.toString(
+                jsonBuilder.startObject()
+                    .field(ScheduledEvent.RESULTS_FIELD.getPreferredName(), scheduledEventToRuleWriters)
+                    .endObject()));
+        }
+
+        command.add(EVENTS_CONFIG_ARG + eventsConfigFile.toString());
+    }
+
     private void buildJobConfig(List<String> command) throws IOException {
         Path configFile = Files.createTempFile(env.tmpFile(), "config", JSON_EXTENSION);
         filesToDelete.add(configFile);
@@ -376,5 +393,22 @@ public class AutodetectBuilder {
         }
 
         command.add(CONFIG_ARG + configFile.toString());
+    }
+
+    private void buildFiltersConfig(List<String> command) throws IOException {
+        if (referencedFilters.isEmpty()) {
+            return;
+        }
+        Path filtersConfigFile = Files.createTempFile(env.tmpFile(), "filtersConfig", JSON_EXTENSION);
+        filesToDelete.add(filtersConfigFile);
+
+        try (OutputStreamWriter osw = new OutputStreamWriter(Files.newOutputStream(filtersConfigFile),StandardCharsets.UTF_8);
+             XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
+            osw.write(Strings.toString(
+                jsonBuilder.startObject()
+                    .field(MlFilter.RESULTS_FIELD.getPreferredName(), referencedFilters)
+                    .endObject()));
+        }
+        command.add(FILTERS_CONFIG_ARG + filtersConfigFile.toString());
     }
 }

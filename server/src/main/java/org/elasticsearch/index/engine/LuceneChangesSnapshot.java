@@ -34,7 +34,6 @@ import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
@@ -230,12 +229,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         final String sourceField = parallelArray.hasRecoverySource[docIndex] ? SourceFieldMapper.RECOVERY_SOURCE_NAME :
             SourceFieldMapper.NAME;
         final FieldsVisitor fields = new FieldsVisitor(true, sourceField);
-        if (leaf.reader() instanceof SequentialStoredFieldsLeafReader) {
-            ((SequentialStoredFieldsLeafReader) leaf.reader()).getSequentialStoredFieldsReader().visitDocument(segmentDocID, fields);
-        } else {
-            assert false : "The changes reader isn't wrapped with Lucene#wrapAllDocsLive";
-            throw new IllegalStateException("The changes reader isn't wrapped with Lucene#wrapAllDocsLive");
-        }
+        leaf.reader().document(segmentDocID, fields);
+
         final Translog.Operation op;
         final boolean isTombstone = parallelArray.isTombStone[docIndex];
         if (isTombstone && fields.id() == null) {

@@ -87,7 +87,6 @@ public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
     private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
-    private static final int DELETE_BATCH_SIZE = 100;
 
     private final AzureStorageService service;
 
@@ -295,38 +294,20 @@ public class AzureBlobStore implements BlobStore {
         return e instanceof BlobStorageException && ((BlobStorageException) e).getStatusCode() == 404;
     }
 
-    /**
-     * Executes the provided {@code deleteTasks} in parallel batches of {@code DELETE_BATCH_SIZE} size.
-     * Errors get accumulated and only thrown after all the deletions have been executed.
-     * @param deleteTasks the deletion tasks to be executed in parallel
-     * @param errorMessageSupplier the error message to provide in case of an error
-     * @throws IOException when some of the deletion tasks fail
-     */
     private void executeDeleteTasks(List<Mono<Void>> deleteTasks, Supplier<String> errorMessageSupplier) throws IOException {
-        int numberOfBatches = (int) Math.ceil((double) deleteTasks.size() / (double) DELETE_BATCH_SIZE);
-        IOException accumulatedExceptions = null;
-        for (int deleteBatch = 0; deleteBatch < numberOfBatches; deleteBatch++) {
-            final int offset = deleteBatch * DELETE_BATCH_SIZE;
-            final List<Mono<Void>> taskBatch = deleteTasks.subList(offset, Math.min(offset + DELETE_BATCH_SIZE, deleteTasks.size()));
-            try {
-                // zipDelayError executes all tasks in parallel and delays
-                // error propagation until all tasks have finished.
-                Mono.zipDelayError(taskBatch, results -> null).block();
-            } catch (Exception e) {
-                if (accumulatedExceptions == null) {
-                    accumulatedExceptions = new IOException(errorMessageSupplier.get());
-                }
-                for (Throwable suppressed : e.getSuppressed()) {
-                    // We're only interested about the blob deletion exceptions and not in the reactor internals exceptions
-                    if (suppressed instanceof IOException) {
-                        accumulatedExceptions.addSuppressed(suppressed);
-                    }
+        try {
+            // zipDelayError executes all tasks in parallel and delays
+            // error propagation until all tasks have finished.
+            Mono.zipDelayError(deleteTasks, results -> null).block();
+        } catch (Exception e) {
+            final IOException exception = new IOException(errorMessageSupplier.get());
+            for (Throwable suppressed : e.getSuppressed()) {
+                // We're only interested about the blob deletion exceptions and not in the reactor internals exceptions
+                if (suppressed instanceof IOException) {
+                    exception.addSuppressed(suppressed);
                 }
             }
-        }
-
-        if (accumulatedExceptions != null) {
-            throw accumulatedExceptions;
+            throw exception;
         }
     }
 

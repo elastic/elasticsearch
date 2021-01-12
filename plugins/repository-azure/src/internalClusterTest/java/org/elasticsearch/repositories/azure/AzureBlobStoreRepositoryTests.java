@@ -123,7 +123,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 @Override
                 RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                     return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-                        azureStorageSettings.getMaxRetries() + 1, 5,
+                        azureStorageSettings.getMaxRetries() + 1, 60,
                         50L, 100L, null);
                 }
 

@@ -21,6 +21,11 @@ final class OpenFollowerIndexStep extends AsyncActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentClusterState,
                               ClusterStateObserver observer, Listener listener) {
         if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {

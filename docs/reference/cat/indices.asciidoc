@@ -96,7 +96,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 [[examples]]
 [source,console]
 --------------------------------------------------
-GET /_cat/indices/my-index-*?v&s=index
+GET /_cat/indices/my-index-*?v=true&s=index
 --------------------------------------------------
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]

@@ -27,6 +27,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -100,15 +101,17 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
                     "&ccs_minimize_roundtrips=false");
             oldVersionRequest.setJsonEntity("{\"query\":{\"match_all\":{}},\"_source\":false}");
             assertBusy(() -> {
-                Response response = client.performRequest(oldVersionRequest);
-                ObjectPath responseObject = ObjectPath.createFromResponse(response);
-                Map<String, Object> shardsResult = responseObject.evaluate("_shards");
-                assertThat(shardsResult.get("total"), equalTo(numShards));
-                assertThat(shardsResult.get("successful"), equalTo(numShards));
-                assertThat(shardsResult.get("failed"), equalTo(0));
-                Map<String, Object> hitsResult = responseObject.evaluate("hits.total");
-                assertThat(hitsResult.get("value"), equalTo(numDocs));
-                assertThat(hitsResult.get("relation"), equalTo("eq"));
+                assertWithBwcVersionCheck(() -> {
+                    Response response = client.performRequest(oldVersionRequest);
+                    ObjectPath responseObject = ObjectPath.createFromResponse(response);
+                    Map<String, Object> shardsResult = responseObject.evaluate("_shards");
+                    assertThat(shardsResult.get("total"), equalTo(numShards));
+                    assertThat(shardsResult.get("successful"), equalTo(numShards));
+                    assertThat(shardsResult.get("failed"), equalTo(0));
+                    Map<String, Object> hitsResult = responseObject.evaluate("hits.total");
+                    assertThat(hitsResult.get("value"), equalTo(numDocs));
+                    assertThat(hitsResult.get("relation"), equalTo("eq"));
+                }, client, oldVersionRequest);
             });
         }
     }
@@ -122,14 +125,28 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
             Request request = new Request("POST", index + "/_search?min_compatible_shard_node=" + version +
                 (shouldSetCcsMinimizeRoundtrips ? "&ccs_minimize_roundtrips=true" : ""));
             assertBusy(() -> {
-                ResponseException responseException = expectThrows(ResponseException.class, () -> client.performRequest(request));
-                assertThat(responseException.getResponse().getStatusLine().getStatusCode(),
-                    equalTo(RestStatus.BAD_REQUEST.getStatus()));
-                assertThat(responseException.getMessage(),
-                    containsString("{\"error\":{\"root_cause\":[{\"type\":\"action_request_validation_exception\""));
-                assertThat(responseException.getMessage(), containsString("\"reason\":\"Validation Failed: 1: "
-                    + "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version;\""));
+                assertWithBwcVersionCheck(() -> {
+                    ResponseException responseException = expectThrows(ResponseException.class, () -> client.performRequest(request));
+                    assertThat(responseException.getResponse().getStatusLine().getStatusCode(),
+                        equalTo(RestStatus.BAD_REQUEST.getStatus()));
+                    assertThat(responseException.getMessage(),
+                        containsString("{\"error\":{\"root_cause\":[{\"type\":\"action_request_validation_exception\""));
+                    assertThat(responseException.getMessage(), containsString("\"reason\":\"Validation Failed: 1: "
+                        + "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version;\""));
+                }, client, request);
             });
+        }
+    }
+
+    private void assertWithBwcVersionCheck(CheckedRunnable<Exception> code, RestClient client, Request request) throws Exception {
+        if (bwcVersion.before(Version.V_7_12_0)) {
+            // min_compatible_shard_node support doesn't exist in older versions and there will be an "unrecognized parameter" exception
+            ResponseException exception = expectThrows(ResponseException.class, () -> client.performRequest(request));
+            assertThat(exception.getResponse().getStatusLine().getStatusCode(),
+                equalTo(RestStatus.BAD_REQUEST.getStatus()));
+            assertThat(exception.getMessage(), containsString("contains unrecognized parameter: [min_compatible_shard_node]"));
+        } else {
+            code.run();
         }
     }
 }

@@ -34,7 +34,7 @@ verbose output. For example:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/master?v
+GET /_cat/master?v=true
 --------------------------------------------------
 
 Might respond with:
@@ -119,7 +119,7 @@ by shard storage in descending order.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/indices?bytes=b&s=store.size:desc&v
+GET /_cat/indices?bytes=b&s=store.size:desc&v=true
 --------------------------------------------------
 // TEST[setup:my_index_huge]
 // TEST[s/^/PUT my-index-000002\n{"settings": {"number_of_replicas": 0}}\n/]
@@ -210,7 +210,7 @@ order by column3.
 
 [source,sh]
 --------------------------------------------------
-GET _cat/templates?v&s=order:desc,index_patterns
+GET _cat/templates?v=true&s=order:desc,index_patterns
 --------------------------------------------------
 //CONSOLE
 

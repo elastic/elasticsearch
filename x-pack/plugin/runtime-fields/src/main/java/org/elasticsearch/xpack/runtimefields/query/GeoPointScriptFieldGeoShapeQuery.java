@@ -16,8 +16,7 @@ import java.util.Objects;
 
 public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFieldQuery {
 
-    // This class should be called Component2DPredicate in Lucene...
-    private final GeoEncodingUtils.PolygonPredicate predicate;
+    private final GeoEncodingUtils.Component2DPredicate predicate;
     private final LatLonGeometry[] geometries;
 
     public GeoPointScriptFieldGeoShapeQuery(

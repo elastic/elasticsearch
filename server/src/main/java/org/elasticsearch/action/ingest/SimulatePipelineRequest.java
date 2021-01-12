@@ -186,7 +186,13 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
                 dataMap, Metadata.ROUTING.getFieldName());
             Long version = null;
             if (dataMap.containsKey(Metadata.VERSION.getFieldName())) {
-                version = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.VERSION.getFieldName());
+                String versionValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                    dataMap, Metadata.VERSION.getFieldName());
+                if (versionValue != null) {
+                    version = Long.valueOf(versionValue);
+                } else {
+                    throw new IllegalArgumentException("[_version] cannot be null");
+                }
             }
             VersionType versionType = null;
             if (dataMap.containsKey(Metadata.VERSION_TYPE.getFieldName())) {
@@ -196,12 +202,24 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             IngestDocument ingestDocument =
                 new IngestDocument(index, id, routing, version, versionType, document);
             if (dataMap.containsKey(Metadata.IF_SEQ_NO.getFieldName())) {
-                Long ifSeqNo = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_SEQ_NO.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+                String ifSeqNoValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                    dataMap, Metadata.IF_SEQ_NO.getFieldName());
+                if (ifSeqNoValue != null) {
+                    Long ifSeqNo = Long.valueOf(ifSeqNoValue);
+                    ingestDocument.setFieldValue(Metadata.IF_SEQ_NO.getFieldName(), ifSeqNo);
+                } else {
+                    throw new IllegalArgumentException("[_if_seq_no] cannot be null");
+                }
             }
             if (dataMap.containsKey(Metadata.IF_PRIMARY_TERM.getFieldName())) {
-                Long ifPrimaryTerm = (Long) ConfigurationUtils.readObject(null, null, dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
-                ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+                String ifPrimaryTermValue = ConfigurationUtils.readOptionalStringOrIntProperty(null, null,
+                    dataMap, Metadata.IF_PRIMARY_TERM.getFieldName());
+                if (ifPrimaryTermValue != null) {
+                    Long ifPrimaryTerm = Long.valueOf(ifPrimaryTermValue);
+                    ingestDocument.setFieldValue(Metadata.IF_PRIMARY_TERM.getFieldName(), ifPrimaryTerm);
+                } else {
+                    throw new IllegalArgumentException("[_if_primary_term] cannot be null");
+                }
             }
             ingestDocumentList.add(ingestDocument);
         }

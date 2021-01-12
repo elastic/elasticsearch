@@ -10,7 +10,7 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** Each index is fully sharded with a configurable number of shards.
 ** Each shard can have one or more replicas.
 ** Read / Search operations performed on any of the replica shards.
-* Multi-Tenant.
+* Multi-tenant.
 ** Support for more than one index.
 ** Index level configuration (number of shards, index storage, etc.).
 * Various set of APIs
@@ -20,12 +20,12 @@ Elasticsearch is a distributed RESTful search engine built for the cloud. Featur
 ** No need for upfront schema definition.
 ** Schema can be defined for customization of the indexing process.
 * Reliable, Asynchronous Write Behind for long term persistency.
-* (Near) Real-Time Search.
+* Near real-time search.
 * Built on top of Apache Lucene
 ** Each shard is a fully functional Lucene index
-** All the power of Lucene easily exposed through simple configuration/plugins.
+** All the power of Lucene easily exposed through simple configuration and plugins.
 * Per operation consistency
-** Single document level operations are atomic, consistent, isolated, and durable.
+** Single document-level operations are atomic, consistent, isolated, and durable.
 
 == Getting Started
 

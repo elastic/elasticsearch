@@ -539,7 +539,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final DataStream dataStream = DataStreamTestHelper.randomInstance()
             // ensure no replicate data stream
             .promoteDataStream();
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(dataStream.getName() + "*"))
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(dataStream.getName() + "*"))
             .dataStreamTemplate( new ComposableIndexTemplate.DataStreamTemplate()).build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -645,8 +646,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             rolloverTarget = dataStream.getName();
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList(dataStream.getName() + "*"))
-                    .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
+            ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+                .indexPatterns(Collections.singletonList(dataStream.getName() + "*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
             builder.put("template", template);
             for (Index index : dataStream.getIndices()) {
                 builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));

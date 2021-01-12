@@ -72,7 +72,7 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, GeoPlugin.class);
+        return Arrays.asList(ReindexPlugin.class, IngestCommonPlugin.class, GeoPlugin.class, LocalStateEnrich.class);
     }
 
     private static ThreadPool testThreadPool;

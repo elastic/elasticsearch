@@ -47,11 +47,22 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     private final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
 
+    protected final Client client;
+
     @Inject
     public TransportReindexAction(Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService, ScriptService scriptService,
             AutoCreateIndex autoCreateIndex, Client client, TransportService transportService, ReindexSslConfig sslConfig) {
-        super(ReindexAction.NAME, transportService, actionFilters, ReindexRequest::new);
+        this(ReindexAction.NAME, settings, threadPool, actionFilters, indexNameExpressionResolver, clusterService, scriptService,
+            autoCreateIndex, client, transportService, sslConfig);
+    }
+
+    protected TransportReindexAction(String name, Settings settings, ThreadPool threadPool, ActionFilters actionFilters,
+                                     IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService,
+                                     ScriptService scriptService, AutoCreateIndex autoCreateIndex, Client client,
+                                     TransportService transportService, ReindexSslConfig sslConfig) {
+        super(name, transportService, actionFilters, ReindexRequest::new);
+        this.client = client;
         this.reindexValidator = new ReindexValidator(settings, clusterService, indexNameExpressionResolver, autoCreateIndex);
         this.reindexer = new Reindexer(clusterService, client, threadPool, scriptService, sslConfig);
     }
@@ -63,7 +74,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         reindexer.initTask(bulkByScrollTask, request, new ActionListener<>() {
             @Override
             public void onResponse(Void v) {
-                reindexer.execute(bulkByScrollTask, request, listener);
+                reindexer.execute(bulkByScrollTask, request, getBulkClient(), listener);
             }
 
             @Override
@@ -71,5 +82,9 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
                 listener.onFailure(e);
             }
         });
+    }
+
+    protected Client getBulkClient() {
+        return client;
     }
 }

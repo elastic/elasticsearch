@@ -49,12 +49,12 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyStatus;
+import org.elasticsearch.xpack.enrich.action.EnrichReindexAction;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -367,7 +367,7 @@ public class EnrichPolicyRunner implements Runnable {
         // the deprecation warning is also dropped - but this is a hack and will not work once full protections of system indices are
         // enabled.
         client.execute(
-            ReindexAction.INSTANCE,
+            EnrichReindexAction.INSTANCE,
             reindexRequest,
             new ContextPreservingActionListener<>(
                 client.threadPool().getThreadContext().newRestorableContext(false),

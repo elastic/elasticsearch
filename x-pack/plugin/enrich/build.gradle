@@ -10,6 +10,7 @@ archivesBaseName = 'x-pack-enrich'
 
 dependencies {
   compileOnly project(path: xpackModule('core'), configuration: 'default')
+  api project(path: ':modules:reindex')
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
   testImplementation project(path: ':modules:ingest-common')
   testImplementation project(path: ':modules:lang-mustache')

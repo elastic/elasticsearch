@@ -96,11 +96,8 @@ public class DocumentMapper implements ToXContentFragment {
     private final String type;
     private final Text typeText;
     private final CompressedXContent mappingSource;
-    private final Mapping mapping;
     private final DocumentParser documentParser;
-    private final MappingLookup fieldMappers;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
+    private final MappingLookup mappingLookup;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
@@ -110,11 +107,8 @@ public class DocumentMapper implements ToXContentFragment {
                            Mapping mapping) {
         this.type = mapping.root().name();
         this.typeText = new Text(this.type);
-        this.mapping = mapping;
         this.documentParser = documentParser;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
-        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -133,7 +127,7 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public Mapping mapping() {
-        return mapping;
+        return mappingLookup.getMapping();
     }
 
     public String type() {
@@ -145,7 +139,7 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public Map<String, Object> meta() {
-        return mapping.meta;
+        return mapping().meta;
     }
 
     public CompressedXContent mappingSource() {
@@ -153,11 +147,11 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public RootObjectMapper root() {
-        return mapping.root;
+        return mapping().root;
     }
 
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
-        return mapping.metadataMapper(type);
+        return mapping().metadataMapper(type);
     }
 
     public SourceFieldMapper sourceMapper() {
@@ -181,24 +175,23 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public MappingLookup mappers() {
-        return this.fieldMappers;
+        return this.mappingLookup;
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping, fieldMappers, indexSettings, indexAnalyzers);
+        return documentParser.parseDocument(source, mappingLookup);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, mapping, deleteTombstoneMetadataFieldMappers, fieldMappers,
-            indexSettings, indexAnalyzers).toTombstone();
+        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, mappingLookup).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, mapping, noopTombstoneMetadataFieldMappers,
-            fieldMappers, indexSettings, indexAnalyzers).toTombstone();
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, mappingLookup)
+            .toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
@@ -291,12 +284,12 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
-        Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(this.indexSettings, this.indexAnalyzers, this.documentParser, merged);
+        Mapping merged = this.mapping().merge(mapping, reason);
+        return new DocumentMapper(mappingLookup.getIndexSettings(), mappingLookup.getIndexAnalyzers(), documentParser, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {
-        this.mapping.validate(this.fieldMappers);
+        this.mapping().validate(this.mappingLookup);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
                 throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
@@ -307,12 +300,12 @@ public class DocumentMapper implements ToXContentFragment {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         if (checkLimits) {
-            this.fieldMappers.checkLimits(settings);
+            this.mappingLookup.checkLimits(settings);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return mapping.toXContent(builder, params);
+        return mapping().toXContent(builder, params);
     }
 }

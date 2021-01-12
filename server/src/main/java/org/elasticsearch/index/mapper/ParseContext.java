@@ -312,10 +312,7 @@ public abstract class ParseContext {
     }
 
     public static class InternalParseContext extends ParseContext {
-        private final Mapping mapping;
         private final MappingLookup mappingLookup;
-        private final IndexSettings indexSettings;
-        private final IndexAnalyzers indexAnalyzers;
         private final Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction;
         private final ContentPath path = new ContentPath(0);
         private final XContentParser parser;
@@ -333,18 +330,12 @@ public abstract class ParseContext {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        public InternalParseContext(Mapping mapping,
-                                    MappingLookup mappingLookup,
-                                    IndexSettings indexSettings,
-                                    IndexAnalyzers indexAnalyzers,
+        public InternalParseContext(MappingLookup mappingLookup,
                                     Function<DateFormatter, Mapper.TypeParser.ParserContext> parserContextFunction,
                                     DynamicRuntimeFieldsBuilder dynamicRuntimeFieldsBuilder,
                                     SourceToParse source,
                                     XContentParser parser) {
-            this.mapping = mapping;
             this.mappingLookup = mappingLookup;
-            this.indexSettings = indexSettings;
-            this.indexAnalyzers = indexAnalyzers;
             this.parserContextFunction = parserContextFunction;
             this.dynamicRuntimeFieldsBuilder = dynamicRuntimeFieldsBuilder;
             this.parser = parser;
@@ -352,7 +343,7 @@ public abstract class ParseContext {
             this.documents.add(document);
             this.version = null;
             this.sourceToParse = source;
-            this.maxAllowedNumNestedDocs = indexSettings.getMappingNestedDocsLimit();
+            this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();
             this.numNestedDocs = 0L;
         }
 
@@ -363,7 +354,7 @@ public abstract class ParseContext {
 
         @Override
         public IndexSettings indexSettings() {
-            return this.indexSettings;
+            return this.mappingLookup.getIndexSettings();
         }
 
         @Override
@@ -409,7 +400,7 @@ public abstract class ParseContext {
 
         @Override
         public RootObjectMapper root() {
-            return mapping.root();
+            return this.mappingLookup.getMapping().root();
         }
 
         @Override
@@ -419,12 +410,12 @@ public abstract class ParseContext {
 
         @Override
         public MetadataFieldMapper getMetadataMapper(String mapperName) {
-            return mapping.getMetadataMapper(mapperName);
+            return mappingLookup.getMapping().getMetadataMapper(mapperName);
         }
 
         @Override
         public IndexAnalyzers indexAnalyzers() {
-            return indexAnalyzers;
+            return mappingLookup.getIndexAnalyzers();
         }
 
         @Override

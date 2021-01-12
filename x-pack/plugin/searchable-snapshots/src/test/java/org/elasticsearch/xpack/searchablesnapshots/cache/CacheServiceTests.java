@@ -63,7 +63,6 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
     }
 
     public void testCacheSynchronization() throws Exception {
-        assumeFalse("https://github.com/elastic/elasticsearch/issues/65543", Constants.WINDOWS);
         final int numShards = randomIntBetween(1, 3);
         final Index index = new Index(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
         final String snapshotUUID = UUIDs.randomBase64UUID(random());
@@ -160,7 +159,10 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
                 logger.trace("--> verifying cache synchronization correctness");
                 cacheDirFSyncs.forEach(
-                    (dir, expectedNumberOfFSyncs) -> assertThat(fileSystemProvider.getNumberOfFSyncs(dir), equalTo(expectedNumberOfFSyncs))
+                    (dir, expectedNumberOfFSyncs) -> assertThat(
+                        fileSystemProvider.getNumberOfFSyncs(dir),
+                        Constants.WINDOWS ? nullValue() : equalTo(expectedNumberOfFSyncs)
+                    )
                 );
                 evictions.forEach((cacheFile, expectedNumberOfFSyncs) -> {
                     assertThat(cacheService.isCacheFileToSync(cacheFile), is(false));

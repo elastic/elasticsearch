@@ -63,7 +63,6 @@ For more information, see <<index-templates, Index Templates>>.
 * <<indices-component-template>>
 * <<getting-component-templates>>
 * <<indices-delete-component-template>>
-* <<indices-template-exists>>
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
 
@@ -148,7 +147,7 @@ include::indices/shard-stores.asciidoc[]
 
 include::indices/stats.asciidoc[]
 
-include::indices/template-exists.asciidoc[]
+include::indices/index-template-exists-v1.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 

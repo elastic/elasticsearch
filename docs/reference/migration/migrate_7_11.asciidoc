@@ -46,4 +46,15 @@ of `epoch_millis` values. Previously constructed transforms will still use
 `epoch_millis` values. You can configure and change the output format in the
 settings of the transform.
 ====
+
+[discrete]
+[[breaking_711_ml_changes]]
+=== Machine Learning changes
+.The trained models API parameter `for_export` is now renamed to `exclude_generated`.
+[%collapsible]
+====
+*Details* +
+The trained models API (`GET _ml/trained_models/`) no longer accepts `for_export` when
+getting a model. `exclude_generated` is required instead, which behaves the same.
+====
 //end::notable-breaking-changes[]

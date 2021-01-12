@@ -79,9 +79,13 @@ new fields of a certain type as runtime fields.
 Let's say you have data where each of the fields start with `ip_`. Based on the
 <<match-mapping-type,dynamic mapping rules>>, {es} maps any `string` that passes
 `numeric` detection as a `float` or `long`. However, you can create a dynamic
-template that maps new strings as runtime fields of type `ip`. When {es}
-detects new `string` fields matching the `ip*` pattern, it maps those fields as
-runtime fields of type `ip`.
+template that maps new strings as runtime fields of type `ip`.
+
+The following request defines a dynamic template named `strings_as_ip`. When
+{es} detects new `string` fields matching the `ip*` pattern, it maps those
+fields as runtime fields of type `ip`. Because `ip` fields aren't mapped
+dynamically, you can use this template with either `dynamic:true` or
+`dynamic:runtime`.
 
 [source,console]
 ----

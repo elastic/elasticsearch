@@ -210,10 +210,8 @@ tag::ds-expand-wildcards[]
 +
 --
 (Optional, string)
-Type of index that wildcard expressions can match. If the request can target
-data streams, this argument determines whether wildcard expressions match
-hidden data streams. Supports comma-separated values, such as `open,hidden`.
-Valid values are:
+Determines whether wildcard expressions match hidden data streams. Supports
+comma-separated values, such as `open,hidden`. Valid values are:
 
 `all`::
 Match any data stream, including <<hidden-indices,hidden>> ones.

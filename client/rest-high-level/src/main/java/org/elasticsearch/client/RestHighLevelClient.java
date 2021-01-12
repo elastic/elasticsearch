@@ -458,7 +458,7 @@ public class RestHighLevelClient implements Closeable {
     /**
      * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Text Structure APIs.
      * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/text-structure.html"> X-Pack APIs on elastic.co</a>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html"> X-Pack APIs on elastic.co</a>
      * for more information.
      */
     public TextStructureClient textStructure() {

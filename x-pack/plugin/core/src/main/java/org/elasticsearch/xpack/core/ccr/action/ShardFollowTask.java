@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.ccr.action;
+package org.elasticsearch.xpack.core.ccr.action;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
@@ -18,7 +18,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.xpack.core.ccr.action.ImmutableFollowParameters;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -62,7 +61,7 @@ public class ShardFollowTask extends ImmutableFollowParameters implements Persis
     private final ShardId leaderShardId;
     private final Map<String, String> headers;
 
-    ShardFollowTask(
+    public ShardFollowTask(
             final String remoteCluster,
             final ShardId followShardId,
             final ShardId leaderShardId,

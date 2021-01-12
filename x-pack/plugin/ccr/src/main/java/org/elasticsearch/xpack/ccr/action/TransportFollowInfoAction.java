@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.Status;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;

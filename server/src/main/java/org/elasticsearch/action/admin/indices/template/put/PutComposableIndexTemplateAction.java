@@ -95,8 +95,9 @@ public class PutComposableIndexTemplateAction extends ActionType<AcknowledgedRes
             if (indexTemplate == null) {
                 validationException = addValidationError("an index template is required", validationException);
             } else {
-                if (indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
-                    if (IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
+                if (indexTemplate.template() != null && indexTemplate.indexPatterns().stream().anyMatch(Regex::isMatchAllPattern)) {
+                    if (indexTemplate.template().settings() != null &&
+                        IndexMetadata.INDEX_HIDDEN_SETTING.exists(indexTemplate.template().settings())) {
                         validationException = addValidationError("global composable templates may not specify the setting "
                                 + IndexMetadata.INDEX_HIDDEN_SETTING.getKey(),
                             validationException

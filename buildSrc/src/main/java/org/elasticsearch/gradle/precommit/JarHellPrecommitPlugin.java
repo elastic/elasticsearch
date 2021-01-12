@@ -32,6 +32,9 @@ public class JarHellPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         Configuration jarHellConfig = project.getConfigurations().create("jarHell");
         if (BuildParams.isInternal() && project.getPath().equals(":libs:elasticsearch-core") == false) {
+            // ideally we would configure this as a default dependency. But Default dependencies do not work correctly
+            // with gradle project dependencies as they're resolved to late in the build and don't setup according task
+            // dependencies properly
             project.getDependencies().add("jarHell", project.project(":libs:elasticsearch-core"));
         }
         TaskProvider<JarHellTask> jarHell = project.getTasks().register("jarHell", JarHellTask.class);

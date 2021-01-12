@@ -412,7 +412,8 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                     throw new AssertionError("Should not receive any data");
                 }
             } catch (IOException e) {
-                assertThat(e.getMessage(), equalTo("connection closed before all data received"));
+              // Suppress the exception since it's expected that the
+              // connection is closed before anything can be read
             } finally {
                 exchange.close();
             }

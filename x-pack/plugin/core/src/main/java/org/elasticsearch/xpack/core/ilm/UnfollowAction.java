@@ -41,7 +41,7 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey waitForFollowShardTasks = new StepKey(phase, NAME, WaitForFollowShardTasksStep.NAME);
         StepKey pauseFollowerIndex = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
         StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
-        StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowIndexStep.NAME);
+        StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowerIndexStep.NAME);
         StepKey openFollowerIndex = new StepKey(phase, NAME, OpenFollowerIndexStep.NAME);
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
@@ -49,7 +49,7 @@ public final class UnfollowAction implements LifecycleAction {
         WaitForFollowShardTasksStep step2 = new WaitForFollowShardTasksStep(waitForFollowShardTasks, pauseFollowerIndex, client);
         PauseFollowerIndexStep step3 = new PauseFollowerIndexStep(pauseFollowerIndex, closeFollowerIndex, client);
         CloseFollowerIndexStep step4 = new CloseFollowerIndexStep(closeFollowerIndex, unfollowFollowerIndex, client);
-        UnfollowFollowIndexStep step5 = new UnfollowFollowIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
+        UnfollowFollowerIndexStep step5 = new UnfollowFollowerIndexStep(unfollowFollowerIndex, openFollowerIndex, client);
         OpenFollowerIndexStep step6 = new OpenFollowerIndexStep(openFollowerIndex, waitForYellowStep, client);
         WaitForIndexColorStep step7 = new WaitForIndexColorStep(waitForYellowStep, nextStepKey, ClusterHealthStatus.YELLOW);
         return Arrays.asList(step1, step2, step3, step4, step5, step6, step7);

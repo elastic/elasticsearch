@@ -651,10 +651,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 return createAndPutReaderContext(request, indexService, shard, searcherSupplier, false, defaultKeepAlive);
             }
         } else {
+            final long keepAliveInMillis = getKeepAlive(request);
             final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             final IndexShard shard = indexService.getShard(request.shardId().id());
             final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
-            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepStatesInContext, getKeepAlive(request));
+            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepStatesInContext, keepAliveInMillis);
         }
     }
 

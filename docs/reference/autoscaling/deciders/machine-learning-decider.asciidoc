@@ -13,13 +13,15 @@ The {ml} decider is enabled for policies governing `ml` nodes.
 
 `num_anomaly_jobs_in_queue`::
 (Optional, integer)
-Number of queued anomaly jobs to allow. Default 0.
+Number of queued anomaly jobs to allow. Defaults to `0`.
 
 `num_analytics_jobs_in_queue`::
-Number of queued analytics jobs to allow. Default 0.
+(Optional, integer)
+Number of queued analytics jobs to allow. Defaults to `0`.
+
 `down_scale_delay`::
-(Optional, <<time-units,time value>>
-Delay before scaling down. Default 1 hour.
+(Optional, <<time-units,time value>>)
+Delay before scaling down. Defaults to 1 hour.
 
 [[autoscaling-machine-learning-decider-examples]]
 ==== {api-examples-title}

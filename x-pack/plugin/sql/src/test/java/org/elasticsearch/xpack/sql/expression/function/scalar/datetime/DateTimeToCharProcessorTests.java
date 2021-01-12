@@ -41,13 +41,13 @@ public class DateTimeToCharProcessorTests extends ESTestCase {
      *     <li>Generate the test dataset by execution the SQL against PostgreSQL and capturing the output:
      *       <pre>
      *       PGPASSWORD="mysecretpassword" psql --quiet -h localhost -p 5432 -U postgres -f /tmp/postgresql-tochar-test.sql \
-     *           &gt; /path/to/tochar.generated.csv
+     *           &gt; /path/to/tochar-generated.csv
      *       </pre>
      *     </li>
      * </ol>
      */
     public void testAgainstPostgreSQLOutput() {
-        String testFile = "tochar.generated.csv";
+        String testFile = "tochar-generated.csv";
         int lineNumber = 0;
         for (String line : ToCharTestScript.readAllLinesWithoutComment(DateTimeToCharProcessorTests.class.getResource(testFile))) {
             lineNumber += 1;

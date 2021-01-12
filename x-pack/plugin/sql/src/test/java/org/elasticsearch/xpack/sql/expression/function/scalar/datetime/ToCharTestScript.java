@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.util.set.Sets;
 
@@ -22,7 +23,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Random;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Da
  */
 public class ToCharTestScript {
 
-    private static class TestRecord {
+    private class TestRecord {
         private final BigDecimal secondsAndFractionsSinceEpoch;
         private final String formatString;
         private final String zoneId;
@@ -43,7 +43,7 @@ public class ToCharTestScript {
         TestRecord(BigDecimal secondsAndFractionsSinceEpoch, String formatString) {
             this.secondsAndFractionsSinceEpoch = secondsAndFractionsSinceEpoch;
             this.formatString = formatString;
-            this.zoneId = ToCharTestScript.randomFromCollection(TIMEZONES_TO_TEST);
+            this.zoneId = ToCharTestScript.this.randomFromCollection(TIMEZONES_TO_TEST);
         }
     }
 
@@ -59,17 +59,14 @@ public class ToCharTestScript {
     private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
     // timezones that are valid both in Java and in Postgres
     public static final List<String> TIMEZONES_TO_TEST =
-            readAllLinesWithoutComment(ToCharTestScript.class.getResource("tochar.test_timezones.txt"));
+            readAllLinesWithoutComment(ToCharTestScript.class.getResource("tochar-test_timezones.txt"));
 
     private final List<TestRecord> testRecords = new ArrayList<>();
     private final List<BigDecimal> testEpochSeconds = new ArrayList<>();
+    private final Random random;
 
-    @SuppressForbidden(reason = "It is ok to use ThreadLocalRandom outside of an actual test")
-    private static Random rnd() {
-        return ThreadLocalRandom.current();
-    }
-
-    public ToCharTestScript() {
+    public ToCharTestScript(Random random) {
+        this.random = random;
         generateTestTimestamps();
         
         patternsOneByOne();
@@ -135,7 +132,7 @@ public class ToCharTestScript {
         for (int i = 1; i <= 12; i++) {
             testRecords.add(new TestRecord(
                 new BigDecimal(dateTime(0).withMonth(i).toEpochSecond()),
-                rnd().nextBoolean() ? "RM" : "rm"));
+                random.nextBoolean() ? "RM" : "rm"));
         }
     }
 
@@ -148,8 +145,8 @@ public class ToCharTestScript {
         for (int i = 0; i < randomizedPatternCount; i++) {
             String patternWithLiterals = IntStream.rangeClosed(1, lengthOfRandomizedPattern)
                     .mapToObj(idx -> {
-                        if (rnd().nextInt(100) < pctChanceOfRandomCharacter) {
-                            return randomCharacters.substring(rnd().nextInt(randomCharacters.length())).substring(0, 1);
+                        if (random.nextInt(100) < pctChanceOfRandomCharacter) {
+                            return randomCharacters.substring(random.nextInt(randomCharacters.length())).substring(0, 1);
                         } else {
                             return (randomFromCollection(FILL_MODIFIERS) + randomFromCollection(PATTERNS) 
                                 + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS));
@@ -166,19 +163,19 @@ public class ToCharTestScript {
         }
     }
 
-    private static BigDecimal randomSecondsWithFractions(int minYear, int maxYear) {
+    private BigDecimal randomSecondsWithFractions(int minYear, int maxYear) {
         BigDecimal seconds =
-            new BigDecimal(RandomNumbers.randomLongBetween(rnd(), (minYear - 1970) * SECONDS_IN_YEAR, (maxYear - 1970) * SECONDS_IN_YEAR));
-        BigDecimal fractions = new BigDecimal(RandomNumbers.randomIntBetween(rnd(), 0, 999_999)).movePointLeft(6);
+            new BigDecimal(RandomNumbers.randomLongBetween(random, (minYear - 1970) * SECONDS_IN_YEAR, (maxYear - 1970) * SECONDS_IN_YEAR));
+        BigDecimal fractions = new BigDecimal(RandomNumbers.randomIntBetween(random, 0, 999_999)).movePointLeft(6);
         return seconds.add(fractions);
     }
 
-    private static <T> T randomFromCollection(Collection<T> list) {
+    private <T> T randomFromCollection(Collection<T> list) {
         List<T> l = new ArrayList<>(list);
-        return l.get(rnd().nextInt(l.size()));
+        return l.get(random.nextInt(l.size()));
     }
 
-    private static String patternWithRandomModifiers(String pattern) {
+    private String patternWithRandomModifiers(String pattern) {
         if (NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern)) {
             return pattern;
         }
@@ -239,8 +236,13 @@ public class ToCharTestScript {
         return header + testCases;
     }
 
+    @SuppressForbidden(reason = "It is ok to use Random outside of an actual test")
+    private static Random rnd() {
+        return new Random();
+    }
+
     public static void main(String[] args) throws Exception {
         String scriptFilename = args.length < 1 ? "postgresql-tochar-test.sql" : args[0];
-        Files.writeString(Path.of(scriptFilename), new ToCharTestScript().unitTestExporterScript(), StandardCharsets.UTF_8);
+        Files.writeString(Path.of(scriptFilename), new ToCharTestScript(rnd()).unitTestExporterScript(), StandardCharsets.UTF_8);
     }
 }

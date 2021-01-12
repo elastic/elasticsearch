@@ -119,6 +119,9 @@ public final class CompositeBytesReference extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
+        if (from == 0 && this.length == length) {
+            return this;
+        }
         Objects.checkFromIndexSize(from, length, this.length);
 
         if (length == 0) {

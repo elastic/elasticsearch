@@ -73,7 +73,7 @@ import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.FinalizeJobExecutionAction;
-import org.elasticsearch.xpack.core.ml.action.FindFileStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindFileStructureAction;
 import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.ForecastJobAction;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;

@@ -582,8 +582,8 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
         ElasticsearchException ex = expectThrows(ElasticsearchException.class,
-            () -> service.createAndPutReaderContext(
-                request, indexService, indexShard, indexShard.acquireSearcherSupplier(), randomBoolean(), request.keepAlive().millis()));
+            () -> service.createAndPutReaderContext(request, indexService, indexShard, indexShard.acquireSearcherSupplier(),
+                randomBoolean(), SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis()));
         assertEquals(
             "Trying to create too many scroll contexts. Must be less than or equal to: [" +
                 SearchService.MAX_OPEN_SCROLL_CONTEXT.get(Settings.EMPTY) + "]. " +
@@ -613,7 +613,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
                         try {
                             final ShardScrollRequestTest request = new ShardScrollRequestTest(indexShard.shardId());
                             searchService.createAndPutReaderContext(request, indexService, indexShard, reader, true,
-                                request.keepAlive().millis());
+                                SearchService.KEEPALIVE_INTERVAL_SETTING.get(Settings.EMPTY).millis());
                         } catch (ElasticsearchException e) {
                             assertThat(e.getMessage(), equalTo(
                                 "Trying to create too many scroll contexts. Must be less than or equal to: " +

@@ -20,7 +20,6 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.elasticsearch.gradle.transform.SymbolicLinkPreservingUntarTransform
 import org.gradle.testkit.runner.TaskOutcome
 import spock.lang.Unroll
 
@@ -61,17 +60,21 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def runner = gradleRunner('clean', 'setupDistro', '-i')
+        def guh = new File(testProjectDir.getRoot(), "gradle-user-home").absolutePath;
+        def runner = gradleRunner('clean', 'setupDistro', '-i', '-g', guh)
         def result = withMockedDistributionDownload(version, platform, runner) {
             // initial run
-            build()
+            def firstRun = build()
+            assertOutputContains(firstRun.output, "Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+                    "using SymbolicLinkPreservingUntarTransform")
             // 2nd invocation
             build()
         }
 
         then:
         result.task(":setupDistro").outcome == TaskOutcome.SUCCESS
-        assertOutputContains(result.output, "Skipping ${SymbolicLinkPreservingUntarTransform.class.simpleName}")
+        assertOutputMissing(result.output, "Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
+                "using SymbolicLinkPreservingUntarTransform")
     }
 
     def "transforms are reused across projects"() {
@@ -109,7 +112,7 @@ class DistributionDownloadPluginFuncTest extends AbstractGradleFuncTest {
         then:
         result.tasks.size() == 3
         result.output.count("Unpacking elasticsearch-${version}-linux-x86_64.tar.gz " +
-                "using SymbolicLinkPreservingUntarTransform.") == 1
+                "using SymbolicLinkPreservingUntarTransform") == 1
     }
 
     private boolean assertExtractedDistroCreated(String relativePath) {

@@ -35,6 +35,11 @@ final class WaitForFollowShardTasksStep extends AsyncWaitStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
         IndexMetadata indexMetadata = metadata.index(index);
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);

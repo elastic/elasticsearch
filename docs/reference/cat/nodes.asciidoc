@@ -310,7 +310,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?v
+GET /_cat/nodes?v=true
 --------------------------------------------------
 
 The API returns the following response:
@@ -338,7 +338,7 @@ The following API request returns the `id`, `ip`, `port`, `v` (version), and `m`
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?v&h=id,ip,port,v,m
+GET /_cat/nodes?v=true&h=id,ip,port,v,m
 --------------------------------------------------
 
 The API returns the following response:

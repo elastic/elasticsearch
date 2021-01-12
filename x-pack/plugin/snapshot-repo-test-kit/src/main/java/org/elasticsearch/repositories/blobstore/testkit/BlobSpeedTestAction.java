@@ -269,16 +269,39 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                 } else {
                     // no need for extra synchronization after checking if we were cancelled a couple of lines ago -- we haven't notified
                     // the outer listener yet so any bans on the children are still in place
+                    final GetBlobChecksumAction.Request blobChecksumRequest = getBlobChecksumRequest();
                     transportService.sendChildRequest(
                         node,
                         GetBlobChecksumAction.NAME,
-                        getBlobChecksumRequest(),
+                        blobChecksumRequest,
                         task,
                         TransportRequestOptions.EMPTY,
-                        new ActionListenerResponseHandler<>(
-                            readNodesListener.map(r -> makeNodeResponse(node, beforeWriteComplete, r)),
-                            GetBlobChecksumAction.Response::new
-                        )
+                        new ActionListenerResponseHandler<>(new ActionListener<>() {
+                            @Override
+                            public void onResponse(GetBlobChecksumAction.Response response) {
+                                readNodesListener.onResponse(makeNodeResponse(node, beforeWriteComplete, response));
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                readNodesListener.onFailure(
+                                    new RepositoryVerificationException(
+                                        request.getRepositoryName(),
+                                        "["
+                                            + blobChecksumRequest
+                                            + "] ("
+                                            + (beforeWriteComplete ? "before" : "after")
+                                            + " write complete) failed on node ["
+                                            + node
+                                            + "] as part of ["
+                                            + request.getDescription()
+                                            + "]",
+                                        e
+                                    )
+                                );
+
+                            }
+                        }, GetBlobChecksumAction.Response::new)
                     );
                 }
             }
@@ -389,6 +412,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                                 + expectedChecksumDescription
                                 + "] but read ["
                                 + response
+                                + "] as part of ["
+                                + request.getDescription()
                                 + "]"
                         );
                     }

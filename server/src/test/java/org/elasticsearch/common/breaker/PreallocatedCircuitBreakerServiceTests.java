@@ -87,6 +87,7 @@ public class PreallocatedCircuitBreakerServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67256")
     public void testRandom() {
         try (HierarchyCircuitBreakerService real = real()) {
             CircuitBreaker realBreaker = real.getBreaker(CircuitBreaker.REQUEST);

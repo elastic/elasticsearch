@@ -42,21 +42,6 @@ Specifies the path to a file that contains a key for encrypting sensitive data.
 If `xpack.watcher.encrypt_sensitive_data` is set to `true`, this setting is
 required. For more information, see <<encrypting-data>>.
 
-[[xpack-watcher-history-cleaner-service]]
-// tag::watcher-history-cleaner-service-tag[]
-`xpack.watcher.history.cleaner_service.enabled` {ess-icon}::
-(<<dynamic-cluster-setting,Dynamic>>)
-added:[6.3.0,Default changed to `true`.]
-deprecated:[7.0.0,Watcher history indices are now managed by the `watch-history-ilm-policy` ILM policy]
-+
-Set to `true` (default) to enable the cleaner service. The cleaner service
-removes previous versions of {watcher} indices (for example,
-`.watcher-history*`) when it determines that they are old. The duration of
-{watcher} indices is determined by the `xpack.monitoring.history.duration`
-setting, which defaults to 7 days. For more information about that setting,
-see <<monitoring-settings>>.
-// end::watcher-history-cleaner-service-tag[]
-
 `xpack.http.proxy.host`::
 (<<static-cluster-setting,Static>>)
 Specifies the address of the proxy server to use to connect to HTTP services.

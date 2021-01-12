@@ -30,6 +30,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -92,5 +93,15 @@ public class PutComposableIndexTemplateRequestTests extends AbstractWireSerializ
         assertThat(validationErrors.size(), is(1));
         String error = validationErrors.get(0);
         assertThat(error, is("index template priority must be >= 0"));
+    }
+
+    public void testValidateNoTemplate() {
+        PutComposableIndexTemplateAction.Request req = new PutComposableIndexTemplateAction.Request("test");
+        req.indexTemplate(new ComposableIndexTemplate(Collections.singletonList("*"), null, null, null, null, null));
+        assertNull(req.validate());
+
+        req.indexTemplate(new ComposableIndexTemplate(Collections.singletonList("*"),
+                        new Template(null, null, null), null, null, null, null));
+        assertNull(req.validate());
     }
 }

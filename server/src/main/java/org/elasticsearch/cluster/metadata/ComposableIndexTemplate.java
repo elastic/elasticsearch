@@ -170,6 +170,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return componentTemplates;
     }
 
+    @Nullable
     public Long priority() {
         return priority;
     }
@@ -181,14 +182,17 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return priority;
     }
 
+    @Nullable
     public Long version() {
         return version;
     }
 
+    @Nullable
     public Map<String, Object> metadata() {
         return metadata;
     }
 
+    @Nullable
     public DataStreamTemplate getDataStreamTemplate() {
         return dataStreamTemplate;
     }

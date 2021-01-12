@@ -5,7 +5,7 @@
 ++++
 
 Returns the index configuration that would be applied by a particular 
-<<indices-templates, index template>>.
+<<index-templates, index template>>.
 
 ////
 [source,console]

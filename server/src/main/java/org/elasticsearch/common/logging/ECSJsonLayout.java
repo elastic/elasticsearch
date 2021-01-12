@@ -45,8 +45,8 @@ public class ECSJsonLayout {
     public static class Builder extends AbstractStringLayout.Builder<Builder>
         implements org.apache.logging.log4j.core.util.Builder<EcsLayout> {
 
-        @PluginAttribute("type_name")
-        String type;
+        @PluginAttribute("dataset")
+        String dataset;
 
         public Builder() {
             setCharset(StandardCharsets.UTF_8);
@@ -65,19 +65,19 @@ public class ECSJsonLayout {
 
         private KeyValuePair[] additionalFields() {
             return new KeyValuePair[] {
-                new KeyValuePair("event.dataset", type),
+                new KeyValuePair("event.dataset", dataset),
                 new KeyValuePair("elasticsearch.cluster.uuid", "%cluster_id"),
                 new KeyValuePair("elasticsearch.node.id", "%node_id"),
                 new KeyValuePair("elasticsearch.node.name", "%ESnode_name"),
                 new KeyValuePair("elasticsearch.cluster.name", "${sys:es.logs.cluster_name}"), };
         }
 
-        public String getType() {
-            return type;
+        public String getDataset() {
+            return dataset;
         }
 
-        public Builder setType(final String type) {
-            this.type = type;
+        public Builder setDataset(final String dataset) {
+            this.dataset = dataset;
             return asBuilder();
         }
     }

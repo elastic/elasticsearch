@@ -44,7 +44,7 @@ import java.util.Set;
  * log messages are formatted in {@link org.apache.logging.log4j.core.layout.JsonLayout}
  * There are fields which are always present in the log line:
  * <ul>
- * <li>type - the type of logs. These represent appenders and help docker distinguish log streams.</li>
+ * <li>dataset - the type of logs. These represent appenders and help docker distinguish log streams.</li>
  * <li>timestamp - ISO8601 with additional timezone ID</li>
  * <li>level - INFO, WARN etc</li>
  * <li>component - logger name, most of the times class name</li>
@@ -75,21 +75,21 @@ public class ESJsonLayout extends AbstractStringLayout {
     private final PatternLayout patternLayout;
     private String esmessagefields;
 
-    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
+    protected ESJsonLayout(String dataset, Charset charset, String[] overrideFields) {
         super(charset);
         this.esmessagefields = String.join(",",overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(typeName, overrideFields))
+                                          .withPattern(pattern(dataset, overrideFields))
                                           .withAlwaysWriteExceptions(false)
                                           .build();
     }
 
-    private String pattern(String type, String[] esmessagefields) {
-        if (Strings.isEmpty(type)) {
-            throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
+    private String pattern(String dataset, String[] esmessagefields) {
+        if (Strings.isEmpty(dataset)) {
+            throw new IllegalArgumentException("layout parameter 'dataset' cannot be empty");
         }
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("type", inQuotes(type));
+        map.put("dataset", inQuotes(dataset));
         map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
         map.put("level", inQuotes("%p"));
         map.put("component", inQuotes("%c{1.}"));
@@ -148,10 +148,10 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String type,
+    public static ESJsonLayout createLayout(String dataset,
                                             Charset charset,
                                             String[] overrideFields) {
-        return new ESJsonLayout(type, charset, overrideFields);
+        return new ESJsonLayout(dataset, charset, overrideFields);
     }
 
     PatternLayout getPatternLayout() {
@@ -161,8 +161,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
         implements org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
 
-        @PluginAttribute("type_name")
-        String type;
+        @PluginAttribute("dataset")
+        String dataset;
 
         @PluginAttribute(value = "charset", defaultString = "UTF-8")
         Charset charset;
@@ -177,7 +177,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @Override
         public ESJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[]{} : overrideFields.split(",");
-            return ESJsonLayout.createLayout(type, charset, split);
+            return ESJsonLayout.createLayout(dataset, charset, split);
         }
 
         public Charset getCharset() {
@@ -189,12 +189,12 @@ public class ESJsonLayout extends AbstractStringLayout {
             return asBuilder();
         }
 
-        public String getType() {
-            return type;
+        public String getDataset() {
+            return dataset;
         }
 
-        public B setType(final String type) {
-            this.type = type;
+        public B setDataset(final String dataset) {
+            this.dataset = dataset;
             return asBuilder();
         }
 

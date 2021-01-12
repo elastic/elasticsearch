@@ -36,13 +36,13 @@ public class ESJsonLayoutTests extends ESTestCase {
 
     public void testLayout() {
         ESJsonLayout server = ESJsonLayout.newBuilder()
-                                          .setType("server")
+                                          .setDataset("server")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
-                "\"type\": \"server\", " +
+                "\"dataset\": \"server\", " +
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
@@ -56,7 +56,7 @@ public class ESJsonLayoutTests extends ESTestCase {
 
     public void testLayoutWithAdditionalFieldOverride() {
         ESJsonLayout server = ESJsonLayout.newBuilder()
-                                          .setType("server")
+                                          .setDataset("server")
                                           .setOverrideFields("message")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
@@ -64,7 +64,7 @@ public class ESJsonLayoutTests extends ESTestCase {
         //message field is removed as is expected to be provided by a field from a message
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
-                "\"type\": \"server\", " +
+                "\"dataset\": \"server\", " +
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +

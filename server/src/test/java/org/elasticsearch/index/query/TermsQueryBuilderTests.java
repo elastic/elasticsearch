@@ -27,12 +27,16 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -46,9 +50,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -216,25 +220,29 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1L, 3L, 4L), values);
+            assertEquals(Arrays.asList(1, 3, 4), values);
+            assertFalse(copy.isStale());
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1d, 3d, 4d), values);
+            assertFalse(copy.isStale());
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new float[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1f, 3f, 4f), values);
+            assertFalse(copy.isStale());
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
+            assertFalse(copy.isStale());
         }
     }
 
@@ -295,28 +303,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         builder.writeTo(new BytesStreamOutput(10));
     }
 
-    public void testConversion() {
-        List<Object> list = Arrays.asList();
-        assertSame(Collections.emptyList(), TermsQueryBuilder.convert(list));
-        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList("abc");
-        assertEquals(Arrays.asList(new BytesRef("abc")), TermsQueryBuilder.convert(list));
-        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList("abc", new BytesRef("def"));
-        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList("abc", "def"), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42L);
-        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42d);
-        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-    }
-
     public void testTypeField() throws IOException {
         TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
         builder.doToQuery(createShardContext());
@@ -345,4 +331,155 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         return query;
     }
 
+    public void testSerializationFromLowerVersion() throws IOException {
+        {
+            TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList(1, 3, 4), null);
+            TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
+            assertTrue(copy.isStale());
+        }
+        {
+            TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList(1L, 3L, 4L), null);
+            TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
+            assertTrue(copy.isStale());
+        }
+        {
+            TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList("a", "b", "c"), null);
+            TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList("a", "b", "c"), values);
+            assertTrue(copy.isStale());
+        }
+        {
+            TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList(new BytesRef("a"), new BytesRef("b"), new BytesRef("c")), null);
+            TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList("a", "b", "c"), values);
+            assertTrue(copy.isStale());
+        }
+    }
+
+    public void testSerializationToLowerVersion() throws IOException {
+        {
+            TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
+            TermsQueryBuilderBeforeV8 copy = (TermsQueryBuilderBeforeV8) serializeAndDeserialize(Version.V_8_0_0, builder, Version.V_7_12_0, TermsQueryBuilderBeforeV8::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList(1, 3, 4), values);
+        }
+        {
+            TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1L, 3L, 4L});
+            TermsQueryBuilderBeforeV8 copy = (TermsQueryBuilderBeforeV8) serializeAndDeserialize(Version.V_8_0_0, builder, Version.V_7_12_0, TermsQueryBuilderBeforeV8::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList(1L, 3L, 4L), values);
+        }
+        {
+            TermsQueryBuilder builder = new TermsQueryBuilder("foo", "a", "b", "c");
+            TermsQueryBuilderBeforeV8 copy = (TermsQueryBuilderBeforeV8) serializeAndDeserialize(Version.V_8_0_0, builder, Version.V_7_12_0, TermsQueryBuilderBeforeV8::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList("a", "b", "c"), values);
+        }
+        {
+            TermsQueryBuilder builder = new TermsQueryBuilder("foo", new BytesRef("a"), new BytesRef("b"), new BytesRef("c"));
+            TermsQueryBuilderBeforeV8 copy = (TermsQueryBuilderBeforeV8) serializeAndDeserialize(Version.V_8_0_0, builder, Version.V_7_12_0, TermsQueryBuilderBeforeV8::new);
+            List<Object> values = copy.values();
+            assertEquals(Arrays.asList("a", "b", "c"), values);
+        }
+    }
+
+    private QueryBuilder serializeAndDeserialize(Version srcVersion, QueryBuilder srcQueryBuilder,
+                                   Version dstVersion, Writeable.Reader<QueryBuilder> dstReader) throws IOException {
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            output.setVersion(dstVersion);
+            srcQueryBuilder.writeTo(output);
+            try (StreamInput in = output.bytes().streamInput()) {
+                in.setVersion(srcVersion);
+                return dstReader.read(in);
+            }
+        }
+    }
+
+    /**
+     * to test serialization compatible between different version
+     */
+    private static class TermsQueryBuilderBeforeV8 extends AbstractQueryBuilder<TermsQueryBuilderBeforeV8> {
+        public static final String NAME = "terms_before_v8";
+
+        private final String fieldName;
+        private final List<?> values;
+        private final TermsLookup termsLookup;
+        private final Supplier<List<?>> supplier;
+
+        TermsQueryBuilderBeforeV8(String fieldName, List<Object> values, TermsLookup termsLookup) {
+            if (Strings.isEmpty(fieldName)) {
+                throw new IllegalArgumentException("field name cannot be null.");
+            }
+            if (values == null && termsLookup == null) {
+                throw new IllegalArgumentException("No value or termsLookup specified for terms query");
+            }
+            if (values != null && termsLookup != null) {
+                throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
+            }
+            this.fieldName = fieldName;
+            this.values = values == null ? null : convert(values);
+            this.termsLookup = termsLookup;
+            this.supplier = null;
+        }
+
+        public TermsQueryBuilderBeforeV8(StreamInput in) throws IOException {
+            super(in);
+            fieldName = in.readString();
+            termsLookup = in.readOptionalWriteable(TermsLookup::new);
+            values = (List<?>) in.readGenericValue();
+            this.supplier = null;
+        }
+
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            if (supplier != null) {
+                throw new IllegalStateException("supplier must be null, can't serialize suppliers, missing a rewriteAndFetch?");
+            }
+            out.writeString(fieldName);
+            out.writeOptionalWriteable(termsLookup);
+            out.writeGenericValue(values);
+        }
+
+        static List<?> convert(List<?> list) {
+            return TermsSetQueryBuilder.convert(list);
+        }
+
+        static List<Object> convertBack(List<?> list) {
+            return TermsSetQueryBuilder.convertBack(list);
+        }
+
+        public List<Object> values() {
+            return convertBack(this.values);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) throws IOException {
+
+        }
+
+        @Override
+        protected Query doToQuery(QueryShardContext context) throws IOException {
+            return null;
+        }
+
+        @Override
+        protected boolean doEquals(TermsQueryBuilderBeforeV8 other) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+    }
 }

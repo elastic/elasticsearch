@@ -23,14 +23,13 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -43,15 +42,12 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
-import java.nio.CharBuffer;
-import java.util.AbstractList;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -63,9 +59,31 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
 
     private final String fieldName;
-    private final List<?> values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
+
+    /**
+     * Store terms as a {@link BytesRef}.
+     * <p>
+     * When users send a query contain a lot of terms, A {@link BytesRef} can help
+     * gc and reduce the cost of {@link #doWriteTo}, which can be quite slow for many
+     * terms.
+     */
+    private final BytesRef valueRef;
+
+    /**
+     * This is for lower version requests compatible.
+     * <p>
+     * If we do not keep this, it could be expensive when receiving a request from
+     * lower version.
+     * We have to read the value list by {@link StreamInput#readGenericValue},
+     * serialize it into {@link #valueRef}, and then deserialize it again when
+     * {@link #doToQuery} called}.
+     * <p>
+     * ToDo: remove in 9.0.0
+     */
+    private final List<?> values;
+    private final boolean stale; //indicate if this comes from a lower version
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
         this(fieldName, null, termsLookup);
@@ -73,8 +91,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     /**
      * constructor used internally for serialization of both value / termslookup variants
+     *
      */
-    TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
+    private TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -85,9 +104,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = values == null ? null : convert(values);
+        //already converted in {@link fromXContent}
+        this.valueRef = serialize(values, false);
         this.termsLookup = termsLookup;
         this.supplier = null;
+        this.values = null;
+        this.stale = false;
     }
 
     /**
@@ -165,16 +187,35 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("No value specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = convert(values);
+        this.valueRef = serialize(values);
         this.termsLookup = null;
         this.supplier = null;
+        this.values = null;
+        this.stale = false;
+    }
+
+    public TermsQueryBuilder(String fieldName, BytesRef valueRef) {
+        if (Strings.isEmpty(fieldName)) {
+            throw new IllegalArgumentException("field name cannot be null.");
+        }
+        if (valueRef == null) {
+            throw new IllegalArgumentException("valueRef can not be null");
+        }
+        this.fieldName = fieldName;
+        this.valueRef = valueRef;
+        this.termsLookup = null;
+        this.supplier = null;
+        this.values = null;
+        this.stale = false;
     }
 
     private TermsQueryBuilder(String fieldName, Supplier<List<?>> supplier) {
         this.fieldName = fieldName;
-        this.values = null;
+        this.valueRef = null;
         this.termsLookup = null;
         this.supplier = supplier;
+        this.values = null;
+        this.stale = false;
     }
 
     /**
@@ -184,7 +225,15 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         super(in);
         fieldName = in.readString();
         termsLookup = in.readOptionalWriteable(TermsLookup::new);
-        values = (List<?>) in.readGenericValue();
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.valueRef = in.readBytesRef();
+            this.values = null;
+            this.stale = false;
+        } else {
+            this.values = (List<?>) in.readGenericValue();
+            this.valueRef = null;
+            this.stale = true;
+        }
         this.supplier = null;
     }
 
@@ -195,7 +244,22 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
-        out.writeGenericValue(values);
+        if (stale) {
+            out.writeGenericValue(this.values);
+        } else {
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeBytesRef(valueRef);
+            } else {
+                out.write(valueRef.bytes, valueRef.offset, valueRef.length);
+            }
+        }
+    }
+
+    /**
+     * package private for testing purpose
+     */
+    boolean isStale() {
+        return stale;
     }
 
     public String fieldName() {
@@ -203,22 +267,30 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     public List<Object> values() {
-        return convertBack(this.values);
+        return stale ? TermsSetQueryBuilder.convertBack(this.values) : deserialize(valueRef, true);
+    }
+
+    public BytesRef valueRef() {
+        return valueRef;
     }
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
     }
 
-    private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
-            Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
-    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
-            Arrays.asList(BytesRef.class, String.class));
+    private boolean noTerms() {
+        assert termsLookup == null && supplier == null : "terms not fetched, can not check terms number";
+        if (stale) {
+            return values == null || values.isEmpty();
+        } else {
+            return valueRef.length == 0;
+        }
+    }
 
     /**
-     * Same as {@link #convert(List)} but on an {@link Iterable}.
+     * Same as {@link #serialize(List, boolean)} but on an {@link Iterable} and always convert.
      */
-    private static List<?> convert(Iterable<?> values) {
+    private static BytesRef serialize(Iterable<?> values) {
         List<?> list;
         if (values instanceof List<?>) {
             list = (List<?>) values;
@@ -229,104 +301,47 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
             list = arrayList;
         }
-        return convert(list);
+        return serialize(list, true);
     }
 
     /**
-     * Convert the list in a way that optimizes storage in the case that all
-     * elements are either integers or {@link String}s/{@link BytesRef}/
-     * {@link CharBuffer}s. This is useful to help garbage collections for
-     * use-cases that involve sending very large terms queries to Elasticsearch.
-     * If the list does not only contain integers or {@link String}s, then a
-     * list is returned where all {@link String}/{@link CharBuffer}s have been
-     * replaced with {@link BytesRef}s.
+     * serialize a {@link List} to {@link BytesRef}
+     * @param list a {@link List} to serialize
+     * @return a {@link BytesRef} serialized from the list
      */
-    static List<?> convert(List<?> list) {
-        if (list.isEmpty()) {
+    private static BytesRef serialize(List<?> list, boolean convert) {
+        if (list == null || list.isEmpty()) {
+            return new BytesRef();
+        }
+        try (BytesStreamOutput output = new BytesStreamOutput()) {
+            if (convert) {
+                list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+            }
+            output.writeGenericValue(list);
+            return output.bytes().toBytesRef();
+        } catch (IOException e) {
+            throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
+        }
+    }
+
+    /**
+     * deserialize a {@link BytesRef} to a {@link List}
+     * @param bytesRef {@link BytesRef} to deserialize
+     * @param readable if the list element need to be readable
+     * @return a {@link List} deserialized
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Object> deserialize(BytesRef bytesRef, boolean readable) {
+        if (bytesRef.length == 0) {
             return Collections.emptyList();
         }
-
-        final boolean allNumbers = list.stream().allMatch(o -> o != null && INTEGER_TYPES.contains(o.getClass()));
-        if (allNumbers) {
-            final long[] elements = list.stream().mapToLong(o -> ((Number) o).longValue()).toArray();
-            return new AbstractList<Object>() {
-                @Override
-                public Object get(int index) {
-                    return elements[index];
-                }
-                @Override
-                public int size() {
-                    return elements.length;
-                }
-            };
+        List<Object> list;
+        try (StreamInput streamInput = StreamInput.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length)) {
+            list = (List<Object>) streamInput.readGenericValue();
+        } catch (IOException e) {
+            throw new UncheckedIOException("fail to deserialize TermsQueryBuilder", e);
         }
-
-        final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
-        if (allStrings) {
-            final BytesRefBuilder builder = new BytesRefBuilder();
-            try (BytesStreamOutput bytesOut = new BytesStreamOutput()) {
-                final int[] endOffsets = new int[list.size()];
-                int i = 0;
-                for (Object o : list) {
-                    BytesRef b;
-                    if (o instanceof BytesRef) {
-                        b = (BytesRef) o;
-                    } else if (o instanceof CharBuffer) {
-                        b = new BytesRef((CharBuffer) o);
-                    } else {
-                        builder.copyChars(o.toString());
-                        b = builder.get();
-                    }
-                    bytesOut.writeBytes(b.bytes, b.offset, b.length);
-                    if (i == 0) {
-                        endOffsets[0] = b.length;
-                    } else {
-                        endOffsets[i] = Math.addExact(endOffsets[i-1], b.length);
-                    }
-                    ++i;
-                }
-                final BytesReference bytes = bytesOut.bytes();
-                return new AbstractList<Object>() {
-                    @Override
-                    public Object get(int i) {
-                        final int startOffset = i == 0 ? 0 : endOffsets[i-1];
-                        final int endOffset = endOffsets[i];
-                        return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
-                    }
-                    @Override
-                    public int size() {
-                        return endOffsets.length;
-                    }
-                };
-            }
-        }
-
-        return list.stream().map(o -> o instanceof String ? new BytesRef(o.toString()) : o).collect(Collectors.toList());
-    }
-
-    /**
-     * Convert the internal {@link List} of values back to a user-friendly list.
-     * Integers are kept as-is since the terms query does not make any difference
-     * between {@link Integer}s and {@link Long}s, but {@link BytesRef}s are
-     * converted back to {@link String}s.
-     */
-    static List<Object> convertBack(List<?> list) {
-        return new AbstractList<Object>() {
-            @Override
-            public int size() {
-                return list.size();
-            }
-            @Override
-            public Object get(int index) {
-                Object o = list.get(index);
-                if (o instanceof BytesRef) {
-                    o = ((BytesRef) o).utf8ToString();
-                }
-                // we do not convert longs, all integer types are equivalent
-                // as far as this query is concerned
-                return o;
-            }
-        };
+        return readable ? TermsSetQueryBuilder.convertBack(list) : list;
     }
 
     @Override
@@ -337,7 +352,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             termsLookup.toXContent(builder, params);
             builder.endObject();
         } else {
-            builder.field(fieldName, convertBack(values));
+            builder.field(fieldName, values());
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -416,12 +431,14 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        if (termsLookup != null || supplier != null || values == null || values.isEmpty()) {
+        if (termsLookup != null || supplier != null || noTerms()) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }
         int maxTermsCount = context.getIndexSettings().getMaxTermsCount();
-        if (values.size() > maxTermsCount){
+        List<Object> values = stale ? (List<Object>) this.values : deserialize(valueRef, false);
+        if (values.size() > maxTermsCount) {
             throw new IllegalArgumentException(
                 "The number of terms ["  + values.size() +  "] used in the Terms Query request has exceeded " +
                     "the allowed maximum of [" + maxTermsCount + "]. " + "This maximum can be set by changing the [" +
@@ -449,18 +466,20 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, termsLookup, supplier);
+        return Objects.hash(fieldName, valueRef, termsLookup, supplier, values);
     }
 
     @Override
     protected boolean doEquals(TermsQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
-                Objects.equals(values, other.values) &&
-                Objects.equals(termsLookup, other.termsLookup) &&
-                Objects.equals(supplier, other.supplier);
+            Objects.equals(valueRef, other.valueRef) &&
+            Objects.equals(termsLookup, other.termsLookup) &&
+            Objects.equals(supplier, other.supplier) &&
+            Objects.equals(values, other.values);
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (supplier != null) {
             return supplier.get() == null ? this : new TermsQueryBuilder(this.fieldName, supplier.get());
@@ -473,8 +492,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             })));
             return new TermsQueryBuilder(this.fieldName, supplier::get);
         }
-
-        if (values == null || values.isEmpty()) {
+        if (noTerms()) {
             return new MatchNoneQueryBuilder();
         }
 
@@ -487,6 +505,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 // This logic is correct for all field types, but by only applying it to constant
                 // fields we also have the guarantee that it doesn't perform I/O, which is important
                 // since rewrites might happen on a network thread.
+                List<Object> values = stale ? (List<Object>) this.values : deserialize(valueRef, false);
                 Query query = fieldType.termsQuery(values, context);
                 if (query instanceof MatchAllDocsQuery) {
                     return new MatchAllQueryBuilder();

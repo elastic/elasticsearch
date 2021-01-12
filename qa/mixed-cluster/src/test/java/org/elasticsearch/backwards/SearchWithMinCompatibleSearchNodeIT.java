@@ -139,7 +139,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     private void assertWithBwcVersionCheck(CheckedRunnable<Exception> code, RestClient client, Request request) throws Exception {
-        if (bwcVersion.before(Version.V_7_12_0)) {
+        if (bwcVersion.before(Version.V_8_0_0)) {
             // min_compatible_shard_node support doesn't exist in older versions and there will be an "unrecognized parameter" exception
             ResponseException exception = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(),

@@ -55,51 +55,71 @@ import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTI
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CustomUnifiedHighlighterTests extends ESTestCase {
+
     private void assertHighlightOneDoc(String fieldName, String[] inputs, Analyzer analyzer, Query query,
                                        Locale locale, BreakIterator breakIterator,
                                        int noMatchSize, String[] expectedPassages) throws Exception {
-        Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
-        iwc.setMergePolicy(newTieredMergePolicy(random()));
-        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
-        FieldType ft = new FieldType(TextField.TYPE_STORED);
-        ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
-        ft.freeze();
-        Document doc = new Document();
-        for (String input : inputs) {
-            Field field = new Field(fieldName, "", ft);
-            field.setStringValue(input);
-            doc.add(field);
+
+        assertHighlightOneDoc(fieldName, inputs, analyzer, query, locale, breakIterator, noMatchSize, expectedPassages,
+                Integer.MAX_VALUE, false);
+    }
+
+    private void assertHighlightOneDoc(String fieldName, String[] inputs, Analyzer analyzer, Query query,
+                                       Locale locale, BreakIterator breakIterator,
+                                       int noMatchSize, String[] expectedPassages,
+                                       int maxAnalyzedOffset, boolean limitToMaxAnalyzedOffset) throws Exception {
+        Directory dir = null;
+        DirectoryReader reader = null;
+        try {
+            dir = newDirectory();
+            IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
+            iwc.setMergePolicy(newTieredMergePolicy(random()));
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+            FieldType ft = new FieldType(TextField.TYPE_STORED);
+            ft.setIndexOptions(IndexOptions.DOCS_AND_FREQS_AND_POSITIONS_AND_OFFSETS);
+            ft.freeze();
+            Document doc = new Document();
+            for (String input : inputs) {
+                Field field = new Field(fieldName, "", ft);
+                field.setStringValue(input);
+                doc.add(field);
+            }
+            iw.addDocument(doc);
+            reader = iw.getReader();
+            IndexSearcher searcher = newSearcher(reader);
+            iw.close();
+            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
+            assertThat(topDocs.totalHits.value, equalTo(1L));
+            String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
+            CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+                    searcher,
+                    analyzer,
+                    UnifiedHighlighter.OffsetSource.ANALYSIS,
+                    new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
+                    locale,
+                    breakIterator,
+                    "index",
+                    "text",
+                    query,
+                    noMatchSize,
+                    expectedPassages.length,
+                    name -> "text".equals(name),
+                    maxAnalyzedOffset,
+                    limitToMaxAnalyzedOffset
+            );
+            final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
+            assertEquals(snippets.length, expectedPassages.length);
+            for (int i = 0; i < snippets.length; i++) {
+                assertEquals(snippets[i].getText(), expectedPassages[i]);
+            }
+        } finally {
+            if (reader != null) {
+                reader.close();
+            }
+            if (dir != null) {
+                dir.close();
+            }
         }
-        iw.addDocument(doc);
-        DirectoryReader reader = iw.getReader();
-        IndexSearcher searcher = newSearcher(reader);
-        iw.close();
-        TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-        assertThat(topDocs.totalHits.value, equalTo(1L));
-        String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
-        CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-            searcher,
-            analyzer,
-            null,
-            new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
-            locale,
-            breakIterator,
-            "index",
-            "text",
-            query,
-            noMatchSize,
-            expectedPassages.length,
-            name -> "text".equals(name),
-            Integer.MAX_VALUE
-        );
-        final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-        assertEquals(snippets.length, expectedPassages.length);
-        for (int i = 0; i < snippets.length; i++) {
-            assertEquals(snippets[i].getText(), expectedPassages[i]);
-        }
-        reader.close();
-        dir.close();
     }
 
     public void testSimple() throws Exception {
@@ -266,4 +286,24 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, outputs);
     }
 
+    public void testExceedMaxAnalyzedOffset() throws Exception {
+        TermQuery query = new TermQuery(new Term("text", "max"));
+        Analyzer analyzer = CustomAnalyzer.builder()
+                .withTokenizer(EdgeNGramTokenizerFactory.class, "minGramSize", "1", "maxGramSize", "10")
+                .build();
+
+        assertHighlightOneDoc("text", new String[] {"short text"},
+                analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, false);
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> {
+            assertHighlightOneDoc("text", new String[] {"exceeds max analyzed offset"},
+                    analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, false);
+        });
+        assertEquals("The length of [text] field of [0] doc of [index] index has exceeded [10] - maximum allowed to be analyzed for "
+                + "highlighting. This maximum can be set by changing the [index.highlight.max_analyzed_offset] index level setting. "
+                + "For large texts, indexing with offsets or term vectors is recommended!", e.getMessage());
+
+        assertHighlightOneDoc("text", new String[] {"exceeds max analyzed offset"},
+                analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 1, new String[] {"exceeds"}, 10, true);
+    }
 }

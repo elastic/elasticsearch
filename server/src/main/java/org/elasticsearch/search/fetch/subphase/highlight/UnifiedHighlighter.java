@@ -18,6 +18,18 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+
+import java.io.IOException;
+import java.text.BreakIterator;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
@@ -40,18 +52,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
-
-import java.io.IOException;
-import java.text.BreakIterator;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class UnifiedHighlighter implements Highlighter {
     @Override
@@ -114,7 +114,9 @@ public class UnifiedHighlighter implements Highlighter {
             : HighlightUtils.Encoders.DEFAULT;
         int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER));
+        boolean limitToMaxAnalyzedOffset = fieldContext.field.fieldOptions().limitToMaxAnalyzedOffset();
+        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
+                limitToMaxAnalyzedOffset, maxAnalyzedOffset);
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -149,7 +151,8 @@ public class UnifiedHighlighter implements Highlighter {
             fieldContext.field.fieldOptions().noMatchSize(),
             higlighterNumberOfFragments,
             fieldMatcher(fieldContext),
-            maxAnalyzedOffset
+            maxAnalyzedOffset,
+            fieldContext.field.fieldOptions().limitToMaxAnalyzedOffset()
         );
     }
 
@@ -160,6 +163,13 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected Analyzer wrapAnalyzer(Analyzer analyzer) {
         return analyzer;
+    }
+
+    private Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
+        if (limitToMaxAnalyzedOffset) {
+            analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxOffset);
+        }
+        return wrapAnalyzer(analyzer);
     }
 
     protected List<Object> loadFieldValues(

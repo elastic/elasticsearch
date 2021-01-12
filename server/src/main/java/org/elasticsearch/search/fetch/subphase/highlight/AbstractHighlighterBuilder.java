@@ -74,6 +74,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     public static final ParseField OPTIONS_FIELD = new ParseField("options");
     public static final ParseField HIGHLIGHT_QUERY_FIELD = new ParseField("highlight_query");
     public static final ParseField MATCHED_FIELDS_FIELD = new ParseField("matched_fields");
+    public static final ParseField LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD = new ParseField("limit_to_max_analyzed_offset");
 
     protected String[] preTags;
 
@@ -111,6 +112,8 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected Boolean requireFieldMatch;
 
+    protected Boolean limitToMaxAnalyzedOffset;
+
     public AbstractHighlighterBuilder() {
     }
 
@@ -133,6 +136,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         phraseLimit = template.phraseLimit;
         options = template.options;
         requireFieldMatch = template.requireFieldMatch;
+        this.limitToMaxAnalyzedOffset = template.limitToMaxAnalyzedOffset;
     }
 
     /**
@@ -165,6 +169,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             options(in.readMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
+        limitToMaxAnalyzedOffset(in.readOptionalBoolean());
     }
 
     /**
@@ -206,6 +211,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
+        out.writeOptionalBoolean(limitToMaxAnalyzedOffset);
         doWriteTo(out);
     }
 
@@ -541,6 +547,23 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         return this.forceSource;
     }
 
+    /**
+     * Set to true to highlight up to the <code>max_analyzed_offset</code>
+     * and avoid exceptions if the field exceeds this limit.
+     */
+    @SuppressWarnings("unchecked")
+    public HB limitToMaxAnalyzedOffset(Boolean skipHighlighting) {
+        this.limitToMaxAnalyzedOffset = skipHighlighting;
+        return (HB) this;
+    }
+
+    /**
+     * @return the value set by {@link #limitToMaxAnalyzedOffset(Boolean)}
+     */
+    public Boolean limitToMaxAnalyzedOffset() {
+        return this.limitToMaxAnalyzedOffset;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -606,6 +629,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         if (phraseLimit != null) {
             builder.field(PHRASE_LIMIT_FIELD.getPreferredName(), phraseLimit);
         }
+        if (limitToMaxAnalyzedOffset != null) {
+            builder.field(LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.getPreferredName(), limitToMaxAnalyzedOffset);
+        }
     }
 
     static <HB extends AbstractHighlighterBuilder<HB>> BiFunction<XContentParser, HB, HB> setupParser(
@@ -626,6 +652,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         parser.declareInt(HB::noMatchSize, NO_MATCH_SIZE_FIELD);
         parser.declareBoolean(HB::forceSource, FORCE_SOURCE_FIELD);
         parser.declareInt(HB::phraseLimit, PHRASE_LIMIT_FIELD);
+        parser.declareBoolean(HB::limitToMaxAnalyzedOffset, LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD);
         parser.declareObject(HB::options, (XContentParser p, Void c) -> {
             try {
                 return p.map();
@@ -659,7 +686,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         return Objects.hash(getClass(), Arrays.hashCode(preTags), Arrays.hashCode(postTags), fragmentSize,
                 numOfFragments, highlighterType, fragmenter, highlightQuery, order, highlightFilter,
                 forceSource, boundaryScannerType, boundaryMaxScan, Arrays.hashCode(boundaryChars), boundaryScannerLocale,
-                noMatchSize, phraseLimit, options, requireFieldMatch, doHashCode());
+                noMatchSize, phraseLimit, options, requireFieldMatch, limitToMaxAnalyzedOffset, doHashCode());
     }
 
     /**
@@ -695,6 +722,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
                Objects.equals(phraseLimit, other.phraseLimit) &&
                Objects.equals(options, other.options) &&
                Objects.equals(requireFieldMatch, other.requireFieldMatch) &&
+               Objects.equals(limitToMaxAnalyzedOffset, other.limitToMaxAnalyzedOffset) &&
                doEquals(other);
     }
 

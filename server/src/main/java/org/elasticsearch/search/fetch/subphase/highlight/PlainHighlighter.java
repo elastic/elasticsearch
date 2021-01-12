@@ -100,8 +100,13 @@ public class PlainHighlighter implements Highlighter {
         int numberOfFragments = field.fieldOptions().numberOfFragments() == 0 ? 1 : field.fieldOptions().numberOfFragments();
         ArrayList<TextFragment> fragsList = new ArrayList<>();
         List<Object> textsToHighlight;
-        Analyzer analyzer = context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER);
         final int maxAnalyzedOffset = context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        boolean limitToMaxAnalyzedOffset = fieldContext.field.fieldOptions().limitToMaxAnalyzedOffset();
+        Analyzer analyzer = wrapAnalyzer(
+            context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER),
+            limitToMaxAnalyzedOffset,
+            maxAnalyzedOffset
+        );
 
         textsToHighlight
             = HighlightUtils.loadFieldValues(fieldType, context.getQueryShardContext(), hitContext, fieldContext.forceSource);
@@ -109,7 +114,7 @@ public class PlainHighlighter implements Highlighter {
         for (Object textToHighlight : textsToHighlight) {
             String text = convertFieldValue(fieldType, textToHighlight);
             int textLength = text.length();
-            if (textLength > maxAnalyzedOffset) {
+            if ((limitToMaxAnalyzedOffset == false) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
                     "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
                         "] doc of [" + context.getIndexName() + "] index " +
@@ -204,5 +209,12 @@ public class PlainHighlighter implements Highlighter {
             // We've exhausted the token stream so we should just highlight everything.
             return end;
         }
+    }
+
+    private Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
+        if (limitToMaxAnalyzedOffset) {
+            return new LimitTokenOffsetAnalyzer(analyzer, maxOffset);
+        }
+        return analyzer;
     }
 }

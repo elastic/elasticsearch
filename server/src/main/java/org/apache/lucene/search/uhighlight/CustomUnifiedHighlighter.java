@@ -65,6 +65,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
     private final int noMatchSize;
     private final FieldHighlighter fieldHighlighter;
     private final int maxAnalyzedOffset;
+    private final boolean limitToMaxAnalyzedOffset;
 
     /**
      * Creates a new instance of {@link CustomUnifiedHighlighter}
@@ -96,7 +97,8 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
                                     int noMatchSize,
                                     int maxPassages,
                                     Predicate<String> fieldMatcher,
-                                    int maxAnalyzedOffset) throws IOException {
+                                    int maxAnalyzedOffset,
+                                    boolean limitToMaxAnalyzedOffset) throws IOException {
         super(searcher, analyzer);
         this.offsetSource = offsetSource;
         this.breakIterator = breakIterator;
@@ -107,6 +109,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         this.noMatchSize = noMatchSize;
         this.setFieldMatcher(fieldMatcher);
         this.maxAnalyzedOffset = maxAnalyzedOffset;
+        this.limitToMaxAnalyzedOffset = limitToMaxAnalyzedOffset;
         fieldHighlighter = getFieldHighlighter(field, query, extractTerms(query), maxPassages);
     }
 
@@ -123,7 +126,7 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
             return null;
         }
         int fieldValueLength = fieldValue.length();
-        if ((offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset)) {
+        if (((limitToMaxAnalyzedOffset == false) && (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
                 "The length of ["
                     + field

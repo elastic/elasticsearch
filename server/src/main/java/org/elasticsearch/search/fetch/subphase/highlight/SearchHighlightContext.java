@@ -102,6 +102,8 @@ public class SearchHighlightContext {
 
         private Boolean requireFieldMatch;
 
+        private Boolean limitToMaxAnalyzedOffset;
+
         private String highlighterType;
 
         private Boolean forceSource;
@@ -160,6 +162,10 @@ public class SearchHighlightContext {
 
         public Boolean requireFieldMatch() {
             return requireFieldMatch;
+        }
+
+        public Boolean limitToMaxAnalyzedOffset() {
+            return limitToMaxAnalyzedOffset;
         }
 
         public String highlighterType() {
@@ -255,6 +261,11 @@ public class SearchHighlightContext {
                 return this;
             }
 
+            Builder limitToMaxAnalyzedOffset(boolean limitToMaxAnalyzedOffset) {
+                fieldOptions.limitToMaxAnalyzedOffset = limitToMaxAnalyzedOffset;
+                return this;
+            }
+
             Builder highlighterType(String type) {
                 fieldOptions.highlighterType = type;
                 return this;
@@ -343,6 +354,9 @@ public class SearchHighlightContext {
                 }
                 if (fieldOptions.requireFieldMatch == null) {
                     fieldOptions.requireFieldMatch = globalOptions.requireFieldMatch;
+                }
+                if (fieldOptions.limitToMaxAnalyzedOffset == null) {
+                    fieldOptions.limitToMaxAnalyzedOffset = globalOptions.limitToMaxAnalyzedOffset;
                 }
                 if (fieldOptions.boundaryScannerType == null) {
                     fieldOptions.boundaryScannerType = globalOptions.boundaryScannerType;

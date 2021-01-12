@@ -6,7 +6,7 @@ setup:
           body:
               settings:
                   number_of_shards: 1
-                  index.highlight.max_analyzed_offset: 10
+                  index.highlight.max_analyzed_offset: 20
               mappings:
                   properties:
                       field1:
@@ -37,6 +37,16 @@ setup:
           body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
 
+---
+"Unified highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset with limit_to_max_analyzed_offset=true should SUCCEED":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}, "limit_to_max_analyzed_offset": "true"}}
+  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
+
 
 ---
 "Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset should FAIL":
@@ -46,8 +56,18 @@ setup:
       search:
           rest_total_hits_as_int: true
           index: test1
-          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "unified", "fields" : {"field1" : {}}}}
+          body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Plain highlighter on a field WITHOUT OFFSETS exceeding index.highlight.max_analyzed_offset with limit_to_max_analyzed_offset=true should SUCCEED":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field1" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field1" : {}}, "limit_to_max_analyzed_offset": "true"}}
+  - match: {hits.hits.0.highlight.field1.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}
 
 
 ---
@@ -71,3 +91,13 @@ setup:
           index: test1
           body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}}}
   - match: { error.root_cause.0.type: "illegal_argument_exception" }
+
+---
+"Plain highlighter on a field WITH OFFSETS exceeding index.highlight.max_analyzed_offset with limit_to_max_analyzed_offset=true should SUCCEED":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test1
+        body: {"query" : {"match" : {"field2" : "fox"}}, "highlight" : {"type" : "plain", "fields" : {"field2" : {}}, "limit_to_max_analyzed_offset": "true"}}
+  - match: {hits.hits.0.highlight.field2.0: "The quick brown <em>fox</em> went to the forest and saw another fox."}

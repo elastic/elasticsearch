@@ -414,11 +414,16 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private IndexShard getShard(ShardSearchRequest request) {
-        if (request.readerId() != null) {
-            return findReaderContext(request.readerId(), request).indexShard();
-        } else {
-            return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
+        final ShardSearchContextId contextId = request.readerId();
+        if (contextId != null) {
+            if (sessionId.equals(contextId.getSessionId())) {
+                final ReaderContext readerContext = activeReaders.get(contextId.getId());
+                if (readerContext != null) {
+                    return readerContext.indexShard();
+                }
+            }
         }
+        return indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
     }
 
     private <T> void runAsync(Executor executor, CheckedSupplier<T, Exception> executable, ActionListener<T> listener) {
@@ -606,18 +611,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
-    private ReaderContext getReaderContext(ShardSearchContextId id) {
+    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
         if (id.getSessionId().isEmpty()) {
             throw new IllegalArgumentException("Session id must be specified");
         }
         if (sessionId.equals(id.getSessionId()) == false) {
             throw new SearchContextMissingException(id);
         }
-        return activeReaders.get(id.getId());
-    }
-
-    private ReaderContext findReaderContext(ShardSearchContextId id, TransportRequest request) throws SearchContextMissingException {
-        final ReaderContext reader = getReaderContext(id);
+        final ReaderContext reader = activeReaders.get(id.getId());
         if (reader == null) {
             throw new SearchContextMissingException(id);
         }
@@ -633,18 +634,32 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     final ReaderContext createOrGetReaderContext(ShardSearchRequest request, boolean keepStatesInContext) {
         if (request.readerId() != null) {
             assert keepStatesInContext == false;
-            return findReaderContext(request.readerId(), request);
+            try {
+                return findReaderContext(request.readerId(), request);
+            } catch (SearchContextMissingException e) {
+                final String searcherId = request.readerId().getSearcherId();
+                if (searcherId == null) {
+                    throw e;
+                }
+                final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+                final IndexShard shard = indexService.getShard(request.shardId().id());
+                final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
+                if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
+                    searcherSupplier.close();
+                    throw e;
+                }
+                return createAndPutReaderContext(request, indexService, shard, searcherSupplier, false);
+            }
+        } else {
+            final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+            final IndexShard shard = indexService.getShard(request.shardId().id());
+            final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
+            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepStatesInContext);
         }
-        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard shard = indexService.getShard(request.shardId().id());
-        Engine.SearcherSupplier reader = shard.acquireSearcherSupplier();
-        return createAndPutReaderContext(request, indexService, shard, reader, keepStatesInContext);
     }
 
     final ReaderContext createAndPutReaderContext(ShardSearchRequest request, IndexService indexService, IndexShard shard,
                                                   Engine.SearcherSupplier reader, boolean keepStatesInContext) {
-        assert request.readerId() == null;
-        assert request.keepAlive() == null;
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -706,7 +721,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             ReaderContext readerContext = null;
             try {
                 searcherSupplier = shard.acquireSearcherSupplier();
-                final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
+                final ShardSearchContextId id =
+                    new ShardSearchContextId(sessionId, idGenerator.incrementAndGet(), searcherSupplier.getSearcherId());
                 readerContext = new ReaderContext(id, indexService, shard, searcherSupplier, keepAlive.millis(), false);
                 final ReaderContext finalReaderContext = readerContext;
                 searcherSupplier = null; // transfer ownership to reader context
@@ -801,7 +817,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     public boolean freeReaderContext(ShardSearchContextId contextId) {
-        if (getReaderContext(contextId) != null) {
+        if (sessionId.equals(contextId.getSessionId())) {
             try (ReaderContext context = removeReaderContext(contextId.getId())) {
                 return context != null;
             }
@@ -1176,23 +1192,42 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private CanMatchResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
         assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
-        final ReaderContext readerContext = request.readerId() != null ? findReaderContext(request.readerId(), request) : null;
-        final Releasable markAsUsed = readerContext != null ? readerContext.markAsUsed(getKeepAlive(request)) : null;
-        try (markAsUsed) {
-            final IndexService indexService;
-            final Engine.Searcher canMatchSearcher;
+        Releasable releasable = null;
+        try {
+            IndexService indexService;
             final boolean hasRefreshPending;
-            if (readerContext != null) {
-                indexService = readerContext.indexService();
-                canMatchSearcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+            final Engine.Searcher canMatchSearcher;
+            if (request.readerId() != null) {
                 hasRefreshPending = false;
+                ReaderContext readerContext;
+                Engine.Searcher searcher;
+                try {
+                    readerContext = findReaderContext(request.readerId(), request);
+                    releasable = readerContext.markAsUsed(getKeepAlive(request));
+                    indexService = readerContext.indexService();
+                    searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                } catch (SearchContextMissingException e) {
+                    final String searcherId = request.readerId().getSearcherId();
+                    if (searcherId == null) {
+                        throw e;
+                    }
+                    indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+                    IndexShard indexShard = indexService.getShard(request.shardId().getId());
+                    final Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier();
+                    if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
+                        searcherSupplier.close();
+                        throw e;
+                    }
+                    releasable = searcherSupplier;
+                    searcher = searcherSupplier.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                }
+                canMatchSearcher = searcher;
             } else {
                 indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
                 IndexShard indexShard = indexService.getShard(request.shardId().getId());
                 hasRefreshPending = indexShard.hasRefreshPending() && checkRefreshPending;
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
-
             try (canMatchSearcher) {
                 QueryShardContext context = indexService.newQueryShardContext(request.shardId().id(), 0,
                     canMatchSearcher, request::nowInMillis, request.getClusterAlias(), request.getRuntimeMappings());
@@ -1206,6 +1241,8 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
+        } finally {
+            Releasables.close(releasable);
         }
     }
 

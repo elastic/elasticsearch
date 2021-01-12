@@ -55,7 +55,7 @@ The following `count` API request retrieves the document count for the
 
 [source,console,id=cat-count-individual-example]
 --------------------------------------------------
-GET /_cat/count/my-index-000001?v
+GET /_cat/count/my-index-000001?v=true
 --------------------------------------------------
 // TEST[setup:my_index_big]
 
@@ -77,7 +77,7 @@ streams and indices in the cluster.
 
 [source,console,id=cat-count-all-example]
 --------------------------------------------------
-GET /_cat/count?v
+GET /_cat/count?v=true
 --------------------------------------------------
 // TEST[setup:my_index_big]
 // TEST[s/^/POST test\/_doc\?refresh\n{"test": "test"}\n/]

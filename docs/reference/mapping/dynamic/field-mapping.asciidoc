@@ -2,36 +2,45 @@
 === Dynamic field mapping
 
 When {es} detects a new field in a document, it _dynamically_ adds the field to
-the type mapping. The <<dynamic,`dynamic`>> parameter controls this behavior.
+the type mapping by default. The <<dynamic,`dynamic`>> parameter controls this behavior.
+
+You can explicitly instruct {es} to dynamically create fields based on incoming
+documents by setting the `dynamic` parameter to `true` or `runtime`. When
+dynamic field mapping is enabled, {es} uses the rules in the following table to
+determine how to map data types for each field.
+
+NOTE: The field data types in the following table are the only
+<<mapping-types,field data types>> that {es} detects dynamically. You must
+explicitly map all other data types.
+
+[[dynamic-field-mapping-types]]
+[cols="3"]
+|===
+h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
+ |`null` 2*| No field added
+ |`true` or `false` 2*| `boolean`
+ |`double` | `float` | `double`
+ |`integer` 2*| `long`
+ |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
+ |`array` 2*|  Depends on the first non-`null` value in the array
+ |`string` that passes <<date-detection,date detection>> 2*| `date`
+ |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
+ |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
+3+| [[dynamic-object-footnote]] ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+|===
 
 You can disable dynamic mapping, both at the document and at the
 <<object,`object`>> level. Setting the `dynamic` parameter to
 `false` ignores new fields, and `strict` rejects the document if {es}
 encounters an unknown field.
 
-When dynamic field mapping is enabled, {es} uses the following rules to
-determine how to map data types for each field.
+TIP: Use the <<indices-put-mapping,PUT mapping API>> to update the `dynamic`
+setting on existing fields.
 
-NOTE: These are the only <<mapping-types,field data types>> that {es} detects
-dynamically. All other data types must be mapped explicitly.
-
-[cols="3"]
-|===
-h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
- |`null` 2*| No field added
- |`true` or `false` 2*| `boolean`
- |floating point number | `float` | `double`
- |`integer` 2*| `long`
- |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
- |`array` 2*|  Depends on the first non-`null` value in the array
- |`string` that passes <<date-detection,date detection>> 2*| `date`
- |`string` that passes <<numeric-detection,numeric detection>> | `double` or `long` | `double`
- |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+| [[dynamic-object-footnote]] ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
-|===
-
-Besides the following options, you can customize dynamic field mapping rules
-with <<dynamic-templates,`dynamic_templates`>>.
+You can customize dynamic field mapping rules for
+<<date-detection,date detection>> and <<numeric-detection,numeric detection>>.
+To define custom mappings rules that you can apply to additional dynamic
+fields, use <<dynamic-templates,`dynamic_templates`>>.
 
 [[date-detection]]
 ==== Date detection
@@ -83,9 +92,9 @@ PUT my-index-000001/_doc/1 <1>
 
 <1> The `create_date` field has been added as a <<text,`text`>> field.
 
-===== Customising detected date formats
+===== Customizing detected date formats
 
-Alternatively, the `dynamic_date_formats` can be customised to support your
+Alternatively, the `dynamic_date_formats` can be customized to support your
 own <<mapping-date-format,date formats>>:
 
 [source,console]

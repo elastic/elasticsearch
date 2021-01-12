@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
@@ -187,12 +188,7 @@ public final class Verifier {
             // collect Attribute sources
             // only Aliases are interesting since these are the only ones that hide expressions
             // FieldAttribute for example are self replicating.
-            plan.forEachExpressionUp(e -> {
-                if (e instanceof Alias) {
-                    Alias a = (Alias) e;
-                    collectRefs.put(a.toAttribute(), a.child());
-                }
-            });
+            plan.forEachExpressionUp(Alias.class, a -> collectRefs.put(a.toAttribute(), a.child()));
 
             AttributeMap<Expression> attributeRefs = collectRefs.build();
 
@@ -692,12 +688,11 @@ public final class Verifier {
 
     private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
         // Make sure that SCORE is only used in "top level" functions
-        p.forEachExpression(e ->
-            e.forEachUp(Function.class, (Function f) ->
-                f.arguments().stream()
-                    .filter(exp -> exp.anyMatch(Score.class::isInstance))
-                    .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function")))
-            ));
+        p.forEachExpression(Function.class, f ->
+            f.arguments().stream()
+                .filter(exp -> exp.anyMatch(Score.class::isInstance))
+                .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function")))
+        );
     }
 
     private static void checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(LogicalPlan p, Set<Failure> localFailures,
@@ -858,20 +853,15 @@ public final class Verifier {
     private static void checkMatrixStats(LogicalPlan p, Set<Failure> localFailures) {
         // MatrixStats aggregate functions cannot operates on scalars
         // https://github.com/elastic/elasticsearch/issues/55344
-        p.forEachExpression(e -> e.forEachUp(Kurtosis.class, (Kurtosis s) -> {
-            if (s.field() instanceof Function) {
+        p.forEachExpressionUp(NumericAggregate.class, s -> {
+            if ((s instanceof Kurtosis || s instanceof Skewness) && s.field() instanceof Function) {
                 localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
             }
-        }));
-        p.forEachExpression(e -> e.forEachUp(Skewness.class, (Skewness s) -> {
-            if (s.field() instanceof Function) {
-                localFailures.add(fail(s.field(), "[{}()] cannot be used on top of operators or scalars", s.functionName()));
-            }
-        }));
+        });
     }
 
     private static void checkCastOnInexact(LogicalPlan p, Set<Failure> localFailures) {
-        p.forEachDown(Filter.class, f -> f.forEachExpressionUp(e -> e.forEachUp(Cast.class, (Cast c) -> {
+        p.forEachDown(Filter.class, f -> f.forEachExpressionUp(Cast.class, c -> {
             if (c.field() instanceof FieldAttribute) {
                 EsField.Exact exactInfo = ((FieldAttribute) c.field()).getExactInfo();
                 if (exactInfo.hasExact() == false
@@ -880,8 +870,7 @@ public final class Verifier {
                         "[{}] of data type [{}] cannot be used for [{}()] inside the WHERE clause",
                         c.field().sourceText(), c.field().dataType().typeName(), c.functionName()));
                 }
-
             }
-        })));
+        }));
     }
 }

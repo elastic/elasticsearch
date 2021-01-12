@@ -220,16 +220,11 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(randomIndex.charAt(0) + "*"),
-            null,
-            List.of(),
-            null,
-            null,
-            Map.of(),
-            null,
-            null
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+            .componentTemplates(List.of())
+            .metadata(Map.of())
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -246,16 +241,11 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testCanHandleNullAutoCreateSettingInTemplate() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(randomIndex.charAt(0) + "*"),
-            null,
-            List.of(),
-            null,
-            null,
-            Map.of(),
-            null,
-            null
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+            .componentTemplates(List.of())
+            .metadata(Map.of())
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -273,16 +263,12 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(randomIndex.charAt(0) + "*"),
-            null,
-            List.of(),
-            null,
-            null,
-            Map.of(),
-            null,
-            false
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+           .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+           .componentTemplates(List.of())
+           .metadata(Map.of())
+           .allowAutoCreate(false)
+           .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -300,16 +286,12 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testEnabledAutoCreateTemplateSettingDoesOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(randomIndex.charAt(0) + "*"),
-            null,
-            List.of(),
-            null,
-            null,
-            Map.of(),
-            null,
-            true
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(List.of(randomIndex.charAt(0) + "*"))
+            .componentTemplates(List.of())
+            .metadata(Map.of())
+            .allowAutoCreate(true)
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(Map.of("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();

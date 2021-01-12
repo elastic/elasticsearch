@@ -7,7 +7,7 @@
 
 Converts an <<indices-aliases,index alias>> to a <<data-streams,data stream>>.
 
-Data streams require a matching <<indices-templates,index template>>.
+Data streams require a matching <<index-templates,index template>>.
 See <<set-up-a-data-stream>>.
 
 ////

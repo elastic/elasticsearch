@@ -21,6 +21,7 @@ package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.highlight.SimpleFragmenter;
 import org.apache.lucene.search.highlight.SimpleSpanFragmenter;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
@@ -169,7 +170,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             options(in.readMap());
         }
         requireFieldMatch(in.readOptionalBoolean());
-        limitToMaxAnalyzedOffset(in.readOptionalBoolean());
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
+            limitToMaxAnalyzedOffset(in.readOptionalBoolean());
+        }
     }
 
     /**
@@ -211,7 +214,9 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             out.writeMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
-        out.writeOptionalBoolean(limitToMaxAnalyzedOffset);
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
+            out.writeOptionalBoolean(limitToMaxAnalyzedOffset);
+        }
         doWriteTo(out);
     }
 

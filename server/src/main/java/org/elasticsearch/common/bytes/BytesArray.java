@@ -21,6 +21,7 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FutureArrays;
+import org.apache.lucene.util.FutureObjects;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
@@ -90,10 +91,10 @@ public final class BytesArray extends AbstractBytesReference {
 
     @Override
     public BytesReference slice(int from, int length) {
-        if (from < 0 || (from + length) > this.length) {
-            throw new IllegalArgumentException("can't slice a buffer with length [" + this.length +
-                "], with slice parameters from [" + from + "], length [" + length + "]");
+        if (from == 0 && this.length == length) {
+            return this;
         }
+        FutureObjects.checkFromIndexSize(from, length, this.length);
         return new BytesArray(bytes, offset + from, length);
     }
 

@@ -91,7 +91,7 @@ public class AutodetectBuilderTests extends ESTestCase {
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
 
-        assertEquals(isPerPartitionCategorization ? 12 : 11, command.size());
+        assertEquals(3, command.size());
     }
 
     private AutodetectBuilder autodetectBuilder(Job job) {
@@ -103,7 +103,7 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         autodetectBuilder(job.build()).build();
 
-        assertThat(filesToDelete, hasSize(3));
+        assertThat(filesToDelete, hasSize(1));
 
         verify(nativeController).startProcess(commandCaptor.capture());
         verifyNoMoreInteractions(nativeController);

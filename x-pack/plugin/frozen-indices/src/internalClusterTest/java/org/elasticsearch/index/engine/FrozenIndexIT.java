@@ -184,6 +184,7 @@ public class FrozenIndexIT extends ESIntegTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67307")
     public void testRetryPointInTime() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(1);
         final List<String> dataNodes =

@@ -158,7 +158,7 @@ thread pool.
 
 [source,console]
 --------------------------------------------------
-GET /_cat/thread_pool/generic?v&h=id,name,active,rejected,completed
+GET /_cat/thread_pool/generic?v=true&h=id,name,active,rejected,completed
 --------------------------------------------------
 
 The API returns the following response:

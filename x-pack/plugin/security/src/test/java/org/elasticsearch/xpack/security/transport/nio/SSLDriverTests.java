@@ -12,7 +12,6 @@ import org.elasticsearch.nio.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.PemUtils;
-import org.junit.Before;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
@@ -23,8 +22,6 @@ import java.io.IOException;
 import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Collections;

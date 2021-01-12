@@ -189,6 +189,11 @@ POST _transform/_preview
       }
     },
     "aggregations": { <3>
+      "all": {
+        "value_count": {
+          "field": "response.keyword"
+        }
+      },
       "200": {
         "filter": {
           "term": {
@@ -227,9 +232,9 @@ documents, then iterates through the values. If an `agent` field contains
 contains "Firefox". Finally, in every other case, the value of the field is 
 returned.
 <3> The aggregations object contains filters that narrow down the results to 
-documents that contains `200`, `404`, or `503` values in the `response` field.
+documents that contains `200`, `404`, or `503` values in the `response` field 
+and an aggregation that counts responses for each agent.
 <4> Specifies the destination index of the {transform}.
-
 
 The API returns the following result:
 
@@ -238,39 +243,61 @@ The API returns the following result:
 {
   "preview" : [
     {
+      "all" : 4010,
+      "agent" : "explorer",
+      "200" : 3674,
+      "404" : 210,
+      "503" : 126
+    },
+    {
+      "all" : 5362,
       "agent" : "firefox",
       "200" : 4931,
       "404" : 259,
       "503" : 172
     },
     {
-      "agent" : "internet explorer",
-      "200" : 3674,
-      "404" : 210,
-      "503" : 126
-    },
-    {
+      "all" : 4702,
       "agent" : "safari",
       "200" : 4227,
       "404" : 332,
       "503" : 143
     }
   ],
-  "mappings" : {
-    "properties" : {
-      "200" : {
-        "type" : "long"
+  "generated_dest_index" : {
+    "mappings" : {
+      "_meta" : {
+        "_transform" : {
+          "transform" : "transform-preview",
+          "version" : {
+            "created" : "7.9.3"
+          },
+          "creation_date_in_millis" : 1610454866455
+        },
+        "created_by" : "transform"
       },
-      "agent" : {
-        "type" : "keyword"
-      },
-      "404" : {
-        "type" : "long"
-      },
-      "503" : {
-        "type" : "long"
+      "properties" : {
+        "all" : {
+          "type" : "long"
+        },
+        "200" : {
+          "type" : "long"
+        },
+        "404" : {
+          "type" : "long"
+        },
+        "503" : {
+          "type" : "long"
+        }
       }
-    }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "auto_expand_replicas" : "0-1"
+      }
+    },
+    "aliases" : { }
   }
 }
 --------------------------------------------------

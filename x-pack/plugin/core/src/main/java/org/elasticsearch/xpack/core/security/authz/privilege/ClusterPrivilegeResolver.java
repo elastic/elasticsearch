@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.ingest.GetPipelineAction;
 import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetStatusAction;
 import org.elasticsearch.xpack.core.ilm.action.StartILMAction;
@@ -28,16 +29,21 @@ import org.elasticsearch.xpack.core.security.action.saml.SamlSpMetadataAction;
 import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
 import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleAction;
 
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.function.Function;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Translates cluster privilege names into concrete implementations
@@ -140,7 +146,7 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE_LOGSTASH_PIPELINES = new ActionClusterPrivilege("manage_logstash_pipelines",
         Set.of("cluster:admin/logstash/pipeline/*"));
 
-    private static final Map<String, NamedClusterPrivilege> VALUES = Stream.of(
+    private static final Map<String, NamedClusterPrivilege> VALUES = sortByAccessLevel(List.of(
         NONE,
         ALL,
         MONITOR,
@@ -178,7 +184,7 @@ public class ClusterPrivilegeResolver {
         DELEGATE_PKI,
         MANAGE_OWN_API_KEY,
         MANAGE_ENRICH,
-        MANAGE_LOGSTASH_PIPELINES).collect(Collectors.toUnmodifiableMap(NamedClusterPrivilege::name, Function.identity()));
+        MANAGE_LOGSTASH_PIPELINES));
 
     /**
      * Resolves a {@link NamedClusterPrivilege} from a given name if it exists.
@@ -217,6 +223,38 @@ public class ClusterPrivilegeResolver {
 
     private static String actionToPattern(String text) {
         return text + "*";
+    }
+
+    /**
+     * Returns the names of privileges that grant the specified action and request, for the given authentication context.
+     * @return A collection of names, ordered (to the extent possible) from least privileged (e.g. {@link #MONITOR})
+     * to most privileged (e.g. {@link #ALL})
+     * @see #sortByAccessLevel(Collection)
+     * @see org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission#check(String, TransportRequest, Authentication)
+     */
+    public static Collection<String> findPrivilegesThatGrant(String action, TransportRequest request, Authentication authentication) {
+        return VALUES.entrySet().stream()
+            .filter(e -> e.getValue().permission().check(action, request, authentication))
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toUnmodifiableList());
+    }
+
+    /**
+     * Sorts the collection of privileges from least-privilege to most-privilege (to the extent possible),
+     * returning them in a sorted map keyed by name.
+     */
+    static SortedMap<String, NamedClusterPrivilege> sortByAccessLevel(Collection<NamedClusterPrivilege> privileges) {
+        // How many other privileges does this privilege imply. Those with a higher count are considered to be a higher privilege
+        final Map<String, Long> impliesCount = new HashMap<>(privileges.size());
+        privileges.forEach(priv -> impliesCount.put(priv.name(),
+            privileges.stream().filter(p2 -> p2 != priv && priv.permission().implies(p2.permission())).count())
+        );
+
+        final Comparator<String> compare = Comparator.<String>comparingLong(key -> impliesCount.getOrDefault(key, 0L))
+            .thenComparing(Comparator.naturalOrder());
+        final TreeMap<String, NamedClusterPrivilege> tree = new TreeMap<>(compare);
+        privileges.forEach(p -> tree.put(p.name(), p));
+        return Collections.unmodifiableSortedMap(tree);
     }
 
 }

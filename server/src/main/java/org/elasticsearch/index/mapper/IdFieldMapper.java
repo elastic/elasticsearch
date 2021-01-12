@@ -158,7 +158,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 TextFieldMapper.Defaults.FIELDDATA_MIN_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MAX_FREQUENCY,
                 TextFieldMapper.Defaults.FIELDDATA_MIN_SEGMENT_SIZE,
-                CoreValuesSourceType.BYTES);
+                CoreValuesSourceType.KEYWORD);
             return new IndexFieldData.Builder() {
                 @Override
                 public IndexFieldData<?> build(

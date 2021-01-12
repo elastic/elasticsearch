@@ -79,6 +79,7 @@ tasks.register("integTest", Test) {
   outputs.doNotCacheIf('Build cache is disabled for Docker tests') { true }
   maxParallelForks = '1'
   include '**/*IT.class'
+  systemProperty 'tests.security.manager', 'false'
 }
 
 tasks.named("check").configure {

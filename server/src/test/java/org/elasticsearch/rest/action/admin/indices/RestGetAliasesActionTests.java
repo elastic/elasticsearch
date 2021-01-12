@@ -54,7 +54,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(false, new String[0], openMapBuilder.build(),
                 xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foo\":{},\"foobar\":{}}}}"));
     }
 
@@ -64,7 +64,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "baz*" }, openMapBuilder.build(),
                 xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 
@@ -76,7 +76,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "baz*", "foobar*" },
                 openMapBuilder.build(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foobar\":{}}}}"));
     }
 
@@ -86,7 +86,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "foob*", "-foo*" },
                 openMapBuilder.build(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 
@@ -98,7 +98,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "foo*", "-foob*" },
                 openMapBuilder.build(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{\"index\":{\"aliases\":{\"foo\":{}}}}"));
     }
 
@@ -117,7 +117,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, aliasPattern, openMapBuilder.build(),
                 xContentBuilder);
         assertThat(restResponse.status(), equalTo(NOT_FOUND));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(),
                 equalTo("{\"error\":\"alias [missing] missing\",\"status\":404,\"index\":{\"aliases\":{\"foo\":{}}}}"));
     }
@@ -128,7 +128,7 @@ public class RestGetAliasesActionTests extends ESTestCase {
         final RestResponse restResponse = RestGetAliasesAction.buildRestResponse(true, new String[] { "foo", "foofoo", "-foo*" },
                 openMapBuilder.build(), xContentBuilder);
         assertThat(restResponse.status(), equalTo(OK));
-        assertThat(restResponse.contentType(), equalTo("application/json; charset=UTF-8"));
+        assertThat(restResponse.contentType(), equalTo("application/json;charset=utf-8"));
         assertThat(restResponse.content().utf8ToString(), equalTo("{}"));
     }
 }

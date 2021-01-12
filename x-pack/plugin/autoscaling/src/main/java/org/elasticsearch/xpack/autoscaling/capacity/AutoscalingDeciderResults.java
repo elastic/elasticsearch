@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.autoscaling.capacity;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -138,5 +139,10 @@ public class AutoscalingDeciderResults implements ToXContent, Writeable {
     @Override
     public int hashCode() {
         return Objects.hash(currentCapacity, results);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

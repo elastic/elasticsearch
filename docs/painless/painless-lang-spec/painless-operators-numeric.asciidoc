@@ -268,7 +268,7 @@ decrement.
 
 [source,ANTLR4]
 ----
-pre_increment: '--' ( variable | field );
+pre_decrement: '--' ( variable | field );
 ----
 
 *Promotion*

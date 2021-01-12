@@ -42,8 +42,8 @@ snippets in lower case.
 ====
 *Details* +
 Transforms now write dates used in a `group_by` as formatted ISO strings instead
-of `epoch_millis`. Previously constructed transforms will still use
-`epoch_millis`. You can configure and change the output format in the settings
-of the transform.
+of `epoch_millis` values. Previously constructed transforms will still use
+`epoch_millis` values. You can configure and change the output format in the
+settings of the transform.
 ====
 //end::notable-breaking-changes[]

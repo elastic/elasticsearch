@@ -170,7 +170,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/transforms?v&format=json
+GET /_cat/transforms?v=true&format=json
 --------------------------------------------------
 // TEST[skip:kibana sample data]
 

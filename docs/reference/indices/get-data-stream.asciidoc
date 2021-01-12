@@ -88,7 +88,7 @@ returned.
 [[get-data-stream-api-query-parms]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
 +
 Defaults to `open`.
 

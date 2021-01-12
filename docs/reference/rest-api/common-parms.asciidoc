@@ -205,6 +205,33 @@ Enrich policy name
 used to limit the request.
 end::enrich-policy[]
 
+tag::ds-expand-wildcards[]
+`expand_wildcards`::
++
+--
+(Optional, string)
+Type of index that wildcard expressions can match. If the request can target
+data streams, this argument determines whether wildcard expressions match
+hidden data streams. Supports comma-separated values, such as `open,hidden`.
+Valid values are:
+
+`all`::
+Match any data stream, including <<hidden-indices,hidden>> ones.
+
+`open`::
+Matches any non-hidden data streams.
+
+`closed`::
+Matches any non-hidden data streams. Data streams cannot be closed.
+
+`hidden`::
+Match hidden and non-hidden data streams.
+
+`none`::
+Wildcard expressions are not accepted.
+--
+end::ds-expand-wildcards[]
+
 tag::expand-wildcards[]
 `expand_wildcards`::
 +
@@ -219,10 +246,11 @@ Valid values are:
 Match any data stream or index, including <<hidden-indices,hidden>> ones.
 
 `open`::
-Match non-hidden data streams and open, non-hidden indices.
+Match open, non-hidden indices. Also matches any non-hidden data stream.
 
 `closed`::
-Match closed indices.
+Match closed, non-hidden indices. Also matches any non-hidden data stream. Data
+streams cannot be closed.
 
 `hidden`::
 Match hidden data streams and hidden indices. Must be combined with `open`,

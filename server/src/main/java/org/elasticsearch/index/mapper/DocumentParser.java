@@ -58,18 +58,25 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source,
-                                 MetadataFieldMapper[] metadataFieldsMappers,
-                                 DocumentMapper docMapper) throws MapperParsingException {
+                                 MappingLookup mappingLookup) throws MapperParsingException {
+        return parseDocument(source, mappingLookup.getMapping().metadataMappers, mappingLookup);
+    }
 
-        final Mapping mapping = docMapper.mapping();
+    ParsedDocument parseDocument(SourceToParse source,
+                                 MetadataFieldMapper[] metadataFieldsMappers,
+                                 MappingLookup mappingLookup) throws MapperParsingException {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
-
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(docMapper, dateParserContext, dynamicRuntimeFieldsBuilder, source, parser);
+            context = new ParseContext.InternalParseContext(
+                mappingLookup,
+                dateParserContext,
+                dynamicRuntimeFieldsBuilder,
+                source,
+                parser);
             validateStart(parser);
-            internalParseDocument(mapping, metadataFieldsMappers, context, parser);
+            internalParseDocument(mappingLookup.getMapping().root(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -81,7 +88,7 @@ final class DocumentParser {
 
         context.postParse();
 
-        return parsedDocument(source, context, createDynamicUpdate(mapping, docMapper.mappers(),
+        return parsedDocument(source, context, createDynamicUpdate(mappingLookup,
             context.getDynamicMappers(), context.getDynamicRuntimeFields()));
     }
 
@@ -99,19 +106,19 @@ final class DocumentParser {
         return false;
     }
 
-    private static void internalParseDocument(Mapping mapping, MetadataFieldMapper[] metadataFieldsMappers,
+    private static void internalParseDocument(RootObjectMapper root, MetadataFieldMapper[] metadataFieldsMappers,
                                               ParseContext context, XContentParser parser) throws IOException {
-        final boolean emptyDoc = isEmptyDoc(mapping, parser);
+        final boolean emptyDoc = isEmptyDoc(root, parser);
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
             metadataMapper.preParse(context);
         }
 
-        if (mapping.root.isEnabled() == false) {
+        if (root.isEnabled() == false) {
             // entire type is disabled
             parser.skipChildren();
         } else if (emptyDoc == false) {
-            parseObjectOrNested(context, mapping.root);
+            parseObjectOrNested(context, root);
         }
 
         for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
@@ -137,8 +144,8 @@ final class DocumentParser {
         }
     }
 
-    private static boolean isEmptyDoc(Mapping mapping, XContentParser parser) throws IOException {
-        if (mapping.root.isEnabled()) {
+    private static boolean isEmptyDoc(RootObjectMapper root, XContentParser parser) throws IOException {
+        if (root.isEnabled()) {
             final XContentParser.Token token = parser.nextToken();
             if (token == XContentParser.Token.END_OBJECT) {
                 // empty doc, we can handle it...
@@ -150,7 +157,6 @@ final class DocumentParser {
         }
         return false;
     }
-
 
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
@@ -164,7 +170,6 @@ final class DocumentParser {
             update
         );
     }
-
 
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
         // if its already a mapper parsing exception, no need to wrap it...
@@ -204,8 +209,7 @@ final class DocumentParser {
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
-    static Mapping createDynamicUpdate(Mapping mapping,
-                                       MappingLookup mappingLookup,
+    static Mapping createDynamicUpdate(MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
                                        List<RuntimeFieldType> dynamicRuntimeFields) {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
@@ -213,16 +217,15 @@ final class DocumentParser {
         }
         RootObjectMapper root;
         if (dynamicMappers.isEmpty() == false) {
-            root = createDynamicUpdate(mapping.root, mappingLookup, dynamicMappers);
+            root = createDynamicUpdate(mappingLookup, dynamicMappers);
         } else {
-            root = mapping.root.copyAndReset();
+            root = mappingLookup.getMapping().root().copyAndReset();
         }
         root.addRuntimeFields(dynamicRuntimeFields);
-        return mapping.mappingUpdate(root);
+        return mappingLookup.getMapping().mappingUpdate(root);
     }
 
-    private static RootObjectMapper createDynamicUpdate(RootObjectMapper root,
-                                                        MappingLookup mappingLookup,
+    private static RootObjectMapper createDynamicUpdate(MappingLookup mappingLookup,
                                                         List<Mapper> dynamicMappers) {
 
         // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
@@ -232,7 +235,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(root, splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(mappingLookup.getMapping().root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -277,7 +280,6 @@ final class DocumentParser {
         assert parentMappers.size() == 1;
         return (RootObjectMapper)parentMappers.get(0);
     }
-
 
     private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
         assert keepBefore >= 1; // never remove the root mapper

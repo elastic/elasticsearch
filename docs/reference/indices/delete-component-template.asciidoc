@@ -37,7 +37,7 @@ DELETE _component_template/template_1
 ==== {api-description-title}
 
 Use the delete component template API to delete one or more component templates
-Component templates are building blocks for constructing <<indices-templates,index templates>>  
+Component templates are building blocks for constructing <<index-templates,index templates>>  
 that specify index mappings, settings, and aliases. 
 
 [[delete-component-template-api-path-params]]

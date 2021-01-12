@@ -189,7 +189,13 @@ public final class JobModelSnapshotUpgrader {
                     fieldIndexes.put(field, index++);
                 }
             }
-            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index);
+            // field for categorization tokens
+            if (MachineLearning.CATEGORIZATION_TOKENIZATION_IN_JAVA && job.getAnalysisConfig().getCategorizationFieldName() != null) {
+                fieldIndexes.put(LengthEncodedWriter.PRETOKENISED_TOKEN_FIELD, index++);
+            }
+
+            // control field
+            fieldIndexes.put(LengthEncodedWriter.CONTROL_FIELD_NAME, index++);
             return fieldIndexes;
         }
 

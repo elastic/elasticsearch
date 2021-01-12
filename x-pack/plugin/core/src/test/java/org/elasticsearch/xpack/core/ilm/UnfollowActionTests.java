@@ -47,7 +47,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
         StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
         StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
-        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowIndexStep.NAME);
+        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
         StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OpenFollowerIndexStep.NAME);
         StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexColorStep.NAME);
 
@@ -67,7 +67,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(fourthStep.getKey(), equalTo(expectedFourthStepKey));
         assertThat(fourthStep.getNextStepKey(), equalTo(expectedFifthStepKey));
 
-        UnfollowFollowIndexStep fifthStep = (UnfollowFollowIndexStep) steps.get(4);
+        UnfollowFollowerIndexStep fifthStep = (UnfollowFollowerIndexStep) steps.get(4);
         assertThat(fifthStep.getKey(), equalTo(expectedFifthStepKey));
         assertThat(fifthStep.getNextStepKey(), equalTo(expectedSixthStepKey));
 

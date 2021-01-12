@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -561,16 +562,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup = new MappingLookup(
-                "_doc",
+                Mapping.EMPTY,
                 List.of(mockedTimestampField, dateFieldMapper),
                 List.of(),
                 List.of(),
-                List.of(),
-                0,
                 null,
-                false
-            );
-
+                null,
+                null);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);

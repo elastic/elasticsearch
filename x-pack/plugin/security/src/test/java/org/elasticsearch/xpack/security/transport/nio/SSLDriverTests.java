@@ -155,6 +155,8 @@ public class SSLDriverTests extends ESTestCase {
     }
 
     public void testHandshakeFailureBecauseProtocolMismatch() throws Exception {
+        // See https://github.com/elastic/elasticsearch/issues/67324
+        assumeTrue("test fails on JDK 16 currently", JavaVersion.current().compareTo(JavaVersion.parse("16")) < 0);
         SSLContext sslContext = getSSLContext();
         SSLEngine clientEngine = sslContext.createSSLEngine();
         SSLEngine serverEngine = sslContext.createSSLEngine();

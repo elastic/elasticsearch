@@ -1,37 +1,34 @@
 [role="xpack"]
 [testenv="basic"]
-[[ml-find-file-structure]]
-= Find file structure API
+[[find-structure]]
+= Find structure API
 ++++
-<titleabbrev>Find file structure</titleabbrev>
+<titleabbrev>Find structure</titleabbrev>
 ++++
 
-deprecated::[7.12.0,Replaced by <<find-structure>>]
+Finds the structure of a text file. The text file must 
+contain data that is suitable to be ingested into the 
+{stack}.
 
-Finds the structure of a text file. The text file must contain data that is
-suitable to be ingested into {es}.
-
-
-[[ml-find-file-structure-request]]
+[discrete]
+[[find-structure-request]]
 == {api-request-title}
 
-`POST _ml/find_file_structure`
+`POST _text_structure/find_structure`
 
-
-[[ml-find-file-structure-prereqs]]
+////
+[[find-structure-prereqs]]
 == {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have `monitor_ml` or
-`monitor` cluster privileges to use this API. See
-<<security-privileges>> and
-{ml-docs-setup-privileges}.
+//TBD
+////
 
-
-[[ml-find-file-structure-desc]]
+[discrete]
+[[find-structure-desc]]
 == {api-description-title}
 
-This API provides a starting point for ingesting data into {es} in a format that
-is suitable for subsequent use with other {ml} functionality.
+This API provides a starting point for ingesting data into {es} in a format that 
+is suitable for subsequent use with other {stack} functionality.
 
 Unlike other {es} endpoints, the data that is posted to this endpoint does not
 need to be UTF-8 encoded and in JSON format. It must, however, be text; binary
@@ -41,92 +38,90 @@ The response from the API contains:
 
 * A couple of messages from the beginning of the file.
 * Statistics that reveal the most common values for all fields detected within
-  the file and basic numeric statistics for numeric fields.
+the file and basic numeric statistics for numeric fields.
 * Information about the structure of the file, which is useful when you write
-  ingest configurations to index the file contents.
+ingest configurations to index the file contents.
 * Appropriate mappings for an {es} index, which you could use to ingest the file
-  contents.
+contents.
 
 All this information can be calculated by the structure finder with no guidance.
 However, you can optionally override some of the decisions about the file
 structure by specifying one or more query parameters.
 
-Details of the output can be seen in the
-<<ml-find-file-structure-examples,examples>>.
+Details of the output can be seen in the <<find-structure-examples,examples>>.
 
 If the structure finder produces unexpected results for a particular file,
 specify the `explain` query parameter. It causes an `explanation` to appear in
 the response, which should help in determining why the returned structure was
 chosen.
 
-
-[[ml-find-file-structure-query-parms]]
+[discrete]
+[[find-structure-query-parms]]
 == {api-query-parms-title}
 
 `charset`::
-  (Optional, string) The file's character set. It must be a character set that
-  is supported by the JVM that {es} uses. For example, `UTF-8`, `UTF-16LE`,
-  `windows-1252`, or `EUC-JP`. If this parameter is not specified, the structure
-  finder chooses an appropriate character set.
+(Optional, string) The file's character set. It must be a character set that is 
+supported by the JVM that {es} uses. For example, `UTF-8`, `UTF-16LE`,
+`windows-1252`, or `EUC-JP`. If this parameter is not specified, the structure
+finder chooses an appropriate character set.
 
 `column_names`::
-  (Optional, string) If you have set `format` to `delimited`, you can specify
-  the column names in a comma-separated list. If this parameter is not specified,
-  the structure finder uses the column names from the header row of the file. If
-  the file does not have a header role, columns are named "column1", "column2",
-  "column3", etc.
+(Optional, string) If you have set `format` to `delimited`, you can specify the 
+column names in a comma-separated list. If this parameter is not specified, the 
+structure finder uses the column names from the header row of the file. If the 
+file does not have a header role, columns are named "column1", "column2",
+"column3", etc.
 
 `delimiter`::
-  (Optional, string) If you have set `format` to `delimited`, you can specify
-  the character used to delimit the values in each row. Only a single character
-  is supported; the delimiter cannot have multiple characters. By default, the
-  API considers the following possibilities: comma, tab, semi-colon, and pipe
-  (`|`). In this default scenario, all rows must have the same number of fields
-  for the delimited format to be detected. If you specify a delimiter, up to 10%
-  of the rows can have a different number of columns than the first row.
+(Optional, string) If you have set `format` to `delimited`, you can specify the 
+character used to delimit the values in each row. Only a single character is 
+supported; the delimiter cannot have multiple characters. By default, the API 
+considers the following possibilities: comma, tab, semi-colon, and pipe (`|`). 
+In this default scenario, all rows must have the same number of fields for the 
+delimited format to be detected. If you specify a delimiter, up to 10% of the 
+rows can have a different number of columns than the first row.
 
 `explain`::
-  (Optional, Boolean) If this parameter is set to `true`, the response includes
-  a field named `explanation`, which is an array of strings that indicate how
-  the structure finder produced its result. The default value is `false`.
+(Optional, Boolean) If this parameter is set to `true`, the response includes a 
+field named `explanation`, which is an array of strings that indicate how the 
+structure finder produced its result. The default value is `false`.
 
 `format`::
 (Optional, string) The high level structure of the file. Valid values are
-`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the
-API chooses the format. In this default scenario, all rows must
-have the same number of fields for a delimited format to be detected. If the
-`format` is set to `delimited` and the `delimiter` is not set, however, the
-API tolerates up to 5% of rows that have a different number of
-columns than the first row.
+`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the API 
+chooses the format. In this default scenario, all rows must have the same number 
+of fields for a delimited format to be detected. If the `format` is set to 
+`delimited` and the `delimiter` is not set, however, the API tolerates up to 5% 
+of rows that have a different number of columns than the first row.
 
 `grok_pattern`::
-  (Optional, string) If you have set `format` to `semi_structured_text`, you can
-  specify a Grok pattern that is used to extract fields from every message in
-  the file. The name of the timestamp field in the Grok pattern must match what
-  is specified in the `timestamp_field` parameter. If that parameter is not
-  specified, the name of the timestamp field in the Grok pattern must match
-  "timestamp". If `grok_pattern` is not specified, the structure finder creates
-  a Grok pattern.
+(Optional, string) If you have set `format` to `semi_structured_text`, you can
+specify a Grok pattern that is used to extract fields from every message in the 
+file. The name of the timestamp field in the Grok pattern must match what is 
+specified in the `timestamp_field` parameter. If that parameter is not 
+specified, the name of the timestamp field in the Grok pattern must match
+"timestamp". If `grok_pattern` is not specified, the structure finder creates a 
+Grok pattern.
 
 `has_header_row`::
-  (Optional, Boolean) If you have set `format` to `delimited`, you can use this
-  parameter to indicate whether the column names are in the first row of the
-  file. If this parameter is not specified, the structure finder guesses based
-  on the similarity of the first row of the file to other rows.
+(Optional, Boolean) If you have set `format` to `delimited`, you can use this
+parameter to indicate whether the column names are in the first row of the file. 
+If this parameter is not specified, the structure finder guesses based on the 
+similarity of the first row of the file to other rows.
 
 `line_merge_size_limit`::
-  (Optional, unsigned integer) The maximum number of characters in a message
-  when lines are merged to form messages while analyzing semi-structured files.
-  The default is `10000`. If you have extremely long messages you may need to
-  increase this, but be aware that this may lead to very long processing times
-  if the way to group lines into messages is misdetected.
+(Optional, unsigned integer) The maximum number of characters in a message when 
+lines are merged to form messages while analyzing semi-structured files. The 
+default is `10000`. If you have extremely long messages you may need to increase 
+this, but be aware that this may lead to very long processing times if the way 
+to group lines into messages is misdetected.
 
 `lines_to_sample`::
-  (Optional, unsigned integer) The number of lines to include in the structural
-  analysis, starting from the beginning of the file. The minimum is 2; the
-  default is `1000`. If the value of this parameter is greater than the number
-  of lines in the file, the analysis proceeds (as long as there are at least two
-  lines in the file) for all of the lines. +
+(Optional, unsigned integer) The number of lines to include in the structural
+analysis, starting from the beginning of the file. The minimum is 2; the default 
+is `1000`. If the value of this parameter is greater than the number of lines in 
+the file, the analysis proceeds (as long as there are at least two lines in the 
+file) for all of the lines.
 +
 --
 NOTE: The number of lines and the variation of the lines affects the speed of
@@ -135,31 +130,32 @@ are all variations on the same message, the analysis will find more commonality
 than would be seen with a bigger sample. If possible, however, it is more
 efficient to upload a sample file with more variety in the first 1000 lines than
 to request analysis of 100000 lines to achieve some variety.
+
 --
 
 `quote`::
-  (Optional, string) If you have set `format` to `delimited`, you can specify
-  the character used to quote the values in each row if they contain newlines or
-  the delimiter character. Only a single character is supported. If this
-  parameter is not specified, the default value is a double quote (`"`). If your
-  delimited file format does not use quoting, a workaround is to set this
-  argument to a character that does not appear anywhere in the sample.
+(Optional, string) If you have set `format` to `delimited`, you can specify the 
+character used to quote the values in each row if they contain newlines or the 
+delimiter character. Only a single character is supported. If this parameter is 
+not specified, the default value is a double quote (`"`). If your delimited file 
+format does not use quoting, a workaround is to set this argument to a character 
+that does not appear anywhere in the sample.
 
 `should_trim_fields`::
-  (Optional, Boolean) If you have set `format` to `delimited`, you can specify
-  whether values between delimiters should have whitespace trimmed from them. If
-  this parameter is not specified and the delimiter is pipe (`|`), the default
-  value is `true`. Otherwise, the default value is `false`.
+(Optional, Boolean) If you have set `format` to `delimited`, you can specify
+whether values between delimiters should have whitespace trimmed from them. If
+this parameter is not specified and the delimiter is pipe (`|`), the default
+value is `true`. Otherwise, the default value is `false`.
 
 `timeout`::
-  (Optional, <<time-units,time units>>) Sets the maximum amount of time that the
-  structure analysis make take. If the analysis is still running when the
-  timeout expires then it will be aborted. The default value is 25 seconds.
+(Optional, <<time-units,time units>>) Sets the maximum amount of time that the
+structure analysis make take. If the analysis is still running when the timeout 
+expires then it will be aborted. The default value is 25 seconds.
 
 `timestamp_field`::
-  (Optional, string) The name of the field that contains the primary timestamp
-  of each record in the file. In particular, if the file were ingested into an
-  index, this is the field that would be used to populate the `@timestamp` field.
+(Optional, string) The name of the field that contains the primary timestamp of 
+each record in the file. In particular, if the file were ingested into an index, 
+this is the field that would be used to populate the `@timestamp` field.
 +
 --
 If the `format` is `semi_structured_text`, this field must match the name of the
@@ -176,7 +172,7 @@ formats, it is not compulsory to have a timestamp in the file.
 --
 
 `timestamp_format`::
-  (Optional, string) The Java time format of the timestamp field in the file.
+(Optional, string) The Java time format of the timestamp field in the file.
 +
 --
 Only a subset of Java time format letter groups are supported:
@@ -204,8 +200,8 @@ Only a subset of Java time format letter groups are supported:
 Additionally `S` letter groups (fractional seconds) of length one to nine are
 supported providing they occur after `ss` and separated from the `ss` by a `.`,
 `,` or `:`. Spacing and punctuation is also permitted with the exception of `?`,
-newline and carriage return, together with literal text enclosed in single
-quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override
+newline and carriage return, together with literal text enclosed in single 
+quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override 
 format.
 
 One valuable use case for this parameter is when the format is semi-structured
@@ -233,7 +229,8 @@ for more information about date and time format syntax.
 
 --
 
-[[ml-find-file-structure-request-body]]
+[discrete]
+[[find-structure-request-body]]
 == {api-request-body-title}
 
 The text file that you want to analyze. It must contain data that is suitable to
@@ -241,18 +238,20 @@ be ingested into {es}. It does not need to be in JSON format and it does not
 need to be UTF-8 encoded. The size is limited to the {es} HTTP receive buffer
 size, which defaults to 100 Mb.
 
-[[ml-find-file-structure-examples]]
+[discrete]
+[[find-structure-examples]]
 == {api-examples-title}
 
-[[ml-find-file-structure-example-nld-json]]
+[discrete]
+[[find-structure-example-nld-json]]
 === Ingesting newline-delimited JSON
 
 Suppose you have a newline-delimited JSON file that contains information about
-some books. You can send the contents to the `find_file_structure` endpoint:
+some books. You can send the contents to the `find_structure` endpoint:
 
 [source,console]
 ----
-POST _ml/find_file_structure
+POST _text_structure/find_structure
 {"name": "Leviathan Wakes", "author": "James S.A. Corey", "release_date": "2011-06-02", "page_count": 561}
 {"name": "Hyperion", "author": "Dan Simmons", "release_date": "1989-05-26", "page_count": 482}
 {"name": "Dune", "author": "Frank Herbert", "release_date": "1965-06-01", "page_count": 604}
@@ -278,7 +277,7 @@ POST _ml/find_file_structure
 {"name": "The Left Hand of Darkness", "author": "Ursula K. Le Guin", "release_date": "1969-06-01", "page_count": 304}
 {"name": "The Moon is a Harsh Mistress", "author": "Robert A. Heinlein", "release_date": "1966-04-01", "page_count": 288}
 ----
-// TEST[warning:[POST /_ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure] instead.]
+// TEST
 
 If the request does not encounter errors, you receive the following result:
 
@@ -532,45 +531,45 @@ If the request does not encounter errors, you receive the following result:
 // so the fields may get reordered in the JSON the endpoint sees
 
 <1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
-<2> `num_messages_analyzed` indicates how many distinct messages the lines contained.
-     For NDJSON, this value is the same as `num_lines_analyzed`. For other file
-     formats, messages can span several lines.
+<2> `num_messages_analyzed` indicates how many distinct messages the lines 
+contained. For NDJSON, this value is the same as `num_lines_analyzed`. For other 
+file formats, messages can span several lines.
 <3> `sample_start` reproduces the first two messages in the file verbatim. This
-     may help to diagnose parse errors or accidental uploads of the wrong file.
+may help diagnose parse errors or accidental uploads of the wrong file.
 <4> `charset` indicates the character encoding used to parse the file.
 <5> For UTF character encodings, `has_byte_order_marker` indicates whether the
-    file begins with a byte order marker.
+file begins with a byte order marker.
 <6> `format` is one of `ndjson`, `xml`, `delimited` or `semi_structured_text`.
 <7> The `timestamp_field` names the field considered most likely to be the
-    primary timestamp of each document.
-<8> `joda_timestamp_formats` are used to tell Logstash how to parse timestamps.
+primary timestamp of each document.
+<8> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
-    fields. Elasticsearch mappings and Ingest pipeline use this format.
+fields. {es} mappings and ingest pipelines use this format.
 <10> If a timestamp format is detected that does not include a timezone,
-     `need_client_timezone` will be `true`. The server that parses the file must
-     therefore be told the correct timezone by the client.
+`need_client_timezone` will be `true`. The server that parses the file must
+therefore be told the correct timezone by the client.
 <11> `mappings` contains some suitable mappings for an index into which the data
-     could be ingested. In this case, the `release_date` field has been given a
-     `keyword` type as it is not considered specific enough to convert to the
-     `date` type.
+could be ingested. In this case, the `release_date` field has been given a
+`keyword` type as it is not considered specific enough to convert to the `date` 
+type.
 <12> `field_stats` contains the most common values of each field, plus basic
-     numeric statistics for the numeric `page_count` field. This information
-     may provide clues that the data needs to be cleaned or transformed prior
-     to use by other {ml} functionality.
+numeric statistics for the numeric `page_count` field. This information may 
+provide clues that the data needs to be cleaned or transformed prior to use by 
+other {stack} functionality.
 
-
-[[ml-find-file-structure-example-nyc]]
+[discrete]
+[[find-structure-example-nyc]]
 === Finding the structure of NYC yellow cab example data
 
 The next example shows how it's possible to find the structure of some New York
 City yellow cab trip data. The first `curl` command downloads the data, the
-first 20000 lines of which are then piped into the `find_file_structure`
+first 20000 lines of which are then piped into the `find_structure`
 endpoint. The `lines_to_sample` query parameter of the endpoint is set to 20000
 to match what is specified in the `head` command.
 
 [source,js]
 ----
-curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&lines_to_sample=20000" -T -
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -20000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=20000" -T -
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -579,6 +578,7 @@ curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head 
 NOTE: The `Content-Type: application/json` header must be set even though in
 this case the data is not JSON. (Alternatively the `Content-Type` can be set
 to any other supported by {es}, but it must be set.)
+
 --
 
 If the request does not encounter errors, you receive the following result:
@@ -1456,47 +1456,47 @@ If the request does not encounter errors, you receive the following result:
 // NOTCONSOLE
 
 <1> `num_messages_analyzed` is 2 lower than `num_lines_analyzed` because only
-    data records count as messages. The first line contains the column names
-    and in this sample the second line is blank.
+data records count as messages. The first line contains the column names and in 
+this sample the second line is blank.
 <2> Unlike the first example, in this case the `format` has been identified as
-    `delimited`.
+`delimited`.
 <3> Because the `format` is `delimited`, the `column_names` field in the output
-    lists the column names in the order they appear in the sample.
+lists the column names in the order they appear in the sample.
 <4> `has_header_row` indicates that for this sample the column names were in
-    the first row of the sample. (If they hadn't been then it would have been
-    a good idea to specify them in the `column_names` query parameter.)
+the first row of the sample. (If they hadn't been then it would have been a good 
+idea to specify them in the `column_names` query parameter.)
 <5> The `delimiter` for this sample is a comma, as it's a CSV file.
-<6> The `quote` character is the default double quote. (The structure finder
-    does not attempt to deduce any other quote character, so if you have a
-    delimited file that's quoted with some other character you must specify it
-    using the `quote` query parameter.)
+<6> The `quote` character is the default double quote. (The structure finder 
+does not attempt to deduce any other quote character, so if you have a delimited 
+file that's quoted with some other character you must specify it using the 
+`quote` query parameter.)
 <7> The `timestamp_field` has been chosen to be `tpep_pickup_datetime`.
-    `tpep_dropoff_datetime` would work just as well, but `tpep_pickup_datetime`
-    was chosen because it comes first in the column order. If you prefer
-    `tpep_dropoff_datetime` then force it to be chosen using the
-    `timestamp_field` query parameter.
-<8> `joda_timestamp_formats` are used to tell Logstash how to parse timestamps.
+`tpep_dropoff_datetime` would work just as well, but `tpep_pickup_datetime` was 
+chosen because it comes first in the column order. If you prefer
+`tpep_dropoff_datetime` then force it to be chosen using the
+`timestamp_field` query parameter.
+<8> `joda_timestamp_formats` are used to tell {ls} how to parse timestamps.
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
-    fields. Elasticsearch mappings and Ingest pipeline use this format.
+fields. {es} mappings and ingest pipelines use this format.
 <10> The timestamp format in this sample doesn't specify a timezone, so to
-     accurately convert them to UTC timestamps to store in Elasticsearch it's
-     necessary to supply the timezone they relate to. `need_client_timezone`
-     will be `false` for timestamp formats that include the timezone.
+accurately convert them to UTC timestamps to store in {es} it's necessary to 
+supply the timezone they relate to. `need_client_timezone` will be `false` for 
+timestamp formats that include the timezone.
 
-
-[[ml-find-file-structure-example-timeout]]
+[discrete]
+[[find-structure-example-timeout]]
 === Setting the timeout parameter
 
-If you try to analyze a lot of data then the analysis will take a long time.
-If you want to limit the amount of processing your {es} cluster performs for
-a request, use the `timeout` query parameter. The analysis will be aborted and
-an error returned when the timeout expires. For example, you can replace 20000
+If you try to analyze a lot of data then the analysis will take a long time. If 
+you want to limit the amount of processing your {es} cluster performs for a 
+request, use the `timeout` query parameter. The analysis will be aborted and an 
+error returned when the timeout expires. For example, you can replace 20000 
 lines in the previous example with 200000 and set a 1 second timeout on the
 analysis:
 
 [source,js]
 ----
-curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
+curl -s "s3.amazonaws.com/nyc-tlc/trip+data/yellow_tripdata_2018-06.csv" | head -200000 | curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&lines_to_sample=200000&timeout=1s" -T -
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1527,17 +1527,18 @@ running time of the `curl` commands is considerably longer than 1 second. This
 is because it takes a while to download 200000 lines of CSV from the internet,
 and the timeout is measured from the time this endpoint starts to process the
 data.
+
 --
 
-
-[[ml-find-file-structure-example-eslog]]
+[discrete]
+[[find-structure-example-eslog]]
 === Analyzing {es} log files
 
-This is an example of analyzing {es}'s own log file:
+This is an example of analyzing an {es} log file:
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1678,13 +1679,13 @@ this:
 
 <1> This time the `format` has been identified as `semi_structured_text`.
 <2> The `multiline_start_pattern` is set on the basis that the timestamp appears
-    in the first line of each multi-line log message.
+in the first line of each multi-line log message.
 <3> A very simple `grok_pattern` has been created, which extracts the timestamp
-    and recognizable fields that appear in every analyzed message. In this case
-    the only field that was recognized beyond the timestamp was the log level.
+and recognizable fields that appear in every analyzed message. In this case the 
+only field that was recognized beyond the timestamp was the log level.
 
-
-[[ml-find-file-structure-example-grok]]
+[discrete]
+[[find-structure-example-grok]]
 === Specifying `grok_pattern` as query parameter
 
 If you recognize more fields than the simple `grok_pattern` produced by the
@@ -1699,7 +1700,7 @@ query parameter (appropriately URL escaped):
 
 [source,js]
 ----
-curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_ml/find_file_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
+curl -s -H "Content-Type: application/json" -XPOST "localhost:9200/_text_structure/find_structure?pretty&format=semi_structured_text&grok_pattern=%5C%5B%25%7BTIMESTAMP_ISO8601:timestamp%7D%5C%5D%5C%5B%25%7BLOGLEVEL:loglevel%7D%20*%5C%5D%5C%5B%25%7BJAVACLASS:class%7D%20*%5C%5D%20%5C%5B%25%7BHOSTNAME:node%7D%5C%5D%20%25%7BJAVALOGMESSAGE:message%7D" -T "$ES_HOME/logs/elasticsearch.log"
 ----
 // NOTCONSOLE
 // Not converting to console because this shows how curl can be used
@@ -1947,9 +1948,9 @@ this:
 // NOTCONSOLE
 
 <1> The `grok_pattern` in the output is now the overridden one supplied in the
-    query parameter.
+query parameter.
 <2> The returned `field_stats` include entries for the fields from the
-    overridden `grok_pattern`.
+overridden `grok_pattern`.
 
 The URL escaping is hard, so if you are working interactively it is best to use
-the {ml} UI!
+the UI!

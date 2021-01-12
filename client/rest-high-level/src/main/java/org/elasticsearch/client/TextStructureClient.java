@@ -29,7 +29,7 @@ import org.elasticsearch.client.textstructure.FindStructureResponse;
 /**
  * Text Structure API client wrapper for the {@link RestHighLevelClient}
  * <p>
- * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-apis.html">
+ * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html">
  * X-Pack Text Structure APIs </a> for additional information.
  */
 public final class TextStructureClient {
@@ -44,7 +44,7 @@ public final class TextStructureClient {
      * Finds the structure of a file
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html">
      *     Text Structure Find Structure documentation</a>
      *
      * @param request The find file structure request
@@ -64,7 +64,7 @@ public final class TextStructureClient {
      * Finds the structure of a file asynchronously and notifies the listener on completion
      * <p>
      * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
+     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html">
      *         Text Structure Find Structure documentation</a>
      *
      * @param request The find file structure request

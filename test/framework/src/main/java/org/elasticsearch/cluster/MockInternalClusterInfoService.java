@@ -54,12 +54,12 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
         this.diskUsageFunction = diskUsageFunction;
-        refresh();
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFunction) {
         this.shardSizeFunction = shardSizeFunction;
-        refresh();
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     @Override

@@ -43,7 +43,7 @@ public enum XContentType implements MediaType {
 
         @Override
         public String mediaType() {
-            return "application/json; charset=UTF-8";
+            return "application/json;charset=utf-8";
         }
 
         @Override
@@ -61,11 +61,7 @@ public enum XContentType implements MediaType {
             return Set.of(
                 new HeaderValue("application/json"),
                 new HeaderValue("application/x-ndjson"),
-                new HeaderValue("application/*"),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue("application/*"));
         }
     },
     /**
@@ -90,9 +86,7 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/smile"),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue("application/smile"));
         }
     },
     /**
@@ -117,9 +111,7 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/yaml"),
-                new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
-                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+                new HeaderValue("application/yaml"));
         }
     },
     /**
@@ -144,9 +136,133 @@ public enum XContentType implements MediaType {
         @Override
         public Set<HeaderValue> headerValues() {
             return Set.of(
-                new HeaderValue("application/cbor"),
+                new HeaderValue("application/cbor"));
+        }
+    },
+    /**
+     * A versioned JSON based content type.
+     */
+    VND_JSON(4) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return VENDOR_APPLICATION_PREFIX + "json";
+        }
+
+        @Override
+        public String queryParameter() {
+            return "vnd_json";
+        }
+
+        @Override
+        public XContent xContent() {
+            return JsonXContent.jsonXContent;
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "json",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)),
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "x-ndjson",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
+        @Override
+        public XContentType canonical() {
+            return JSON;
+        }
+    },
+    /**
+     * Versioned jackson based smile binary format. Fast and compact binary format.
+     */
+    VND_SMILE(5) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return VENDOR_APPLICATION_PREFIX + "smile";
+        }
+
+        @Override
+        public String queryParameter() {
+            return "vnd_smile";
+        }
+
+        @Override
+        public XContent xContent() {
+            return SmileXContent.smileXContent;
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "smile",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
+        @Override
+        public XContentType canonical() {
+            return SMILE;
+        }
+    },
+    /**
+     * A Versioned YAML based content type.
+     */
+    VND_YAML(6) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return VENDOR_APPLICATION_PREFIX + "yaml";
+        }
+
+        @Override
+        public String queryParameter() {
+            return "vnd_yaml";
+        }
+
+        @Override
+        public XContent xContent() {
+            return YamlXContent.yamlXContent;
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
+                new HeaderValue(VENDOR_APPLICATION_PREFIX + "yaml",
+                    Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
+        @Override
+        public XContentType canonical() {
+            return YAML;
+        }
+    },
+    /**
+     * A Versioned CBOR based content type.
+     */
+    VND_CBOR(7) {
+        @Override
+        public String mediaTypeWithoutParameters() {
+            return VENDOR_APPLICATION_PREFIX + "cbor";
+        }
+
+        @Override
+        public String queryParameter() {
+            return "vnd_cbor";
+        }
+
+        @Override
+        public XContent xContent() {
+            return CborXContent.cborXContent;
+        }
+
+        @Override
+        public Set<HeaderValue> headerValues() {
+            return Set.of(
                 new HeaderValue(VENDOR_APPLICATION_PREFIX + "cbor",
                     Map.of(COMPATIBLE_WITH_PARAMETER_NAME, VERSION_PATTERN)));
+        }
+
+        @Override
+        public XContentType canonical() {
+            return CBOR;
         }
     };
 
@@ -207,4 +323,16 @@ public enum XContentType implements MediaType {
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
+
+    /**
+     * Returns a canonical XContentType for this XContentType.
+     * A canonical XContentType is used to serialize or deserialize the data from/to for HTTP.
+     * More specialized XContentType types such as vnd* variants still use the general data structure,
+     * but may have semantic differences.
+     * Example: XContentType.VND_JSON has a canonical XContentType.JSON
+     * XContentType.JSON has a canonical XContentType.JSON
+     */
+    public XContentType canonical(){
+        return this;
+    }
 }

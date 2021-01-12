@@ -31,7 +31,6 @@ import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
@@ -91,12 +90,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
-        SubSearchContext subSearchContext = new SubSearchContext(searchContext);
-        subSearchContext.parsedQuery(searchContext.parsedQuery());
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        SubSearchContext subSearchContext = context.subSearchContext();
         subSearchContext.explain(explain);
         subSearchContext.version(version);
         subSearchContext.seqNoAndPrimaryTerm(seqNoAndPrimaryTerm);
@@ -110,7 +106,7 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.storedFieldsContext(storedFieldsContext);
         }
         if (docValueFields != null) {
-            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(searchContext.getQueryShardContext(), docValueFields);
+            FetchDocValuesContext docValuesContext = new FetchDocValuesContext(subSearchContext.getQueryShardContext(), docValueFields);
             subSearchContext.docValuesContext(docValuesContext);
         }
         if (fetchFields != null) {
@@ -124,9 +120,9 @@ class TopHitsAggregatorFactory extends AggregatorFactory {
             subSearchContext.fetchSourceContext(fetchSourceContext);
         }
         if (highlightBuilder != null) {
-            subSearchContext.highlight(highlightBuilder.build(searchContext.getQueryShardContext()));
+            subSearchContext.highlight(highlightBuilder.build(subSearchContext.getQueryShardContext()));
         }
-        return new TopHitsAggregator(searchContext.fetchPhase(), subSearchContext, name, searchContext, parent, metadata);
+        return new TopHitsAggregator(subSearchContext, name, context, parent, metadata);
     }
 
 }

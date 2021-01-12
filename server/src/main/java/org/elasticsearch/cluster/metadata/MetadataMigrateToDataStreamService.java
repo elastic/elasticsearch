@@ -111,8 +111,8 @@ public class MetadataMigrateToDataStreamService {
     static ClusterState migrateToDataStream(ClusterState currentState,
                                             Function<IndexMetadata, MapperService> mapperSupplier,
                                             MigrateToDataStreamClusterStateUpdateRequest request) throws Exception {
-        if (currentState.nodes().getMinNodeVersion().before(Version.V_8_0_0)) {
-            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_8_0_0);
+        if (currentState.nodes().getMinNodeVersion().before(Version.V_7_11_0)) {
+            throw new IllegalStateException("data stream migration requires minimum node version of " + Version.V_7_11_0);
         }
 
         validateRequest(currentState, request);
@@ -142,14 +142,12 @@ public class MetadataMigrateToDataStreamService {
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] does not exist");
         }
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-
-        if (alias.getWriteIndex() == null) {
+        if (ia.getWriteIndex() == null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] must specify a write index");
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = alias.getFirstAliasMetadata();
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");

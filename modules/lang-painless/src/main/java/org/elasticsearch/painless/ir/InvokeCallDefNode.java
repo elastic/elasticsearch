@@ -24,19 +24,7 @@ import org.elasticsearch.painless.phase.IRTreeVisitor;
 
 public class InvokeCallDefNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private String name;
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

@@ -197,9 +197,65 @@ null                 |10043          |Yishay         |M              |1990-10-20
 null                 |10044          |Mingsen        |F              |1994-05-21 00:00:00.0|Casley         |39728          |null
 1952-04-19 00:00:00.0|10009          |Sumant         |F              |1985-02-18 00:00:00.0|Peac           |66174          |null
 1953-01-07 00:00:00.0|10067          |Claudi         |M              |1987-03-04 00:00:00.0|Stavenow       |null           |52044
-
 // end::sumWithoutSubquery
 ;
+
+sumWithZeros
+SELECT *
+FROM (SELECT client_ip, status, bytes_in FROM logs WHERE NVL(bytes_in, 0) = 0)
+PIVOT (SUM(bytes_in) FOR status IN ('OK','Error'));
+
+   client_ip   |     'OK'      |    'Error'    
+---------------+---------------+---------------
+10.0.1.199     |0              |null           
+10.0.1.205     |0              |null           
+10.0.2.129     |null           |null           
+;
+
+sumWithInnerAggregateSumOfSquares
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|1:d|2:d
+SELECT * FROM test_emp PIVOT (SUM_OF_SQUARES(salary) FOR languages IN (1, 2)) LIMIT 5;
+
+  birth_date         |    emp_no     |  first_name   |    gender     |       hire_date        |   last_name   |       1       |       2       
+---------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------
+null                 |10041          |Uri            |F              |1989-11-12T00:00:00.000Z|Lenart         |3.182652225E9  |null           
+null                 |10043          |Yishay         |M              |1990-10-20T00:00:00.000Z|Tzvieli        |1.179304281E9  |null           
+null                 |10044          |Mingsen        |F              |1994-05-21T00:00:00.000Z|Casley         |1.578313984E9  |null           
+1952-04-19T00:00:00Z |10009          |Sumant         |F              |1985-02-18T00:00:00.000Z|Peac           |4.378998276E9  |null           
+1953-01-07T00:00:00Z |10067          |Claudi         |M              |1987-03-04T00:00:00.000Z|Stavenow       |null           |2.708577936E9  
+;
+
+sumWithInnerAggregateSumOfSquaresRound
+schema::birth_date:ts|emp_no:i|first_name:s|gender:s|hire_date:ts|last_name:s|1:d|2:d
+SELECT * FROM test_emp PIVOT (ROUND(SUM_OF_SQUARES(salary)/1E6, 2) FOR languages IN (1, 2)) LIMIT 5;
+
+  birth_date         |    emp_no     |  first_name   |    gender     |       hire_date        |   last_name   |       1       |       2       
+---------------------+---------------+---------------+---------------+------------------------+---------------+---------------+---------------
+null                 |10041          |Uri            |F              |1989-11-12T00:00:00.000Z|Lenart         |3182.65        |null           
+null                 |10043          |Yishay         |M              |1990-10-20T00:00:00.000Z|Tzvieli        |1179.30        |null           
+null                 |10044          |Mingsen        |F              |1994-05-21T00:00:00.000Z|Casley         |1578.31        |null           
+1952-04-19T00:00:00Z |10009          |Sumant         |F              |1985-02-18T00:00:00.000Z|Peac           |4379.00        |null           
+1953-01-07T00:00:00Z |10067          |Claudi         |M              |1987-03-04T00:00:00.000Z|Stavenow       |null           |2708.58        
+;
+
+sumWithInnerAggregateKurtosis
+schema::client_port:i|'OK':d|'Error':d
+SELECT * FROM (SELECT client_port, status, bytes_in FROM logs WHERE client_port IS NULL) PIVOT (KURTOSIS(bytes_in) FOR status IN ('OK', 'Error')) LIMIT 10;
+
+  client_port  |       'OK'       |    'Error'    
+---------------+------------------+---------------
+null           |2.0016153277578916|NaN            
+;
+
+sumWithInnerAggregateKurtosisRound
+schema::client_port:i|'OK':d|'Error':d
+SELECT * FROM (SELECT client_port, status, bytes_in FROM logs WHERE client_port IS NULL) PIVOT (ROUND(KURTOSIS(bytes_in), 3) FOR status IN ('OK', 'Error')) LIMIT 10;
+
+  client_port  |       'OK'       |    'Error'    
+---------------+------------------+---------------
+null           |2.002             |-0.0            
+;
+
 
 averageWithOneValueAndMath
 schema::languages:bt|'F':d
@@ -214,3 +270,4 @@ null           |31070.0
 4              |24646.0        
 5              |23353.0        
 ;
+

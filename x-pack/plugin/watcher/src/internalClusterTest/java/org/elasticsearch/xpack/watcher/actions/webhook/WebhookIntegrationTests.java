@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.actions.webhook;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -28,7 +29,6 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -56,9 +56,7 @@ public class WebhookIntegrationTests extends AbstractWatcherIntegrationTestCase 
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(Netty4Plugin.class); // for http
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), Netty4Plugin.class); // for http
     }
 
     @Before

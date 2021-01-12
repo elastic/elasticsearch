@@ -123,8 +123,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
 
     protected void populateIndex(String indexName, int maxIndexRequests) throws InterruptedException {
         final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        // This index does not permit dynamic fields, so we can only use defined field names
+        final String key = indexName.equals(SearchableSnapshotsConstants.SNAPSHOT_BLOB_CACHE_INDEX) ? "type" : "foo";
         for (int i = between(10, maxIndexRequests); i >= 0; i--) {
-            indexRequestBuilders.add(client().prepareIndex(indexName).setSource("foo", randomBoolean() ? "bar" : "baz"));
+            indexRequestBuilders.add(client().prepareIndex(indexName).setSource(key, randomBoolean() ? "bar" : "baz"));
         }
         indexRandom(true, true, indexRequestBuilders);
         refresh(indexName);

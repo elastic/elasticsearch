@@ -344,6 +344,7 @@ The Java High Level REST Client supports the following {ml} APIs:
 * <<{upid}-update-datafeed>>
 * <<{upid}-update-filter>>
 * <<{upid}-update-model-snapshot>>
+* <<{upid}-upgrade-job-model-snapshot>>
 
 // CLOSE
 include::ml/close-job.asciidoc[]
@@ -421,6 +422,7 @@ include::ml/update-data-frame-analytics.asciidoc[]
 include::ml/update-datafeed.asciidoc[]
 include::ml/update-filter.asciidoc[]
 include::ml/update-model-snapshot.asciidoc[]
+include::ml/upgrade-job-model-snapshot.asciidoc[]
 
 == Migration APIs
 

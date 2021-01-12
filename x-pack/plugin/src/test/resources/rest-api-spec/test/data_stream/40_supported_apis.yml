@@ -27,12 +27,17 @@ teardown:
       version: " - 7.8.99"
       reason: "data streams only supported in 7.9+"
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       indices.get:
         index: logs-foobar
-  - is_true: \.ds-logs-foobar-000001
+  - is_true: .$idx0name
   - is_false: logs-foobar
-  - match: { \.ds-logs-foobar-000001.settings.index.number_of_shards: '1' }
 
 ---
 "Verify get mapping api":
@@ -40,11 +45,17 @@ teardown:
       version: " - 7.8.99"
       reason: "data streams only supported in 7.9+"
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       indices.get_mapping:
         index: logs-foobar
-  - is_true: \.ds-logs-foobar-000001.mappings
-  - is_false: \.ds-logs-foobar.mappings
+  - is_true: .$idx0name.mappings
+  - is_false: logs-foobar.mappings
 
 ---
 "Verify shard stores api":
@@ -76,8 +87,8 @@ teardown:
       indices.rollover:
         alias: "simple-data-stream1"
 
-  - match: { old_index: .ds-simple-data-stream1-000001 }
-  - match: { new_index: .ds-simple-data-stream1-000002 }
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
 
@@ -86,13 +97,20 @@ teardown:
         index: simple-data-stream1
         wait_for_status: green
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
+
   - do:
       indices.shard_stores:
         index: simple-data-stream1
         status: "green"
 
-  - match: { indices.\.ds-simple-data-stream1-000001.shards.0.stores.0.allocation: "primary" }
-  - match: { indices.\.ds-simple-data-stream1-000002.shards.0.stores.0.allocation: "primary" }
+  - match: { indices.$idx0name.shards.0.stores.0.allocation: "primary" }
+  - match: { indices.$idx1name.shards.0.stores.0.allocation: "primary" }
 
   - do:
       indices.delete_data_stream:
@@ -123,7 +141,7 @@ teardown:
       search_shards:
         index:  "simple-data-stream1"
 
-  - match: { shards.0.0.index: ".ds-simple-data-stream1-000001" }
+  - match: { shards.0.0.index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
 
   - do:
       indices.delete_data_stream:
@@ -151,12 +169,18 @@ teardown:
         name: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
   - do:
       indices.get_field_mapping:
         index: simple-data-stream1
         fields: foo
 
-  - is_true: \.ds-simple-data-stream1-000001
+  - is_true: .$idx0name
 
   - do:
       indices.delete_data_stream:
@@ -189,8 +213,8 @@ teardown:
       indices.rollover:
         alias: "simple-data-stream1"
 
-  - match: { old_index: .ds-simple-data-stream1-000001 }
-  - match: { new_index: .ds-simple-data-stream1-000002 }
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
 
@@ -198,14 +222,14 @@ teardown:
       indices.rollover:
         alias: "simple-data-stream1"
 
-  - match: { old_index: .ds-simple-data-stream1-000002 }
-  - match: { new_index: .ds-simple-data-stream1-000003 }
+  - match: { old_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
+  - match: { new_index: "/\\.ds-simple-data-stream1-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000003/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
 
   - do:
       indices.close:
-        index: ".ds-simple-data-stream1-000001,.ds-simple-data-stream1-000002"
+        index: ".ds-simple-data-stream1-*000001,.ds-simple-data-stream1-*000002"
   - is_true: acknowledged
 
   - do:
@@ -213,13 +237,21 @@ teardown:
         index: simple-data-stream1
   - is_true: acknowledged
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: simple-data-stream1
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
+
   # all closed backing indices should be re-opened and returned
   - do:
       indices.get:
         index: ".ds-simple-data-stream1-*"
 
-  - is_true: \.ds-simple-data-stream1-000001.settings
-  - is_true: \.ds-simple-data-stream1-000002.settings
+  - is_true: .$idx0name.settings
+  - is_true: .$idx1name.settings
 
   - do:
       indices.delete_data_stream:
@@ -252,8 +284,8 @@ teardown:
       indices.rollover:
         alias: "logs-foobar"
 
-  - match: { old_index: .ds-logs-foobar-000001 }
-  - match: { new_index: .ds-logs-foobar-000002 }
+  - match: { old_index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000001/" }
+  - match: { new_index: "/\\.ds-logs-foobar-(\\d{4}\\.\\d{2}\\.\\d{2}-)?000002/" }
   - match: { rolled_over: true }
   - match: { dry_run: false }
 
@@ -275,6 +307,14 @@ teardown:
       indices.refresh:
         index: logs-foobar
 
+  # save the backing index names for later use
+  - do:
+      indices.get_data_stream:
+        name: logs-foobar
+
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - set: { data_streams.0.indices.1.index_name: idx1name }
+
   - do:
       rank_eval:
         index: logs-foobar
@@ -285,14 +325,14 @@ teardown:
             "id": "amsterdam_query",
             "request": { "query": { "match" : {"text" : "amsterdam" }}},
             "ratings": [
-            {"_index": ".ds-logs-foobar-000001", "_id": "doc1", "rating": 0},
-            {"_index": ".ds-logs-foobar-000001", "_id": "doc2", "rating": 1},
-            {"_index": ".ds-logs-foobar-000002", "_id": "doc3", "rating": 1}]
+            {"_index": $idx0name, "_id": "doc1", "rating": 0},
+            {"_index": $idx0name, "_id": "doc2", "rating": 1},
+            {"_index": $idx1name, "_id": "doc3", "rating": 1}]
           },
           {
             "id" : "berlin_query",
             "request": { "query": { "match" : { "text" : "berlin" } }, "size" : 10 },
-            "ratings": [{"_index": ".ds-logs-foobar-000001", "_id": "doc1", "rating": 1}]
+            "ratings": [{"_index": $idx0name, "_id": "doc1", "rating": 1}]
           }
           ],
           "metric" : { "precision": { "ignore_unlabeled" : true }}

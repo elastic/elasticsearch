@@ -36,7 +36,9 @@ import org.elasticsearch.test.AbstractXContentTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig> {
 
@@ -116,6 +118,14 @@ public class DatafeedConfigTests extends AbstractXContentTestCase<DatafeedConfig
                 randomBoolean(),
                 randomBoolean(),
                 randomBoolean()));
+        }
+        if (randomBoolean()) {
+            Map<String, Object> settings = new HashMap<>();
+            settings.put("type", "keyword");
+            settings.put("script", "");
+            Map<String, Object> field = new HashMap<>();
+            field.put("runtime_field_foo", settings);
+            builder.setRuntimeMappings(field);
         }
         return builder;
     }

@@ -503,6 +503,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         forceMergeActionWithCodec(null);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65171")
     public void testForceMergeActionWithCompressionCodec() throws Exception {
         forceMergeActionWithCodec("best_compression");
     }

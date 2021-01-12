@@ -78,15 +78,22 @@ public class ReproduceInfoPrinter extends RunListener {
         final String gradlew = Constants.WINDOWS ? "gradlew" : "./gradlew";
         final StringBuilder b = new StringBuilder("REPRODUCE WITH: " + gradlew + " ");
         String task = System.getProperty("tests.task");
+        boolean isBwcTest = Boolean.parseBoolean(System.getProperty("tests.bwc", "false"));
 
         // append Gradle test runner test filter string
         b.append("'" + task + "'");
-        b.append(" --tests \"");
+        if (isBwcTest) {
+            // Use "legacy" method for bwc tests so that it applies globally to all upstream bwc test tasks
+            b.append(" -Dtests.class=\"");
+        } else {
+            b.append(" --tests \"");
+        }
         b.append(failure.getDescription().getClassName());
+
         final String methodName = failure.getDescription().getMethodName();
         if (methodName != null) {
             // fallback to system property filter when tests contain "."
-            if (methodName.contains(".")) {
+            if (methodName.contains(".") || isBwcTest) {
                 b.append("\" -Dtests.method=\"");
                 b.append(methodName);
             } else {
@@ -95,7 +102,6 @@ public class ReproduceInfoPrinter extends RunListener {
             }
         }
         b.append("\"");
-
         GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
         gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
@@ -174,6 +180,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
             appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+            appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;
         }

@@ -330,7 +330,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             }
         }
 
-        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
+        waitUntilAnalyticsIsStopped(jobId);
 
         SearchResponse sourceData = client().prepareSearch(sourceIndex).setTrackTotalHits(true).setSize(1000).get();
         for (SearchHit hit : sourceData.getHits()) {
@@ -571,9 +571,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
 
         startAnalytics(jobId);
 
-        // This seems to some times take a bit longer than 30 seconds on CI
-        // so we give it a minute.
-        waitUntilAnalyticsIsStopped(jobId, TimeValue.timeValueMinutes(1));
+        waitUntilAnalyticsIsStopped(jobId);
 
         double predictionErrorSum = 0.0;
 

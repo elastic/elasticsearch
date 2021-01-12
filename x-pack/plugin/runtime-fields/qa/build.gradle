@@ -1,4 +1,4 @@
-// Shared infratructure
+// Shared infrastructure
 
 apply plugin: 'elasticsearch.build'
 
@@ -6,7 +6,8 @@ dependencies {
   api project(":test:framework")
 }
 
-test.enabled = false // We don't currently have any tests for this because they are test utilities.
+// We don't currently have any tests for this because they are test utilities.
+tasks.named("test").configure { enabled = false }
 
 subprojects {
   if (project.name.startsWith('core-with-')) {
@@ -26,12 +27,12 @@ subprojects {
       }
     }
 
-    testClusters.yamlRestTest {
+    testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
     }
 
-    yamlRestTest {
+    tasks.named("yamlRestTest").configure {
       def suites = [
         'async_search',
         'search',
@@ -42,6 +43,8 @@ subprojects {
         'suggest',
       ]
       if (project.name.equals('core-with-mapped')) {
+        //disabled until runtime fields can be created from a dynamic template
+        enabled = false
         suites += [
           // These two don't support runtime fields on the request. Should they?
           'field_caps',

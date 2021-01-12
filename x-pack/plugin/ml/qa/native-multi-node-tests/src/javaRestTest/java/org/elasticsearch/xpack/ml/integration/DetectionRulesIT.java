@@ -118,7 +118,7 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         GetRecordsAction.Request recordsAfterFirstHalf = new GetRecordsAction.Request(job.getId());
         recordsAfterFirstHalf.setStart(String.valueOf(firstRecordTimestamp + 1));
         records = getRecords(recordsAfterFirstHalf);
-        assertThat(records.size(), equalTo(1));
+        assertThat("records were " + records, (int)(records.stream().filter(r -> r.getProbability() < 0.01).count()), equalTo(1));
         assertThat(records.get(0).getByFieldValue(), equalTo("low"));
     }
 

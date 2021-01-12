@@ -39,6 +39,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     private QueryBuilder filter = null;
     private String timestampField = "@timestamp";
     private String eventCategoryField = "event.category";
+    private String resultPosition = "tail";
 
     private int size = 10;
     private int fetchSize = 1000;
@@ -57,6 +58,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     static final String KEY_SIZE = "size";
     static final String KEY_FETCH_SIZE = "fetch_size";
     static final String KEY_QUERY = "query";
+    static final String KEY_RESULT_POSITION = "result_position";
     static final String KEY_WAIT_FOR_COMPLETION_TIMEOUT = "wait_for_completion_timeout";
     static final String KEY_KEEP_ALIVE = "keep_alive";
     static final String KEY_KEEP_ON_COMPLETION = "keep_on_completion";
@@ -79,6 +81,7 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         builder.field(KEY_EVENT_CATEGORY_FIELD, eventCategoryField());
         builder.field(KEY_SIZE, size());
         builder.field(KEY_FETCH_SIZE, fetchSize());
+        builder.field(KEY_RESULT_POSITION, resultPosition());
 
         builder.field(KEY_QUERY, query);
         if (waitForCompletionTimeout != null) {
@@ -137,6 +140,19 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
     public EqlSearchRequest eventCategoryField(String eventCategoryField) {
         Objects.requireNonNull(eventCategoryField, "event category field must not be null");
         this.eventCategoryField = eventCategoryField;
+        return this;
+    }
+
+    public String resultPosition() {
+        return resultPosition;
+    }
+
+    public EqlSearchRequest resultPosition(String position) {
+        if ("head".equals(position) || "tail".equals(position)) {
+            resultPosition = position;
+        } else {
+            throw new IllegalArgumentException("result position needs to be 'head' or 'tail', received '" + position + "'");
+        }
         return this;
     }
 
@@ -210,19 +226,18 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
         }
         EqlSearchRequest that = (EqlSearchRequest) o;
         return size == that.size &&
-                fetchSize == that.fetchSize &&
-                Arrays.equals(indices, that.indices) &&
-                Objects.equals(indicesOptions, that.indicesOptions) &&
-                Objects.equals(filter, that.filter) &&
-                Objects.equals(size, that.size) &&
-                Objects.equals(fetchSize, that.fetchSize) &&
-                Objects.equals(timestampField, that.timestampField) &&
-                Objects.equals(tiebreakerField, that.tiebreakerField) &&
-                Objects.equals(eventCategoryField, that.eventCategoryField) &&
-                Objects.equals(query, that.query) &&
-                Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
-                Objects.equals(keepAlive, that.keepAlive) &&
-                Objects.equals(keepOnCompletion, that.keepOnCompletion);
+            fetchSize == that.fetchSize &&
+            Arrays.equals(indices, that.indices) &&
+            Objects.equals(indicesOptions, that.indicesOptions) &&
+            Objects.equals(filter, that.filter) &&
+            Objects.equals(timestampField, that.timestampField) &&
+            Objects.equals(tiebreakerField, that.tiebreakerField) &&
+            Objects.equals(eventCategoryField, that.eventCategoryField) &&
+            Objects.equals(query, that.query) &&
+            Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout) &&
+            Objects.equals(keepAlive, that.keepAlive) &&
+            Objects.equals(keepOnCompletion, that.keepOnCompletion) &&
+            Objects.equals(resultPosition, that.resultPosition);
     }
 
     @Override
@@ -239,7 +254,8 @@ public class EqlSearchRequest implements Validatable, ToXContentObject {
             query,
             waitForCompletionTimeout,
             keepAlive,
-            keepOnCompletion);
+            keepOnCompletion,
+            resultPosition);
     }
 
     public String[] indices() {

@@ -55,7 +55,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.sourcePath(field)).thenReturn(Set.of(field));
 
-        ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, null, format);
+        ValueFetcher fetcher = fieldType.valueFetcher(queryShardContext, format);
         SourceLookup lookup = new SourceLookup();
         lookup.setSource(Collections.singletonMap(field, sourceValue));
         return fetcher.fetchValues(lookup);

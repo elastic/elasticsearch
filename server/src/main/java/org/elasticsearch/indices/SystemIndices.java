@@ -26,7 +26,6 @@ import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.tasks.TaskResultsService;
 
@@ -57,11 +56,31 @@ public class SystemIndices {
     public SystemIndices(Map<String, Collection<SystemIndexDescriptor>> pluginAndModulesDescriptors) {
         final Map<String, Collection<SystemIndexDescriptor>> descriptorsMap = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
         checkForOverlappingPatterns(descriptorsMap);
-        this.systemIndexDescriptors = descriptorsMap.values()
-            .stream()
-            .flatMap(Collection::stream)
-            .collect(Collectors.toUnmodifiableList());
+        this.systemIndexDescriptors = descriptorsMap.values().stream().flatMap(Collection::stream).collect(Collectors.toUnmodifiableList());
+        checkForDuplicateAliases(this.systemIndexDescriptors);
         this.runAutomaton = buildCharacterRunAutomaton(systemIndexDescriptors);
+    }
+
+    private void checkForDuplicateAliases(Collection<SystemIndexDescriptor> descriptors) {
+        final Map<String, Integer> aliasCounts = new HashMap<>();
+
+        for (SystemIndexDescriptor descriptor : descriptors) {
+            final String aliasName = descriptor.getAliasName();
+            if (aliasName != null) {
+                aliasCounts.compute(aliasName, (alias, existingCount) -> 1 + (existingCount == null ? 0 : existingCount));
+            }
+        }
+
+        final List<String> duplicateAliases = aliasCounts.entrySet()
+            .stream()
+            .filter(entry -> entry.getValue() > 1)
+            .map(Map.Entry::getKey)
+            .sorted()
+            .collect(Collectors.toList());
+
+        if (duplicateAliases.isEmpty() == false) {
+            throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
+        }
     }
 
     /**
@@ -114,7 +133,7 @@ public class SystemIndices {
 
     private static CharacterRunAutomaton buildCharacterRunAutomaton(Collection<SystemIndexDescriptor> descriptors) {
         Optional<Automaton> automaton = descriptors.stream()
-            .map(descriptor -> Regex.simpleMatchToAutomaton(descriptor.getIndexPattern()))
+            .map(descriptor -> SystemIndexDescriptor.buildAutomaton(descriptor.getIndexPattern(), descriptor.getAliasName()))
             .reduce(Operations::union);
         return new CharacterRunAutomaton(MinimizationOperations.minimize(automaton.orElse(Automata.makeEmpty()), Integer.MAX_VALUE));
     }
@@ -152,8 +171,8 @@ public class SystemIndices {
     }
 
     private static boolean overlaps(SystemIndexDescriptor a1, SystemIndexDescriptor a2) {
-        Automaton a1Automaton = Regex.simpleMatchToAutomaton(a1.getIndexPattern());
-        Automaton a2Automaton = Regex.simpleMatchToAutomaton(a2.getIndexPattern());
+        Automaton a1Automaton = SystemIndexDescriptor.buildAutomaton(a1.getIndexPattern(), null);
+        Automaton a2Automaton = SystemIndexDescriptor.buildAutomaton(a2.getIndexPattern(), null);
         return Operations.isEmpty(Operations.intersection(a1Automaton, a2Automaton)) == false;
     }
 
@@ -170,5 +189,9 @@ public class SystemIndices {
             }
         });
         return Map.copyOf(map);
+    }
+
+    Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
+        return this.systemIndexDescriptors;
     }
 }

@@ -21,9 +21,9 @@ package org.elasticsearch.search.aggregations.bucket.range;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -36,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -50,16 +51,18 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -73,6 +76,21 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  * that is compatible with the requested configuration.
  */
 public abstract class RangeAggregator extends BucketsAggregator {
+    /**
+     * Minimum number of docs in the index per range before we attempt to use
+     * a filter-based collection mechanism. This exists mostly to keep fast
+     * range aggregations fast. Each filter has an overhead in the ball park
+     * of half a millisecond just to build its {@link ScorerSupplier}. If there
+     * are only a couple of thousand docs in the range then it tends not to
+     * be worth it to kick in the optimization.
+     * <p>
+     * The value of this field was experimentally derived but the experiment
+     * wasn't particularly rigorous. We had a performance test that collected
+     * 123 buckets with an average of 900 documents per bucket that jumped
+     * from 35ms to 90ms. I figure that 5000 is fairly close to where the break
+     * even point is. 
+     */
+    public static final double DOCS_PER_RANGE_TO_USE_FILTERS = 5000;
     /**
      * The maximum {@code long} that can accurately fit into the
      * {@code double} precision floating point bounds.
@@ -256,25 +274,51 @@ public abstract class RangeAggregator extends BucketsAggregator {
         InternalRange.Factory<?, ?> rangeFactory,
         Range[] ranges,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        Aggregator adapted = adaptIntoFiltersOrNull(
+        /*
+         * Estimate the average number of docs per range so we can disable the
+         * filter collection mechanism if very few docs would match. This estimate
+         * doesn't take the top level query or deleted documents into account so it
+         * is often an overestimate. But that is ok because at worst we end up
+         * wasting a couple dozen milliseconds on the filters. If the index is
+         * small-ish and there are many filters then we avoid the optimization
+         * which is good enough because that is the most embarrassing scenario.
+         */
+        double averageDocsPerRange = ((double) context.searcher().getIndexReader().maxDoc()) / ranges.length;
+        FromFilters<?> adapted = adaptIntoFiltersOrNull(
             name,
             factories,
             valuesSourceConfig,
             rangeFactory,
             ranges,
+            averageDocsPerRange,
             keyed,
             context,
             parent,
             cardinality,
             metadata
         );
+        Map<String, Object> filtersDebug = null;
         if (adapted != null) {
-            return adapted;
+            long maxEstimatedFiltersCost = context.searcher().getIndexReader().maxDoc();
+            long estimatedFiltersCost = adapted.estimateCost(maxEstimatedFiltersCost);
+            if (estimatedFiltersCost <= maxEstimatedFiltersCost) {
+                return adapted;
+            }
+            /*
+             * Looks like it'd be more expensive to use the filter-by-filter
+             * aggregator. Oh well. Snapshot the the filter-by-filter
+             * aggregator's debug information if we're profiling bececause it
+             * is useful even if the aggregator isn't. 
+             */
+            if (context.profiling()) {
+                filtersDebug = new HashMap<>();
+                adapted.delegate().collectDebugInfo(filtersDebug::put);
+            }
         }
         return buildWithoutAttemptedToAdaptToFilters(
             name,
@@ -283,6 +327,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             valuesSourceConfig.format(),
             rangeFactory,
             ranges,
+            averageDocsPerRange,
+            filtersDebug,
             keyed,
             context,
             parent,
@@ -291,14 +337,15 @@ public abstract class RangeAggregator extends BucketsAggregator {
         );
     }
 
-    public static Aggregator adaptIntoFiltersOrNull(
+    public static FromFilters<?> adaptIntoFiltersOrNull(
         String name,
         AggregatorFactories factories,
         ValuesSourceConfig valuesSourceConfig,
         InternalRange.Factory<?, ?> rangeFactory,
         Range[] ranges,
+        double averageDocsPerRange,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -306,7 +353,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
-        // TODO bail here for runtime fields. They'll be slower this way. Maybe we can somehow look at the Query?
+        if (averageDocsPerRange < DOCS_PER_RANGE_TO_USE_FILTERS) {
+            return null;
+        }
+        // TODO bail here for runtime fields. We should check the cost estimates on the Scorer.
         if (valuesSourceConfig.fieldType() instanceof DateFieldType
             && ((DateFieldType) valuesSourceConfig.fieldType()).resolution() == Resolution.NANOSECONDS) {
             // We don't generate sensible Queries for nanoseconds.
@@ -338,19 +388,12 @@ public abstract class RangeAggregator extends BucketsAggregator {
              */
             DocValueFormat format = valuesSourceConfig.fieldType().docValueFormat(null, null);
             // TODO correct the loss of precision from the range somehow.....?
-            filters[i] = valuesSourceConfig.fieldType()
-                .rangeQuery(
-                    ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from),
-                    ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to),
-                    true,
-                    false,
-                    ShapeRelation.CONTAINS,
-                    null,
-                    null,
-                    context.getQueryShardContext()
-                );
+            RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.fieldType().name());
+            builder.from(ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from)).includeLower(true);
+            builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
+            filters[i] = context.buildQuery(builder);
         }
-        FiltersAggregator delegate = FiltersAggregator.buildFilterOrderOrNull(
+        FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
             name,
             factories,
             keys,
@@ -377,7 +420,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             valuesSourceConfig.format(),
             ranges,
             keyed,
-            rangeFactory
+            rangeFactory,
+            averageDocsPerRange
         );
         return fromFilters;
     }
@@ -389,8 +433,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
         DocValueFormat format,
         InternalRange.Factory<?, ?> rangeFactory,
         Range[] ranges,
+        double averageDocsPerRange,
+        Map<String, Object> filtersDebug,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -403,6 +449,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 format,
                 rangeFactory,
                 ranges,
+                averageDocsPerRange,
+                filtersDebug,
                 keyed,
                 context,
                 parent,
@@ -417,6 +465,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
             format,
             rangeFactory,
             ranges,
+            averageDocsPerRange,
+            filtersDebug,
             keyed,
             context,
             parent,
@@ -430,11 +480,24 @@ public abstract class RangeAggregator extends BucketsAggregator {
     protected final Range[] ranges;
     private final boolean keyed;
     private final InternalRange.Factory rangeFactory;
+    private final double averageDocsPerRange;
+    private final Map<String, Object> filtersDebug;
 
-    private RangeAggregator(String name, AggregatorFactories factories, ValuesSource.Numeric valuesSource, DocValueFormat format,
-            InternalRange.Factory rangeFactory, Range[] ranges, boolean keyed, SearchContext context,
-            Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata) throws IOException {
-
+    private RangeAggregator(
+        String name,
+        AggregatorFactories factories,
+        ValuesSource.Numeric valuesSource,
+        DocValueFormat format,
+        InternalRange.Factory rangeFactory,
+        Range[] ranges,
+        double averageDocsPerRange,
+        Map<String, Object> filtersDebug,
+        boolean keyed,
+        AggregationContext context,
+        Aggregator parent,
+        CardinalityUpperBound cardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(ranges.length), metadata);
         assert valuesSource != null;
         this.valuesSource = valuesSource;
@@ -442,6 +505,8 @@ public abstract class RangeAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.ranges = ranges;
+        this.averageDocsPerRange = averageDocsPerRange;
+        this.filtersDebug = filtersDebug;
     }
 
     @Override
@@ -496,6 +561,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
         return rangeFactory.create(name, buckets, format, keyed, metadata());
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("ranges", ranges.length);
+        add.accept("average_docs_per_range", averageDocsPerRange);
+        if (filtersDebug != null) {
+            add.accept("filters_debug", filtersDebug);
+        }
+    }
+
     public static class Unmapped<R extends RangeAggregator.Range> extends NonCollectingAggregator {
 
         private final R[] ranges;
@@ -509,12 +584,11 @@ public abstract class RangeAggregator extends BucketsAggregator {
             R[] ranges,
             boolean keyed,
             DocValueFormat format,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             InternalRange.Factory factory,
             Map<String, Object> metadata
         ) throws IOException {
-
             super(name, context, parent, factories, metadata);
             this.ranges = ranges;
             this.keyed = keyed;
@@ -544,13 +618,29 @@ public abstract class RangeAggregator extends BucketsAggregator {
             DocValueFormat format,
             Factory rangeFactory,
             Range[] ranges,
+            double averageDocsPerRange,
+            Map<String, Object> filtersDebug,
             boolean keyed,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+            super(
+                name,
+                factories,
+                valuesSource,
+                format,
+                rangeFactory,
+                ranges,
+                averageDocsPerRange,
+                filtersDebug,
+                keyed,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
         }
 
         @Override
@@ -580,13 +670,29 @@ public abstract class RangeAggregator extends BucketsAggregator {
             DocValueFormat format,
             Factory rangeFactory,
             Range[] ranges,
+            double averageDocsPerRange,
+            Map<String, Object> filtersDebug,
             boolean keyed,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
-            super(name, factories, valuesSource, format, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
+            super(
+                name,
+                factories,
+                valuesSource,
+                format,
+                rangeFactory,
+                ranges,
+                averageDocsPerRange,
+                filtersDebug,
+                keyed,
+                context,
+                parent,
+                cardinality,
+                metadata
+            );
             maxTo = new double[ranges.length];
             maxTo[0] = ranges[0].to;
             for (int i = 1; i < ranges.length; ++i) {
@@ -653,6 +759,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         private final Range[] ranges;
         private final boolean keyed;
         private final InternalRange.Factory<B, ?> rangeFactory;
+        private final double averageDocsPerRange;
 
         FromFilters(
             Aggregator parent,
@@ -661,13 +768,22 @@ public abstract class RangeAggregator extends BucketsAggregator {
             DocValueFormat format,
             Range[] ranges,
             boolean keyed,
-            InternalRange.Factory<B, ?> rangeFactory
+            InternalRange.Factory<B, ?> rangeFactory,
+            double averageDocsPerRange
         ) throws IOException {
             super(parent, subAggregators, delegate);
             this.format = format;
             this.ranges = ranges;
             this.keyed = keyed;
             this.rangeFactory = rangeFactory;
+            this.averageDocsPerRange = averageDocsPerRange;
+        }
+
+        /**
+         * Estimate the number of documents that this aggregation must visit.
+         */
+        long estimateCost(long maxEstimatedCost) throws IOException {
+            return ((FiltersAggregator.FilterByFilter) delegate()).estimateCost(maxEstimatedCost);
         }
 
         @Override
@@ -695,6 +811,13 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 );
             }
             return rangeFactory.create(name(), buckets, format, keyed, filters.getMetadata());
+        }
+
+        @Override
+        public void collectDebugInfo(BiConsumer<String, Object> add) {
+            super.collectDebugInfo(add);
+            add.accept("ranges", ranges.length);
+            add.accept("average_docs_per_range", averageDocsPerRange);
         }
     }
 

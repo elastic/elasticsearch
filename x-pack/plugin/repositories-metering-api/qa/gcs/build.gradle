@@ -63,10 +63,10 @@ if (!gcsServiceAccount && !gcsBucket && !gcsBasePath) {
 }
 
 /** A service account file that points to the Google Cloud Storage service emulated by the fixture **/
-task createServiceAccountFile() {
+tasks.register("createServiceAccountFile") {
   doLast {
     KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA")
-    keyPairGenerator.initialize(1024)
+    keyPairGenerator.initialize(2048)
     KeyPair keyPair = keyPairGenerator.generateKeyPair()
     String encodedKey = Base64.getEncoder().encodeToString(keyPair.private.getEncoded())
 
@@ -94,7 +94,7 @@ Map<String, Object> expansions = [
   'base_path': gcsBasePath + "_integration_tests"
 ]
 
-processTestResources {
+tasks.named("processTestResources").configure {
   inputs.properties(expansions)
   MavenFilteringHack.filter(it, expansions)
 }
@@ -104,19 +104,21 @@ if (useFixture) {
   testFixtures.useFixture(fixture.path, 'gcs-fixture-repositories-metering')
 }
 
-integTest {
-  dependsOn repositoryPlugin.bundlePlugin
+tasks.named("integTest").configure {
+  dependsOn ":plugins:repository-gcs:bundlePlugin"
+  if (useFixture) {
+    dependsOn "createServiceAccountFile"
+  }
   systemProperty 'test.gcs.bucket', gcsBucket
   nonInputProperties.systemProperty 'test.gcs.base_path', gcsBasePath + "_repositories_metering" + BuildParams.testSeed
 }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   plugin repositoryPlugin.bundlePlugin.archiveFile
 
   keystore 'gcs.client.repositories_metering.credentials_file', serviceAccountFile, IGNORE_VALUE
   if (useFixture) {
-    tasks.integTest.dependsOn createServiceAccountFile
     /* Use a closure on the string to delay evaluation until tests are executed */
     setting 'gcs.client.repositories_metering.endpoint', { "${-> fixtureAddress('gcs-fixture-repositories-metering')}" }, IGNORE_VALUE
     setting 'gcs.client.repositories_metering.token_uri', { "${-> fixtureAddress('gcs-fixture-repositories-metering')}/o/oauth2/token" }, IGNORE_VALUE
@@ -125,6 +127,6 @@ testClusters.integTest {
   }
 }
 
-task gcsThirdPartyTest {
+tasks.register("gcsThirdPartyTest").configure {
   dependsOn integTest
 }

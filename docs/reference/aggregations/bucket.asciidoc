@@ -15,8 +15,8 @@ define fixed number of multiple buckets, and others dynamically create the bucke
 
 NOTE: The maximum number of buckets allowed in a single response is limited by a
 dynamic cluster setting named
-<<search-settings-max-buckets,`search.max_buckets`>>. It defaults to 65,535,
-requests that try to return more than the limit will fail with an exception.
+<<search-settings-max-buckets,`search.max_buckets`>>. It defaults to 65,535.
+Requests that try to return more than the limit will fail with an exception.
 
 include::bucket/adjacency-matrix-aggregation.asciidoc[]
 

@@ -10,6 +10,8 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
+import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStats;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -28,15 +31,19 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
@@ -48,11 +55,11 @@ import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsSta
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsRequest;
 import org.elasticsearch.xpack.searchablesnapshots.action.SearchableSnapshotsStatsResponse;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -65,11 +72,13 @@ import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -81,7 +90,10 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
@@ -130,6 +142,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         ensureGreen(indexName);
 
         assertShardFolders(indexName, false);
+
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setIndices(indexName)
+                .get()
+                .getState()
+                .metadata()
+                .index(indexName)
+                .getTimestampRange(),
+            sameInstance(IndexLongFieldRange.UNKNOWN)
+        );
 
         final boolean deletedBeforeMount = randomBoolean();
         if (deletedBeforeMount) {
@@ -212,6 +239,21 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertSearchableSnapshotStats(restoredIndexName, cacheEnabled, nonCachedExtensions);
         ensureGreen(restoredIndexName);
         assertShardFolders(restoredIndexName, true);
+
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareState()
+                .clear()
+                .setMetadata(true)
+                .setIndices(restoredIndexName)
+                .get()
+                .getState()
+                .metadata()
+                .index(restoredIndexName)
+                .getTimestampRange(),
+            sameInstance(IndexLongFieldRange.UNKNOWN)
+        );
 
         if (deletedBeforeMount) {
             assertThat(client().admin().indices().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(0));
@@ -662,9 +704,180 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             .get()
             .getSnapshots()
             .get(0);
-        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(snapshotOneTotalFileCount));
-        assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(numShards)); // one segment_N per shard
-        assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getTotalFileCount(), equalTo(numShards)); // one segment_N per shard
+        assertThat(snapshotTwoStatus.getStats().getIncrementalFileCount(), equalTo(0));
+        assertThat(snapshotTwoStatus.getStats().getProcessedFileCount(), equalTo(0));
+    }
+
+    public void testSnapshotMountedIndexWithTimestampsRecordsTimestampRangeInIndexMetadata() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final int numShards = between(1, 3);
+
+        final String dateType = randomFrom("date", "date_nanos");
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setMapping(
+                    XContentFactory.jsonBuilder()
+                        .startObject()
+                        .startObject("properties")
+                        .startObject(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD)
+                        .field("type", dateType)
+                        .field("format", "strict_date_optional_time_nanos")
+                        .endObject()
+                        .endObject()
+                        .endObject()
+                )
+                .setSettings(indexSettingsNoReplicas(numShards).put(INDEX_SOFT_DELETES_SETTING.getKey(), true))
+        );
+        ensureGreen(indexName);
+
+        final List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        final int docCount = between(0, 1000);
+        for (int i = 0; i < docCount; i++) {
+            indexRequestBuilders.add(
+                client().prepareIndex(indexName)
+                    .setSource(
+                        DataStream.TimestampField.FIXED_TIMESTAMP_FIELD,
+                        String.format(
+                            Locale.ROOT,
+                            "2020-11-26T%02d:%02d:%02d.%09dZ",
+                            between(0, 23),
+                            between(0, 59),
+                            between(0, 59),
+                            randomLongBetween(0, 999999999L)
+                        )
+                    )
+            );
+        }
+        indexRandom(true, false, indexRequestBuilders);
+        assertThat(
+            client().admin().indices().prepareForceMerge(indexName).setOnlyExpungeDeletes(true).setFlush(true).get().getFailedShards(),
+            equalTo(0)
+        );
+        refresh(indexName);
+        forceMerge();
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "fs");
+
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, indexName, Settings.EMPTY);
+        ensureGreen(indexName);
+
+        final IndexLongFieldRange timestampRange = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .setIndices(indexName)
+            .get()
+            .getState()
+            .metadata()
+            .index(indexName)
+            .getTimestampRange();
+
+        assertTrue(timestampRange.isComplete());
+        assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.UNKNOWN)));
+        if (docCount == 0) {
+            assertThat(timestampRange, sameInstance(IndexLongFieldRange.EMPTY));
+        } else {
+            assertThat(timestampRange, not(sameInstance(IndexLongFieldRange.EMPTY)));
+            DateFieldMapper.Resolution resolution = dateType.equals("date")
+                ? DateFieldMapper.Resolution.MILLISECONDS
+                : DateFieldMapper.Resolution.NANOSECONDS;
+            assertThat(timestampRange.getMin(), greaterThanOrEqualTo(resolution.convert(Instant.parse("2020-11-26T00:00:00Z"))));
+            assertThat(timestampRange.getMin(), lessThanOrEqualTo(resolution.convert(Instant.parse("2020-11-27T00:00:00Z"))));
+        }
+    }
+
+    public void testSnapshotOfSearchableSnapshotIncludesNoDataButCanBeRestored() throws Exception {
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createAndPopulateIndex(
+            indexName,
+            Settings.builder().put(INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+        );
+
+        final TotalHits originalAllHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .get()
+            .getHits()
+            .getTotalHits();
+        final TotalHits originalBarHits = internalCluster().client()
+            .prepareSearch(indexName)
+            .setTrackTotalHits(true)
+            .setQuery(matchQuery("foo", "bar"))
+            .get()
+            .getHits()
+            .getTotalHits();
+        logger.info("--> [{}] in total, of which [{}] match the query", originalAllHits, originalBarHits);
+
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "fs");
+
+        final SnapshotId snapshotOne = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+        for (final SnapshotStatus snapshotStatus : client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshotOne.getName())
+            .get()
+            .getSnapshots()) {
+            for (final SnapshotIndexShardStatus snapshotIndexShardStatus : snapshotStatus.getShards()) {
+                final SnapshotStats stats = snapshotIndexShardStatus.getStats();
+                assertThat(stats.getIncrementalFileCount(), greaterThan(1));
+                assertThat(stats.getProcessedFileCount(), greaterThan(1));
+                assertThat(stats.getTotalFileCount(), greaterThan(1));
+            }
+        }
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final String restoredIndexName = randomValueOtherThan(indexName, () -> randomAlphaOfLength(10).toLowerCase(Locale.ROOT));
+        mountSnapshot(repositoryName, snapshotOne.getName(), indexName, restoredIndexName, Settings.EMPTY);
+        ensureGreen(restoredIndexName);
+
+        if (randomBoolean()) {
+            logger.info("--> closing index before snapshot");
+            assertAcked(client().admin().indices().prepareClose(restoredIndexName));
+        }
+
+        logger.info("--> starting to take snapshot-2");
+        final SnapshotId snapshotTwo = createSnapshot(repositoryName, "snapshot-2", List.of(restoredIndexName)).snapshotId();
+        logger.info("--> finished taking snapshot-2");
+        for (final SnapshotStatus snapshotStatus : client().admin()
+            .cluster()
+            .prepareSnapshotStatus(repositoryName)
+            .setSnapshots(snapshotTwo.getName())
+            .get()
+            .getSnapshots()) {
+            assertThat(snapshotStatus.getIndices().size(), equalTo(1));
+            assertTrue(snapshotStatus.getIndices().containsKey(restoredIndexName));
+            for (final SnapshotIndexShardStatus snapshotIndexShardStatus : snapshotStatus.getShards()) {
+                final SnapshotStats stats = snapshotIndexShardStatus.getStats();
+                assertThat(stats.getIncrementalFileCount(), equalTo(1));
+                assertThat(stats.getProcessedFileCount(), equalTo(1));
+                assertThat(stats.getTotalFileCount(), equalTo(1));
+            }
+        }
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+
+        logger.info("--> starting to restore snapshot-2");
+        assertThat(
+            client().admin()
+                .cluster()
+                .prepareRestoreSnapshot(repositoryName, snapshotTwo.getName())
+                .setIndices(restoredIndexName)
+                .get()
+                .status(),
+            equalTo(RestStatus.ACCEPTED)
+        );
+        ensureGreen(restoredIndexName);
+        logger.info("--> finished restoring snapshot-2");
+
+        assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
     }
 
     private void assertTotalHits(String indexName, TotalHits originalAllHits, TotalHits originalBarHits) throws Exception {
@@ -710,32 +923,34 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         }
     }
 
-    private void assertRecoveryStats(String indexName, boolean preWarmEnabled) {
+    private void assertRecoveryStats(String indexName, boolean preWarmEnabled) throws Exception {
         int shardCount = getNumShards(indexName).totalNumShards;
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
-        assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
+        assertBusy(() -> {
+            final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+            assertThat(recoveryResponse.toString(), recoveryResponse.shardRecoveryStates().get(indexName).size(), equalTo(shardCount));
 
-        for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
-            for (RecoveryState recoveryState : recoveryStates) {
-                ByteSizeValue cacheSize = getCacheSizeForNode(recoveryState.getTargetNode().getName());
-                boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
-                RecoveryState.Index index = recoveryState.getIndex();
-                assertThat(
-                    Strings.toString(recoveryState, true, true),
-                    index.recoveredFileCount(),
-                    preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
-                );
+            for (List<RecoveryState> recoveryStates : recoveryResponse.shardRecoveryStates().values()) {
+                for (RecoveryState recoveryState : recoveryStates) {
+                    ByteSizeValue cacheSize = getCacheSizeForNode(recoveryState.getTargetNode().getName());
+                    boolean unboundedCache = cacheSize.equals(new ByteSizeValue(Long.MAX_VALUE, ByteSizeUnit.BYTES));
+                    RecoveryState.Index index = recoveryState.getIndex();
+                    assertThat(
+                        Strings.toString(recoveryState, true, true),
+                        index.recoveredFileCount(),
+                        preWarmEnabled && unboundedCache ? equalTo(index.totalRecoverFiles()) : greaterThanOrEqualTo(0)
+                    );
 
-                // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
-                // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
-                assertThat(
-                    recoveryState.getStage(),
-                    unboundedCache
-                        ? equalTo(RecoveryState.Stage.DONE)
-                        : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE))
-                );
+                    // Since the cache size is variable, the pre-warm phase might fail as some of the files can be evicted
+                    // while a part is pre-fetched, in that case the recovery state stage is left as FINALIZE.
+                    assertThat(
+                        recoveryState.getStage(),
+                        unboundedCache
+                            ? equalTo(RecoveryState.Stage.DONE)
+                            : anyOf(equalTo(RecoveryState.Stage.DONE), equalTo(RecoveryState.Stage.FINALIZE))
+                    );
+                }
             }
-        }
+        }, 30L, TimeUnit.SECONDS);
     }
 
     private void assertSearchableSnapshotStats(String indexName, boolean cacheEnabled, List<String> nonCachedExtensions) {
@@ -744,7 +959,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
             new SearchableSnapshotsStatsRequest(indexName)
         ).actionGet();
         final NumShards restoredNumShards = getNumShards(indexName);
-        assertThat(statsResponse.getStats(), Matchers.hasSize(restoredNumShards.totalNumShards));
+        assertThat(statsResponse.getStats(), hasSize(restoredNumShards.totalNumShards));
 
         final long totalSize = statsResponse.getStats()
             .stream()

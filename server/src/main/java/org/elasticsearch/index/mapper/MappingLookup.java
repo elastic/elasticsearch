@@ -19,20 +19,46 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.FieldNameAnalyzer;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
-public final class MappingLookup implements Iterable<Mapper> {
+/**
+ * A (mostly) immutable snapshot of the current mapping of an index with
+ * access to everything we need for the search phase.
+ */
+public class MappingLookup {
+    /**
+     * Key for the lookup to be used in caches.
+     */
+    public static class CacheKey {
+        private CacheKey() {}
+    }
+
+    /**
+     * A lookup representing an empty mapping.
+     */
+    public static final MappingLookup EMPTY = new MappingLookup(
+        "_doc",
+        List.of(),
+        List.of(),
+        List.of(),
+        List.of(),
+        0,
+        soucreToParse -> null,
+        false
+    );
+
+    private final CacheKey cacheKey = new CacheKey();
 
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
@@ -40,9 +66,11 @@ public final class MappingLookup implements Iterable<Mapper> {
     private final boolean hasNested;
     private final FieldTypeLookup fieldTypeLookup;
     private final int metadataFieldCount;
-    private final FieldNameAnalyzer indexAnalyzer;
+    private final Map<String, NamedAnalyzer> indexAnalyzers = new HashMap<>();
+    private final Function<SourceToParse, ParsedDocument> documentParser;
+    private final boolean sourceEnabled;
 
-    public static MappingLookup fromMapping(Mapping mapping) {
+    public static MappingLookup fromMapping(Mapping mapping, Function<SourceToParse, ParsedDocument> documentParser) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -51,24 +79,32 @@ public final class MappingLookup implements Iterable<Mapper> {
                 newFieldMappers.add(metadataMapper);
             }
         }
-        collect(mapping.root, newObjectMappers, newFieldMappers, newFieldAliasMappers);
-        return new MappingLookup(newFieldMappers, newObjectMappers, newFieldAliasMappers, mapping.metadataMappers.length);
+        for (Mapper child : mapping.root) {
+            collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
+        }
+        return new MappingLookup(
+            mapping.root().name(),
+            newFieldMappers,
+            newObjectMappers,
+            newFieldAliasMappers,
+            mapping.root.runtimeFieldTypes(),
+            mapping.metadataMappers.length,
+            documentParser,
+            mapping.metadataMapper(SourceFieldMapper.class).enabled()
+        );
     }
 
     private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
                                Collection<FieldMapper> fieldMappers,
                                Collection<FieldAliasMapper> fieldAliasMappers) {
-        if (mapper instanceof RootObjectMapper) {
-            // root mapper isn't really an object mapper
-        } else if (mapper instanceof ObjectMapper) {
+        if (mapper instanceof ObjectMapper) {
             objectMappers.add((ObjectMapper)mapper);
         } else if (mapper instanceof FieldMapper) {
             fieldMappers.add((FieldMapper)mapper);
         } else if (mapper instanceof FieldAliasMapper) {
             fieldAliasMappers.add((FieldAliasMapper) mapper);
         } else {
-            throw new IllegalStateException("Unrecognized mapper type [" +
-                mapper.getClass().getSimpleName() + "].");
+            throw new IllegalStateException("Unrecognized mapper type [" + mapper.getClass().getSimpleName() + "].");
         }
 
         for (Mapper child : mapper) {
@@ -76,12 +112,17 @@ public final class MappingLookup implements Iterable<Mapper> {
         }
     }
 
-    public MappingLookup(Collection<FieldMapper> mappers,
+    public MappingLookup(String type,
+                         Collection<FieldMapper> mappers,
                          Collection<ObjectMapper> objectMappers,
                          Collection<FieldAliasMapper> aliasMappers,
-                         int metadataFieldCount) {
+                         Collection<RuntimeFieldType> runtimeFieldTypes,
+                         int metadataFieldCount,
+                         Function<SourceToParse, ParsedDocument> documentParser,
+                         boolean sourceEnabled) {
+        this.documentParser = documentParser;
+        this.sourceEnabled = sourceEnabled;
         Map<String, Mapper> fieldMappers = new HashMap<>();
-        Map<String, Analyzer> indexAnalyzers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
         boolean hasNested = false;
@@ -115,10 +156,9 @@ public final class MappingLookup implements Iterable<Mapper> {
             }
         }
 
-        this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers);
+        this.fieldTypeLookup = new FieldTypeLookup(type, mappers, aliasMappers, runtimeFieldTypes);
 
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
-        this.indexAnalyzer = new FieldNameAnalyzer(indexAnalyzers);
         this.objectMappers = Collections.unmodifiableMap(objects);
     }
 
@@ -132,24 +172,25 @@ public final class MappingLookup implements Iterable<Mapper> {
         return fieldMappers.get(field);
     }
 
-    public FieldTypeLookup fieldTypes() {
+    FieldTypeLookup fieldTypes() {
         return fieldTypeLookup;
     }
 
+    public NamedAnalyzer indexAnalyzer(String field, Function<String, NamedAnalyzer> unmappedFieldAnalyzer) {
+        if (this.indexAnalyzers.containsKey(field)) {
+            return this.indexAnalyzers.get(field);
+        }
+        return unmappedFieldAnalyzer.apply(field);
+    }
+
     /**
-     * A smart analyzer used for indexing that takes into account specific analyzers configured
-     * per {@link FieldMapper}.
+     * Returns an iterable over all the registered field mappers (including alias mappers)
      */
-    public FieldNameAnalyzer indexAnalyzer() {
-        return this.indexAnalyzer;
+    public Iterable<Mapper> fieldMappers() {
+        return fieldMappers.values();
     }
 
-    @Override
-    public Iterator<Mapper> iterator() {
-        return fieldMappers.values().iterator();
-    }
-
-    public void checkLimits(IndexSettings settings) {
+    void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
@@ -235,5 +276,51 @@ public final class MappingLookup implements Iterable<Mapper> {
             return null;
         }
         return field.substring(0, lastDot);
+    }
+
+    public Set<String> simpleMatchToFullName(String pattern) {
+        return fieldTypes().simpleMatchToFullName(pattern);
+    }
+
+    /**
+     * Returns the mapped field type for the given field name.
+     */
+    public MappedFieldType getFieldType(String field) {
+        return fieldTypes().get(field);
+    }
+
+    /**
+     * Given a concrete field name, return its paths in the _source.
+     *
+     * For most fields, the source path is the same as the field itself. However
+     * there are cases where a field's values are found elsewhere in the _source:
+     *   - For a multi-field, the source path is the parent field.
+     *   - One field's content could have been copied to another through copy_to.
+     *
+     * @param field The field for which to look up the _source path. Note that the field
+     *              should be a concrete field and *not* an alias.
+     * @return A set of paths in the _source that contain the field's values.
+     */
+    public Set<String> sourcePaths(String field) {
+        return fieldTypes().sourcePaths(field);
+    }
+
+    public ParsedDocument parseDocument(SourceToParse source) {
+        return documentParser.apply(source);
+    }
+
+    public boolean hasMappings() {
+        return this != EMPTY;
+    }
+
+    public boolean isSourceEnabled() {
+        return sourceEnabled;
+    }
+
+    /**
+     * Key for the lookup to be used in caches.
+     */
+    public CacheKey cacheKey() {
+        return cacheKey;
     }
 }

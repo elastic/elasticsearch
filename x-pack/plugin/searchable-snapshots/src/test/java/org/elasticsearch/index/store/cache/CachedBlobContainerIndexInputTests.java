@@ -6,12 +6,13 @@
 package org.elasticsearch.index.store.cache;
 
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
@@ -28,12 +29,13 @@ import java.io.EOFException;
 import java.io.FilterInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -41,6 +43,7 @@ import static org.elasticsearch.index.store.cache.TestUtils.singleBlobContainer;
 import static org.elasticsearch.index.store.cache.TestUtils.singleSplitBlobContainer;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
@@ -80,19 +83,15 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 final BlobContainer singleBlobContainer = singleSplitBlobContainer(blobName, input, partSize);
                 final BlobContainer blobContainer;
                 if (input.length == partSize && input.length <= cacheService.getCacheSize() && prewarmEnabled == false) {
-                    blobContainer = new CountingBlobContainer(singleBlobContainer, cacheService.getRangeSize());
+                    blobContainer = new CountingBlobContainer(singleBlobContainer);
                 } else {
                     blobContainer = singleBlobContainer;
                 }
 
-                final Path shardDir;
-                try {
-                    shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                final boolean recoveryFinalizedDone = randomBoolean();
+                final Path shardDir = randomShardPath(shardId);
                 final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-                final Path cacheDir = createTempDir();
+                final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
                 try (
                     SearchableSnapshotDirectory directory = new SearchableSnapshotDirectory(
                         () -> blobContainer,
@@ -113,8 +112,13 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                         threadPool
                     )
                 ) {
-                    RecoveryState recoveryState = createRecoveryState();
-                    final boolean loaded = directory.loadSnapshot(recoveryState);
+                    RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
+                    final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
+                    final boolean loaded = directory.loadSnapshot(recoveryState, future);
+                    if (randomBoolean()) {
+                        // randomly wait for pre-warm before running the below reads
+                        future.get();
+                    }
                     assertThat("Failed to load snapshot", loaded, is(true));
                     assertThat("Snapshot should be loaded", directory.snapshot(), notNullValue());
                     assertThat("BlobContainer should be loaded", directory.blobContainer(), notNullValue());
@@ -128,7 +132,10 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                 }
 
                 if (blobContainer instanceof CountingBlobContainer) {
-                    long numberOfRanges = TestUtils.numberOfRanges(input.length, cacheService.getRangeSize());
+                    long numberOfRanges = TestUtils.numberOfRanges(
+                        input.length,
+                        recoveryFinalizedDone ? cacheService.getRangeSize() : cacheService.getRecoveryRangeSize()
+                    );
                     assertThat(
                         "Expected at most " + numberOfRanges + " ranges fetched from the source",
                         ((CountingBlobContainer) blobContainer).totalOpens.sum(),
@@ -178,14 +185,9 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
             );
 
             final BlobContainer blobContainer = singleBlobContainer(blobName, input);
-            final Path shardDir;
-            try {
-                shardDir = new NodeEnvironment.NodePath(createTempDir()).resolve(shardId);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            final Path shardDir = randomShardPath(shardId);
             final ShardPath shardPath = new ShardPath(false, shardDir, shardDir, shardId);
-            final Path cacheDir = createTempDir();
+            final Path cacheDir = Files.createDirectories(resolveSnapshotCache(shardDir).resolve(snapshotId.getUUID()));
             try (
                 SearchableSnapshotDirectory searchableSnapshotDirectory = new SearchableSnapshotDirectory(
                     () -> blobContainer,
@@ -203,8 +205,14 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     threadPool
                 )
             ) {
-                RecoveryState recoveryState = createRecoveryState();
-                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState);
+                RecoveryState recoveryState = createRecoveryState(randomBoolean());
+                final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+                final boolean loaded = searchableSnapshotDirectory.loadSnapshot(recoveryState, f);
+                try {
+                    f.get();
+                } catch (ExecutionException e) {
+                    assertNotNull(ExceptionsHelper.unwrap(e, IOException.class));
+                }
                 assertThat("Failed to load snapshot", loaded, is(true));
                 assertThat("Snapshot should be loaded", searchableSnapshotDirectory.snapshot(), notNullValue());
                 assertThat("BlobContainer should be loaded", searchableSnapshotDirectory.blobContainer(), notNullValue());
@@ -248,11 +256,8 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
 
         private final AtomicInteger openStreams = new AtomicInteger(0);
 
-        private final int rangeSize;
-
-        CountingBlobContainer(BlobContainer in, int rangeSize) {
+        CountingBlobContainer(BlobContainer in) {
             super(in);
-            this.rangeSize = rangeSize;
         }
 
         @Override
@@ -262,7 +267,7 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
 
         @Override
         protected BlobContainer wrapChild(BlobContainer child) {
-            return new CountingBlobContainer(child, this.rangeSize);
+            return new CountingBlobContainer(child);
         }
 
         @Override

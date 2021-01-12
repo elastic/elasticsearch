@@ -31,7 +31,8 @@ import static org.hamcrest.Matchers.is;
 
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
-    public void testTimeThrottle(){
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65176")
+    public void testTimeThrottle() throws Exception {
         String id = randomAlphaOfLength(20);
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
                 .setId(id)
@@ -57,7 +58,8 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
         assertTotalHistoryEntries(id, 3);
     }
 
-    public void testTimeThrottleDefaults() {
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65176")
+    public void testTimeThrottleDefaults() throws Exception {
         String id = randomAlphaOfLength(30);
         PutWatchResponse putWatchResponse = new PutWatchRequestBuilder(client())
                 .setId(id)
@@ -95,9 +97,9 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     private Map<String, Object> assertLatestHistoryEntry(String id) {
-        refresh(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*");
+        refresh(HistoryStoreField.DATA_STREAM + "*");
 
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
                 .setSize(1)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery()
                         .must(termQuery("watch_id", id))))
@@ -111,7 +113,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
     }
 
     private void assertTotalHistoryEntries(String id, long expectedCount) {
-        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.INDEX_PREFIX_WITH_TEMPLATE + "*")
+        SearchResponse searchResponse = client().prepareSearch(HistoryStoreField.DATA_STREAM + "*")
                 .setSize(0)
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
                 .get();

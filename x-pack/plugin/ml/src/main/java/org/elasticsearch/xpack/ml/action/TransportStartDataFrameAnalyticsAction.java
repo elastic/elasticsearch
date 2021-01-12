@@ -161,8 +161,11 @@ public class TransportStartDataFrameAnalyticsAction
                 @Override
                 public void onFailure(Exception e) {
                     if (ExceptionsHelper.unwrapCause(e) instanceof ResourceAlreadyExistsException) {
-                        e = new ElasticsearchStatusException("Cannot start data frame analytics [" + request.getId() +
-                            "] because it has already been started", RestStatus.CONFLICT, e);
+                        e = new ElasticsearchStatusException(
+                            "Cannot start data frame analytics [{}] because it has already been started",
+                            RestStatus.CONFLICT,
+                            e,
+                            request.getId());
                     }
                     listener.onFailure(e);
                 }
@@ -271,7 +274,9 @@ public class TransportStartDataFrameAnalyticsAction
                             "Cannot start because the job has already finished"));
                         break;
                     default:
-                        finalListener.onFailure(ExceptionsHelper.serverError("Unexpected starting state " + startContext.startingState));
+                        finalListener.onFailure(ExceptionsHelper.serverError(
+                            "Unexpected starting state {}",
+                            startContext.startingState));
                         break;
                 }
             },
@@ -446,7 +451,7 @@ public class TransportStartDataFrameAnalyticsAction
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     logger.error(
-                        () -> new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
+                        new ParameterizedMessage("[{}] timed out when starting task after [{}]. Assignment explanation [{}]",
                             task.getParams().getId(),
                             timeout,
                             predicate.assignmentExplanation));
@@ -504,6 +509,7 @@ public class TransportStartDataFrameAnalyticsAction
             if (assignment != null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT)) {
                 return true;
             }
+            String reason = "__unknown__";
 
             if (assignment != null
                 && assignment.equals(PersistentTasksCustomMetadata.INITIAL_ASSIGNMENT) == false
@@ -514,11 +520,14 @@ public class TransportStartDataFrameAnalyticsAction
                 if (assignmentExplanation.contains(PRIMARY_SHARDS_INACTIVE)) {
                     return false;
                 }
-                exception = new ElasticsearchStatusException("Could not start data frame analytics task, allocation explanation [" +
-                    assignment.getExplanation() + "]", RestStatus.TOO_MANY_REQUESTS);
+                exception = new ElasticsearchStatusException(
+                    "Could not start data frame analytics task, allocation explanation [{}]",
+                    RestStatus.TOO_MANY_REQUESTS,
+                    assignment.getExplanation());
                 return true;
             }
             DataFrameAnalyticsTaskState taskState = (DataFrameAnalyticsTaskState) persistentTask.getState();
+            reason = taskState != null ? taskState.getReason() : reason;
             DataFrameAnalyticsState analyticsState = taskState == null ? DataFrameAnalyticsState.STOPPED : taskState.getState();
             switch (analyticsState) {
                 case STARTED:
@@ -539,7 +548,10 @@ public class TransportStartDataFrameAnalyticsAction
                     return false;
                 case FAILED:
                 default:
-                    exception = ExceptionsHelper.serverError("Unexpected task state [" + analyticsState + "] while waiting to be started");
+                    exception = ExceptionsHelper.serverError(
+                        "Unexpected task state [{}] {}while waiting to be started",
+                        analyticsState,
+                        reason == null ? "" : "with reason [" + reason + "] ");
                     return true;
             }
         }
@@ -559,8 +571,12 @@ public class TransportStartDataFrameAnalyticsAction
 
                 @Override
                 public void onFailure(Exception e) {
-                    logger.error("[" + persistentTask.getParams().getId() + "] Failed to cancel persistent task that could " +
-                        "not be assigned due to [" + exception.getMessage() + "]", e);
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] Failed to cancel persistent task that could not be assigned due to [{}]",
+                            persistentTask.getParams().getId(),
+                            exception.getMessage()),
+                        e);
                     listener.onFailure(exception);
                 }
             }
@@ -620,13 +636,16 @@ public class TransportStartDataFrameAnalyticsAction
                     node -> nodeFilter(node, params));
             // Pass an effectively infinite value for max concurrent opening jobs, because data frame analytics jobs do
             // not have an "opening" state so would never be rejected for causing too many jobs in the "opening" state
-            return jobNodeSelector.selectNode(
+            PersistentTasksCustomMetadata.Assignment assignment = jobNodeSelector.selectNode(
                 maxOpenJobs,
                 Integer.MAX_VALUE,
                 maxMachineMemoryPercent,
+                maxNodeMemory,
                 isMemoryTrackerRecentlyRefreshed,
                 useAutoMemoryPercentage
             );
+            auditRequireMemoryIfNecessary(params.getId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);
+            return assignment;
         }
 
         @Override
@@ -650,8 +669,12 @@ public class TransportStartDataFrameAnalyticsAction
                 ok -> executeTask(analyticsTaskState, task),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
-                    String msg = "Failed to create internal index template [" + inferenceIndexTemplate.getTemplateName() + "]";
-                    logger.error(msg, cause);
+                    logger.error(
+                        new ParameterizedMessage(
+                            "[{}] failed to create internal index template [{}]",
+                            params.getId(),
+                            inferenceIndexTemplate.getTemplateName()),
+                        cause);
                     task.markAsFailed(error);
                 }
             );

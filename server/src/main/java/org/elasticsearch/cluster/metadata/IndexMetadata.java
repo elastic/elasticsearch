@@ -55,6 +55,7 @@ import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
@@ -156,11 +157,12 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     public static final Setting<Integer> INDEX_ROUTING_PARTITION_SIZE_SETTING =
             Setting.intSetting(SETTING_ROUTING_PARTITION_SIZE, 1, 1, Property.IndexScope);
 
+    @SuppressWarnings("Convert2Diamond") // since some IntelliJs mysteriously report an error if an <Integer> is replaced with <> here:
     public static final Setting<Integer> INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING = Setting.intSetting(
         "index.number_of_routing_shards",
         INDEX_NUMBER_OF_SHARDS_SETTING,
         1,
-        new Setting.Validator<>() {
+        new Setting.Validator<Integer>() {
 
             @Override
             public void validate(final Integer value) {
@@ -340,6 +342,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     static final String KEY_ALIASES = "aliases";
     static final String KEY_ROLLOVER_INFOS = "rollover_info";
     static final String KEY_SYSTEM = "system";
+    static final String KEY_TIMESTAMP_RANGE = "timestamp_range";
     public static final String KEY_PRIMARY_TERMS = "primary_terms";
 
     public static final String INDEX_STATE_FILE_PREFIX = "state-";
@@ -390,6 +393,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
     private final ImmutableOpenMap<String, RolloverInfo> rolloverInfos;
     private final boolean isSystem;
 
+    private final IndexLongFieldRange timestampRange;
+
     private IndexMetadata(
             final Index index,
             final long version,
@@ -415,7 +420,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             final int routingPartitionSize,
             final ActiveShardCount waitForActiveShards,
             final ImmutableOpenMap<String, RolloverInfo> rolloverInfos,
-            final boolean isSystem) {
+            final boolean isSystem,
+            final IndexLongFieldRange timestampRange) {
 
         this.index = index;
         this.version = version;
@@ -448,6 +454,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         this.waitForActiveShards = waitForActiveShards;
         this.rolloverInfos = rolloverInfos;
         this.isSystem = isSystem;
+        this.timestampRange = timestampRange;
         assert numberOfShards * routingFactor == routingNumShards :  routingNumShards + " must be a multiple of " + numberOfShards;
     }
 
@@ -620,6 +627,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         return excludeFilters;
     }
 
+    public IndexLongFieldRange getTimestampRange() {
+        return timestampRange;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -729,6 +740,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final Diff<ImmutableOpenIntMap<Set<String>>> inSyncAllocationIds;
         private final Diff<ImmutableOpenMap<String, RolloverInfo>> rolloverInfos;
         private final boolean isSystem;
+        private final IndexLongFieldRange timestampRange;
 
         IndexMetadataDiff(IndexMetadata before, IndexMetadata after) {
             index = after.index.getName();
@@ -747,6 +759,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                 DiffableUtils.getVIntKeySerializer(), DiffableUtils.StringSetValueSerializer.getInstance());
             rolloverInfos = DiffableUtils.diff(before.rolloverInfos, after.rolloverInfos, DiffableUtils.getStringKeySerializer());
             isSystem = after.isSystem;
+            timestampRange = after.timestampRange;
         }
 
         private static final DiffableUtils.DiffableValueReader<String, AliasMetadata> ALIAS_METADATA_DIFF_VALUE_READER =
@@ -784,6 +797,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 isSystem = false;
             }
+            timestampRange = IndexLongFieldRange.readFrom(in);
         }
 
         @Override
@@ -807,6 +821,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
                 out.writeBoolean(isSystem);
             }
+            timestampRange.writeTo(out);
         }
 
         @Override
@@ -826,6 +841,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.inSyncAllocationIds.putAll(inSyncAllocationIds.apply(part.inSyncAllocationIds));
             builder.rolloverInfos.putAll(rolloverInfos.apply(part.rolloverInfos));
             builder.system(part.isSystem);
+            builder.timestampRange(timestampRange);
             return builder.build();
         }
     }
@@ -871,6 +887,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (in.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             builder.system(in.readBoolean());
         }
+        builder.timestampRange(IndexLongFieldRange.readFrom(in));
         return builder.build();
     }
 
@@ -912,6 +929,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         if (out.getVersion().onOrAfter(SYSTEM_INDEX_FLAG_ADDED)) {
             out.writeBoolean(isSystem);
         }
+        timestampRange.writeTo(out);
     }
 
     public boolean isSystem() {
@@ -943,6 +961,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
         private final ImmutableOpenMap.Builder<String, RolloverInfo> rolloverInfos;
         private Integer routingNumShards;
         private boolean isSystem;
+        private IndexLongFieldRange timestampRange = IndexLongFieldRange.NO_SHARDS;
 
         public Builder(String index) {
             this.index = index;
@@ -970,6 +989,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             this.inSyncAllocationIds = ImmutableOpenIntMap.builder(indexMetadata.inSyncAllocationIds);
             this.rolloverInfos = ImmutableOpenMap.builder(indexMetadata.rolloverInfos);
             this.isSystem = indexMetadata.isSystem;
+            this.timestampRange = indexMetadata.timestampRange;
         }
 
         public Builder index(String index) {
@@ -1182,6 +1202,15 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             return isSystem;
         }
 
+        public Builder timestampRange(IndexLongFieldRange timestampRange) {
+            this.timestampRange = timestampRange;
+            return this;
+        }
+
+        public IndexLongFieldRange getTimestampRange() {
+            return timestampRange;
+        }
+
         public IndexMetadata build() {
             ImmutableOpenMap.Builder<String, AliasMetadata> tmpAliases = aliases;
             Settings tmpSettings = settings;
@@ -1243,7 +1272,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             } else {
                 initialRecoveryFilters = DiscoveryNodeFilters.buildFromKeyValue(OR, initialRecoveryMap);
             }
-            Version indexCreatedVersion = Version.indexCreated(settings);
+            Version indexCreatedVersion = indexCreatedVersion(settings);
             Version indexUpgradedVersion = settings.getAsVersion(IndexMetadata.SETTING_VERSION_UPGRADED, indexCreatedVersion);
 
             if (primaryTerms == null) {
@@ -1287,7 +1316,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                     routingPartitionSize,
                     waitForActiveShards,
                     rolloverInfos.build(),
-                    isSystem);
+                    isSystem,
+                timestampRange);
         }
 
         public static void toXContent(IndexMetadata indexMetadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -1389,6 +1419,10 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             builder.endObject();
             builder.field(KEY_SYSTEM, indexMetadata.isSystem);
 
+            builder.startObject(KEY_TIMESTAMP_RANGE);
+            indexMetadata.timestampRange.toXContent(builder, params);
+            builder.endObject();
+
             builder.endObject();
         }
 
@@ -1469,6 +1503,8 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         // simply ignored when upgrading from 2.x
                         assert Version.CURRENT.major <= 5;
                         parser.skipChildren();
+                    } else if (KEY_TIMESTAMP_RANGE.equals(currentFieldName)) {
+                        builder.timestampRange(IndexLongFieldRange.fromXContent(parser));
                     } else {
                         // assume it's custom index metadata
                         builder.putCustom(currentFieldName, parser.mapStrings());
@@ -1530,11 +1566,32 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
             if (Assertions.ENABLED) {
                 assert settingsVersion : "settings version should be present for indices created on or after 6.5.0";
             }
-            if (Assertions.ENABLED && Version.indexCreated(builder.settings).onOrAfter(Version.V_7_2_0)) {
+
+            Version indexVersion = indexCreatedVersion(builder.settings);
+            if (Assertions.ENABLED && indexVersion.onOrAfter(Version.V_7_2_0)) {
                 assert aliasesVersion : "aliases version should be present for indices created on or after 7.2.0";
             }
             return builder.build();
         }
+    }
+
+    /**
+     * Return the {@link Version} of Elasticsearch that has been used to create an index given its settings.
+     *
+     * @throws IllegalArgumentException if the given index settings doesn't contain a value for the key
+     *                                  {@value IndexMetadata#SETTING_VERSION_CREATED}
+     */
+    private static Version indexCreatedVersion(Settings indexSettings) {
+        final Version indexVersion = IndexMetadata.SETTING_INDEX_VERSION_CREATED.get(indexSettings);
+        if (indexVersion == Version.V_EMPTY) {
+            final String message = String.format(
+                Locale.ROOT,
+                "[%s] is not present in the index settings for index with UUID [%s]",
+                IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(),
+                indexSettings.get(IndexMetadata.SETTING_INDEX_UUID));
+            throw new IllegalArgumentException(message);
+        }
+        return indexVersion;
     }
 
     /**

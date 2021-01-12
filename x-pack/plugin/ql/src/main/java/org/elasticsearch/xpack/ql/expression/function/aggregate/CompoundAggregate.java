@@ -17,5 +17,5 @@ public interface CompoundAggregate {
 
     Expression field();
 
-    List<Expression> arguments();
+    List<? extends Expression> parameters();
 }

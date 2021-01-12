@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -46,21 +45,18 @@ public class NestedAggregatorFactory extends AggregatorFactory {
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         if (childObjectMapper == null) {
-            return new Unmapped(name, searchContext, parent, factories, metadata);
+            return new Unmapped(name, context, parent, factories, metadata);
         }
-        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, searchContext, parent,
-            cardinality, metadata);
+        return new NestedAggregator(name, factories, parentObjectMapper, childObjectMapper, context, parent, cardinality, metadata);
     }
 
     private static final class Unmapped extends NonCollectingAggregator {
 
         Unmapped(String name,
-                    SearchContext context,
+                    AggregationContext context,
                     Aggregator parent,
                     AggregatorFactories factories,
                     Map<String, Object> metadata) throws IOException {

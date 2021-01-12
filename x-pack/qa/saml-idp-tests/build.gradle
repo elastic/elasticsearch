@@ -7,7 +7,7 @@ apply plugin: 'elasticsearch.test.fixtures'
 
 dependencies {
   testImplementation project(path: xpackModule('core'), configuration: 'testArtifacts')
-  testImplementation 'com.google.jimfs:jimfs:1.1'
+  testImplementation "com.google.jimfs:jimfs:${versions.jimfs}"
 }
 testFixtures.useFixture ":x-pack:test:idp-fixture"
 
@@ -39,9 +39,9 @@ tasks.register("setupPorts") {
   }
 }
 
-integTest.dependsOn "setupPorts"
+tasks.named("integTest").configure {dependsOn "setupPorts" }
 
-testClusters.integTest {
+testClusters.matching { it.name == "integTest" }.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
@@ -105,8 +105,17 @@ tasks.named("thirdPartyAudit").configure {
     'com.google.common.cache.Striped64',
     'com.google.common.cache.Striped64$1',
     'com.google.common.cache.Striped64$Cell',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'com.google.common.hash.Striped64',
+    'com.google.common.hash.Striped64$1',
+    'com.google.common.hash.Striped64$Cell',
     'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
+    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1'
   )
 
   ignoreMissingClasses(

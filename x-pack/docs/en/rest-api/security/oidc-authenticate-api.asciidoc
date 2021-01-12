@@ -58,7 +58,7 @@ be used to authenticate this. Useful when multiple realms have been defined.
 
 The following example request exchanges the response that was returned from the
 OpenID Connect Provider after a successful authentication, for an {es} access
-token and refresh token to be used in subsequent requests. This example is from 
+token and refresh token to be used in subsequent requests. This example is from
 an authentication that uses the authorization code grant flow.
 
 [source,console]

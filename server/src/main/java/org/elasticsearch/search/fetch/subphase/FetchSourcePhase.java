@@ -55,8 +55,8 @@ public final class FetchSourcePhase implements FetchSubPhase {
             public void process(HitContext hitContext) {
                 if (SourceFieldMapper.isEnabled(fetchContext.getQueryShardContext()::getFieldType) == false) {
                     if (containsFilters(fetchSourceContext)) {
-                        throw new IllegalArgumentException("unable to fetch fields from _source field: _source is disabled in the mappings " +
-                            "for index [" + index + "]");
+                        throw new IllegalArgumentException(
+                            "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]");
                     }
                     return;
                 }

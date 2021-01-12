@@ -83,7 +83,10 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
             () -> putAutoscalingPolicy(new AutoscalingPolicy(policyName, new TreeSet<>(), new TreeMap<>()))
         );
 
-        assertThat(exception.getMessage(), containsString("no deciders enabled for policy [" + policyName + "] with roles [[]]"));
+        assertThat(
+            exception.getMessage(),
+            containsString("no default nor user configured deciders for policy [" + policyName + "] with roles [[]]")
+        );
     }
 
     private AutoscalingPolicy putRandomAutoscalingPolicy() {

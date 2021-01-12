@@ -53,7 +53,7 @@ public class AutoscalingCalculateCapacityService implements PolicyValidator {
         SortedMap<String, Settings> deciders = addDefaultDeciders(policy);
         if (deciders.isEmpty()) {
             throw new IllegalArgumentException(
-                "no deciders enabled for policy [" + policy.name() + "] with roles [" + policy.roles() + "]"
+                "no default nor user configured deciders for policy [" + policy.name() + "] with roles [" + policy.roles() + "]"
             );
         }
     }

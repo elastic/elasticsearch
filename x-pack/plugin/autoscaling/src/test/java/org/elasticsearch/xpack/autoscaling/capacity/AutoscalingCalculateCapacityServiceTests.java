@@ -346,7 +346,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
         assertThat(
             exception.getMessage(),
-            equalTo("no deciders enabled for policy [" + policyName + "] with roles [" + policy.roles() + "]")
+            equalTo("no default nor user configured deciders for policy [" + policyName + "] with roles [" + policy.roles() + "]")
         );
     }
 

@@ -1177,14 +1177,14 @@ final class RequestConverters {
      */
     static XContentType enforceSameContentType(IndexRequest indexRequest, @Nullable XContentType xContentType) {
         XContentType requestContentType = indexRequest.getContentType();
-        if (requestContentType != XContentType.JSON && requestContentType != XContentType.SMILE) {
+        if (requestContentType.canonical() != XContentType.JSON && requestContentType.canonical() != XContentType.SMILE) {
             throw new IllegalArgumentException("Unsupported content-type found for request with content-type [" + requestContentType
                     + "], only JSON and SMILE are supported");
         }
         if (xContentType == null) {
             return requestContentType;
         }
-        if (requestContentType != xContentType) {
+        if (requestContentType.canonical() != xContentType.canonical()) {
             throw new IllegalArgumentException("Mismatching content-type found for request with content-type [" + requestContentType
                     + "], previous requests have content-type [" + xContentType + "]");
         }

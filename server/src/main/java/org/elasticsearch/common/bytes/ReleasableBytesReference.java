@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -33,7 +34,7 @@ import java.io.OutputStream;
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
  */
-public final class ReleasableBytesReference implements Releasable, BytesReference {
+public final class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
@@ -56,6 +57,21 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     public int refCount() {
         return refCounted.refCount();
+    }
+
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
     }
 
     public ReleasableBytesReference retain() {
@@ -94,6 +110,7 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     @Override
     public BytesReference slice(int from, int length) {
+        assert refCount() > 0;
         return delegate.slice(from, length);
     }
 
@@ -104,26 +121,41 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     @Override
     public StreamInput streamInput() throws IOException {
-        return delegate.streamInput();
+        assert refCount() > 0;
+        return new BytesReferenceStreamInput(this) {
+            @Override
+            public ReleasableBytesReference readReleasableBytesReference() throws IOException {
+                final int len = readArraySize();
+                // instead of reading the bytes from a stream we just create a slice of the underlying bytes
+                final ReleasableBytesReference result = retainedSlice(offset(), len);
+                // move the stream manually since creating the slice didn't move it
+                skip(len);
+                return result;
+            }
+        };
     }
 
     @Override
     public void writeTo(OutputStream os) throws IOException {
+        assert refCount() > 0;
         delegate.writeTo(os);
     }
 
     @Override
     public String utf8ToString() {
+        assert refCount() > 0;
         return delegate.utf8ToString();
     }
 
     @Override
     public BytesRef toBytesRef() {
+        assert refCount() > 0;
         return delegate.toBytesRef();
     }
 
     @Override
     public BytesRefIterator iterator() {
+        assert refCount() > 0;
         return delegate.iterator();
     }
 
@@ -134,6 +166,7 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        assert refCount() > 0;
         return delegate.toXContent(builder, params);
     }
 
@@ -144,11 +177,13 @@ public final class ReleasableBytesReference implements Releasable, BytesReferenc
 
     @Override
     public boolean equals(Object obj) {
+        assert refCount() > 0;
         return delegate.equals(obj);
     }
 
     @Override
     public int hashCode() {
+        assert refCount() > 0;
         return delegate.hashCode();
     }
 

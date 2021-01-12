@@ -43,7 +43,7 @@ public class NodeVersionAllocationDecider extends AllocationDecider {
             }
         } else {
             final ShardRouting primary = allocation.routingNodes().activePrimary(shardRouting.shardId());
-            // check that active primary has a newer version so that peer recovery works
+            // check that active primary has an older-or-equal version so that peer recovery works
             if (primary != null) {
                 return isVersionCompatibleAllocatingReplica(allocation.routingNodes(), primary.currentNodeId(), node, allocation);
             } else {

@@ -332,7 +332,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * deciders say yes, we allocate to that node.
      */
     public void testRestore() {
-        RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders(), randomLong(), "allocId");
+        RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders(), randomLong(),
+                generateRandomStringArray(randomIntBetween(0, 2), 10, false));
         testAllocator.addData(node1, "some allocId", randomBoolean());
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
@@ -346,7 +347,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * deciders say throttle, we add it to ignored shards.
      */
     public void testRestoreThrottle() {
-        RoutingAllocation allocation = getRestoreRoutingAllocation(throttleAllocationDeciders(), randomLong(), "allocId");
+        RoutingAllocation allocation = getRestoreRoutingAllocation(throttleAllocationDeciders(), randomLong(),
+                generateRandomStringArray(randomIntBetween(0, 2), 10, false));
         testAllocator.addData(node1, "some allocId", randomBoolean());
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
@@ -360,7 +362,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      */
     public void testRestoreForcesAllocateIfShardAvailable() {
         final long shardSize = randomNonNegativeLong();
-        RoutingAllocation allocation = getRestoreRoutingAllocation(noAllocationDeciders(), shardSize, "allocId");
+        RoutingAllocation allocation = getRestoreRoutingAllocation(noAllocationDeciders(), shardSize,
+                generateRandomStringArray(randomIntBetween(0, 2), 10, false));
         testAllocator.addData(node1, "some allocId", randomBoolean());
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));
@@ -376,7 +379,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * the unassigned list to be allocated later.
      */
     public void testRestoreDoesNotAssignIfNoShardAvailable() {
-        RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders(), randomNonNegativeLong(), "allocId");
+        RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders(), randomNonNegativeLong(),
+                generateRandomStringArray(randomIntBetween(0, 2), 10, false));
         testAllocator.addData(node1, null, randomBoolean());
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(false));
@@ -390,7 +394,8 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * the unassigned list to be allocated later.
      */
     public void testRestoreDoesNotAssignIfShardSizeNotAvailable() {
-        RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders(), null, "allocId");
+        RoutingAllocation allocation = getRestoreRoutingAllocation(yesAllocationDeciders(), null,
+                generateRandomStringArray(randomIntBetween(0, 2), 10, false));
         testAllocator.addData(node1, null, false);
         allocateAllUnassigned(allocation);
         assertThat(allocation.routingNodesChanged(), equalTo(true));

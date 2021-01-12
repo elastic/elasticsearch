@@ -64,8 +64,79 @@ import java.util.stream.Collectors;
  * version of the blob, but again must not yield partial data). Usually, however, we write once and only read after the write completes, and
  * in this case we insist that the read succeeds.
  *
+ *
+ *
+ *
+ * +---------+                           +-------+                               +---------+
+ * | Writer  |                           | Repo  |                               | Readers |
+ * +---------+                           +-------+                               +---------+
+ *      | --------------\                    |                                        |
+ *      |-| Write phase |                    |                                        |
+ *      | |-------------|                    |                                        |
+ *      |                                    |                                        |
+ *      | Write blob with random content     |                                        |
+ *      |----------------------------------->|                                        |
+ *      |                                    |                                        |
+ *      | Read range during write (rarely)   |                                        |
+ *      |---------------------------------------------------------------------------->|
+ *      |                                    |                                        |
+ *      |                                    |                             Read range |
+ *      |                                    |<---------------------------------------|
+ *      |                                    |                                        |
+ *      |                                    | Contents of range, or "not found"      |
+ *      |                                    |--------------------------------------->|
+ *      |                                    |                                        |
+ *      |                               Acknowledge read, including checksum if found |
+ *      |<----------------------------------------------------------------------------|
+ *      |                                    |                                        |
+ *      |                     Write complete |                                        |
+ *      |<-----------------------------------|                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      | -------------\                     |                                        |
+ *      |-| Read phase |                     |                                        |
+ *      | |------------|                     |                                        |
+ *      |                                    |                                        |
+ *      | Read range [a,b)                   |                                        |
+ *      |---------------------------------------------------------------------------->|
+ *      |                                    |                                        |
+ *      |                                    |                             Read range |
+ *      |                                    |<---------------------------------------|
+ *      |                                    |                                        |
+ *      | Overwrite blob (rarely)            |                                        |
+ *      |----------------------------------->|                                        |
+ *      |                                    |                                        |
+ *      |                                    | Contents of range                      |
+ *      |                                    |--------------------------------------->|
+ *      |                                    |                                        |
+ *      |                 Overwrite complete |                                        |
+ *      |<-----------------------------------|                                        |
+ *      |                                    |                                        |
+ *      |                                    |               Ack read (with checksum) |
+ *      |<----------------------------------------------------------------------------|
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      |                                    |                                        |
+ *      | ---------------\                   |                                        |
+ *      |-| Verify phase |                   |                                        |
+ *      | |--------------|                   |                                        |
+ *      |                                    |                                        |
+ *      | Confirm checksums                  |                                        |
+ *      |------------------                  |                                        |
+ *      |                 |                  |                                        |
+ *      |<-----------------                  |                                        |
+ *      |                                    |                                        |
+ *
+ *
+ *
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
  * unnecessary resources.
+ *
  */
 public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response> {
 

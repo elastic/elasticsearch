@@ -6,12 +6,10 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 
@@ -22,53 +20,36 @@ import java.util.Objects;
  */
 public class RollupStep extends AsyncActionStep {
     public static final String NAME = "rollup";
-    public static final String ROLLUP_INDEX_NAME_POSTFIX = "-rollup";
+    public static final String ROLLUP_INDEX_NAME_PREFIX = "_rollup";
 
     private final RollupActionConfig config;
-    private final String rollupPolicy;
 
-    public RollupStep(StepKey key, StepKey nextStepKey, Client client, RollupActionConfig config, String rollupPolicy) {
+    public RollupStep(StepKey key, StepKey nextStepKey, Client client, RollupActionConfig config) {
         super(key, nextStepKey, client);
         this.config = config;
-        this.rollupPolicy = rollupPolicy;
     }
 
     @Override
     public boolean isRetryable() {
-        return false;
+        return true;
     }
 
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
         String originalIndex = indexMetadata.getIndex().getName();
-        String rollupIndex = originalIndex + ROLLUP_INDEX_NAME_POSTFIX;
+        String rollupIndex = ROLLUP_INDEX_NAME_PREFIX + originalIndex;
         RollupAction.Request request = new RollupAction.Request(originalIndex, rollupIndex, config);
-        if (rollupPolicy == null) {
-            getClient().execute(RollupAction.INSTANCE, request,
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
-        } else {
-            Settings setPolicySettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
-            UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndex)
-                .masterNodeTimeout(getMasterTimeout(currentState)).settings(setPolicySettings);
-            getClient().execute(RollupAction.INSTANCE, request,
-                ActionListener.wrap(rollupResponse -> {
-                    getClient().admin().indices().updateSettings(updateSettingsRequest,
-                        ActionListener.wrap(settingsResponse -> listener.onResponse(true), listener::onFailure));
-                }, listener::onFailure));
-        }
+        getClient().execute(RollupAction.INSTANCE, request,
+            ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }
 
     public RollupActionConfig getConfig() {
         return config;
     }
 
-    public String getRollupPolicy() {
-        return rollupPolicy;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), config, rollupPolicy);
+        return Objects.hash(super.hashCode(), config);
     }
 
     @Override
@@ -81,7 +62,6 @@ public class RollupStep extends AsyncActionStep {
         }
         RollupStep other = (RollupStep) obj;
         return super.equals(obj)
-            && Objects.equals(config, other.config)
-            && Objects.equals(rollupPolicy, other.rollupPolicy);
+            && Objects.equals(config, other.config);
     }
 }

@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
@@ -97,15 +96,23 @@ public class RollupILMAction implements LifecycleAction {
     @Override
     public List<Step> toSteps(Client client, String phase, StepKey nextStepKey) {
         StepKey checkNotWriteIndex = new StepKey(phase, NAME, CheckNotDataStreamWriteIndexStep.NAME);
-        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyAction.NAME);
+        StepKey readOnlyKey = new StepKey(phase, NAME, ReadOnlyStep.NAME);
         StepKey rollupKey = new StepKey(phase, NAME, NAME);
-        Settings readOnlySettings = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
-        UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, rollupKey, client, readOnlySettings);
-
-        RollupStep rollupStep = new RollupStep(rollupKey, nextStepKey, client, config, rollupPolicy);
-        return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
+        ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, rollupKey, client);
+        Settings setPolicySettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
+        StepKey updateLifecyclePolicyKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
+        UpdateSettingsStep updateLifecycleSettingsStep = new UpdateSettingsStep(updateLifecyclePolicyKey, nextStepKey,
+            client, setPolicySettings);
+        final Step rollupStep;
+        if (rollupPolicy != null) {
+            rollupStep = new RollupStep(rollupKey, updateLifecyclePolicyKey, client, config);
+            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep, updateLifecycleSettingsStep);
+        } else {
+            rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
+            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
+        }
     }
 
     @Override

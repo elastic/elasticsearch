@@ -8,14 +8,11 @@ package org.elasticsearch.xpack.core.ilm;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
@@ -31,53 +28,34 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
 
     @Override
     public RollupStep createRandomInstance() {
-        if (randomBoolean()) {
-            return createRandomInstanceWithPolicy();
-        }
-        return createRandomInstanceWithoutPolicy();
-    }
-
-    private RollupStep createRandomInstanceWithoutPolicy() {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         RollupActionConfig config = RollupActionConfigTests.randomConfig(random());
-        return new RollupStep(stepKey, nextStepKey, client, config, null);
-    }
-
-    private RollupStep createRandomInstanceWithPolicy() {
-        StepKey stepKey = randomStepKey();
-        StepKey nextStepKey = randomStepKey();
-        RollupActionConfig config = RollupActionConfigTests.randomConfig(random());
-        return new RollupStep(stepKey, nextStepKey, client, config, randomAlphaOfLength(5));
+        return new RollupStep(stepKey, nextStepKey, client, config);
     }
 
     @Override
     public RollupStep mutateInstance(RollupStep instance) {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
-        String rollupPolicy = instance.getRollupPolicy();
 
-        switch (between(0, 2)) {
+        switch (between(0, 1)) {
             case 0:
                 key = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
             case 1:
                 nextKey = new StepKey(key.getPhase(), key.getAction(), key.getName() + randomAlphaOfLength(5));
                 break;
-            case 2:
-                rollupPolicy = randomAlphaOfLength(3);
-                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new RollupStep(key, nextKey, instance.getClient(), instance.getConfig(), rollupPolicy);
+        return new RollupStep(key, nextKey, instance.getClient(), instance.getConfig());
     }
 
     @Override
     public RollupStep copyInstance(RollupStep instance) {
-        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(),
-            instance.getConfig(), instance.getRollupPolicy());
+        return new RollupStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getConfig());
     }
 
     private IndexMetadata getIndexMetadata(String index) {
@@ -95,7 +73,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         String index = randomAlphaOfLength(5);
         IndexMetadata indexMetadata = getIndexMetadata(index);
 
-        RollupStep step = createRandomInstanceWithoutPolicy();
+        RollupStep step = createRandomInstance();
 
         mockClientRollupCall(index);
 
@@ -122,61 +100,6 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
         assertEquals(true, actionCompleted.get());
     }
 
-    public void testPerformActionWithPolicy() {
-        String index = randomAlphaOfLength(5);
-        IndexMetadata indexMetadata = getIndexMetadata(index);
-        IndexMetadata rollupIndexMetadata = getIndexMetadata(index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX);
-
-        RollupStep step = createRandomInstanceWithPolicy();
-
-        Mockito.doAnswer(invocation -> {
-            UpdateSettingsRequest request = (UpdateSettingsRequest) invocation.getArguments()[0];
-            @SuppressWarnings("unchecked")
-            ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[1];
-            Settings expectedSettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, step.getRollupPolicy()).build();
-            assertThat(request.settings(), equalTo(expectedSettings));
-            assertThat(request.indices(), equalTo(new String[] {rollupIndexMetadata.getIndex().getName()}));
-            listener.onResponse(AcknowledgedResponse.TRUE);
-            return null;
-        }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
-
-        Mockito.doAnswer(invocation -> {
-            RollupAction.Request request = (RollupAction.Request) invocation.getArguments()[1];
-            @SuppressWarnings("unchecked")
-            ActionListener<RollupAction.Response> listener = (ActionListener<RollupAction.Response>) invocation.getArguments()[2];
-            assertRollupActionRequest(request, index);
-            listener.onResponse(new RollupAction.Response(true));
-            return null;
-        }).when(client).execute(Mockito.any(), Mockito.any(), Mockito.any());
-
-        SetOnce<Boolean> actionCompleted = new SetOnce<>();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-            )
-            .build();
-        step.performAction(indexMetadata, clusterState, null, new AsyncActionStep.Listener() {
-
-            @Override
-            public void onResponse(boolean complete) {
-                actionCompleted.set(complete);
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                throw new AssertionError("Unexpected method call", e);
-            }
-        });
-
-        assertEquals(true, actionCompleted.get());
-
-        Mockito.verify(client, Mockito.times(1)).execute(Mockito.any(), Mockito.any(), Mockito.any());
-        Mockito.verify(client, Mockito.times(1)).admin();
-        Mockito.verify(adminClient, Mockito.only()).indices();
-        Mockito.verify(indicesClient, Mockito.only()).updateSettings(Mockito.any(), Mockito.any());
-    }
-
     public void testPerformActionOnDataStream() {
         String dataStreamName = "test-datastream";
         String backingIndexName = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
@@ -184,7 +107,7 @@ public class RollupStepTests extends AbstractStepTestCase<RollupStep> {
             .settings(settings(Version.CURRENT))
             .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
 
-        RollupStep step = createRandomInstanceWithoutPolicy();
+        RollupStep step = createRandomInstance();
 
         mockClientRollupCall(backingIndexName);
 

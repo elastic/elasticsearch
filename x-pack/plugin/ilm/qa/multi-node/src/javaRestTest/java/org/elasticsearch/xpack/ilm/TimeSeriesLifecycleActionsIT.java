@@ -1480,7 +1480,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testRollupIndex() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String rollupIndex = index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX;
+        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
@@ -1497,7 +1497,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testRollupIndexAndDeleteOriginal() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String rollupIndex = index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX;
+        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
@@ -1514,7 +1514,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String rollupIndex = index + RollupStep.ROLLUP_INDEX_NAME_POSTFIX;
+        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),

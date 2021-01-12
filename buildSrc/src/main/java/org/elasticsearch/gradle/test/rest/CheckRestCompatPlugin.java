@@ -19,13 +19,13 @@
 
 package org.elasticsearch.gradle.test.rest;
 
-import org.elasticsearch.gradle.internal.InternalPlugin;
+import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 
 /**
  * Lifecycle plugin to anchor all Rest compatibility testing to a single command. Usage: `checkRestCompat`
  */
-public class CheckRestCompatPlugin implements InternalPlugin {
+public class CheckRestCompatPlugin implements Plugin<Project> {
 
     public static final String CHECK_TASK_NAME = "checkRestCompat";
 

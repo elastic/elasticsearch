@@ -351,8 +351,10 @@ class ClientTransformIndexer extends TransformIndexer {
                     // - this is not a catastrophic failure, resetting the version self-heals on next persistence
                     // - for tests fail(assert), so we can debug the problem
                     logger.error(
-                        "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
-                        transformConfig.getId(),
+                        new ParameterizedMessage(
+                            "[{}] updating stats of transform failed, unexpected version conflict of internal state, resetting to recover.",
+                            transformConfig.getId()
+                        ),
                         statsExc
                     );
                     auditor.warning(

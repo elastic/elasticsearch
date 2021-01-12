@@ -13,6 +13,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
@@ -34,19 +35,17 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Future;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptySortedSet;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.index.store.cache.TestUtils.randomRanges;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.CacheService.resolveSnapshotCache;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -230,8 +229,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         cacheService.start();
 
         final List<CacheFile> randomCacheFiles = randomCacheFiles(cacheService);
-        assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-        assertThat(cacheService.runningShardsEvictions(), hasSize(0));
+        assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
 
         final ShardEviction shard = randomShardEvictionFrom(randomCacheFiles);
         final List<CacheFile> cacheFilesAssociatedWithShard = filterByShard(shard, randomCacheFiles);
@@ -248,15 +246,12 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
         blockingListener.waitForBlock();
 
-        assertThat(cacheService.pendingShardsEvictions(), contains(shard));
-        assertThat(cacheService.runningShardsEvictions(), contains(shard));
+        assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(1));
+        assertTrue(cacheService.isPendingShardEviction(shard));
 
         blockingListener.unblock();
 
-        assertBusy(() -> {
-            assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-            assertThat(cacheService.runningShardsEvictions(), hasSize(0));
-        });
+        assertBusy(() -> assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0)));
 
         cacheFilesAssociatedWithShard.forEach(cacheFile -> assertFalse(Files.exists(cacheFile.getFile())));
         cacheService.close();
@@ -264,32 +259,8 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         if (randomBoolean()) {
             // mark shard as evicted after cache service is stopped should have no effect
             cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
-
-            assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-            assertThat(cacheService.runningShardsEvictions(), hasSize(0));
+            assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
         }
-    }
-
-    public void testProcessShardEvictionWhenShardIsNotMarkedAsEvicted() throws Exception {
-        final CacheService cacheService = defaultCacheService();
-        cacheService.start();
-
-        final List<CacheFile> randomCacheFiles = randomCacheFiles(cacheService);
-        assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-        assertThat(cacheService.runningShardsEvictions(), hasSize(0));
-
-        final ShardEviction shard = randomShardEvictionFrom(randomCacheFiles);
-        final List<CacheFile> cacheFilesAssociatedWithShard = filterByShard(shard, randomCacheFiles);
-        cacheFilesAssociatedWithShard.forEach(cacheFile -> assertTrue(Files.exists(cacheFile.getFile())));
-
-        final CompletableFuture<Integer> completableFuture = cacheService.processShardEvictionIfNeeded(shard);
-        cacheFilesAssociatedWithShard.forEach(cacheFile -> assertTrue(Files.exists(cacheFile.getFile())));
-        assertTrue(completableFuture.isDone());
-
-        assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-        assertThat(cacheService.runningShardsEvictions(), hasSize(0));
-
-        cacheService.stop();
     }
 
     public void testProcessShardEviction() throws Exception {
@@ -297,8 +268,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         cacheService.start();
 
         final List<CacheFile> randomCacheFiles = randomCacheFiles(cacheService);
-        assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-        assertThat(cacheService.runningShardsEvictions(), hasSize(0));
+        assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
 
         final ShardEviction shard = randomShardEvictionFrom(randomCacheFiles);
         final List<CacheFile> cacheFilesAssociatedWithShard = filterByShard(shard, randomCacheFiles);
@@ -310,58 +280,42 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         randomCacheFile.acquire(blockingListener);
 
         cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+
+        final Map<CacheFile, Boolean> afterShardRecoveryCacheFiles = ConcurrentCollections.newConcurrentMap();
+        final Thread shardRecoveryThread = new Thread(() -> {
+            cacheService.waitForCacheFilesEvictionIfNeeded(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
+            for (CacheFile cacheFile : cacheFilesAssociatedWithShard) {
+                afterShardRecoveryCacheFiles.put(cacheFile, Files.exists(cacheFile.getFile()));
+            }
+        });
+        shardRecoveryThread.start();
+
         blockingListener.waitForBlock();
 
-        assertThat(cacheService.pendingShardsEvictions(), contains(shard));
-        assertThat(cacheService.runningShardsEvictions(), contains(shard));
+        final Map<ShardEviction, Future<?>> pendingShardsEvictions = cacheService.pendingShardsEvictions();
+        assertTrue(cacheService.isPendingShardEviction(shard));
+        assertThat(pendingShardsEvictions, aMapWithSize(1));
 
-        final CompletableFuture<Integer> completableFuture = cacheService.processShardEvictionIfNeeded(shard);
+        final Future<?> shardEvictionFuture = pendingShardsEvictions.get(shard);
         assertTrue(Files.exists(randomCacheFile.getFile()));
-        assertFalse(completableFuture.isDone());
+        assertThat(shardEvictionFuture, notNullValue());
+        assertFalse(shardEvictionFuture.isDone());
 
         blockingListener.unblock();
 
-        assertBusy(() -> {
-            assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-            assertThat(cacheService.runningShardsEvictions(), hasSize(0));
-            assertTrue(completableFuture.isDone());
-        });
-        cacheFilesAssociatedWithShard.forEach(cacheFile -> assertFalse(Files.exists(cacheFile.getFile())));
+        FutureUtils.get(shardEvictionFuture);
+        shardRecoveryThread.join();
 
-        cacheService.stop();
-    }
-
-    public void testConcurrentProcessShardEviction() throws Exception {
-        final CacheService cacheService = defaultCacheService();
-        cacheService.start();
-
-        final List<CacheFile> randomCacheFiles = randomCacheFiles(cacheService);
-        assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-        assertThat(cacheService.runningShardsEvictions(), hasSize(0));
-
-        final ShardEviction shard = randomShardEvictionFrom(randomCacheFiles);
-        final List<CacheFile> cacheFilesAssociatedWithShard = filterByShard(shard, randomCacheFiles);
-        cacheFilesAssociatedWithShard.forEach(cacheFile -> assertTrue(Files.exists(cacheFile.getFile())));
-        cacheService.addPendingShardEviction(shard);
-
-        final CountDownLatch startThreads = new CountDownLatch(1);
-        for (int i = 0; i < between(1, 5); i++) {
-            threadPool.generic().execute(() -> {
-                try {
-                    startThreads.await();
-                    final Integer numberOfEvictedCacheFiles = FutureUtils.get(cacheService.processShardEvictionIfNeeded(shard));
-                    cacheFilesAssociatedWithShard.forEach(cacheFile -> assertFalse(Files.exists(cacheFile.getFile())));
-                    assertThat(numberOfEvictedCacheFiles, anyOf(equalTo(0), equalTo(cacheFilesAssociatedWithShard.size())));
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-            });
-        }
-        startThreads.countDown();
-
-        assertThreadPoolNotBusy(threadPool);
-        assertThat(cacheService.pendingShardsEvictions(), hasSize(0));
-        assertThat(cacheService.runningShardsEvictions(), hasSize(0));
+        cacheFilesAssociatedWithShard.forEach(
+            cacheFile -> assertFalse("Cache file should be evicted: " + cacheFile, Files.exists(cacheFile.getFile()))
+        );
+        afterShardRecoveryCacheFiles.forEach(
+            (cacheFile, exists) -> assertFalse(
+                "Cache file should have been evicted after shard recovery: " + cacheFile,
+                Files.exists(cacheFile.getFile())
+            )
+        );
+        assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
 
         cacheService.stop();
     }

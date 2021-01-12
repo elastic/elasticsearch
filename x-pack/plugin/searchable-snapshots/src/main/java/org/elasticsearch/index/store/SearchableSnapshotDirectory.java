@@ -433,7 +433,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
      */
     private void evictCacheFilesIfNeeded() {
         assert Thread.holdsLock(this);
-        cacheService.evictCacheFilesIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
+        cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }
 
     private void prewarmCache(ActionListener<Void> listener) {

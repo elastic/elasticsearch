@@ -87,6 +87,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -242,19 +243,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * we're passed gets a chance to break.
          */
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
-
         MappingLookup mappingLookup = new MappingLookup(
-            "_doc",
+            Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
             objectMappers(),
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList()),
-            List.of(),
-            0,
-            sourceToParse -> null,
-            true
+            null,
+            null,
+            null
         );
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
@@ -311,7 +310,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     /**
      * Build a {@link FieldMapper} to create the {@link MappingLookup} used for the aggs.
-     * {@code protected} so subclasses can have it. 
+     * {@code protected} so subclasses can have it.
      */
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
         return new MockFieldMapper(ft);

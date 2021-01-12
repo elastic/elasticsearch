@@ -1,10 +1,15 @@
-[[indices-template-exists]]
+[[indices-template-exists-v1]]
 === Index template exists API
 ++++
-<titleabbrev>Index template exists</titleabbrev>
+<titleabbrev>Index template exists (legacy)</titleabbrev>
 ++++
 
-Checks if an <<index-templates, index template>> exists.
+IMPORTANT: This documentation is about <<indices-templates-v1,legacy index
+templates>>, which are deprecated and will be replaced by the composable
+templates introduced in {es} 7.8. For information about composable templates,
+see <<index-templates>>.
+
+Checks if an <<indices-templates-v1,legacy index template>> exists.
 
 
 

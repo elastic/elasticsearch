@@ -12,7 +12,7 @@ more about the Painless scripting language in the
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
-// * <<painless-group-by>>
+* <<painless-group-by>>
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>
@@ -153,7 +153,7 @@ type field.
 <7> Sets `date` based on the timestamp of the document.
 <8> Returns the month value from `date`.
 
-////
+
 [[painless-group-by]]
 == Using Painless in `group_by`
 
@@ -190,6 +190,11 @@ POST _transform/_preview
       }
     },
     "aggregations": { <3>
+      "all": {
+        "value_count": {
+          "field": "response.keyword"
+        }
+      },
       "200": {
         "filter": {
           "term": {
@@ -228,7 +233,8 @@ documents, then iterates through the values. If an `agent` field contains
 contains "Firefox". Finally, in every other case, the value of the field is 
 returned.
 <3> The aggregations object contains filters that narrow down the results to 
-documents that contains `200`, `404`, or `503` values in the `response` field.
+documents that contains `200`, `404`, or `503` values in the `response` field 
+and an aggregation that counts responses for each agent.
 <4> Specifies the destination index of the {transform}.
 
 The API returns the following result:
@@ -238,39 +244,61 @@ The API returns the following result:
 {
   "preview" : [
     {
+      "all" : 4010,
+      "agent" : "explorer",
+      "200" : 3674,
+      "404" : 210,
+      "503" : 126
+    },
+    {
+      "all" : 5362,
       "agent" : "firefox",
       "200" : 4931,
       "404" : 259,
       "503" : 172
     },
     {
-      "agent" : "internet explorer",
-      "200" : 3674,
-      "404" : 210,
-      "503" : 126
-    },
-    {
+      "all" : 4702,
       "agent" : "safari",
       "200" : 4227,
       "404" : 332,
       "503" : 143
     }
   ],
-  "mappings" : {
-    "properties" : {
-      "200" : {
-        "type" : "long"
+  "generated_dest_index" : {
+    "mappings" : {
+      "_meta" : {
+        "_transform" : {
+          "transform" : "transform-preview",
+          "version" : {
+            "created" : "7.10.0"
+          },
+          "creation_date_in_millis" : 1610454866455
+        },
+        "created_by" : "transform"
       },
-      "agent" : {
-        "type" : "keyword"
-      },
-      "404" : {
-        "type" : "long"
-      },
-      "503" : {
-        "type" : "long"
+      "properties" : {
+        "all" : {
+          "type" : "long"
+        },
+        "200" : {
+          "type" : "long"
+        },
+        "404" : {
+          "type" : "long"
+        },
+        "503" : {
+          "type" : "long"
+        }
       }
-    }
+    },
+    "settings" : {
+      "index" : {
+        "number_of_shards" : "1",
+        "auto_expand_replicas" : "0-1"
+      }
+    },
+    "aliases" : { }
   }
 }
 --------------------------------------------------
@@ -289,7 +317,6 @@ them. The table below shows how normalization modifies the output of the
 | "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
 | "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
 |===
-////
 
 
 [[painless-bucket-script]]

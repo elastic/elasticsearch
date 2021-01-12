@@ -37,8 +37,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.ml.job.process.ProcessBuilderUtils.addIfNotNull;
-
 /**
  * The autodetect process builder.
  */

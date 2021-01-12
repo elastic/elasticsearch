@@ -1,11 +1,14 @@
 [[dynamic-templates]]
 === Dynamic templates
 
-Dynamic templates allow you to define custom mappings that can be applied to
+Dynamic templates allow you greater control of how {es} maps your data beyond
+the default <<dynamic-field-mapping,dynamic field mapping rules>>. You enable
+dynamic mapping by setting the dynamic parameter to `true` or `runtime`. You
+can then use dynamic templates to define custom mappings that can be applied to
 dynamically added fields based on the matching condition:
 
-* <<match-mapping-type,`match_mapping_type`>> operates on the
-<<dynamic-mapping,data type>> that {es} detects
+* <<match-mapping-type,`match_mapping_type`>> operates on the data type that
+{es} detects
 * <<match-unmatch,`match` and `unmatch`>> use a pattern to match on the field
 name
 * <<path-match-unmatch,`path_match` and `path_unmatch`>> operate on the full
@@ -62,6 +65,51 @@ putting new dynamic templates through the <<indices-put-mapping, put mapping>> A
 all existing templates are overwritten. This allows for dynamic templates to be
 reordered or deleted after they were initially added.
 
+[[dynamic-mapping-runtime-fields]]
+==== Mapping runtime fields in a dynamic template
+If you want {es} to dynamically map new fields of a certain type as runtime
+fields, set `dynamic:runtime` in the index mappings. These fields are not
+indexed, and are loaded from `_source` at query time.
+
+Alternatively, you can use the default dynamic mapping rules and then create
+dynamic templates to map specific fields as runtime fields. You set
+`dynamic:true` in your index mapping, and then create a dynamic template to map
+new fields of a certain type as runtime fields.
+
+Let's say you have data where each of the fields start with `ip_`. Based on the
+<<match-mapping-type,dynamic mapping rules>>, {es} maps any `string` that passes
+`numeric` detection as a `float` or `long`. However, you can create a dynamic
+template that maps new strings as runtime fields of type `ip`.
+
+The following request defines a dynamic template named `strings_as_ip`. When
+{es} detects new `string` fields matching the `ip*` pattern, it maps those
+fields as runtime fields of type `ip`. Because `ip` fields aren't mapped
+dynamically, you can use this template with either `dynamic:true` or
+`dynamic:runtime`.
+
+[source,console]
+----
+PUT my-index-000001/
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings_as_ip": {
+          "match_mapping_type": "string",
+          "match": "ip*",
+          "runtime": {
+            "type": "ip"
+          }
+        }
+      }
+    ]
+  }
+}
+----
+
+See <<text-only-mappings-strings,this example>> for how to use dynamic templates
+to map `string` fields as either indexed fields or runtime fields.
+
 [[match-mapping-type]]
 ==== `match_mapping_type`
 
@@ -72,13 +120,7 @@ and `double` for floating-point numbers.
 
 {es} automatically detects the following data types:
 
- - `boolean` when `true` or `false` are encountered.
- - `date` when <<date-detection,date detection>> is enabled and a string matching
-   any of the configured date formats is found.
- - `double` for numbers with a decimal part.
- - `long` for numbers without a decimal part.
- - `object` for objects, also called hashes.
- - `string` for character strings.
+include::field-mapping.asciidoc[tag=dynamic-field-mapping-types-tag]
 
 Use a wildcard (`*`) to match all data types.
 
@@ -127,33 +169,6 @@ PUT my-index-000001/_doc/1
 
 <1> The `my_integer` field is mapped as an `integer`.
 <2> The `my_string` field is mapped as a `text`, with a `keyword` <<multi-fields,multi field>>.
-
-[[match-mapping-runtime-fields]]
-===== Mapping runtime fields in a dynamic template
-You can also map runtime fields in a dynamic template. For example, the
-following request adds a dynamic template named `dayOfWeek` that maps all
-incoming `string` fields as `keyword` fields in the `runtime` section of the
-mapping. Although the `runtime` definition is blank, new `string` fields will
-be mapped as `keyword` runtime fields based on the <<dynamic-field-mapping-types,dynamic mapping rules>> that {es} uses for adding field types to the
-mapping. Any `string` that doesn't pass date detection or numeric detection is
-automatically mapped as a `keyword` when `dynamic` is set to `runtime`.
-
-[source,console]
-----
-PUT my-index-000001/
-{
-  "mappings": {
-    "dynamic_templates": [
-      {
-        "dayOfWeek": {
-          "match_mapping_type": "string",
-          "runtime": {}
-        }
-      }
-    ]
-  }
-}
-----
 
 [[match-unmatch]]
 ==== `match` and `unmatch`
@@ -252,7 +267,7 @@ result in an error because the `path_match` setting also matches the object
 field `name.title`, which can't be mapped as text:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001/_doc/2
 {
   "name": {
@@ -264,7 +279,7 @@ PUT my-index-000001/_doc/2
     }
   }
 }
---------------------------------------------------
+----
 // TEST[continued]
 // TEST[catch:bad_request]
 
@@ -277,7 +292,7 @@ string fields to use an <<analyzer,`analyzer`>> with the same name as the
 field, and disables <<doc-values,`doc_values`>> for all non-string fields:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -310,7 +325,7 @@ PUT my-index-000001/_doc/1
   "english": "Some English text", <1>
   "count":   5 <2>
 }
---------------------------------------------------
+----
 
 <1> The `english` field is mapped as a `string` field with the `english` analyzer.
 <2> The `count` field is mapped as a `long` field with `doc_values` disabled.
@@ -322,14 +337,14 @@ Here are some examples of potentially useful dynamic templates:
 
 ===== Structured search
 
-By default Elasticsearch will map string fields as a `text` field with a sub
-`keyword` field. However if you are only indexing structured content and not
-interested in full text search, you can make Elasticsearch map your fields
-only as `keyword`s. Note that this means that in order to search those fields,
-you will have to search on the exact same value that was indexed.
+When you set `dynamic:true`, {es} will map string fields as a `text` field with
+a `keyword` subfield. If you are only indexing structured content and not
+interested in full text search, you can make {es} map your fields
+only as `keyword` fields. However, you must search on the exact same value that
+was indexed to search those fields.
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -345,19 +360,17 @@ PUT my-index-000001
     ]
   }
 }
---------------------------------------------------
+----
 
 [[text-only-mappings-strings]]
 ===== `text`-only mappings for strings
 
-On the contrary to the previous example, if the only thing that you care about
-on your string fields is full-text search, and if you don't plan on running
-aggregations, sorting or exact search on your string fields, you could tell
-Elasticsearch to map it only as a text field (which was the default behaviour
-before 5.0):
+Contrary to the previous example, if you only care about full-text search on
+string fields and don't plan on running aggregations, sorting, or exact
+searches, you could tell instruct {es} to map strings as `text`:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -373,7 +386,89 @@ PUT my-index-000001
     ]
   }
 }
---------------------------------------------------
+----
+
+Alternatively, you can create a dynamic template to map your string fields as
+`keyword` fields in the runtime section of the mapping. When {es} detects new
+fields of type `string`, those fields will be created as runtime fields of
+type `keyword`.
+
+Although your `string` fields won't be indexed, their values are stored in
+`_source` and can be used in search requests, aggregations, filtering, and
+sorting.
+
+For example, the following request creates a dynamic template to map `string`
+fields as runtime fields of type `keyword`. Although the `runtime` definition
+is blank, new `string` fields will be mapped as `keyword` runtime fields based
+on the <<dynamic-field-mapping-types,dynamic mapping rules>> that {es} uses for
+adding field types to the mapping. Any `string` that doesn't pass date
+detection or numeric detection is automatically mapped as a `keyword`:
+
+[source,console]
+----
+PUT my-index-000001
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings_as_keywords": {
+          "match_mapping_type": "string",
+          "runtime": {}
+        }
+      }
+    ]
+  }
+}
+----
+
+You index a simple document:
+
+[source,console]
+----
+PUT my-index-000001/_doc/1
+{
+  "english": "Some English text",
+  "count":   5
+}
+----
+//TEST[continued]
+
+When you view the mapping, you'll see that the `english` field is a runtime
+field of type `keyword`:
+
+[source,console]
+----
+GET my-index-000001/_mapping
+----
+//TEST[continued]
+
+[source,console-result]
+----
+{
+  "my-index-000001" : {
+    "mappings" : {
+      "dynamic_templates" : [
+        {
+          "strings_as_keywords" : {
+            "match_mapping_type" : "string",
+            "runtime" : { }
+          }
+        }
+      ],
+      "runtime" : {
+        "english" : {
+          "type" : "keyword"
+        }
+      },
+      "properties" : {
+        "count" : {
+          "type" : "long"
+        }
+      }
+    }
+  }
+}
+----
 
 ===== Disabled norms
 
@@ -382,7 +477,7 @@ would be the case for instance if you never sort documents by score, you could
 disable the storage of these scoring factors in the index and save some space.
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -405,7 +500,7 @@ PUT my-index-000001
     ]
   }
 }
---------------------------------------------------
+----
 
 The sub `keyword` field appears in this template to be consistent with the
 default rules of dynamic mappings. Of course if you do not need them because
@@ -420,7 +515,7 @@ case, you could disable indexing on those fields to save disk space and also
 maybe gain some indexing speed:
 
 [source,console]
---------------------------------------------------
+----
 PUT my-index-000001
 {
   "mappings": {
@@ -446,7 +541,7 @@ PUT my-index-000001
     ]
   }
 }
---------------------------------------------------
+----
 
 <1> Like the default dynamic mapping rules, doubles are mapped as floats, which
     are usually accurate enough, yet require half the disk space.

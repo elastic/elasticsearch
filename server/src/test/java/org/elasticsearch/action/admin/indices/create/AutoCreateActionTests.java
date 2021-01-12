@@ -37,12 +37,12 @@ public class AutoCreateActionTests extends ESTestCase {
         {
             Metadata.Builder mdBuilder = new Metadata.Builder();
             DataStreamTemplate dataStreamTemplate = new DataStreamTemplate();
-            mdBuilder.put("1", new ComposableIndexTemplate(Collections.singletonList("legacy-logs-*"),
-                null, null, 10L, null, null, null, null));
-            mdBuilder.put("2", new ComposableIndexTemplate(Collections.singletonList("logs-*"),
-                null, null, 20L, null, null, dataStreamTemplate, null));
-            mdBuilder.put("3", new ComposableIndexTemplate(Collections.singletonList("logs-foobar"),
-                null, null, 30L, null, null, dataStreamTemplate, null));
+            mdBuilder.put("1", new ComposableIndexTemplate.Builder()
+                .indexPatterns(Collections.singletonList("legacy-logs-*")).priority(10L).build());
+            mdBuilder.put("2", new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*")).priority(20L)
+              .dataStreamTemplate(dataStreamTemplate).build());
+            mdBuilder.put("3", new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("logs-*")).priority(30L)
+              .dataStreamTemplate(dataStreamTemplate).build());
             metadata = mdBuilder.build();
         }
 

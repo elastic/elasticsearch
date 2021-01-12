@@ -15,7 +15,7 @@ public abstract class AnalyzerRule<SubPlan extends LogicalPlan> extends Rule<Sub
     // but with a twist; only if the tree is not resolved or analyzed
     @Override
     public final LogicalPlan apply(LogicalPlan plan) {
-        return plan.transformUp(t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t), typeToken());
+        return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t));
     }
 
     @Override

@@ -154,8 +154,8 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
                 return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
                     maxRetries + 1,
                     1,
-                    1L,
-                    5L,
+                    50L,
+                    100L,
                     // The SDK doesn't work well with ip endponts. Secondary host endpoints that contain
                     // a path causes the sdk to rewrite the endpoint with an invalid path, that's the reason why we provide just the host +
                     // port.
@@ -402,17 +402,17 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
         assertThat(blocks.isEmpty(), is(true));
     }
 
-    public void testRetryUntilFail() throws IOException {
+    public void testRetryUntilFail() throws Exception {
         final int maxRetries = randomIntBetween(2, 5);
         final AtomicInteger requestsReceived = new AtomicInteger(0);
         httpServer.createContext("/account/container/write_blob_max_retries", exchange -> {
             try {
                 requestsReceived.incrementAndGet();
-                // We have to try to read the body since the netty async http client sends the request
-                // lazily
                 if (Streams.readFully(exchange.getRequestBody()).length() > 0) {
                     throw new AssertionError("Should not receive any data");
                 }
+            } catch (IOException e) {
+                assertThat(e.getMessage(), equalTo("connection closed before all data received"));
             } finally {
                 exchange.close();
             }
@@ -437,7 +437,11 @@ public class AzureBlobContainerRetriesTests extends ESTestCase {
             final IOException ioe = expectThrows(IOException.class, () ->
                 blobContainer.writeBlob("write_blob_max_retries", stream, randomIntBetween(1, 128), randomBoolean()));
             assertThat(ioe.getMessage(), is("Unable to write blob write_blob_max_retries"));
-            assertThat(requestsReceived.get(), equalTo(maxRetries + 1));
+            // The mock http server uses 1 thread to process the requests, it's possible that the
+            // call to writeBlob throws before all the requests have been processed in the http server,
+            // as the http server thread might get de-scheduled and the sdk keeps sending requests
+            // as it fails to read the InputStream to write.
+            assertBusy(() -> assertThat(requestsReceived.get(), equalTo(maxRetries + 1)));
         }
     }
 

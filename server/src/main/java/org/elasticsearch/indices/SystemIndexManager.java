@@ -75,7 +75,7 @@ public class SystemIndexManager implements ClusterStateListener {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we may think we don't have some
             // indices but they may not have been restored from the cluster state on disk
-            logger.debug("system indices manager waiting until state has been recovered");
+            logger.warn("system indices manager waiting until state has been recovered");
             return;
         }
 
@@ -143,27 +143,27 @@ public class SystemIndexManager implements ClusterStateListener {
         // cases, the log levels are DEBUG.
 
         if (indexState.indexState == IndexMetadata.State.CLOSE) {
-            logger.debug("Index {} is closed. This is likely to prevent some features from functioning correctly", indexDescription);
+            logger.warn("Index {} is closed. This is likely to prevent some features from functioning correctly", indexDescription);
             return UpgradeStatus.CLOSED;
         }
 
         if (indexState.indexHealth == ClusterHealthStatus.RED) {
-            logger.debug("Index {} health status is RED, any pending mapping upgrades will wait until this changes", indexDescription);
+            logger.warn("Index {} health status is RED, any pending mapping upgrades will wait until this changes", indexDescription);
             return UpgradeStatus.UNHEALTHY;
         }
 
         if (indexState.isIndexUpToDate == false) {
-            logger.debug(
+            logger.warn(
                 "Index {} is not on the current version. Features relying "
                     + "on the index will not be available until the index is upgraded",
                 indexDescription
             );
             return UpgradeStatus.NEEDS_UPGRADE;
         } else if (indexState.mappingUpToDate) {
-            logger.trace("Index {} is up-to-date, no action required", indexDescription);
+            logger.warn("Index {} is up-to-date, no action required", indexDescription);
             return UpgradeStatus.UP_TO_DATE;
         } else {
-            logger.info("Index {} mappings are not up-to-date and will be updated", indexDescription);
+            logger.warn("Index {} mappings are not up-to-date and will be updated", indexDescription);
             return UpgradeStatus.NEEDS_MAPPINGS_UPDATE;
         }
     }
@@ -185,7 +185,7 @@ public class SystemIndexManager implements ClusterStateListener {
             public void onResponse(AcknowledgedResponse response) {
                 if (response.isAcknowledged() == false) {
                     String message = "Put mapping request for [" + indexName + "] was not acknowledged";
-                    logger.error(message);
+                    logger.warn(message);
                     listener.onFailure(new ElasticsearchException(message));
                 } else {
                     listener.onResponse(response);
@@ -194,7 +194,7 @@ public class SystemIndexManager implements ClusterStateListener {
 
             @Override
             public void onFailure(Exception e) {
-                logger.error("Put mapping request for [" + indexName + "] failed", e);
+                logger.warn("Put mapping request for [" + indexName + "] failed", e);
                 listener.onFailure(e);
             }
         });
@@ -262,7 +262,7 @@ public class SystemIndexManager implements ClusterStateListener {
             }
             return Version.fromString(versionString);
         } catch (ElasticsearchParseException e) {
-            logger.error(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
+            logger.warn(new ParameterizedMessage("Cannot parse the mapping for index [{}]", indexName), e);
             throw new ElasticsearchException("Cannot parse the mapping for index [{}]", e, indexName);
         }
     }

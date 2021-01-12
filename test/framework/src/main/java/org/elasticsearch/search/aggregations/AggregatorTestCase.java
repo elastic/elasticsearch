@@ -138,6 +138,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -367,8 +368,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         QueryShardContext subQSC = spy(queryShardContext);
-        MappingLookup disableNestedLookup = mock(MappingLookup.class);
-        when(disableNestedLookup.hasNested()).thenReturn(false);
+        MappingLookup disableNestedLookup = new MappingLookup(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), null, null, null);
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subQSC).getNestedDocuments();
         when(ctx.getQueryShardContext()).thenReturn(subQSC);
 

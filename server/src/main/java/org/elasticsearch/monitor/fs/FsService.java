@@ -64,7 +64,6 @@ public class FsService {
                 try {
                     return fsInfoCache.getOrRefresh();
                 } catch (UncheckedIOException e) {
-                    // catch exception here instead of just
                     logger.debug("unexpected exception reading filesystem info", e);
                     return null;
                 }

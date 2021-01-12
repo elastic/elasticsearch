@@ -36,12 +36,6 @@ import static org.hamcrest.Matchers.is;
 
 public class SSLDriverTests extends ESTestCase {
 
-    @Before
-    public void setup() {
-        AccessController.doPrivileged((PrivilegedAction<String>) () -> System.setProperty("jdk.tls.disabledAlgorithms",
-                "TLSv1.1"));
-    }
-
     private final IntFunction<Page> pageAllocator = (n) -> new Page(ByteBuffer.allocate(n), () -> {});
 
     private final InboundChannelBuffer networkReadBuffer = new InboundChannelBuffer(pageAllocator);

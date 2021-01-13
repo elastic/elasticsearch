@@ -27,7 +27,7 @@ public class TextStructureWithSecurityIT extends AbstractXPackRestTest {
     }
 
     protected String[] getCredentials() {
-        return new String[] { "text_structure_admin", "x-pack-test-password" };
+        return new String[] { "text_structure_user", "x-pack-test-password" };
     }
 
     @Override

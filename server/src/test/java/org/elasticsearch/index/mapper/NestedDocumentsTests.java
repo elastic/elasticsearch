@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.join.QueryBitSetProducer;
+import org.elasticsearch.Version;
 import org.elasticsearch.search.LeafNestedDocuments;
 import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchHit;
@@ -56,7 +57,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), Version.CURRENT, QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));
@@ -153,7 +154,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), Version.CURRENT, QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));
@@ -264,7 +265,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), Version.CURRENT, QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));

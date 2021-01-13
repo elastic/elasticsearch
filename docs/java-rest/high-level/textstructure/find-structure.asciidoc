@@ -16,9 +16,8 @@ and responds with a +{response}+ object.
 [id="{upid}-{api}-request"]
 ==== Find structure request
 
-A sample from the beginning of the text (or the entire text contents if
-it's small) must be added to the +{request}+ object using the
-`FindStructureRequest#setSample` method.
+A sample of the text to analyze must be added to the +{request}+
+object using the `FindStructureRequest#setSample` method.
 
 ["source","java",subs="attributes,callouts,macros"]
 --------------------------------------------------

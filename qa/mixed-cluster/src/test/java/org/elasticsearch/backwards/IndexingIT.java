@@ -344,7 +344,11 @@ public class IndexingIT extends ESRestTestCase {
     }
 
     private Nodes buildNodeAndVersions() throws IOException {
-        Response response = client().performRequest(new Request("GET", "_nodes"));
+        return buildNodeAndVersions(client());
+    }
+
+    static Nodes buildNodeAndVersions(RestClient client) throws IOException {
+        Response response = client.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         Map<String, Object> nodesAsMap = objectPath.evaluate("nodes");
         Nodes nodes = new Nodes();
@@ -355,12 +359,12 @@ public class IndexingIT extends ESRestTestCase {
                 Version.fromString(objectPath.evaluate("nodes." + id + ".version")),
                 HttpHost.create(objectPath.evaluate("nodes." + id + ".http.publish_address"))));
         }
-        response = client().performRequest(new Request("GET", "_cluster/state"));
+        response = client.performRequest(new Request("GET", "_cluster/state"));
         nodes.setMasterNodeId(ObjectPath.createFromResponse(response).evaluate("master_node"));
         return nodes;
     }
 
-    final class Nodes extends HashMap<String, Node> {
+    static final class Nodes extends HashMap<String, Node> {
 
         private String masterNodeId = null;
 
@@ -413,7 +417,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
-    final class Node {
+    static final class Node {
         private final String id;
         private final String nodeName;
         private final Version version;

@@ -24,7 +24,7 @@ For time series indices, you need to associate the lifecycle policy with
 the index template used to create new indices in the series. 
 When an index rolls over, a manually-applied policy isn't automatically applied to the new index.
 
-If you use {es}'s Security features, {ilm-init} performs operations as the user
+If you use {es}'s security features, {ilm-init} performs operations as the user
 who last updated the policy. {ilm-init} only has the
 <<security-privileges,privileges>> assigned to the user at the time of the
 last policy update.

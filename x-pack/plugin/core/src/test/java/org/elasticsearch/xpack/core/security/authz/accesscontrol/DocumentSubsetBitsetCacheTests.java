@@ -108,7 +108,9 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     public void testNullBitSetIsReturnedForNonMatchingQuery() throws Exception {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
         runTestOnIndex((searchExecutionContext, leafContext) -> {
-            final Query query = QueryBuilders.termQuery("not-mapped", "any-value").rewrite(searchExecutionContext).toQuery(searchExecutionContext);
+            final Query query = QueryBuilders.termQuery("not-mapped", "any-value")
+                .rewrite(searchExecutionContext)
+                .toQuery(searchExecutionContext);
             final BitSet bitSet = cache.getBitSet(query, leafContext);
             assertThat(bitSet, nullValue());
         });

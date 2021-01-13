@@ -103,7 +103,8 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             assertSame(rewrite, qb);
         } else {
             assertNotSame(rewrite, qb);
-            assertEquals(new BoostingQueryBuilder(positive.rewrite(createSearchExecutionContext()), negative.rewrite(createSearchExecutionContext())), rewrite);
+            assertEquals(new BoostingQueryBuilder(positive.rewrite(createSearchExecutionContext()),
+                negative.rewrite(createSearchExecutionContext())), rewrite);
         }
     }
 

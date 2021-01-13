@@ -696,7 +696,8 @@ public class QueryPhaseTests extends IndexShardTestCase {
         writer.close();
         final IndexReader reader = DirectoryReader.open(dir);
 
-        TestSearchContext searchContext = spy(new TestSearchContext(searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0)));
+        TestSearchContext searchContext = spy(new TestSearchContext(
+            searchExecutionContext, indexShard, newOptimizedContextSearcher(reader, 0)));
 
         // 1. Test a sort on long field
         final SortField sortFieldLong = new SortField(fieldNameLong, SortField.Type.LONG);

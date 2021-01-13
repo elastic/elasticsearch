@@ -155,7 +155,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     }
 
     @Override
-    protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         // we rely on integration tests for deeper checks here
         assertThat(query, anyOf(Arrays.asList(
             instanceOf(BoostQuery.class),

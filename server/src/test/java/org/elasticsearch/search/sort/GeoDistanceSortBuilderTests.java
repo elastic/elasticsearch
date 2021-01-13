@@ -528,13 +528,15 @@ public class GeoDistanceSortBuilderTests extends AbstractSortTestCase<GeoDistanc
         {
             GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", -180.0, 0.0);
             sortBuilder.validation(GeoValidationMethod.STRICT);
-            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> sortBuilder.build(searchExecutionContext));
+            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+                () -> sortBuilder.build(searchExecutionContext));
             assertEquals("illegal latitude value [-180.0] for [GeoDistanceSort] for field [fieldName].", ex.getMessage());
         }
         {
             GeoDistanceSortBuilder sortBuilder = new GeoDistanceSortBuilder("fieldName", 0.0, -360.0);
             sortBuilder.validation(GeoValidationMethod.STRICT);
-            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class, () -> sortBuilder.build(searchExecutionContext));
+            ElasticsearchParseException ex = expectThrows(ElasticsearchParseException.class,
+                () -> sortBuilder.build(searchExecutionContext));
             assertEquals("illegal longitude value [-360.0] for [GeoDistanceSort] for field [fieldName].", ex.getMessage());
         }
     }

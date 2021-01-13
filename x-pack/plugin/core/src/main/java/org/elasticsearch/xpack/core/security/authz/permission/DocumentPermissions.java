@@ -116,21 +116,21 @@ public final class DocumentPermissions {
                                        Set<BytesReference> queries,
                                        BooleanQuery.Builder filter) throws IOException {
         for (BytesReference bytesReference : queries) {
-            SearchExecutionContext searchExecutionContext = searchExecutionContextProvider.apply(shardId);
+            SearchExecutionContext context = searchExecutionContextProvider.apply(shardId);
             QueryBuilder queryBuilder = DLSRoleQueryValidator.evaluateAndVerifyRoleQuery(bytesReference, scriptService,
-                searchExecutionContext.getXContentRegistry(), user);
+                context.getXContentRegistry(), user);
             if (queryBuilder != null) {
-                failIfQueryUsesClient(queryBuilder, searchExecutionContext);
-                Query roleQuery = searchExecutionContext.toQuery(queryBuilder).query();
+                failIfQueryUsesClient(queryBuilder, context);
+                Query roleQuery = context.toQuery(queryBuilder).query();
                 filter.add(roleQuery, SHOULD);
-                if (searchExecutionContext.hasNested()) {
-                    NestedHelper nestedHelper = new NestedHelper(searchExecutionContext::getObjectMapper, searchExecutionContext::isFieldMapped);
+                if (context.hasNested()) {
+                    NestedHelper nestedHelper = new NestedHelper(context::getObjectMapper, context::isFieldMapped);
                     if (nestedHelper.mightMatchNestedDocs(roleQuery)) {
                         roleQuery = new BooleanQuery.Builder().add(roleQuery, FILTER)
                             .add(Queries.newNonNestedFilter(), FILTER).build();
                     }
                     // If access is allowed on root doc then also access is allowed on all nested docs of that root document:
-                    BitSetProducer rootDocs = searchExecutionContext
+                    BitSetProducer rootDocs = context
                         .bitsetFilter(Queries.newNonNestedFilter());
                     ToChildBlockJoinQuery includeNestedDocs = new ToChildBlockJoinQuery(roleQuery, rootDocs);
                     filter.add(includeNestedDocs, SHOULD);

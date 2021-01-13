@@ -166,7 +166,8 @@ public abstract class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<Ge
     public void testMustRewrite() throws IOException {
         GeoShapeQueryBuilder query = doCreateTestQueryBuilder(true);
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> query.toQuery(createSearchExecutionContext()));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> query.toQuery(createSearchExecutionContext()));
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
         GeoShapeQueryBuilder geoShapeQueryBuilder = randomBoolean() ?

@@ -227,7 +227,8 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createSearchExecutionContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("query can only be run on a date, date_nanos or geo_point field type!"));
     }
 }

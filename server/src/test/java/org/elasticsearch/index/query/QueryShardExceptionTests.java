@@ -36,7 +36,8 @@ public class QueryShardExceptionTests extends ESTestCase {
             assertThat(queryShardException.getIndex().getUUID(), equalTo(indexUuid));
         }
         {
-            QueryShardException queryShardException = new QueryShardException(searchExecutionContext, "error", new IllegalArgumentException());
+            QueryShardException queryShardException = new QueryShardException(
+                searchExecutionContext, "error", new IllegalArgumentException());
             assertThat(queryShardException.getIndex().getName(), equalTo(clusterAlias + ":index"));
             assertThat(queryShardException.getIndex().getUUID(), equalTo(indexUuid));
         }

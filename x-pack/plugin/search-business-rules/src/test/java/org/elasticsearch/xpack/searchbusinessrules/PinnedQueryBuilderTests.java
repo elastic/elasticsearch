@@ -90,7 +90,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
 
     @Override
-    protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, SearchExecutionContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, SearchExecutionContext searchContext) {
         if (queryBuilder.ids().size() == 0 && queryBuilder.organicQuery() == null) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {

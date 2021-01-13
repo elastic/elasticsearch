@@ -255,7 +255,8 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     }
 
     @Override
-    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
         if (wrappedQuery instanceof MatchNoDocsQuery) {
             assertThat(query, CoreMatchers.instanceOf(MatchNoDocsQuery.class));

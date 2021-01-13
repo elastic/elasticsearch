@@ -103,7 +103,8 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         SearchExecutionContext context = createSearchExecutionContext();
         RangeFieldMapper.RangeFieldType type = (RangeFieldMapper.RangeFieldType) context.getFieldType(DATE_RANGE_FIELD_NAME);
         DateMathParser parser = type.dateMathParser;
-        Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createSearchExecutionContext());
+        Query query = new QueryStringQueryBuilder(DATE_RANGE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]")
+            .toQuery(createSearchExecutionContext());
         String lowerBoundExact = "2010-01-01T00:00:00.000";
         String upperBoundExact = "2018-01-01T23:59:59.999";
         Query range = LongRange.newIntersectsQuery(DATE_RANGE_FIELD_NAME,
@@ -118,7 +119,8 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
         // also make sure the produced bounds are the same as on a regular `date` field
         DateFieldMapper.DateFieldType dateType = (DateFieldMapper.DateFieldType) context.getFieldType(DATE_FIELD_NAME);
         parser = dateType.dateMathParser;
-        Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]").toQuery(createSearchExecutionContext());
+        Query queryOnDateField = new QueryStringQueryBuilder(DATE_FIELD_NAME + ":[2010-01-01 TO 2018-01-01]")
+            .toQuery(createSearchExecutionContext());
         Query controlQuery = LongPoint.newRangeQuery(DATE_FIELD_NAME,
                 new long[]{ parser.parse(lowerBoundExact, () -> 0).toEpochMilli()},
                 new long[]{ parser.parse(upperBoundExact, () -> 0).toEpochMilli()});
@@ -132,7 +134,8 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     public void testIPRangeQuery() throws Exception {
         InetAddress lower = InetAddresses.forString("192.168.0.1");
         InetAddress upper = InetAddresses.forString("192.168.0.5");
-        Query query = new QueryStringQueryBuilder(IP_RANGE_FIELD_NAME + ":[192.168.0.1 TO 192.168.0.5]").toQuery(createSearchExecutionContext());
+        Query query = new QueryStringQueryBuilder(IP_RANGE_FIELD_NAME + ":[192.168.0.1 TO 192.168.0.5]")
+            .toQuery(createSearchExecutionContext());
         Query range = InetAddressRange.newIntersectsQuery(IP_RANGE_FIELD_NAME, lower, upper);
         Query dv = RangeType.IP.dvRangeQuery(IP_RANGE_FIELD_NAME,
             BinaryDocValuesRangeQuery.QueryType.INTERSECTS,
@@ -146,7 +149,7 @@ public class RangeFieldQueryStringQueryBuilderTests extends AbstractQueryTestCas
     }
 
     @Override
-    protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(QueryStringQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, either(instanceOf(PointRangeQuery.class)).or(instanceOf(IndexOrDocValuesQuery.class)));
     }
 }

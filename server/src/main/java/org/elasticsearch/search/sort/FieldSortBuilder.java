@@ -379,7 +379,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * Returns whether some values of the given {@link SearchExecutionContext#getIndexReader()} are within the
      * primary sort value provided in the <code>bottomSortValues</code>.
      */
-    public boolean isBottomSortShardDisjoint(SearchExecutionContext context, SearchSortValuesAndFormats bottomSortValues) throws IOException {
+    public boolean isBottomSortShardDisjoint(SearchExecutionContext context,
+                                             SearchSortValuesAndFormats bottomSortValues) throws IOException {
         if (bottomSortValues == null || bottomSortValues.getRawSortValues().length == 0) {
             return false;
         }

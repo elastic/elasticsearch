@@ -478,7 +478,8 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     }
 
     public void testMatchPhrase() throws IOException {
-        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(createMapperService(fieldMapping(this::minimalMapping)));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
+            createMapperService(fieldMapping(this::minimalMapping)));
         {
             Query actual = new MatchPhraseQueryBuilder("field", "one")
                 .toQuery(searchExecutionContext);

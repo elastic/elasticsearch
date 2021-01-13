@@ -792,7 +792,8 @@ public class NestedSortingTests extends AbstractFieldDataTestCase {
         searcher.getIndexReader().close();
     }
 
-    private static TopFieldDocs search(QueryBuilder queryBuilder, FieldSortBuilder sortBuilder, SearchExecutionContext searchExecutionContext,
+    private static TopFieldDocs search(QueryBuilder queryBuilder, FieldSortBuilder sortBuilder,
+                                       SearchExecutionContext searchExecutionContext,
                                        IndexSearcher searcher) throws IOException {
         Query query = new BooleanQuery.Builder()
             .add(queryBuilder.toQuery(searchExecutionContext), Occur.MUST)

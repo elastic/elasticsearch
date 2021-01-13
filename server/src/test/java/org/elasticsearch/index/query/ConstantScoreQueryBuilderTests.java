@@ -41,7 +41,8 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         Query innerQuery = queryBuilder.innerQuery().rewrite(context).toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());

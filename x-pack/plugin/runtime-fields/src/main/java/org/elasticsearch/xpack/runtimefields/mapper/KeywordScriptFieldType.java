@@ -119,12 +119,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query prefixQuery(
-        String value,
-        RewriteMethod method,
-        boolean caseInsensitive,
-        SearchExecutionContext context
-    ) {
+    public Query prefixQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }

@@ -126,7 +126,8 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     public void testMustRewrite() throws IOException {
         TermQueryBuilder tqb = new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
         WrapperQueryBuilder qb = new WrapperQueryBuilder(tqb.toString());
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> qb.toQuery(createSearchExecutionContext()));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> qb.toQuery(createSearchExecutionContext()));
         assertEquals("this query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = qb.rewrite(createSearchExecutionContext());
         assertEquals(tqb, rewrite);

@@ -129,7 +129,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return indexVersionCreated;
             }
 
-            public Supplier<SearchExecutionContext> searchExecutionContextSupplier() {
+            public Supplier<SearchExecutionContext> searchExecutionContext() {
                 return searchExecutionContextSupplier;
             }
 

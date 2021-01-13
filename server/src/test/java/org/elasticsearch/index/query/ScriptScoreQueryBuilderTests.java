@@ -51,7 +51,8 @@ public class ScriptScoreQueryBuilderTests extends AbstractQueryTestCase<ScriptSc
     }
 
     @Override
-    protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(ScriptScoreQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         Query wrappedQuery = queryBuilder.query().rewrite(context).toQuery(context);
         if (wrappedQuery instanceof MatchNoDocsQuery) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));

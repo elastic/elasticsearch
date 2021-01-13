@@ -174,7 +174,8 @@ public abstract class ShapeQueryBuilderTests extends AbstractQueryTestCase<Shape
     public void testMustRewrite() {
         ShapeQueryBuilder query = doCreateTestQueryBuilder(true);
 
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> query.toQuery(createSearchExecutionContext()));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> query.toQuery(createSearchExecutionContext()));
         assertEquals("query must be rewritten first", e.getMessage());
         QueryBuilder rewrite = rewriteAndFetch(query, createSearchExecutionContext());
         ShapeQueryBuilder geoShapeQueryBuilder = new ShapeQueryBuilder(fieldName(), indexedShapeToReturn);

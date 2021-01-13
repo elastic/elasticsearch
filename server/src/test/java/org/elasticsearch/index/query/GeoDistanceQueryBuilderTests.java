@@ -128,7 +128,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
@@ -337,6 +338,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         final GeoDistanceQueryBuilder queryBuilder =
             new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         queryBuilder.ignoreUnmapped(true);
+
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         Query query = queryBuilder.toQuery(searchExecutionContext);
         assertThat(query, notNullValue());

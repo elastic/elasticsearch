@@ -78,21 +78,17 @@ public class MetadataIndexUpgradeService {
      * cannot be updated the method throws an exception.
      */
     public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        if (isUpgraded(indexMetadata)) {
-            /*
-             * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
-             * needed by this index.
-             */
-            return archiveBrokenIndexSettings(indexMetadata);
-        }
-        // Throws an exception if there are too-old segments:
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
+
         // we have to run this first otherwise in we try to create IndexSettings
         // with broken settings and fail in checkMappingsCompatibility
-        final IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
-        // only run the check with the upgraded settings!!
+        IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
         checkMappingsCompatibility(newMetadata);
-        return markAsUpgraded(newMetadata);
+
+        if (isUpgraded(indexMetadata) == false) {
+            newMetadata = markAsUpgraded(newMetadata);
+        }
+        return newMetadata;
     }
 
     /**

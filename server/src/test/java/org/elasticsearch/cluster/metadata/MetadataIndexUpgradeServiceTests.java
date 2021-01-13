@@ -29,6 +29,7 @@ import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
 
+import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MetadataIndexUpgradeServiceTests extends ESTestCase {
@@ -59,29 +60,6 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
-    public void testAlreadyUpgradedIndexArchivesBrokenIndexSettings() {
-        final MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        final IndexMetadata initial = newIndexMeta(
-            "foo",
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).put("index.refresh_interval", "-200").build());
-        assertTrue(service.isUpgraded(initial));
-        final IndexMetadata after = service.upgradeIndexMetadata(initial, Version.CURRENT.minimumIndexCompatibilityVersion());
-        // the index does not need to be upgraded, but checking that it does should archive any broken settings
-        assertThat(after.getSettings().get("archived.index.refresh_interval"), equalTo("-200"));
-        assertNull(after.getSettings().get("index.refresh_interval"));
-    }
-
-    public void testUpgrade() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        IndexMetadata src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
-        assertFalse(service.isUpgraded(src));
-        src = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
-        assertTrue(service.isUpgraded(src));
-        assertEquals("-200", src.getSettings().get("archived.index.refresh_interval"));
-        assertNull(src.getSettings().get("index.refresh_interval"));
-        assertSame(src, service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion())); // no double upgrade
-    }
-
     public void testUpgradeCustomSimilarity() {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
         IndexMetadata src = newIndexMeta("foo",
@@ -89,32 +67,14 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
                 .put("index.similarity.my_similarity.type", "DFR")
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build());
-        assertFalse(service.isUpgraded(src));
-        src = service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
-        assertTrue(service.isUpgraded(src));
-    }
-
-    public void testIsUpgraded() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
-        IndexMetadata src = newIndexMeta("foo", Settings.builder().put("index.refresh_interval", "-200").build());
-        assertFalse(service.isUpgraded(src));
-        Version version = VersionUtils.randomVersionBetween(random(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion());
-        src = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, version).build());
-        assertFalse(service.isUpgraded(src));
-        src = newIndexMeta("foo", Settings.builder().put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).build());
-        assertTrue(service.isUpgraded(src));
+        service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
     public void testFailUpgrade() {
         MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
-        Version indexUpgraded = VersionUtils.randomVersionBetween(random(),
-            minCompat,
-            Version.max(minCompat, VersionUtils.getPreviousVersion(Version.CURRENT))
-        );
         Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetadata metadata = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
             .build());
         String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetadata(metadata,
@@ -124,9 +84,7 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
             " It should be re-indexed in Elasticsearch " + minCompat.major + ".x before upgrading to " + Version.CURRENT.toString() + "."));
 
         indexCreated = VersionUtils.randomVersionBetween(random(), minCompat, Version.CURRENT);
-        indexUpgraded = VersionUtils.randomVersionBetween(random(), indexCreated, Version.CURRENT);
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, indexUpgraded)
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
             .build());
         service.upgradeIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
@@ -144,12 +102,11 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         final Settings settings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, randomEarlierCompatibleVersion())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, randomIndexCompatibleVersion(random()))
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(0, 5))
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5))
             .put(IndexMetadata.SETTING_CREATION_DATE, randomNonNegativeLong())
             .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, randomEarlierCompatibleVersion())
             .put(indexSettings)
             .build();
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(name).settings(settings);
@@ -158,10 +115,4 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         }
         return indexMetadataBuilder.build();
     }
-
-    private static Version randomEarlierCompatibleVersion() {
-        return randomValueOtherThan(Version.CURRENT, () -> VersionUtils.randomVersionBetween(random(),
-            Version.CURRENT.minimumIndexCompatibilityVersion(), Version.CURRENT));
-    }
-
 }

@@ -100,7 +100,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUI
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
 
@@ -143,7 +142,6 @@ public class RestoreService implements ClusterStateApplier {
         unremovable.addAll(UNMODIFIABLE_SETTINGS);
         unremovable.add(SETTING_NUMBER_OF_REPLICAS);
         unremovable.add(SETTING_AUTO_EXPAND_REPLICAS);
-        unremovable.add(SETTING_VERSION_UPGRADED);
         UNREMOVABLE_SETTINGS = unmodifiableSet(unremovable);
     }
 

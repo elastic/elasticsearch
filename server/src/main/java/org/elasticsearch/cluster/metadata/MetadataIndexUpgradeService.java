@@ -84,18 +84,7 @@ public class MetadataIndexUpgradeService {
         // with broken settings and fail in checkMappingsCompatibility
         IndexMetadata newMetadata = archiveBrokenIndexSettings(indexMetadata);
         checkMappingsCompatibility(newMetadata);
-
-        if (isUpgraded(indexMetadata) == false) {
-            newMetadata = markAsUpgraded(newMetadata);
-        }
         return newMetadata;
-    }
-
-    /**
-     * Checks if the index was already opened by this version of Elasticsearch and doesn't require any additional checks.
-     */
-    boolean isUpgraded(IndexMetadata indexMetadata) {
-        return indexMetadata.getUpgradedVersion().onOrAfter(Version.CURRENT);
     }
 
     /**
@@ -185,15 +174,6 @@ public class MetadataIndexUpgradeService {
             // Wrap the inner exception so we have the index name in the exception message
             throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetadata.getIndex() + "]", ex);
         }
-    }
-
-    /**
-     * Marks index as upgraded so we don't have to test it again
-     */
-    private IndexMetadata markAsUpgraded(IndexMetadata indexMetadata) {
-        Settings settings = Settings.builder().put(indexMetadata.getSettings())
-            .put(IndexMetadata.SETTING_VERSION_UPGRADED, Version.CURRENT).build();
-        return IndexMetadata.builder(indexMetadata).settings(settings).build();
     }
 
     IndexMetadata archiveBrokenIndexSettings(IndexMetadata indexMetadata) {

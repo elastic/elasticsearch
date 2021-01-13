@@ -85,6 +85,14 @@ Comma-separated list of data stream names used to limit the request. Wildcard
 returned.
 
 [role="child_attributes"]
+[[get-data-stream-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
+
+[role="child_attributes"]
 [[get-data-stream-api-response-body]]
 ==== {api-response-body-title}
 
@@ -184,6 +192,10 @@ included in the response.
 NOTE: A data stream's backing indices may be assigned different lifecycle
 policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
+
+`hidden`::
+(Boolean)
+If `true`, the data stream is <<hidden-indices,hidden>>.
 ====
 
 [[get-data-stream-api-example]]

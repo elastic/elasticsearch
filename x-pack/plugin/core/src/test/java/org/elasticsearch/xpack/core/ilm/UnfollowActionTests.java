@@ -48,7 +48,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
         StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
         StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
-        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OpenIndexStep.NAME);
+        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, "open-follower-index");
         StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexColorStep.NAME);
 
         WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);

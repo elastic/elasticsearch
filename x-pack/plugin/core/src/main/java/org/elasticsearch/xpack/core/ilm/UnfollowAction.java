@@ -42,7 +42,9 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey pauseFollowerIndex = new StepKey(phase, NAME, PauseFollowerIndexStep.NAME);
         StepKey closeFollowerIndex = new StepKey(phase, NAME, CloseFollowerIndexStep.NAME);
         StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowerIndexStep.NAME);
-        StepKey openFollowerIndex = new StepKey(phase, NAME, OpenIndexStep.NAME);
+        // maintaining the `open-follower-index` here (as opposed to {@link OpenIndexStep#NAME}) for BWC reasons (in case any managed
+        // index is in the `open-follower-index` step at upgrade time
+        StepKey openFollowerIndex = new StepKey(phase, NAME, "open-follower-index");
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);

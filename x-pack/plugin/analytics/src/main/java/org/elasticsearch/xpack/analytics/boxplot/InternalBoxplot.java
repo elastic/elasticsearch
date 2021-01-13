@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -165,9 +166,9 @@ public class InternalBoxplot extends InternalNumericMetricsAggregation.MultiValu
         return results;
     }
 
-    static final Set<String> METRIC_NAMES = Stream.of(Metrics.values())
-        .map(m -> m.name().toLowerCase(Locale.ROOT))
-        .collect(Collectors.toSet());
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(m -> m.name().toLowerCase(Locale.ROOT)).collect(Collectors.toSet())
+    );
 
     private final TDigestState state;
 

@@ -353,6 +353,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     }
 
+    //ToDo remove these optimizations in a follow up (https://github.com/elastic/elasticsearch/pull/67223)
     private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
         Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
     private static final Set<Class<?>> STRING_TYPES = new HashSet<>(

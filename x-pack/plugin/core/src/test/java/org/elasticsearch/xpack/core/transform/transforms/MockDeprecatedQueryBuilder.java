@@ -10,6 +10,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -45,7 +46,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     public static MockDeprecatedQueryBuilder fromXContent(XContentParser parser) {
         try {
-            deprecationLogger.deprecate("deprecated_mock", DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
 
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

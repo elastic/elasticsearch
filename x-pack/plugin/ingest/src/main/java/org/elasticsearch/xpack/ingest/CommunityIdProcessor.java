@@ -27,7 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
-public class CommunityIdProcessor extends AbstractProcessor {
+public final class CommunityIdProcessor extends AbstractProcessor {
 
     public static final String TYPE = "community_id";
 

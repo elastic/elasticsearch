@@ -45,7 +45,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console,id=cat-allocation-example]
 --------------------------------------------------
-GET /_cat/allocation?v
+GET /_cat/allocation?v=true
 --------------------------------------------------
 // TEST[s/^/PUT test\n{"settings": {"number_of_replicas": 0}}\n/]
 

@@ -22,7 +22,7 @@ The switch to java time only impacts custom <<date,`date`>> and
 These formats are commonly used in:
 
 * <<mapping,Index mappings>>
-* <<indices-templates,Index templates>>
+* <<index-templates,Index templates>>
 * <<pipeline,Ingest pipelines>>
 
 If you don't use custom date formats, you can skip the rest of this guide.

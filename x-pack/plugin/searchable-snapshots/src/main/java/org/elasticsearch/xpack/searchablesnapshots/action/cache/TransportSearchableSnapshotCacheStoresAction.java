@@ -36,7 +36,7 @@ public class TransportSearchableSnapshotCacheStoresAction extends TransportNodes
     TransportSearchableSnapshotCacheStoresAction.NodeRequest,
     TransportSearchableSnapshotCacheStoresAction.NodeCacheFilesMetadata> {
 
-    public static final String ACTION_NAME = "cluster:admin/xpack/searchable_snapshots/cache/store";
+    public static final String ACTION_NAME = "internal:admin/xpack/searchable_snapshots/cache/store";
 
     public static final ActionType<NodesCacheFilesMetadata> TYPE = new ActionType<>(ACTION_NAME, NodesCacheFilesMetadata::new);
 

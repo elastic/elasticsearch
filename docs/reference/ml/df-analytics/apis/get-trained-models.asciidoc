@@ -148,6 +148,43 @@ created by {dfanalytics} contain `analysis_config` and `input` objects.
 An object that contains the baseline for {feat-imp} values. For {reganalysis},
 it is a single value. For {classanalysis}, there is a value for each class.
 
+`hyperparameters`:::
+(array)
+List of the available hyperparameters optimized during the 
+`fine_parameter_tuning` phase as well as specified by the user.
++
+.Properties of hyperparameters
+[%collapsible%open]
+======
+`absolute_importance`::::
+(Optional, double)
+A positive number showing how much the parameter influences the variation of the 
+{ml-docs}/dfa-regression.html#dfa-regression-lossfunction[loss function]. For 
+hyperparameters with values that are not specified by the user but tuned during 
+hyperparameter optimization. 
+
+`name`::::
+(string)
+Name of the hyperparameter.
+
+`relative_importance`::::
+(Optional, double)
+A number between 0 and 1 showing the proportion of influence on the variation of 
+the loss function among all tuned hyperparameters. For hyperparameters with 
+values that are not specified by the user but tuned during hyperparameter 
+optimization.
+
+`supplied`::::
+(Boolean)
+Indicates if the hyperparameter is specified by the user (`true`) or optimized 
+(`false`).
+
+`value`::::
+(double)
+The value of the hyperparameter, either optimized or specified by the user.
+
+======
+
 `total_feature_importance`:::
 (array)
 An array of the total {feat-imp} for each feature used from

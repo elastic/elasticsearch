@@ -145,7 +145,7 @@ You can check progress by submitting a <<cat-health,`_cat/health`>> request:
 
 [source,console]
 --------------------------------------------------
-GET _cat/health?v
+GET _cat/health?v=true
 --------------------------------------------------
 
 Wait for the `status` column to switch to `green`. Once the node is `green`, all
@@ -192,14 +192,14 @@ with a <<cat-health,`_cat/health`>> request:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
 
 And check which nodes have been upgraded with a <<cat-nodes,`_cat/nodes`>> request:
 
 [source,console]
 --------------------------------------------------
-GET /_cat/nodes?h=ip,name,version&v
+GET /_cat/nodes?h=ip,name,version&v=true
 --------------------------------------------------
 
 --

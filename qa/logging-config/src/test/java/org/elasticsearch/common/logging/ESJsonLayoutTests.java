@@ -42,12 +42,12 @@ public class ESJsonLayoutTests extends ESTestCase {
 
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
-                "\"dataset\": \"server\", " +
+                "\"event.dataset\": \"server\", " +
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\", " +
+                "\"elasticsearch.cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"elasticsearch.node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%notEmpty{, %CustomMapFields }" +
@@ -64,12 +64,12 @@ public class ESJsonLayoutTests extends ESTestCase {
         //message field is removed as is expected to be provided by a field from a message
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
-                "\"dataset\": \"server\", " +
+                "\"event.dataset\": \"server\", " +
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
-                "\"node.name\": \"%node_name\"" +
+                "\"elasticsearch.cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"elasticsearch.node.name\": \"%node_name\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%notEmpty{, %CustomMapFields }" +
                 "%exceptionAsJson }" + System.lineSeparator()));

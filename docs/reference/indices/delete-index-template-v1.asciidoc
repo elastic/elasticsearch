@@ -7,7 +7,7 @@
 IMPORTANT: This documentation is about <<indices-templates-v1,legacy index
 templates>>, which are deprecated and will be replaced by the composable
 templates introduced in {es} 7.8. For information about composable templates,
-<<indices-templates>>.
+see <<index-templates>>.
 
 Deletes a legacy index template.
 

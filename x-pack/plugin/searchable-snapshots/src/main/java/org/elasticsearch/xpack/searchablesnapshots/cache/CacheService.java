@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Assertions;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -392,6 +392,8 @@ public class CacheService extends AbstractLifecycleComponent {
             future = pendingShardsEvictions.get(new ShardEviction(snapshotUUID, snapshotIndexName, shardId));
             if (future == null) {
                 return;
+            } else if (allowShardsEvictions == false) {
+                throw new AlreadyClosedException("Cannot wait for shard eviction to be processed, cache is stopping");
             }
         }
         FutureUtils.get(future);
@@ -409,21 +411,27 @@ public class CacheService extends AbstractLifecycleComponent {
         shardsEvictionsLock.readLock().lock();
         try {
             try {
-                final List<CacheFile> cacheFilesToEvict = new ArrayList<>();
-                cache.forEach((cacheKey, cacheFile) -> {
-                    if (shardEviction.matches(cacheKey)) {
-                        cacheFilesToEvict.add(cacheFile);
+                if (allowShardsEvictions) {
+                    final List<CacheFile> cacheFilesToEvict = new ArrayList<>();
+                    cache.forEach((cacheKey, cacheFile) -> {
+                        if (shardEviction.matches(cacheKey)) {
+                            cacheFilesToEvict.add(cacheFile);
+                        }
+                    });
+                    for (CacheFile cacheFile : cacheFilesToEvict) {
+                        try {
+                            cache.invalidate(cacheFile.getCacheKey(), cacheFile);
+                        } catch (RuntimeException e) {
+                            logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                            assert false : e;
+                        }
                     }
-                });
-                for (CacheFile cacheFile : cacheFilesToEvict) {
-                    try {
-                        cache.invalidate(cacheFile.getCacheKey(), cacheFile);
-                    } catch (RuntimeException e) {
-                        logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
-                        assert false : e;
-                    }
+                    logger.debug(
+                        "shard eviction [{}] processed with [{}] cache files invalidated",
+                        shardEviction,
+                        cacheFilesToEvict.size()
+                    );
                 }
-                logger.debug("shard eviction [{}] processed with [{}] cache files invalidated", shardEviction, cacheFilesToEvict.size());
             } finally {
                 synchronized (shardsEvictionsMutex) {
                     final Future<?> removedFuture = pendingShardsEvictions.remove(shardEviction);
@@ -447,19 +455,13 @@ public class CacheService extends AbstractLifecycleComponent {
         if (pendingFutures.isEmpty() == false) {
             try {
                 if (shardsEvictionsLock.writeLock().tryLock(10L, TimeUnit.SECONDS) == false) {
-                    logger.warn("timeout when waiting for [{}] shards evictions to be processed", pendingFutures.size());
+                    logger.warn("waiting for shards evictions to be processed");
                     shardsEvictionsLock.writeLock().lock(); // wait indefinitely
                 }
-                pendingFutures.forEach(FutureUtils::get);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 logger.warn("interrupted while waiting shards evictions to be processed", e);
             } finally {
-                if (Assertions.ENABLED) {
-                    synchronized (shardsEvictionsMutex) {
-                        assert pendingShardsEvictions.isEmpty() : pendingShardsEvictions;
-                    }
-                }
                 shardsEvictionsLock.writeLock().unlock();
             }
         }

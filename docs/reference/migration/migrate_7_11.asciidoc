@@ -9,8 +9,8 @@ your application to {es} 7.11.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_711_blah_changes>>
-// * <<breaking_711_blah_changes>>
+* <<breaking_711_search_changes>>
+* <<breaking_711_transform_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -22,7 +22,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 === Search changes
 
 [[highlight-normalization]]
-.Keyword fields with a custom normalizer will use the normalized form when highlighting
+.Keyword fields with a custom normalizer will use the normalized form when highlighting.
 [%collapsible]
 ====
 *Details* +
@@ -34,7 +34,7 @@ snippets in lower case.
 ====
 
 [[text-subfields]]
-.Internal fields used for text search acceleration are hidden
+.Internal fields used for text search acceleration are hidden.
 [%collapsible]
 ====
 *Details* +
@@ -47,7 +47,7 @@ internal only and cannot be invoked as searchable fields in queries.
 ====
 
 [[significant-text-non-text-fields]]
-.The significant text aggregation now throws an error if applied to a numeric field
+.The significant text aggregation now throws an error if applied to a numeric field.
 [%collapsible]
 ====
 *Details* +

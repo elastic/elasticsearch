@@ -2,9 +2,6 @@
 [testenv="basic"]
 [[find-structure]]
 = Find structure API
-++++
-<titleabbrev>Find structure</titleabbrev>
-++++
 
 Finds the structure of a text file. The text file must
 contain data that is suitable to be ingested into the
@@ -16,6 +13,7 @@ contain data that is suitable to be ingested into the
 
 `POST _text_structure/find_structure`
 
+[discrete]
 [[find-structure-prereqs]]
 == {api-prereq-title}
 

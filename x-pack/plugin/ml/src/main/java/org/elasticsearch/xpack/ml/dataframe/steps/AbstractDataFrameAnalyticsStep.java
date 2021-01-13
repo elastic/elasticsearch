@@ -56,12 +56,17 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
 
     @Override
     public final void execute(ActionListener<StepResponse> listener) {
+        logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
         if (task.isStopping()) {
             logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}]", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
         }
         doExecute(listener);
+
+        // We persist progress at the end of each step to ensure we do not have
+        // to repeat the step in case the node goes down without getting a chance to persist progress.
+        task.persistProgress();
     }
 
     protected abstract void doExecute(ActionListener<StepResponse> listener);

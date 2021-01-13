@@ -135,6 +135,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     public void stop(String reason, TimeValue timeout) {
         isStopping = true;
 
+        LOGGER.debug(() -> new ParameterizedMessage("[{}] Stopping task due to reason [{}]", getParams().getId(), reason));
+
         DataFrameAnalyticsStep cachedCurrentStep = currentStep;
         ActionListener<Void> stepProgressListener = ActionListener.wrap(
             aVoid -> cachedCurrentStep.cancel(reason, timeout),
@@ -179,6 +181,10 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         });
     }
 
+    public void persistProgress() {
+        persistProgress(client, taskParams.getId(), () -> {});
+    }
+
     // Visible for testing
     void persistProgress(Client client, String jobId, Runnable runnable) {
         LOGGER.debug("[{}] Persisting progress", jobId);
@@ -217,7 +223,8 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                 List<PhaseProgress> progress = statsHolder.getProgressTracker().report();
                 final StoredProgress progressToStore = new StoredProgress(progress);
                 if (progressToStore.equals(previous)) {
-                    LOGGER.debug("[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId);
+                    LOGGER.debug(() -> new ParameterizedMessage(
+                        "[{}] new progress is the same as previously persisted progress. Skipping storage.", jobId));
                     runnable.run();
                     return;
                 }
@@ -227,7 +234,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
                     .setRequireAlias(AnomalyDetectorsIndex.jobStateIndexWriteAlias().equals(indexOrAlias))
                     .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
                 try (XContentBuilder jsonBuilder = JsonXContent.contentBuilder()) {
-                    LOGGER.debug("[{}] Persisting progress is: {}", jobId, progress);
+                    LOGGER.debug(() -> new ParameterizedMessage("[{}] Persisting progress is: {}", jobId, progress));
                     progressToStore.toXContent(jsonBuilder, Payload.XContent.EMPTY_PARAMS);
                     indexRequest.source(jsonBuilder);
                 }
@@ -281,6 +288,10 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
      */
     public enum StartingState {
         FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, FINISHED
+    }
+
+    public StartingState determineStartingState() {
+        return determineStartingState(taskParams.getId(), statsHolder.getProgressTracker().report());
     }
 
     public static StartingState determineStartingState(String jobId, List<PhaseProgress> progressOnStart) {

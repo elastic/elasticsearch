@@ -77,6 +77,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
 
     @Override
     protected void doExecute(ActionListener<StepResponse> listener) {
+        task.getStatsHolder().getProgressTracker().updateReindexingProgress(1);
 
         final ParentTaskAssigningClient parentTaskClient = parentTaskClient();
 
@@ -158,13 +159,13 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                 final ThreadContext threadContext = parentTaskClient.threadPool().getThreadContext();
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
-                    LOGGER.info("[{}] Started reindexing", config.getId());
                     synchronized (this) {
                         if (isTaskStopping()) {
                             LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
                             listener.onResponse(new StepResponse(true));
                             return;
                         }
+                        LOGGER.info("[{}] Started reindexing", config.getId());
                         Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
                             new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
                         reindexingTaskId = reindexTask.getId();

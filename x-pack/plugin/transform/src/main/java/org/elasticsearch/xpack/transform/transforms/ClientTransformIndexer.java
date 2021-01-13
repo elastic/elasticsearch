@@ -345,6 +345,19 @@ class ClientTransformIndexer extends TransformIndexer {
                     listener.onResponse(null);
                 }
             }, statsExc -> {
+                ActionListener<Void> failureFinalizer = ActionListener.wrap(r -> {
+                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                        context.shutdown();
+                    }
+                    listener.onFailure(statsExc);
+                }, e -> {
+                    if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
+                        context.shutdown();
+                    }
+                    statsExc.addSuppressed(e);
+                    listener.onFailure(statsExc);
+                });
+
                 if (org.elasticsearch.ExceptionsHelper.unwrapCause(statsExc) instanceof VersionConflictEngineException) {
                     // this should never happen, but indicates a race condition in state persistence:
                     // - there should be only 1 save persistence at a time
@@ -363,20 +376,23 @@ class ClientTransformIndexer extends TransformIndexer {
                             + statsExc.getMessage()
                     );
                     assert false : "[" + getJobId() + "] updating stats of transform failed, unexpected version conflict of internal state";
-                    // the version must be reset, otherwise it will never succeed for this indexer
-                    this.seqNoPrimaryTermAndIndex.set(null);
+
+                    // if we don't fix it, the transform will fail forever
+                    // get the stored doc to set seqNoPrimaryTermAndIndex correctly
+                    transformsConfigManager.getTransformStoredDoc(
+                        getJobId(),
+                        ActionListener.wrap(stateAndStatsAndSeqNoPrimaryTermAndIndex -> {
+                            this.seqNoPrimaryTermAndIndex.set(stateAndStatsAndSeqNoPrimaryTermAndIndex.v2());
+                            failureFinalizer.onResponse(null);
+                        }, failureFinalizer::onFailure)
+                    );
                 } else {
                     logger.error(new ParameterizedMessage("[{}] updating stats of transform failed.", transformConfig.getId()), statsExc);
                     auditor.warning(getJobId(), "Failure updating stats of transform: " + statsExc.getMessage());
+                    failureFinalizer.onResponse(null);
                 }
-                // for auto stop shutdown the task
-                if (state.getTaskState().equals(TransformTaskState.STOPPED)) {
-                    context.shutdown();
-                }
-                listener.onFailure(statsExc);
             })
         );
-
     }
 
     void updateSeqNoPrimaryTermAndIndex(SeqNoPrimaryTermAndIndex expectedValue, SeqNoPrimaryTermAndIndex newValue) {

@@ -32,6 +32,7 @@ public final class UnfollowAction implements LifecycleAction {
 
     public static final String NAME = "unfollow";
     public static final String CCR_METADATA_KEY = "ccr";
+    static final String OPEN_FOLLOWER_INDEX_STEP_NAME = "open-follower-index";
 
     public UnfollowAction() {}
 
@@ -44,7 +45,7 @@ public final class UnfollowAction implements LifecycleAction {
         StepKey unfollowFollowerIndex = new StepKey(phase, NAME, UnfollowFollowerIndexStep.NAME);
         // maintaining the `open-follower-index` here (as opposed to {@link OpenIndexStep#NAME}) for BWC reasons (in case any managed
         // index is in the `open-follower-index` step at upgrade time
-        StepKey openFollowerIndex = new StepKey(phase, NAME, "open-follower-index");
+        StepKey openFollowerIndex = new StepKey(phase, NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey waitForYellowStep = new StepKey(phase, NAME, WaitForIndexColorStep.NAME);
 
         WaitForIndexingCompleteStep step1 = new WaitForIndexingCompleteStep(indexingComplete, waitForFollowShardTasks);

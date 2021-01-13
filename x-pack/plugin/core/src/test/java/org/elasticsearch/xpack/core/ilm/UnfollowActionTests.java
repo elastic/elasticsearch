@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.UnfollowAction.OPEN_FOLLOWER_INDEX_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -48,7 +49,7 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
         StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
         StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
-        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, "open-follower-index");
+        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexColorStep.NAME);
 
         WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);

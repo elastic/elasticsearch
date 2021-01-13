@@ -49,14 +49,16 @@ DELETE /_index_template/template
 --
 (Required, string) Name of the data stream to create.
 
+// tag::data-stream-name[]
 Data stream names must meet the following criteria:
 
 - Lowercase only
-- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, ` ` (space character),
-`,`, `#`, `:`
-- Cannot start with `-`, `_`, `+`, `.`
+- Cannot include `\`, `/`, `*`, `?`, `"`, `<`, `>`, `|`, `,`, `#`, `:`, or a
+space character
+- Cannot start with `-`, `_`, `+`, or `.ds-`
 - Cannot be `.` or `..`
-- Cannot be longer than 255 bytes (note it is bytes, so multi-byte characters
-will count towards the 255 limit faster)
+- Cannot be longer than 255 bytes. Multi-byte characters
+count towards this limit faster.
+// end::data-stream-name[]
 --
 

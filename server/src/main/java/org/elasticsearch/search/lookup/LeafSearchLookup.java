@@ -39,7 +39,12 @@ public interface LeafSearchLookup {
 
     void setDocument(int docId);
 
-    static LeafSearchLookup fromIndex(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafStoredFieldsLookup fieldsLookup) {
+    static LeafSearchLookup fromIndex(
+        LeafReaderContext ctx,
+        LeafDocLookup docMap,
+        SourceLookup sourceLookup,
+        LeafStoredFieldsLookup fieldsLookup
+    ) {
         Map<String, Object> asMap = Map.of(
             "doc", docMap,
             "_doc", docMap,

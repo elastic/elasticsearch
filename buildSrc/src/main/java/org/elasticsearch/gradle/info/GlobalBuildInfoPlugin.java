@@ -32,6 +32,7 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
+import org.gradle.jvm.toolchain.internal.CurrentInstallationSupplier;
 import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.SharedJavaInstallationRegistry;
@@ -195,9 +196,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
-        return javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(installationLocation -> isSameFile(javaHome, installationLocation))
+        return getAvailableJavaInstallationLocationSteam().filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
             .get();
     }
@@ -215,12 +214,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * To make transition more reliable we only take env var provided installations into account for now
      */
     private List<JavaHome> getAvailableJavaVersions() {
-        return javaInstallationRegistry.listInstallations().stream().map(installationLocation -> {
+        return getAvailableJavaInstallationLocationSteam().map(installationLocation -> {
             File installationDir = installationLocation.getLocation();
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
             int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
             return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
         }).collect(Collectors.toList());
+    }
+
+    private Stream<InstallationLocation> getAvailableJavaInstallationLocationSteam() {
+        return Stream.concat(
+            javaInstallationRegistry.listInstallations().stream(),
+            new CurrentInstallationSupplier(providers).get().stream()
+        );
     }
 
     private static String getTestSeed() {

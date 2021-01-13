@@ -259,7 +259,6 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         return jobId.equals(docId) ? null : jobId;
     }
 
-
     /**
      * Return the Job Id.
      *

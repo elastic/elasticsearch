@@ -1,15 +1,23 @@
 [[runtime]]
 == Runtime fields
-Typically, you index data into {es} to promote faster search. However, indexing
-can be slow and requires more disk space, and you have to reindex your data to
-add fields to existing documents. With _runtime fields_, you can add
-fields to documents already indexed to {es} without reindexing your data.
+A _runtime field_ is a field that is evaluated at query time. Runtime fields
+enable you to:
+
+* Add fields to existing documents without reindexing your data
+* Start working with your data without understanding how it’s structured
+* Override the value returned from an indexed field at query time
+* Define fields for a specific use without modifying the underlying schema
 
 You access runtime fields from the search API like any other field, and {es}
 sees runtime fields no differently. You can define runtime fields in the
 <<runtime-mapping-fields,index mapping>> or in the
 <<runtime-search-request,search request>>. Your choice, which is part of the
 inherent flexibility of runtime fields.
+
+Runtime fields are useful when working with log data
+(see <<runtime-examples,examples>>), especially when you're unsure about the
+data structure. Your search speed decreases, but your index size is much
+smaller and you can more quickly process logs without having to index them.
 
 [discrete]
 [[runtime-benefits]]
@@ -33,25 +41,6 @@ mapping decisions because you don't have to decide how to parse your data up
 front, and can use runtime fields to amend the mapping at any time. Using
 runtime fields allows for a smaller index and faster ingest time, which
 combined use less resources and reduce your operating costs.
-
-[discrete]
-[[runtime-use-cases]]
-=== Use cases
-Runtime fields are useful when working with log data
-(see <<runtime-examples,examples>>), especially when you're unsure about the
-data structure. Your search speed decreases, but your index size is much
-smaller and you can more quickly process logs without having to index them.
-
-Runtime fields are especially useful in the following contexts:
-
-* Adding fields to documents that are already indexed without having to reindex
-data
-* Immediately begin working on a new data stream without fully understanding
-the data it contains
-* Shadowing an indexed field with a runtime field to fix a mistake after
-indexing documents
-* Defining fields that are only relevant for a particular context (such as a
-visualization in {kib}) without influencing the underlying schema
 
 [discrete]
 [[runtime-compromises]]
@@ -80,39 +69,29 @@ to `false`, expensive queries are not allowed and {es} will reject any queries
 against runtime fields.
 
 [[runtime-mapping-fields]]
-=== Mapping a runtime field
+=== Map a runtime field
 You map runtime fields by adding a `runtime` section under the mapping
 definition and defining
 <<modules-scripting-using,a Painless script>>. This script has access to the
 entire context of a document, including the original `_source` and any mapped
-fields plus their values. At search time, the script runs and generates values
+fields plus their values. At query time, the script runs and generates values
 for each scripted field that is required for the query.
 
-NOTE: You can define a runtime field in the mapping definition without a
-script. At search time, {es} looks in `_source` for a field with the same name
-and returns a value if one exists. If a field with the same name doesn’t
-exist, the response doesn't include any values for that runtime field.
-
-If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
-`dynamic` parameter is set to `runtime`, new fields are automatically added to
-the index mapping as runtime fields.
-
-Runtime fields are similar to the <<script-fields,`script_fields`>> parameter
-of the `_search` request, but also make the script results available anywhere
-in a search request.
-
-The script in the following request extracts the day of the week from the
-`@timestamp` field, which is defined as a `date` type:
+When defining a Painless script to use with runtime fields, you must include
+`emit` to emit calculated values. For example, the script in the following
+request extracts the day of the week from the `@timestamp` field, which is
+defined as a `date` type. The script calculates the day of the week based on
+the value of `timestamp`, and uses `emit` to return the calculated value.
 
 [source,console]
 ----
-PUT /my-index
+PUT my-index/
 {
   "mappings": {
-    "runtime": { <1>
+    "runtime": {
       "day_of_week": {
-        "type": "keyword", <2>
-        "script": { <3>
+        "type": "keyword",
+        "script": {
           "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
         }
       }
@@ -123,11 +102,6 @@ PUT /my-index
   }
 }
 ----
-
-<1> Runtime fields are defined in the `runtime` section of the mapping
-definition.
-<2> Each runtime field has its own field type, just like any other field.
-<3> The script defines the evaluation to calculate at search time.
 
 The `runtime` section can be any of these data types:
 
@@ -141,6 +115,25 @@ The `runtime` section can be any of these data types:
 
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.
+
+If <<dynamic-field-mapping,dynamic field mapping>> is enabled where the
+`dynamic` parameter is set to `runtime`, new fields are automatically added to
+the index mapping as runtime fields:
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "dynamic": "runtime",
+    "properties": {
+      "timestamp": {
+        "type": "date"
+      }
+    }
+  }
+}
+----
 
 [[runtime-updating-scripts]]
 .Updating runtime scripts
@@ -158,7 +151,7 @@ to `boolean`.
 ****
 
 [[runtime-search-request]]
-=== Defining runtime fields in a search request
+=== Define runtime fields in a search request
 You can specify a `runtime_mappings` section in a search request to create
 runtime fields that exist only as part of the query. You specify a script
 as part of the `runtime_mappings` section, just as you would if adding a
@@ -195,7 +188,7 @@ GET my-index/_search
   }
 }
 ----
-// TEST[continued]
+//TEST[continued]
 
 Defining a runtime field in a search request uses the same format as defining
 a runtime field in the index mapping. That consistency means you can promote a
@@ -203,13 +196,34 @@ runtime field from a search request to the index mapping by moving the field
 definition from `runtime_mappings` in the search request to the `runtime`
 section of the index mapping.
 
-[[runtime-shadowing-fields]]
-=== Shadowing fields
+[[runtime-fields-scriptless]]
+==== Define runtime fields without a script
+You can define a runtime field in the mapping definition without a
+script. At query time, {es} looks in `_source` for a field with the same name
+and returns a value if one exists. If a field with the same name doesn’t
+exist, the response doesn't include any values for that runtime field.
+
+[source,console]
+----
+PUT my-index/
+{
+  "mappings": {
+    "runtime": {
+      "model_number": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+----
+
+[[runtime-override-values]]
+=== Override field values at query time
 If you create a runtime field with the same name as a field that
 already exists in the mapping, the runtime field shadows the mapped field. At
-search time, {es} evaluates the runtime field, calculates a value based on the
+query time, {es} evaluates the runtime field, calculates a value based on the
 script, and returns the value as part of the query. Because the runtime field
-shadows the mapped field, you can modify the value returned in search without
+shadows the mapped field, you can override the value returned in search without
 modifying the mapped field.
 
 For example, let's say you indexed the following documents into `my-index`:
@@ -235,7 +249,7 @@ You later realize that the `HG537PU` sensors aren't reporting their true
 voltage. The indexed values are supposed to be 1.7 times higher than
 the reported values! Instead of reindexing your data, you can define a script in
 the `runtime_mappings` section of the `_search` request to shadow the `voltage`
-field and calculate a new value at search time.
+field and calculate a new value at query time.
 
 If you search for documents where the model number matches `HG537PU`:
 
@@ -390,7 +404,7 @@ which still returns in the response:
 // TESTRESPONSE[s/"_id" : "l02aSXYBkpNf6QRDO62Q"/"_id": $body.hits.hits.1._id/]
 
 [[runtime-retrieving-fields]]
-=== Retrieving a runtime field
+=== Retrieve a runtime field
 Use the <<search-fields,`fields`>> parameter on the `_search` API to retrieve
 the values of runtime fields. Runtime fields won't display in `_source`, but
 the `fields` API works for all fields, even those that were not sent as part of
@@ -398,8 +412,8 @@ the original `_source`.
 
 The following request uses the search API to retrieve the `day_of_week` field
 that <<runtime-mapping-fields,this previous request>> defined as a runtime field
-in the mapping. The value for the `day_of_week` field is calculated dynamically
-at search time based on the evaluation of the defined script.
+in the mapping. The value for the `day_of_week` field is calculated at query
+time based on the evaluation of the defined script.
 
 [source,console]
 ----
@@ -415,18 +429,22 @@ GET my-index/_search
 // TEST[continued]
 
 [[runtime-examples]]
-=== Runtime fields examples
+=== Explore your data with runtime fields
 Consider a large set of log data that you want to extract fields from.
 Indexing the data is time consuming and uses a lot of disk space, and you just
 want to explore the data structure without committing to a schema up front.
 
 You know that your log data contains specific fields that you want to extract.
-By using runtime fields, you can define scripts to calculate values at search
+In this case, we want to focus on the `@timestamp` and `message` fields. By
+using runtime fields, you can define scripts to calculate values at search
 time for these fields.
 
+[[runtime-examples-define-fields]]
+==== Define indexed fields as a starting point
+
 You can start with a simple example by adding the `@timestamp` and `message`
-fields to the `my-index` mapping. To remain flexible, use `wildcard` as the
-field type for `message`:
+fields to the `my-index` mapping as indexed fields. To remain flexible, use
+`wildcard` as the field type for `message`:
 
 [source,console]
 ----
@@ -446,6 +464,8 @@ PUT /my-index/
 }
 ----
 
+[[runtime-examples-ingest-data]]
+==== Ingest some data
 After mapping the fields you want to retrieve, index a few records from
 your log data into {es}. The following request uses the <<docs-bulk,bulk API>>
 to index raw log data into `my-index`. Instead of indexing all of your log
@@ -511,6 +531,8 @@ The mapping contains two fields: `@timestamp` and `message`.
 ----
 // TESTRESPONSE[s/\.\.\./"settings": $body.my-index.settings/]
 
+[[runtime-examples-runtime-field]]
+==== Define a runtime field to search by IP address
 If you want to retrieve results that include `clientip`, you can add that field
 as a runtime field in the mapping. The runtime script operates on the `clientip`
 field at runtime to calculate values for that field.
@@ -591,6 +613,8 @@ and determine which fields to index.
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 
+[[runtime-examples-calculate-value]]
+==== Define a runtime field to calculate the day of week
 You can add the `day_of_week` field to the mapping using the request from
 <<runtime-mapping-fields,mapping a runtime field>>:
 
@@ -637,6 +661,9 @@ The value for this field is calculated dynamically at runtime without
 reindexing the document or adding the `day_of_week` field. This flexibility
 allows you to modify the mapping without changing any field values.
 
+In the following response, the value for `day_of_week` (`Sunday`) was
+calculated at query time using the runtime script defined in the mapping.
+
 [source,console-result]
 ----
 {
@@ -667,7 +694,7 @@ allows you to modify the mapping without changing any field values.
             "211.11.9.0 - - [2020-06-21T15:00:01-05:00] \"GET /english/index.html HTTP/1.0\" 304 0"
           ],
           "day_of_week" : [
-            "Sunday" <1>
+            "Sunday"
           ]
         }
       }
@@ -678,6 +705,3 @@ allows you to modify the mapping without changing any field values.
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
-
-<1> This value was calculated at search time using the runtime script defined
-in the mapping.

@@ -22,16 +22,18 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.breaker.PreallocatedCircuitBreakerService;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Before;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -41,19 +43,10 @@ import static org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService.R
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BigArraysTests extends ESTestCase {
-
-    private BigArrays randombigArrays() {
-        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-    }
-
-    private BigArrays bigArrays;
-
-    @Before
-    public void init() {
-        bigArrays = randombigArrays();
-    }
+    private final BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
 
     public void testByteArrayGrowth() {
         final int totalLen = randomIntBetween(1, 4000000);
@@ -400,6 +393,49 @@ public class BigArraysTests extends ESTestCase {
             assertThat(size + " is a multiple of " + pageSize, size % pageSize, equalTo(0L));
         }
         assertThat(size - minSize, lessThan((long) pageSize));
+    }
+
+    /**
+     * Test the pattern we use to pre-allocate space for many {@link BigArray}s.
+     */
+    public void testPreallocate() {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        try (HierarchyCircuitBreakerService realBreakers = new HierarchyCircuitBreakerService(Settings.EMPTY, List.of(), clusterSettings)) {
+            BigArrays unPreAllocated = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), realBreakers);
+            long toPreallocate = randomLongBetween(4000, 10000);
+            CircuitBreaker realBreaker = realBreakers.getBreaker(CircuitBreaker.REQUEST);
+            assertThat(realBreaker.getUsed(), equalTo(0L));
+            try (
+                PreallocatedCircuitBreakerService prealloctedBreakerService = new PreallocatedCircuitBreakerService(
+                    realBreakers,
+                    CircuitBreaker.REQUEST,
+                    toPreallocate,
+                    "test"
+                )
+            ) {
+                assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+                BigArrays preallocated = unPreAllocated.withBreakerService(prealloctedBreakerService);
+
+                // We don't grab any bytes just making a new BigArrays
+                assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+
+                List<BigArray> arrays = new ArrayList<>();
+                for (int i = 0; i < 30; i++) {
+                    // We're well under the preallocation so grabbing a little array doesn't allocate anything
+                    arrays.add(preallocated.newLongArray(1));
+                    assertThat(realBreaker.getUsed(), equalTo(toPreallocate));
+                }
+
+                // Allocating a large array *does* allocate some bytes
+                arrays.add(preallocated.newLongArray(1024));
+                long expectedMin = (PageCacheRecycler.LONG_PAGE_SIZE + arrays.size()) * Long.BYTES;
+                assertThat(realBreaker.getUsed(), greaterThanOrEqualTo(expectedMin));
+                // 64 should be enough room for each BigArray object
+                assertThat(realBreaker.getUsed(), lessThanOrEqualTo(expectedMin + 64 * arrays.size()));
+                Releasables.close(arrays);
+            }
+            assertThat(realBreaker.getUsed(), equalTo(0L));
+        }
     }
 
     private List<BigArraysHelper> bigArrayCreators(final long maxSize, final boolean withBreaking) {

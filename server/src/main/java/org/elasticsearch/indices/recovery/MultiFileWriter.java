@@ -26,7 +26,9 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.store.Store;
@@ -67,11 +69,16 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     final Map<String, String> tempFileNames = ConcurrentCollections.newConcurrentMap();
 
-    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, BytesReference content, boolean lastChunk)
+    public void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content, boolean lastChunk)
         throws IOException {
         assert Transports.assertNotTransportThread("multi_file_writer");
         final FileChunkWriter writer = fileChunkWriters.computeIfAbsent(fileMetadata.name(), name -> new FileChunkWriter());
-        writer.writeChunk(new FileChunk(fileMetadata, content, position, lastChunk));
+        incRef();
+        try {
+            writer.writeChunk(new FileChunk(fileMetadata, content, position, lastChunk));
+        } finally {
+            decRef();
+        }
     }
 
     /** Get a temporary name for the provided file name. */
@@ -151,6 +158,7 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
 
     @Override
     protected void closeInternal() {
+        Releasables.close(fileChunkWriters.values());
         fileChunkWriters.clear();
         // clean open index outputs
         Iterator<Map.Entry<String, IndexOutput>> iterator = openIndexOutputs.entrySet().iterator();
@@ -179,20 +187,25 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
         store.renameTempFilesSafe(tempFileNames);
     }
 
-    static final class FileChunk {
+    private static final class FileChunk implements Releasable {
         final StoreFileMetadata md;
-        final BytesReference content;
+        final ReleasableBytesReference content;
         final long position;
         final boolean lastChunk;
-        FileChunk(StoreFileMetadata md, BytesReference content, long position, boolean lastChunk) {
+        FileChunk(StoreFileMetadata md, ReleasableBytesReference content, long position, boolean lastChunk) {
             this.md = md;
-            this.content = content;
+            this.content = content.retain();
             this.position = position;
             this.lastChunk = lastChunk;
         }
+
+        @Override
+        public void close() {
+            content.decRef();
+        }
     }
 
-    private final class FileChunkWriter {
+    private final class FileChunkWriter implements Releasable {
         // chunks can be delivered out of order, we need to buffer chunks if there's a gap between them.
         final PriorityQueue<FileChunk> pendingChunks = new PriorityQueue<>(Comparator.comparing(fc -> fc.position));
         long lastPosition = 0;
@@ -210,17 +223,24 @@ public class MultiFileWriter extends AbstractRefCounted implements Releasable {
                     }
                     pendingChunks.remove();
                 }
-                innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
-                synchronized (this) {
-                    assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
-                    lastPosition += chunk.content.length();
-                    if (chunk.lastChunk) {
-                        assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
-                        fileChunkWriters.remove(chunk.md.name());
-                        assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                try (chunk) {
+                    innerWriteFileChunk(chunk.md, chunk.position, chunk.content, chunk.lastChunk);
+                    synchronized (this) {
+                        assert lastPosition == chunk.position : "last_position " + lastPosition + " != chunk_position " + chunk.position;
+                        lastPosition += chunk.content.length();
+                        if (chunk.lastChunk) {
+                            assert pendingChunks.isEmpty() : "still have pending chunks [" + pendingChunks + "]";
+                            fileChunkWriters.remove(chunk.md.name());
+                            assert fileChunkWriters.containsValue(this) == false : "chunk writer [" + newChunk.md + "] was not removed";
+                        }
                     }
                 }
             }
+        }
+
+        @Override
+        public synchronized void close() {
+            Releasables.close(pendingChunks);
         }
     }
 }

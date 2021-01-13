@@ -33,11 +33,11 @@ import java.util.regex.Pattern;
  * I.e. txt used in path _sql?format=txt will return TextFormat.PLAIN_TEXT
  *
  * Multiple header representations may map to a single {@link MediaType} for example, "application/json"
- * and "application/vnd.elasticsearch+json" both represent a JSON MediaType.
+ * and "application/x-ndjson" both represent a JSON MediaType.
  * A MediaType can have only one query parameter representation.
  * For example "json" (case insensitive) maps back to a JSON media type.
  *
- * Additionally, a http header may optionally have parameters. For example "application/json; charset=utf-8".
+ * Additionally, a http header may optionally have parameters. For example "application/vnd.elasticsearch+json; compatible-with=7".
  * This class also allows to define a regular expression for valid values of charset.
  */
 public class MediaTypeRegistry<T extends MediaType> {

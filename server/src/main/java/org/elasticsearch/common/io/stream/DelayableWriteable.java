@@ -19,12 +19,11 @@
 
 package org.elasticsearch.common.io.stream;
 
-import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 
 /**
  * A holder for {@link Writeable}s that delays reading the underlying object
@@ -80,6 +79,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
      */
     abstract boolean isSerialized();
 
+    /**
+     * Returns the serialized size of the inner {@link Writeable}.
+     */
+    public abstract long getSerializedSize();
+
     private static class Referencing<T extends Writeable> extends DelayableWriteable<T> {
         private final T reference;
 
@@ -113,6 +117,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
             return false;
         }
 
+        @Override
+        public long getSerializedSize() {
+            return DelayableWriteable.getSerializedSize(reference);
+        }
+
         private BytesStreamOutput writeToBuffer(Version version) throws IOException {
             try (BytesStreamOutput buffer = new BytesStreamOutput()) {
                 buffer.setVersion(version);
@@ -125,7 +134,7 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     /**
      * A {@link Writeable} stored in serialized form.
      */
-    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> implements Accountable {
+    public static class Serialized<T extends Writeable> extends DelayableWriteable<T> {
         private final Writeable.Reader<T> reader;
         private final Version serializedAtVersion;
         private final NamedWriteableRegistry registry;
@@ -184,8 +193,51 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
         }
 
         @Override
-        public long ramBytesUsed() {
-            return serialized.ramBytesUsed() + RamUsageEstimator.NUM_BYTES_OBJECT_REF * 3 + RamUsageEstimator.NUM_BYTES_OBJECT_HEADER;
+        public long getSerializedSize() {
+            // We're already serialized
+            return serialized.length();
+        }
+    }
+
+    /**
+     * Returns the serialized size in bytes of the provided {@link Writeable}.
+     */
+    public static long getSerializedSize(Writeable ref) {
+        try (CountingStreamOutput out = new CountingStreamOutput()) {
+            out.setVersion(Version.CURRENT);
+            ref.writeTo(out);
+            return out.size;
+        } catch (IOException exc) {
+            throw new UncheckedIOException(exc);
+        }
+    }
+
+    private static class CountingStreamOutput extends StreamOutput {
+        long size = 0;
+
+        @Override
+        public void writeByte(byte b) throws IOException {
+            ++ size;
+        }
+
+        @Override
+        public void writeBytes(byte[] b, int offset, int length) throws IOException {
+            size += length;
+        }
+
+        @Override
+        public void flush() throws IOException {}
+
+        @Override
+        public void close() throws IOException {}
+
+        @Override
+        public void reset() throws IOException {
+            size = 0;
+        }
+
+        public long length() {
+            return size;
         }
     }
 }

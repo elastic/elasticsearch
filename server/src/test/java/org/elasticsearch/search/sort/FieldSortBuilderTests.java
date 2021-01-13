@@ -72,6 +72,7 @@ import java.util.Locale;
 import static org.elasticsearch.search.sort.FieldSortBuilder.getMinMaxOrNull;
 import static org.elasticsearch.search.sort.FieldSortBuilder.getPrimaryFieldSortOrNull;
 import static org.elasticsearch.search.sort.NestedSortBuilderTests.createRandomNestedSort;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder> {
@@ -160,6 +161,8 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
         SortField.Type expectedType;
         if (builder.getFieldName().equals(FieldSortBuilder.DOC_FIELD_NAME)) {
             expectedType = SortField.Type.DOC;
+        } else if (builder.getFieldName().equals(FieldSortBuilder.SHARD_DOC_FIELD_NAME)) {
+            expectedType = SortField.Type.LONG;
         } else {
             expectedType = SortField.Type.CUSTOM;
         }
@@ -322,6 +325,20 @@ public class FieldSortBuilderTests extends AbstractSortTestCase<FieldSortBuilder
             XContentParseException e = expectThrows(XContentParseException.class, () -> FieldSortBuilder.fromXContent(parser, ""));
             assertEquals("[1:18] [field_sort] unknown field [reverse]", e.getMessage());
         }
+    }
+
+    public void testShardDocSort() throws IOException {
+        QueryShardContext shardContextMock = createMockShardContext();
+
+        boolean reverse = randomBoolean();
+        FieldSortBuilder sortBuilder = new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME)
+            .order(reverse ? SortOrder.DESC : SortOrder.ASC);
+        SortFieldAndFormat sortAndFormat = sortBuilder.build(shardContextMock);
+        assertThat(sortAndFormat.field.getClass(), equalTo(ShardDocSortField.class));
+        ShardDocSortField sortField = (ShardDocSortField) sortAndFormat.field;
+        assertThat(sortField.getShardRequestIndex(), equalTo(shardContextMock.getShardRequestIndex()));
+        assertThat(sortField.getReverse(), equalTo(reverse));
+        assertThat(sortAndFormat.format, equalTo(DocValueFormat.RAW));
     }
 
     @Override

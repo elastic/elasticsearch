@@ -174,7 +174,8 @@ public class HasherTests extends ESTestCase {
     }
 
     private static void testHasherSelfGenerated(Hasher hasher) {
-        SecureString passwd = new SecureString(randomAlphaOfLength(between(6, 15)).toCharArray());
+        //In FIPS 140 mode, passwords for PBKDF2 need to be at least 14 chars
+        SecureString passwd = new SecureString(randomAlphaOfLength(between(14, 18)).toCharArray());
         char[] hash = hasher.hash(passwd);
         assertTrue(hasher.verify(passwd, hash));
     }

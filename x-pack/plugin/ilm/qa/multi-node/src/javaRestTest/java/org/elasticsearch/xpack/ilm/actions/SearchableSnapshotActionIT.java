@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
+import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -51,6 +52,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
@@ -58,15 +60,37 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     private String policy;
     private String dataStream;
+    private String snapshotRepo;
 
     @Before
     public void refreshIndex() {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
+        snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+    }
+
+    @After
+    public void waitNoRestoresInProgressInRepo() throws Exception {
+        /*
+         * This should be a "fairly quick" wait as each test waits for the searchable snapshot action
+         * to complete.
+         * It seems that sometime there is a discrepancy between the {@link org.elasticsearch.repositories.RepositoryData}
+         * status of the snapshots and the cluster state {@link org.elasticsearch.cluster.RestoreInProgress} metadata, which
+         * will prevent {@link #wipeCluster} from wiping the snapshots as the cluster state would show some
+         * as "in progress" and won't be able to delete them.
+         */
+        assertBusy(() -> {
+            try {
+                Response response = client().performRequest(new Request("GET", "/_snapshot/" + snapshotRepo + "/_status"));
+                assertThat(EntityUtils.toString(response.getEntity()), containsStringIgnoringCase("\"snapshots\":[]"));
+            } catch (IOException e) {
+                // converting to AssertionError here so assertBusy retries
+                throw new AssertionError(e);
+            }
+        });
     }
 
     public void testSearchableSnapshotAction() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
@@ -93,7 +117,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     }
 
     public void testSearchableSnapshotForceMergesIndexToOneSegment() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
@@ -140,7 +163,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/54433")
     public void testDeleteActionDeletesSearchableSnapshot() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
 
         // create policy with cold and delete phases
@@ -212,7 +234,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
     }
 
     public void testUpdatePolicyToAddPhasesYieldsInvalidActionsToBeSkipped() throws Exception {
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L), SearchableSnapshotAction.NAME,
@@ -266,9 +287,8 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    public void testRestoredIndexManagedByLocalPolicySkipsIllegalActions() throws Exception{
+    public void testRestoredIndexManagedByLocalPolicySkipsIllegalActions() throws Exception {
         // let's create a data stream, rollover it and convert the first generation backing index into a searchable snapshot
-        String snapshotRepo = randomAlphaOfLengthBetween(4, 10);
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createPolicy(client(), policy,
             new Phase("hot", TimeValue.ZERO, Map.of(RolloverAction.NAME, new RolloverAction(null, null, 1L),

@@ -112,5 +112,5 @@ setup:
                     nested.title:
                       type: fvh
 
-  - match: {hits.hits.0.inner_hits.nested_hits.hits.hits.0.highlight.nested\\.title.0: "<em>purple</em> octopus"}
-  - match: {hits.hits.0.inner_hits.nested_hits.hits.hits.1.highlight.nested\\.title.0: "<em>purple</em> fish"}
+  - match: {hits.hits.0.inner_hits.nested_hits.hits.hits.0.highlight.nested\.title.0: "<em>purple</em> octopus"}
+  - match: {hits.hits.0.inner_hits.nested_hits.hits.hits.1.highlight.nested\.title.0: "<em>purple</em> fish"}

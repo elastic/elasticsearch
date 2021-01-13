@@ -150,8 +150,7 @@ public final class ChecksumBlobStoreFormat<T extends ToXContent> {
      */
     public void write(T obj, BlobContainer blobContainer, String name, boolean compress, BigArrays bigArrays) throws IOException {
         final String blobName = blobName(name);
-        serialize(obj, blobName, compress, bigArrays, bytes -> blobContainer.writeBlob(blobName, bytes.streamInput(), bytes.length(),
-                false));
+        serialize(obj, blobName, compress, bigArrays, bytes -> blobContainer.writeBlob(blobName, bytes, false));
     }
 
     public void serialize(final T obj, final String blobName, final boolean compress, BigArrays bigArrays,

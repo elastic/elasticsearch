@@ -72,7 +72,7 @@ public class CaseTests extends AbstractNodeTestCase<Case, Expression> {
 
         Source newSource = randomValueOtherThan(c.source(), SourceTests::randomSource);
         assertEquals(new Case(c.source(), c.children()),
-            c.transformPropertiesOnly(p -> Objects.equals(p, c.source()) ? newSource: p, Object.class));
+            c.transformPropertiesOnly(Object.class, p -> Objects.equals(p, c.source()) ? newSource: p));
     }
 
     @Override

@@ -157,7 +157,6 @@ public class Constants {
         "cluster:admin/xpack/rollup/start",
         "cluster:admin/xpack/rollup/stop",
         "cluster:admin/xpack/searchable_snapshots/cache/clear",
-        "cluster:admin/xpack/searchable_snapshots/cache/store",
         "cluster:admin/xpack/security/api_key/create",
         "cluster:admin/xpack/security/api_key/get",
         "cluster:admin/xpack/security/api_key/grant",
@@ -420,6 +419,7 @@ public class Constants {
         "internal:admin/ccr/restore/file_chunk/get",
         "internal:admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/session/put",
+        "internal:admin/xpack/searchable_snapshots/cache/store",
         "internal:cluster/nodes/indices/shard/store",
         "internal:gateway/local/meta_state",
         "internal:gateway/local/started_shards"

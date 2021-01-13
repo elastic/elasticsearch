@@ -21,6 +21,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -40,6 +41,8 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.rest.action.RestCancellableNodeClient;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -114,10 +117,18 @@ public class RestClusterStateAction extends BaseRestHandler {
         }
         settingsFilter.addFilterSettingParams(request);
 
-        return channel -> client.admin().cluster().state(clusterStateRequest, new RestActionListener<>(channel) {
+        return channel -> new RestCancellableNodeClient(client, request.getHttpChannel())
+                .execute(ClusterStateAction.INSTANCE, clusterStateRequest, new RestActionListener<>(channel) {
+
+                    private void ensureOpen() {
+                        if (request.getHttpChannel().isOpen() == false) {
+                            throw new TaskCancelledException("response channel [" + request.getHttpChannel() + "] closed");
+                        }
+                    }
 
                     @Override
                     protected void processResponse(ClusterStateResponse response) {
+                        ensureOpen();
                         final long startTimeMs = threadPool.relativeTimeInMillis();
                         // Process serialization on MANAGEMENT pool since the serialization of the cluster state to XContent
                         // can be too slow to execute on an IO thread
@@ -126,6 +137,7 @@ public class RestClusterStateAction extends BaseRestHandler {
                                     @Override
                                     public RestResponse buildResponse(final ClusterStateResponse response,
                                                                       final XContentBuilder builder) throws Exception {
+                                        ensureOpen();
                                         if (clusterStateRequest.local() == false &&
                                                 threadPool.relativeTimeInMillis() - startTimeMs >
                                                         clusterStateRequest.masterNodeTimeout().millis()) {
@@ -138,13 +150,16 @@ public class RestClusterStateAction extends BaseRestHandler {
                                         builder.field(Fields.CLUSTER_NAME, response.getClusterName().value());
                                         ToXContent.Params params = new ToXContent.DelegatingMapParams(
                                                 singletonMap(Metadata.CONTEXT_MODE_PARAM, Metadata.CONTEXT_MODE_API), request);
-                                        response.getState().toXContent(builder, params);
+                                        final ClusterState responseState = response.getState();
+                                        if (responseState != null) {
+                                            responseState.toXContent(builder, params);
+                                        }
                                         builder.endObject();
                                         return new BytesRestResponse(RestStatus.OK, builder);
                                     }
                                 }.onResponse(response)));
                     }
-        });
+                });
     }
 
     private static final Set<String> RESPONSE_PARAMS;

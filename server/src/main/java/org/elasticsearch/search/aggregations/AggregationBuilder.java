@@ -73,7 +73,8 @@ public abstract class AggregationBuilder
      *
      * This method is a optional helper for clients that need to know the output field names.
      *
-     * @return The set of output field names this aggregation produces or Optional.empty() if not implemented or Optional.of(emptySet()) if the fields are not known.
+     * @return The set of output field names this aggregation produces or Optional.empty() if not implemented or Optional.of(emptySet())
+     *         if the fields are not known.
      */
     public Optional<Set<String>> getOutputFieldNames() {
         return Optional.empty();

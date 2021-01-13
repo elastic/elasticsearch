@@ -19,6 +19,7 @@
 package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CharArrays;
@@ -129,6 +130,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
         }
         String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
         return Settings.builder()
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(ESRestTestCase.CERTIFICATE_AUTHORITIES, trustedCertFile)
             .build();

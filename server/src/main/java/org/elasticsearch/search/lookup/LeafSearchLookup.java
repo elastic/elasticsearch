@@ -20,51 +20,58 @@
 package org.elasticsearch.search.lookup;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 import java.util.Map;
 
 /**
  * Per-segment version of {@link SearchLookup}.
  */
-public class LeafSearchLookup {
+public interface LeafSearchLookup {
 
-    private final LeafReaderContext ctx;
-    private final LeafDocLookup docMap;
-    private final SourceLookup sourceLookup;
-    private final LeafStoredFieldsLookup fieldsLookup;
-    private final Map<String, Object> asMap;
+    Map<String, Object> asMap();
 
-    public LeafSearchLookup(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafStoredFieldsLookup fieldsLookup) {
-        this.ctx = ctx;
-        this.docMap = docMap;
-        this.sourceLookup = sourceLookup;
-        this.fieldsLookup = fieldsLookup;
-        this.asMap = Map.of(
-                "doc", docMap,
-                "_doc", docMap,
-                "_source", sourceLookup,
-                "_fields", fieldsLookup);
-    }
+    SourceLookup source();  // TODO change to Map<String, String>
 
-    public Map<String, Object> asMap() {
-        return this.asMap;
-    }
+    Map<Object, Object> fields();
 
-    public SourceLookup source() {
-        return this.sourceLookup;
-    }
+    Map<String, ScriptDocValues<?>> doc();
 
-    public LeafStoredFieldsLookup fields() {
-        return this.fieldsLookup;
-    }
+    void setDocument(int docId);
 
-    public LeafDocLookup doc() {
-        return this.docMap;
-    }
+    static LeafSearchLookup fromIndex(LeafReaderContext ctx, LeafDocLookup docMap, SourceLookup sourceLookup, LeafStoredFieldsLookup fieldsLookup) {
+        Map<String, Object> asMap = Map.of(
+            "doc", docMap,
+            "_doc", docMap,
+            "_source", sourceLookup,
+            "_fields", fieldsLookup);
+        return new LeafSearchLookup() {
+            @Override
+            public Map<String, Object> asMap() {
+                return asMap;
+            }
 
-    public void setDocument(int docId) {
-        docMap.setDocument(docId);
-        sourceLookup.setSegmentAndDocument(ctx, docId);
-        fieldsLookup.setDocument(docId);
+            @Override
+            public SourceLookup source() {
+                return sourceLookup;
+            }
+
+            @Override
+            public Map<Object, Object> fields() {
+                return fieldsLookup;
+            }
+
+            @Override
+            public Map<String, ScriptDocValues<?>> doc() {
+                return docMap;
+            }
+
+            @Override
+            public void setDocument(int docId) {
+                docMap.setDocument(docId);
+                sourceLookup.setSegmentAndDocument(ctx, docId);
+                fieldsLookup.setDocument(docId);
+            }
+        };
     }
 }

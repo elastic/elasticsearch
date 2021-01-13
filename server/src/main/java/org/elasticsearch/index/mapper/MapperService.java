@@ -215,6 +215,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             logger.debug("[{}] {} mapping (source suppressed due to length, use TRACE level if needed)",
                 index(), op);
         }
+
+        //hopefully this never trips, which means that we can remove merging mappings on each local node
+        //in favour of just applying the mappings received from the master
+        assert documentMapper().mappingSource().equals(incomingMappingSource);
     }
 
     private void assertMappingVersion(

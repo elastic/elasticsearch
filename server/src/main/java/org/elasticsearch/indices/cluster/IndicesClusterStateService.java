@@ -177,8 +177,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
         this.retentionLeaseSyncer = retentionLeaseSyncer;
-        //TODO does the setting need to be deprecated? Was it even registered?
-        //this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
         this.client = client;
     }
 

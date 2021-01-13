@@ -211,7 +211,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionSameAsNewVersion() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
+        Version oldVersion = randomPreviousCompatibleVersion(newVersion);
         testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion);
     }
 
@@ -289,7 +289,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionSameAsOldVersion() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
+        Version oldVersion = randomPreviousCompatibleVersion(newVersion);
         Version minVersion = oldVersion;
         
         final TransportSearchAction.SearchTimeProvider timeProvider =
@@ -388,7 +388,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
 
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
         Version newVersion = Version.CURRENT;
-        Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
+        Version oldVersion = randomPreviousCompatibleVersion(newVersion);
         Version minVersion = newVersion;
         
         final TransportSearchAction.SearchTimeProvider timeProvider =
@@ -501,5 +501,10 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         };
         Exception e = expectThrows(VersionMismatchException.class, () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener));
         assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
+    }
+
+    private Version randomPreviousCompatibleVersion(Version version) {
+        return VersionUtils.randomVersionBetween(random(), version.minimumIndexCompatibilityVersion(),
+            VersionUtils.getPreviousVersion(version));
     }
 }

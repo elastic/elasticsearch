@@ -33,6 +33,31 @@ field configured with a lowercase normalizer will return highlighted
 snippets in lower case.
 ====
 
+[[text-subfields]]
+.Internal fields used for text search acceleration are hidden
+[%collapsible]
+====
+*Details* +
+Text fields can add internal subfields using extra analysis to speed
+up prefix and phrase searches. Previously these were exposed to
+the field caps API and were available for searching directly. However,
+they did not implement all query types and could return bad results
+or throw errors if used via the query DSL. These subfields are now
+internal only and cannot be invoked as searchable fields in queries.
+====
+
+[[significant-text-non-text-fields]]
+.The significant text aggregation now throws an error if applied to a numeric field
+[%collapsible]
+====
+*Details* +
+The significant text aggregation could previously be applied to a fields that
+were defined as numeric, which made little sense and would always return an
+empty result. Given that applying a text-specific aggregation to a non-text
+field is almost certainly a mistake, this has now been changed to throw an
+error.
+====
+
 [discrete]
 [[breaking_711_transform_changes]]
 === Transform changes

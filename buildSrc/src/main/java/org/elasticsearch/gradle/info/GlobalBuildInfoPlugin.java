@@ -32,7 +32,6 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
-import org.gradle.jvm.toolchain.internal.CurrentInstallationSupplier;
 import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.SharedJavaInstallationRegistry;
@@ -225,7 +224,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private Stream<InstallationLocation> getAvailableJavaInstallationLocationSteam() {
         return Stream.concat(
             javaInstallationRegistry.listInstallations().stream(),
-            new CurrentInstallationSupplier(providers).get().stream()
+            Stream.of(new InstallationLocation(Jvm.current().getJavaHome(), "Current JVM"))
         );
     }
 

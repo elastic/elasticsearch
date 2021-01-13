@@ -40,8 +40,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.query.QueryShardContext;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -60,33 +58,25 @@ final class DocumentParser {
     }
 
     ParsedDocument parseDocument(SourceToParse source,
-                                 Mapping mapping,
-                                 MappingLookup mappingLookup,
-                                 IndexSettings indexSettings,
-                                 IndexAnalyzers indexAnalyzers) throws MapperParsingException {
-        return parseDocument(source, mapping, mapping.metadataMappers, mappingLookup, indexSettings, indexAnalyzers);
+                                 MappingLookup mappingLookup) throws MapperParsingException {
+        return parseDocument(source, mappingLookup.getMapping().metadataMappers, mappingLookup);
     }
 
     ParsedDocument parseDocument(SourceToParse source,
-                                 Mapping mapping,
                                  MetadataFieldMapper[] metadataFieldsMappers,
-                                 MappingLookup mappingLookup,
-                                 IndexSettings indexSettings,
-                                 IndexAnalyzers indexAnalyzers) throws MapperParsingException {
+                                 MappingLookup mappingLookup) throws MapperParsingException {
         final ParseContext.InternalParseContext context;
         final XContentType xContentType = source.getXContentType();
         try (XContentParser parser = XContentHelper.createParser(xContentRegistry,
             LoggingDeprecationHandler.INSTANCE, source.source(), xContentType)) {
-            context = new ParseContext.InternalParseContext(mapping,
+            context = new ParseContext.InternalParseContext(
                 mappingLookup,
-                indexSettings,
-                indexAnalyzers,
                 dateParserContext,
                 dynamicRuntimeFieldsBuilder,
                 source,
                 parser);
             validateStart(parser);
-            internalParseDocument(mapping.root(), metadataFieldsMappers, context, parser);
+            internalParseDocument(mappingLookup.getMapping().root(), metadataFieldsMappers, context, parser);
             validateEnd(parser);
         } catch (Exception e) {
             throw wrapInMapperParsingException(source, e);
@@ -98,7 +88,7 @@ final class DocumentParser {
 
         context.postParse();
 
-        return parsedDocument(source, context, createDynamicUpdate(mapping, mappingLookup,
+        return parsedDocument(source, context, createDynamicUpdate(mappingLookup,
             context.getDynamicMappers(), context.getDynamicRuntimeFields()));
     }
 
@@ -168,7 +158,6 @@ final class DocumentParser {
         return false;
     }
 
-
     private static ParsedDocument parsedDocument(SourceToParse source, ParseContext.InternalParseContext context, Mapping update) {
         return new ParsedDocument(
             context.version(),
@@ -181,7 +170,6 @@ final class DocumentParser {
             update
         );
     }
-
 
     private static MapperParsingException wrapInMapperParsingException(SourceToParse source, Exception e) {
         // if its already a mapper parsing exception, no need to wrap it...
@@ -221,8 +209,7 @@ final class DocumentParser {
     }
 
     /** Creates a Mapping containing any dynamically added fields, or returns null if there were no dynamic mappings. */
-    static Mapping createDynamicUpdate(Mapping mapping,
-                                       MappingLookup mappingLookup,
+    static Mapping createDynamicUpdate(MappingLookup mappingLookup,
                                        List<Mapper> dynamicMappers,
                                        List<RuntimeFieldType> dynamicRuntimeFields) {
         if (dynamicMappers.isEmpty() && dynamicRuntimeFields.isEmpty()) {
@@ -230,16 +217,15 @@ final class DocumentParser {
         }
         RootObjectMapper root;
         if (dynamicMappers.isEmpty() == false) {
-            root = createDynamicUpdate(mapping.root, mappingLookup, dynamicMappers);
+            root = createDynamicUpdate(mappingLookup, dynamicMappers);
         } else {
-            root = mapping.root.copyAndReset();
+            root = mappingLookup.getMapping().root().copyAndReset();
         }
         root.addRuntimeFields(dynamicRuntimeFields);
-        return mapping.mappingUpdate(root);
+        return mappingLookup.getMapping().mappingUpdate(root);
     }
 
-    private static RootObjectMapper createDynamicUpdate(RootObjectMapper root,
-                                                        MappingLookup mappingLookup,
+    private static RootObjectMapper createDynamicUpdate(MappingLookup mappingLookup,
                                                         List<Mapper> dynamicMappers) {
 
         // We build a mapping by first sorting the mappers, so that all mappers containing a common prefix
@@ -249,7 +235,7 @@ final class DocumentParser {
         Iterator<Mapper> dynamicMapperItr = dynamicMappers.iterator();
         List<ObjectMapper> parentMappers = new ArrayList<>();
         Mapper firstUpdate = dynamicMapperItr.next();
-        parentMappers.add(createUpdate(root, splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
+        parentMappers.add(createUpdate(mappingLookup.getMapping().root(), splitAndValidatePath(firstUpdate.name()), 0, firstUpdate));
         Mapper previousMapper = null;
         while (dynamicMapperItr.hasNext()) {
             Mapper newMapper = dynamicMapperItr.next();
@@ -294,7 +280,6 @@ final class DocumentParser {
         assert parentMappers.size() == 1;
         return (RootObjectMapper)parentMappers.get(0);
     }
-
 
     private static void popMappers(List<ObjectMapper> parentMappers, int keepBefore, boolean merge) {
         assert keepBefore >= 1; // never remove the root mapper

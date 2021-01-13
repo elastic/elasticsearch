@@ -1870,8 +1870,17 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::find-file-structure-request-options
 
             // tag::find-file-structure-execute
-            FindFileStructureResponse findFileStructureResponse =
-                client.machineLearning().findFileStructure(findFileStructureRequest, RequestOptions.DEFAULT);
+            FindFileStructureResponse findFileStructureResponse = client
+                .machineLearning()
+                .findFileStructure(
+                    findFileStructureRequest,
+                    RequestOptions.DEFAULT
+                        .toBuilder()
+                        .setWarningsHandler(
+                            warnings -> Collections.singletonList(
+                                "[POST /_ml/find_file_structure] is deprecated! Use [POST /_text_structure/find_structure] instead."
+                            ).equals(warnings) == false
+                        ).build());
             // end::find-file-structure-execute
 
             // tag::find-file-structure-response

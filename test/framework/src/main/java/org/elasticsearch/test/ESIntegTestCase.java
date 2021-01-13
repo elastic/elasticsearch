@@ -56,6 +56,7 @@ import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.bootstrap.JavaVersion;
 import org.elasticsearch.client.AdminClient;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ClusterAdminClient;
@@ -120,6 +121,7 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesQueryCache;
 import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -2231,5 +2233,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     public static boolean inFipsJvm() {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
+    }
+
+    /**
+     * On Debian 8 the "memory" subsystem is not mounted by default
+     * when cgroups are enabled, and this confuses many versions of
+     * Java prior to Java 15.  Tests that rely on machine memory
+     * being accurately determined will not work on such setups,
+     * and can use this method for selective muting.
+     * See https://github.com/elastic/elasticsearch/issues/67089
+     * and https://github.com/elastic/elasticsearch/issues/66885
+     */
+    protected boolean willSufferDebian8MemoryProblem() {
+        final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
+        final boolean anyDebian8Nodes = response.getNodes()
+            .stream()
+            .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
+        boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
+        return anyDebian8Nodes && java15Plus == false;
     }
 }

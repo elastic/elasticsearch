@@ -50,7 +50,15 @@ public class URLFixture extends AbstractHttpFixture {
         if (args == null || args.length != 3) {
             throw new IllegalArgumentException("URLFixture <port> <working directory> <repository directory>");
         }
-        final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), args[1], args[2]);
+        String workingDirectory = args[1];
+        if(Files.exists(dir(workingDirectory)) == false) {
+            throw new IllegalArgumentException("Configured working direcotry " + workingDirectory + " does not exist");
+        }
+        String repositoryDirectory = args[1];
+        if(Files.exists(dir(repositoryDirectory)) == false) {
+            throw new IllegalArgumentException("Configured repository direcotry " + repositoryDirectory + " does not exist");
+        }
+        final URLFixture fixture = new URLFixture(Integer.parseInt(args[0]), workingDirectory, repositoryDirectory);
         fixture.listen(InetAddress.getByName("0.0.0.0"), false);
     }
 

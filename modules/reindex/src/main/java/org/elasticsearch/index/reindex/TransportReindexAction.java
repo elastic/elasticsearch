@@ -19,6 +19,11 @@
 
 package org.elasticsearch.index.reindex;
 
+import static java.util.Collections.emptyList;
+
+import java.util.List;
+import java.util.function.Function;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
@@ -34,11 +39,6 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.List;
-import java.util.function.Function;
-
-import static java.util.Collections.emptyList;
 
 public class TransportReindexAction extends HandledTransportAction<ReindexRequest, BulkByScrollResponse> {
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
@@ -84,6 +84,11 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         });
     }
 
+    /**
+     * This method can be overridden to specify a different {@link Client} to be used for indexing than that used for the search/input
+     * part of the reindex. For example, a {@link org.elasticsearch.client.FilterClient} can be provided to transform bulk index requests
+     * before they are fully performed.
+     */
     protected Client getBulkClient() {
         return client;
     }

@@ -86,7 +86,12 @@ public class DeprecationLogger {
      * Logs a message at the {@link #DEPRECATION} level. The message is also sent to the header warning logger,
      * so that it can be returned to the client.
      */
-    public DeprecationLoggerBuilder deprecate(final DeprecationCategory category, final String key, final String msg, final Object... params) {
+    public DeprecationLoggerBuilder deprecate(
+        final DeprecationCategory category,
+        final String key,
+        final String msg,
+        final Object... params
+    ) {
         return new DeprecationLoggerBuilder().withDeprecation(category, key, msg, params);
     }
 

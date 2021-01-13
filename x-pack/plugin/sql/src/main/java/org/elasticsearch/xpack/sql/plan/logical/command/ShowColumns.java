@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.type.KeywordEsField;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
@@ -26,6 +27,7 @@ import java.util.Objects;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
 
 public class ShowColumns extends Command {
 
@@ -71,24 +73,24 @@ public class ShowColumns extends Command {
                     List<List<?>> rows = emptyList();
                     if (indexResult.isValid()) {
                         rows = new ArrayList<>();
-                        fillInRows(indexResult.get().mapping(), null, rows);
+                        fillInRows(indexResult.get().mapping(), null, session.configuration().version(), rows);
                     }
                     listener.onResponse(of(session, rows));
                 },
                 listener::onFailure));
     }
 
-    private void fillInRows(Map<String, EsField> mapping, String prefix, List<List<?>> rows) {
+    static void fillInRows(Map<String, EsField> mapping, String prefix, SqlVersion version, List<List<?>> rows) {
         for (Entry<String, EsField> e : mapping.entrySet()) {
             EsField field = e.getValue();
             DataType dt = field.getDataType();
             String name = e.getKey();
-            if (dt != null) {
+            if (dt != null && isTypeSupportedInVersion(dt, version)) {
                 // show only fields that exist in ES
                 rows.add(asList(prefix != null ? prefix + "." + name : name, SqlDataTypes.sqlType(dt).getName(), dt.typeName()));
                 if (field.getProperties().isEmpty() == false) {
                     String newPrefix = prefix != null ? prefix + "." + name : name;
-                    fillInRows(field.getProperties(), newPrefix, rows);
+                    fillInRows(field.getProperties(), newPrefix, version, rows);
                 }
             }
         }

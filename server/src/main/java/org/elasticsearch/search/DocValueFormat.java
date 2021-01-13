@@ -475,6 +475,10 @@ public interface DocValueFormat extends NamedWriteable {
         public int hashCode() {
             return Objects.hash(pattern);
         }
+
+        @Override public String toString() {
+            return pattern;
+        }
     };
 
     /**

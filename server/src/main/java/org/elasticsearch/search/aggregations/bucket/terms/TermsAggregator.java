@@ -209,7 +209,7 @@ public abstract class TermsAggregator extends DeferableBucketAggregator {
         }
     }
 
-    static boolean descendsFromNestedAggregator(Aggregator parent) {
+    public static boolean descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return true;

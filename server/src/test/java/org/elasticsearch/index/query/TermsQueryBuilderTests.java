@@ -221,28 +221,24 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1, 3, 4), values);
-            assertFalse(copy.isStale());
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1d, 3d, 4d), values);
-            assertFalse(copy.isStale());
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new float[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1f, 3f, 4f), values);
-            assertFalse(copy.isStale());
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new long[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
-            assertFalse(copy.isStale());
         }
     }
 
@@ -337,28 +333,28 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
-            assertTrue(copy.isStale());
+            assertTrue(copy.getValues() instanceof TermsQueryBuilder.ValuesBeforeV8);
         }
         {
             TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList(1L, 3L, 4L), null);
             TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList(1L, 3L, 4L), values);
-            assertTrue(copy.isStale());
+            assertTrue(copy.getValues() instanceof TermsQueryBuilder.ValuesBeforeV8);
         }
         {
             TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList("a", "b", "c"), null);
             TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList("a", "b", "c"), values);
-            assertTrue(copy.isStale());
+            assertTrue(copy.getValues() instanceof TermsQueryBuilder.ValuesBeforeV8);
         }
         {
             TermsQueryBuilderBeforeV8 builder = new TermsQueryBuilderBeforeV8("foo", Arrays.asList(new BytesRef("a"), new BytesRef("b"), new BytesRef("c")), null);
             TermsQueryBuilder copy = (TermsQueryBuilder) serializeAndDeserialize(Version.V_7_12_0, builder, Version.V_8_0_0, TermsQueryBuilder::new);
             List<Object> values = copy.values();
             assertEquals(Arrays.asList("a", "b", "c"), values);
-            assertTrue(copy.isStale());
+            assertTrue(copy.getValues() instanceof TermsQueryBuilder.ValuesBeforeV8);
         }
     }
 

@@ -42,6 +42,7 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -170,7 +171,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(Collection<?> values, QueryShardContext context) {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;

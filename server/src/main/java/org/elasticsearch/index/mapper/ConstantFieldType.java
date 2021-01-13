@@ -29,7 +29,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.query.QueryShardContext;
 
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -88,7 +88,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termsQuery(List<?> values, QueryShardContext context) {
+    public final Query termsQuery(Collection<?> values, QueryShardContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {

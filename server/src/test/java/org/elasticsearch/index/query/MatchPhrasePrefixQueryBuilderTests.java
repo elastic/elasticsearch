@@ -88,7 +88,7 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, QueryShardContext context)
+    protected void doAssertLuceneQuery(MatchPhrasePrefixQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
             throws IOException {
         assertThat(query, notNullValue());
 
@@ -117,24 +117,24 @@ public class MatchPhrasePrefixQueryBuilderTests extends AbstractQueryTestCase<Ma
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder("fieldName", "text");
         matchQuery.analyzer("bogusAnalyzer");
 
-        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
     }
 
     public void testPhraseOnFieldWithNoTerms() {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(DATE_FIELD_NAME, "three term phrase");
         matchQuery.analyzer("whitespace");
-        expectThrows(IllegalStateException.class, () -> matchQuery.doToQuery(createShardContext()));
+        expectThrows(IllegalStateException.class, () -> matchQuery.doToQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixZeroTermsQuery() throws IOException {
         MatchPhrasePrefixQueryBuilder matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
-        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createShardContext()));
+        assertEquals(new MatchNoDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
 
         matchQuery = new MatchPhrasePrefixQueryBuilder(TEXT_FIELD_NAME, "");
         matchQuery.zeroTermsQuery(ZeroTermsQuery.ALL);
-        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createShardContext()));
+        assertEquals(new MatchAllDocsQuery(), matchQuery.doToQuery(createSearchExecutionContext()));
     }
 
     public void testPhrasePrefixMatchQuery() throws IOException {

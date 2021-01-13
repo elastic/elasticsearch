@@ -85,7 +85,7 @@ import java.util.function.Supplier;
 /**
  * Context object used to create lucene queries on the shard level.
  */
-public class QueryShardContext extends QueryRewriteContext {
+public class SearchExecutionContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
@@ -112,9 +112,9 @@ public class QueryShardContext extends QueryRewriteContext {
     private final Map<String, MappedFieldType> runtimeMappings;
 
     /**
-     * Build a {@linkplain QueryShardContext}.
+     * Build a {@linkplain SearchExecutionContext}.
      */
-    public QueryShardContext(
+    public SearchExecutionContext(
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
@@ -161,7 +161,7 @@ public class QueryShardContext extends QueryRewriteContext {
         );
     }
 
-    public QueryShardContext(QueryShardContext source) {
+    public SearchExecutionContext(SearchExecutionContext source) {
         this(
             source.shardId,
             source.shardRequestIndex,
@@ -184,25 +184,25 @@ public class QueryShardContext extends QueryRewriteContext {
         );
     }
 
-    private QueryShardContext(int shardId,
-                              int shardRequestIndex,
-                              IndexSettings indexSettings,
-                              BitsetFilterCache bitsetFilterCache,
-                              TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                              MapperService mapperService,
-                              MappingLookup mappingLookup,
-                              SimilarityService similarityService,
-                              ScriptService scriptService,
-                              NamedXContentRegistry xContentRegistry,
-                              NamedWriteableRegistry namedWriteableRegistry,
-                              Client client,
-                              IndexSearcher searcher,
-                              LongSupplier nowInMillis,
-                              Predicate<String> indexNameMatcher,
-                              Index fullyQualifiedIndex,
-                              BooleanSupplier allowExpensiveQueries,
-                              ValuesSourceRegistry valuesSourceRegistry,
-                              Map<String, MappedFieldType> runtimeMappings) {
+    private SearchExecutionContext(int shardId,
+                                   int shardRequestIndex,
+                                   IndexSettings indexSettings,
+                                   BitsetFilterCache bitsetFilterCache,
+                                   TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+                                   MapperService mapperService,
+                                   MappingLookup mappingLookup,
+                                   SimilarityService similarityService,
+                                   ScriptService scriptService,
+                                   NamedXContentRegistry xContentRegistry,
+                                   NamedWriteableRegistry namedWriteableRegistry,
+                                   Client client,
+                                   IndexSearcher searcher,
+                                   LongSupplier nowInMillis,
+                                   Predicate<String> indexNameMatcher,
+                                   Index fullyQualifiedIndex,
+                                   BooleanSupplier allowExpensiveQueries,
+                                   ValuesSourceRegistry valuesSourceRegistry,
+                                   Map<String, MappedFieldType> runtimeMappings) {
         super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
@@ -317,8 +317,8 @@ public class QueryShardContext extends QueryRewriteContext {
      * In case unmapped fields are allowed, null is returned when the field is not mapped.
      * In case unmapped fields are not allowed, either an exception is thrown or the field is automatically mapped as a text field.
      * @throws QueryShardException if unmapped fields are not allowed and automatically mapping unmapped fields as text is disabled.
-     * @see QueryShardContext#setAllowUnmappedFields(boolean)
-     * @see QueryShardContext#setMapUnmappedFieldAsString(boolean)
+     * @see SearchExecutionContext#setAllowUnmappedFields(boolean)
+     * @see SearchExecutionContext#setMapUnmappedFieldAsString(boolean)
      */
     public MappedFieldType getFieldType(String name) {
         return failIfFieldMappingNotFound(name, fieldType(name));
@@ -569,7 +569,7 @@ public class QueryShardContext extends QueryRewriteContext {
     }
 
     @Override
-    public final QueryShardContext convertToShardContext() {
+    public final SearchExecutionContext convertToSearchExecutionContext() {
         return this;
     }
 

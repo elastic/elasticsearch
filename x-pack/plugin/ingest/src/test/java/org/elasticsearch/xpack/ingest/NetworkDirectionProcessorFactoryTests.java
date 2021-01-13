@@ -15,7 +15,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.*;
+import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.DEFAULT_DEST_IP;
+import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.DEFAULT_SOURCE_IP;
+import static org.elasticsearch.xpack.ingest.NetworkDirectionProcessor.Factory.DEFAULT_TARGET;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class NetworkDirectionProcessorFactoryTests extends ESTestCase {

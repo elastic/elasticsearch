@@ -1,6 +1,6 @@
 [[search-aggregations-pipeline]]
 
-== Pipeline Aggregations
+== Pipeline aggregations
 
 Pipeline aggregations work on the outputs produced from other aggregations rather than from document sets, adding
 information to the output tree. There are many different types of pipeline aggregation, each computing different information from

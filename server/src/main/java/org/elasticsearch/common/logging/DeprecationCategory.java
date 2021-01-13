@@ -19,7 +19,19 @@
 
 package org.elasticsearch.common.logging;
 
+/**
+ * Deprecation log messages are categorised so that consumers of the logs can easily aggregate them.
+ */
 public enum DeprecationCategory {
-    SYSTEM_INDICES,
-    TEMPLATES, SETTINGS, API, MAPPINGS, OTHER, AGGREGATIONS, SCRIPTING, QUERIES, ANALYSIS, SECURITY, INDICES
+    AGGREGATIONS,
+    ANALYSIS,
+    API,
+    INDICES,
+    MAPPINGS,
+    OTHER,
+    QUERIES,
+    SCRIPTING,
+    SECURITY,
+    SETTINGS,
+    TEMPLATES
 }

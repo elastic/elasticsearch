@@ -125,7 +125,7 @@ public final class AnalysisModule {
             @Override
             public TokenFilterFactory get(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
                 if (indexSettings.getIndexVersionCreated().before(Version.V_7_0_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES, "standard_deprecation",
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "standard_deprecation",
                         "The [standard] token filter name is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");
@@ -186,7 +186,7 @@ public final class AnalysisModule {
                 // in certain circumstances to create a new index referencing the standard token filter
                 // until version 7_5_2
                 if (version.before(Version.V_7_6_0)) {
-                    deprecationLogger.deprecate(DeprecationCategory.INDICES, "standard_deprecation",
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "standard_deprecation",
                         "The [standard] token filter is deprecated and will be removed in a future version.");
                 } else {
                     throw new IllegalArgumentException("The [standard] token filter has been removed.");

@@ -113,7 +113,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             }
         }
         if (systemIndicesNames.isEmpty() == false) {
-            deprecationLogger.deprecate(DeprecationCategory.SYSTEM_INDICES, "open_system_index_access",
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system " +
                     "indices will be prevented by default", systemIndicesNames);
         } else {
@@ -126,7 +126,7 @@ public class TransportGetAliasesAction extends TransportMasterNodeReadAction<Get
             .filter(alias -> systemIndices.isSystemIndex(alias))
             .collect(Collectors.toList());
         if (systemAliases.isEmpty() == false) {
-            deprecationLogger.deprecate(DeprecationCategory.SYSTEM_INDICES, "open_system_alias_access",
+            deprecationLogger.deprecate(DeprecationCategory.API, "open_system_alias_access",
                 "this request accesses aliases with names reserved for system indices: {}, but in a future major version, direct" +
                     "access to system indices and their aliases will not be allowed", systemAliases);
         }

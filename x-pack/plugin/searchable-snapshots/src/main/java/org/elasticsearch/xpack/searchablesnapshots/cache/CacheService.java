@@ -389,11 +389,12 @@ public class CacheService extends AbstractLifecycleComponent {
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
         final Future<?> future;
         synchronized (shardsEvictionsMutex) {
+            if (allowShardsEvictions == false) {
+                throw new AlreadyClosedException("Cannot wait for shard eviction to be processed, cache is stopping");
+            }
             future = pendingShardsEvictions.get(new ShardEviction(snapshotUUID, snapshotIndexName, shardId));
             if (future == null) {
                 return;
-            } else if (allowShardsEvictions == false) {
-                throw new AlreadyClosedException("Cannot wait for shard eviction to be processed, cache is stopping");
             }
         }
         FutureUtils.get(future);

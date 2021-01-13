@@ -87,7 +87,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                 // If the reindex task is canceled, this listener is called.
                 // Consequently, we should not signal reindex completion.
                 if (isTaskStopping()) {
-                    LOGGER.debug("[{}] task is stopping. Marking as complete before marking reindex as finished.", config.getId());
+                    LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
                     listener.onResponse(new StepResponse(true));
                     return;
                 }
@@ -159,9 +159,14 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                 final Supplier<ThreadContext.StoredContext> supplier = threadContext.newRestorableContext(false);
                 try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
                     LOGGER.info("[{}] Started reindexing", config.getId());
-                    Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
-                        new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
                     synchronized (this) {
+                        if (isTaskStopping()) {
+                            LOGGER.debug("[{}] task is stopping. Stopping reindexing before it is finished.", config.getId());
+                            listener.onResponse(new StepResponse(true));
+                            return;
+                        }
+                        Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
+                            new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
                         reindexingTaskId = reindexTask.getId();
                     }
                     auditor.info(config.getId(),

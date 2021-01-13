@@ -149,7 +149,7 @@ This privilege is necessary only on clusters that contain leader indices.
 All read-only {Ilm} operations, such as getting policies and checking the
 status of {Ilm}
 
-read_slm::
+`read_slm`::
 All read-only {slm-init} actions, such as getting policies and checking the
 {slm-init} status.
 

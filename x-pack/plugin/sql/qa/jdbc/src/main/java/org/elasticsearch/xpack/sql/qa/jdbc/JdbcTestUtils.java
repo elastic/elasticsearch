@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import java.sql.Date;
@@ -22,7 +23,30 @@ final class JdbcTestUtils {
 
     static final ZoneId UTC = ZoneId.of("Z");
     static final String JDBC_TIMEZONE = "timezone";
+    private static final String DRIVER_VERSION_PROPERTY_NAME = "jdbc.driver.version";
     static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
+
+    /*
+     * The version of the driver that the QA (bwc-)tests run against.
+     * Note: when adding a version-gated feature (i.e. new feature that would not be supported by old drivers) and adding code in these QA
+     * tests to check the feature, you'll want to compare the target release version of the feature against this variable, to selectively
+     * run the new tests only for drivers that will support the feature (i.e. of the target release version and newer).
+     * Until the feature + QA tests are actually ported to the target branch, the comparison will hold true only for the master
+     * branch. So you'll need to remove the equality, port the feature and subsequently add the equality; i.e. a two-step commit of a PR.
+     * <code>
+     *     public static boolean isUnsignedLongSupported() {
+     *         // TODO: add equality only once actually ported to 7.11
+     *         return V_7_11_0.compareTo(JDBC_DRIVER_VERSION) < 0;
+     *     }
+     * </code>
+     */
+    static final Version JDBC_DRIVER_VERSION;
+
+    static {
+        // master's version is x.0.0-SNAPSHOT, tho Version#fromString() won't accept that back for recent versions
+        String jdbcDriverVersion = System.getProperty(DRIVER_VERSION_PROPERTY_NAME, "").replace("-SNAPSHOT", "");
+        JDBC_DRIVER_VERSION = Version.fromString(jdbcDriverVersion); // takes empty and null strings, resolves them to CURRENT
+    }
 
     static String of(long millis, String zoneId) {
         return StringUtils.toString(ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneId.of(zoneId)));

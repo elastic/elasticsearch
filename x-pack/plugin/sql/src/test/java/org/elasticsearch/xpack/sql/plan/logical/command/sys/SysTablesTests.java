@@ -59,7 +59,7 @@ public class SysTablesTests extends ESTestCase {
     private final IndexInfo frozen = new IndexInfo("frozen", IndexType.FROZEN_INDEX);
 
     private final SqlConfiguration FROZEN_CFG = new SqlConfiguration(DateUtils.UTC, Protocol.FETCH_SIZE, Protocol.REQUEST_TIMEOUT,
-            Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null, false, true);
+            Protocol.PAGE_TIMEOUT, null, Mode.PLAIN, null, null, null, null, false, true);
 
     //
     // catalog enumeration
@@ -334,7 +334,7 @@ public class SysTablesTests extends ESTestCase {
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration cfg) {
         EsIndex test = new EsIndex("test", mapping);
         Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new FunctionRegistry(), IndexResolution.valid(test),
-                                         new Verifier(new Metrics()));
+                                         new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, cfg.zoneId()), true);
 
         IndexResolver resolver = mock(IndexResolver.class);

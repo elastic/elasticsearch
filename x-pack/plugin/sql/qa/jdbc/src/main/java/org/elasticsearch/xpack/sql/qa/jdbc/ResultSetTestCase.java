@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedBiFunction;
@@ -66,6 +67,7 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
@@ -1004,12 +1006,14 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
             assertEquals(expectedDate, results.getObject(9, java.sql.Date.class));
 
-            long millisFromNanos = toMilliSeconds(randomLongDateNanos);
-            java.sql.Date expectedDateNanos = asDate(millisFromNanos, getZoneFromOffset(millisFromNanos));
-            assertEquals(expectedDateNanos, results.getDate("test_date_nanos"));
-            assertEquals(expectedDateNanos, results.getDate(10));
-            assertEquals(expectedDateNanos, results.getObject("test_date_nanos", java.sql.Date.class));
-            assertEquals(expectedDateNanos, results.getObject(10, java.sql.Date.class));
+            if (versionSupportsDateNanos()) {
+                long millisFromNanos = toMilliSeconds(randomLongDateNanos);
+                java.sql.Date expectedDateNanos = asDate(millisFromNanos, getZoneFromOffset(millisFromNanos));
+                assertEquals(expectedDateNanos, results.getDate("test_date_nanos"));
+                assertEquals(expectedDateNanos, results.getDate(10));
+                assertEquals(expectedDateNanos, results.getObject("test_date_nanos", java.sql.Date.class));
+                assertEquals(expectedDateNanos, results.getObject(10, java.sql.Date.class));
+            }
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTestsWithoutCalendar(results::getDate);
@@ -1054,9 +1058,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedDate, results.getDate("test_date", c));
             assertEquals(expectedDate, results.getDate(9, c));
 
-            java.sql.Date expectedDateNanos = new java.sql.Date(cNanos.getTimeInMillis());
-            assertEquals(expectedDateNanos, results.getDate("test_date_nanos", cNanos));
-            assertEquals(expectedDateNanos, results.getDate(10, cNanos));
+            if (versionSupportsDateNanos()) {
+                java.sql.Date expectedDateNanos = new java.sql.Date(cNanos.getTimeInMillis());
+                assertEquals(expectedDateNanos, results.getDate("test_date_nanos", cNanos));
+                assertEquals(expectedDateNanos, results.getDate(10, cNanos));
+            }
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithCalendar(c, results::getDate);
@@ -1137,9 +1143,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTime, results.getTime("test_date", c));
             assertEquals(expectedTime, results.getTime(9, c));
 
-            java.sql.Time expectedTimeNanos = new java.sql.Time(cNanos.getTimeInMillis());
-            assertEquals(expectedTimeNanos, results.getTime("test_date_nanos", cNanos));
-            assertEquals(expectedTimeNanos, results.getTime(10, cNanos));
+            if (versionSupportsDateNanos()) {
+                java.sql.Time expectedTimeNanos = new java.sql.Time(cNanos.getTimeInMillis());
+                assertEquals(expectedTimeNanos, results.getTime("test_date_nanos", cNanos));
+                assertEquals(expectedTimeNanos, results.getTime(10, cNanos));
+            }
 
             validateErrorsForDateTimeTestsWithCalendar(c, results::getTime);
 
@@ -1185,10 +1193,12 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
             assertNull(results.getTimestamp(3));
             assertNull(results.getObject("republish_date"));
-            assertTrue(results.getObject(4) instanceof Timestamp);
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(toMilliSeconds(randomNanos));
-            expectedTimestamp.setNanos(extractNanosOnly(randomNanos));
-            assertEquals(expectedTimestamp, results.getTimestamp(4));
+            if (versionSupportsDateNanos()) {
+                assertTrue(results.getObject(4) instanceof Timestamp);
+                java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(toMilliSeconds(randomNanos));
+                expectedTimestamp.setNanos(extractNanosOnly(randomNanos));
+                assertEquals(expectedTimestamp, results.getTimestamp(4));
+            }
 
             assertTrue(results.next());
             assertEquals(599616000000L, results.getTimestamp("republish_date").getTime());
@@ -1232,7 +1242,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
             results.next();
             assertNull(results.getTimestamp("test_date"));
-            assertNull(results.getTimestamp("test_date_nanos"));
+            if (versionSupportsDateNanos()) {
+                assertNull(results.getTimestamp("test_date_nanos"));
+            }
         });
     }
 
@@ -2022,5 +2034,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     private static int extractNanosOnly(long nanos) {
         return (int) (nanos % 1_000_000_000);
+    }
+
+    private static boolean versionSupportsDateNanos() {
+        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_8_0_0);
     }
 }

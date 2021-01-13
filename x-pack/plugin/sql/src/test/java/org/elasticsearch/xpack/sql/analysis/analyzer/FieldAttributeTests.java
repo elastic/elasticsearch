@@ -53,7 +53,7 @@ public class FieldAttributeTests extends ESTestCase {
     public FieldAttributeTests() {
         parser = new SqlParser();
         functionRegistry = new SqlFunctionRegistry();
-        verifier = new Verifier(new Metrics());
+        verifier = new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version());
 
         Map<String, EsField> mapping = loadMapping("mapping-multi-field-variation.json");
 

@@ -14,7 +14,6 @@ import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.either;
 
 public class TextStructureWithSecurityInsufficientRoleIT extends TextStructureWithSecurityIT {
 
@@ -52,7 +51,6 @@ public class TextStructureWithSecurityInsufficientRoleIT extends TextStructureWi
 
     @Override
     protected String[] getCredentials() {
-        return new String[]{"no_text_structure", "x-pack-test-password"};
+        return new String[] { "no_text_structure", "x-pack-test-password" };
     }
 }
-

@@ -508,15 +508,15 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return;
         }
 
-        if (agg instanceof NumericMetricsAggregation.MultiValue) {
-            NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
-            Set<String> valueNames = new HashSet<>();
-            for (String name : multiValueAgg.valueNames()) {
-                valueNames.add(name);
-            }
+        assert agg instanceof NumericMetricsAggregation.MultiValue : "only multi value aggs are supported";
 
-            assertEquals(aggregationBuilder.getOutputFieldNames().get(), valueNames);
+        NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
+        Set<String> valueNames = new HashSet<>();
+        for (String name : multiValueAgg.valueNames()) {
+            valueNames.add(name);
         }
+
+        assertEquals(aggregationBuilder.getOutputFieldNames().get(), valueNames);
     }
 
     /**

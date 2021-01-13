@@ -25,6 +25,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -44,7 +45,9 @@ public class InternalExtendedStats extends InternalStats implements ExtendedStat
         }
     }
 
-    private static final Set<String> METRIC_NAMES = Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet());
+    private static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
 
     private final double sumOfSqrs;
     private final double sigma;

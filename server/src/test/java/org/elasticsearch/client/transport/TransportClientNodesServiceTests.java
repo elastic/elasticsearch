@@ -39,6 +39,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskCancellationService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -351,6 +352,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         try (MockTransportService remoteService = createNewService(remoteSettings, Version.CURRENT, threadPool, null)) {
             final MockHandler handler = new MockHandler(remoteService);
             remoteService.registerRequestHandler(ClusterStateAction.NAME, ThreadPool.Names.SAME, ClusterStateRequest::new,  handler);
+            remoteService.getTaskManager().setTaskCancellationService(new TaskCancellationService(remoteService));
             remoteService.start();
             remoteService.acceptIncomingRequests();
 

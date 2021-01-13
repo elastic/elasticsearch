@@ -34,7 +34,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -973,7 +972,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (System.getProperty("tests.rest.client_path_prefix") != null) {
             builder.put(CLIENT_PATH_PREFIX, System.getProperty("tests.rest.client_path_prefix"));
         }
-        return builder.put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false).build();
+        return builder.build();
     }
 
     /**

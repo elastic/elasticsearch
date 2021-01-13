@@ -13,7 +13,7 @@ supported.
 ----
 PUT /foo_closed
 
-POST /foo_closed/_close?wait_for_active_shards=0
+POST /foo_closed/_close
 
 PUT /remotecluster-bar-01
 

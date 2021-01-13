@@ -188,7 +188,6 @@ public class CCRIT extends ESRestHighLevelClientTestCase {
 
         // Need to close index prior to unfollowing it:
         CloseIndexRequest closeIndexRequest = new CloseIndexRequest("follower");
-        closeIndexRequest.waitForActiveShards(ActiveShardCount.from(0));
         org.elasticsearch.action.support.master.AcknowledgedResponse closeIndexReponse =
             highLevelClient().indices().close(closeIndexRequest, RequestOptions.DEFAULT);
         assertThat(closeIndexReponse.isAcknowledged(), is(true));

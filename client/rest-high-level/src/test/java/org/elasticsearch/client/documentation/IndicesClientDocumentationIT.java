@@ -1469,8 +1469,6 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             CloseIndexRequest request = new CloseIndexRequest("index"); // <1>
             // end::close-index-request
 
-            request.waitForActiveShards(ActiveShardCount.from(0));
-
             // tag::close-index-request-timeout
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>
             // end::close-index-request-timeout

@@ -97,9 +97,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
         });
 
         // Close the index. That should flush the listener.
-        final Request closeRequest = new Request("POST", "/test/_close");
-        closeRequest.addParameter("wait_for_active_shards", "0");
-        client().performRequest(closeRequest);
+        client().performRequest(new Request("POST", "/test/_close"));
 
         /*
          * The request may fail, but we really, really, really want to make

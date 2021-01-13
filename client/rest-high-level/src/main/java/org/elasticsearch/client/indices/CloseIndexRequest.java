@@ -19,6 +19,7 @@
 
 package org.elasticsearch.client.indices;
 
+import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.TimedRequest;
@@ -34,7 +35,7 @@ public class CloseIndexRequest extends TimedRequest implements Validatable {
 
     private String[] indices;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private ActiveShardCount waitForActiveShards = null;
+    private ActiveShardCount waitForActiveShards = ActiveShardCount.DEFAULT;
 
     /**
      * Creates a new close index request
@@ -81,14 +82,16 @@ public class CloseIndexRequest extends TimedRequest implements Validatable {
     }
 
     /**
-     * Sets the number of shard copies that should be active before a close-index request returns. Defaults to {@code null}, which means not
-     * to wait. However the default behaviour is deprecated and will change in version 8. You can opt-in to the new default behaviour now by
-     * setting this to {@link ActiveShardCount#DEFAULT}, which will wait according to the setting {@code index.write.wait_for_active_shards}
-     * which by default will wait for one shard, the primary. Set this value to {@link ActiveShardCount#ALL} to wait for all shards (primary
-     * and all replicas) to be active before returning. Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
-     * non-negative integer up to the number of copies per shard (number of replicas + 1), to wait for the desired amount of shard copies
-     * to become active before returning. To explicitly preserve today's default behaviour and suppress the deprecation warning, set this
-     * property to {@code ActiveShardCount.from(0)}.
+     * Sets the number of shard copies that should be active for indices opening to return.
+     * Defaults to {@link ActiveShardCount#DEFAULT}, which will wait for one shard copy
+     * (the primary) to become active. Set this value to {@link ActiveShardCount#ALL} to
+     * wait for all shards (primary and all replicas) to be active before returning.
+     * Otherwise, use {@link ActiveShardCount#from(int)} to set this value to any
+     * non-negative integer, up to the number of copies per shard (number of replicas + 1),
+     * to wait for the desired amount of shard copies to become active before returning.
+     * Indices opening will only wait up until the timeout value for the number of shard copies
+     * to be active before returning.  Check {@link OpenIndexResponse#isShardsAcknowledged()} to
+     * determine if the requisite shard copies were all started before returning or timing out.
      *
      * @param waitForActiveShards number of active shard copies to wait on
      */

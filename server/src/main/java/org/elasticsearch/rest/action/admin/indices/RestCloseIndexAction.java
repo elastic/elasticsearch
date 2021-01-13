@@ -24,7 +24,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -37,12 +36,6 @@ import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 public class RestCloseIndexAction extends BaseRestHandler {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(RestCloseIndexAction.class);
-
-    public static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards " +
-            "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' " +
-            "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";
 
     @Override
     public List<Route> routes() {
@@ -63,11 +56,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         closeIndexRequest.timeout(request.paramAsTime("timeout", closeIndexRequest.timeout()));
         closeIndexRequest.indicesOptions(IndicesOptions.fromRequest(request, closeIndexRequest.indicesOptions()));
         String waitForActiveShards = request.param("wait_for_active_shards");
-        if (waitForActiveShards == null) {
-            deprecationLogger.deprecate("close-index-wait_for_active_shards-default", WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE);
-        } else if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
-            closeIndexRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
-        } else {
+        if (waitForActiveShards != null) {
             closeIndexRequest.waitForActiveShards(ActiveShardCount.parseString(waitForActiveShards));
         }
         return channel -> client.admin().indices().close(closeIndexRequest, new RestToXContentListener<>(channel));

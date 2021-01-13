@@ -38,7 +38,6 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
-import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
 import org.elasticsearch.client.indices.CreateDataStreamRequest;
@@ -141,13 +140,6 @@ final class IndicesRequestConverters {
         parameters.withTimeout(closeIndexRequest.timeout());
         parameters.withMasterTimeout(closeIndexRequest.masterNodeTimeout());
         parameters.withIndicesOptions(closeIndexRequest.indicesOptions());
-
-        final ActiveShardCount activeShardCount = closeIndexRequest.waitForActiveShards();
-        if (activeShardCount == ActiveShardCount.DEFAULT) {
-            request.addParameter("wait_for_active_shards", "index-setting");
-        } else {
-            parameters.withWaitForActiveShards(activeShardCount);
-        }
         request.addParameters(parameters.asMap());
         return request;
     }

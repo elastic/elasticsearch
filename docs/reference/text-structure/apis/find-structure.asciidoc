@@ -6,8 +6,8 @@
 <titleabbrev>Find structure</titleabbrev>
 ++++
 
-Finds the structure of a text file. The text file must 
-contain data that is suitable to be ingested into the 
+Finds the structure of a text file. The text file must
+contain data that is suitable to be ingested into the
 {stack}.
 
 [discrete]
@@ -16,18 +16,18 @@ contain data that is suitable to be ingested into the
 
 `POST _text_structure/find_structure`
 
-////
 [[find-structure-prereqs]]
 == {api-prereq-title}
 
-//TBD
-////
+* If the {es} {security-features} are enabled, you must have `monitor_text_structure` or
+`monitor` cluster privileges to use this API. See
+<<security-privileges>>.
 
 [discrete]
 [[find-structure-desc]]
 == {api-description-title}
 
-This API provides a starting point for ingesting data into {es} in a format that 
+This API provides a starting point for ingesting data into {es} in a format that
 is suitable for subsequent use with other {stack} functionality.
 
 Unlike other {es} endpoints, the data that is posted to this endpoint does not
@@ -60,67 +60,67 @@ chosen.
 == {api-query-parms-title}
 
 `charset`::
-(Optional, string) The file's character set. It must be a character set that is 
+(Optional, string) The file's character set. It must be a character set that is
 supported by the JVM that {es} uses. For example, `UTF-8`, `UTF-16LE`,
 `windows-1252`, or `EUC-JP`. If this parameter is not specified, the structure
 finder chooses an appropriate character set.
 
 `column_names`::
-(Optional, string) If you have set `format` to `delimited`, you can specify the 
-column names in a comma-separated list. If this parameter is not specified, the 
-structure finder uses the column names from the header row of the file. If the 
+(Optional, string) If you have set `format` to `delimited`, you can specify the
+column names in a comma-separated list. If this parameter is not specified, the
+structure finder uses the column names from the header row of the file. If the
 file does not have a header role, columns are named "column1", "column2",
 "column3", etc.
 
 `delimiter`::
-(Optional, string) If you have set `format` to `delimited`, you can specify the 
-character used to delimit the values in each row. Only a single character is 
-supported; the delimiter cannot have multiple characters. By default, the API 
-considers the following possibilities: comma, tab, semi-colon, and pipe (`|`). 
-In this default scenario, all rows must have the same number of fields for the 
-delimited format to be detected. If you specify a delimiter, up to 10% of the 
+(Optional, string) If you have set `format` to `delimited`, you can specify the
+character used to delimit the values in each row. Only a single character is
+supported; the delimiter cannot have multiple characters. By default, the API
+considers the following possibilities: comma, tab, semi-colon, and pipe (`|`).
+In this default scenario, all rows must have the same number of fields for the
+delimited format to be detected. If you specify a delimiter, up to 10% of the
 rows can have a different number of columns than the first row.
 
 `explain`::
-(Optional, Boolean) If this parameter is set to `true`, the response includes a 
-field named `explanation`, which is an array of strings that indicate how the 
+(Optional, Boolean) If this parameter is set to `true`, the response includes a
+field named `explanation`, which is an array of strings that indicate how the
 structure finder produced its result. The default value is `false`.
 
 `format`::
 (Optional, string) The high level structure of the file. Valid values are
-`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the API 
-chooses the format. In this default scenario, all rows must have the same number 
-of fields for a delimited format to be detected. If the `format` is set to 
-`delimited` and the `delimiter` is not set, however, the API tolerates up to 5% 
+`ndjson`, `xml`, `delimited`, and `semi_structured_text`. By default, the API
+chooses the format. In this default scenario, all rows must have the same number
+of fields for a delimited format to be detected. If the `format` is set to
+`delimited` and the `delimiter` is not set, however, the API tolerates up to 5%
 of rows that have a different number of columns than the first row.
 
 `grok_pattern`::
 (Optional, string) If you have set `format` to `semi_structured_text`, you can
-specify a Grok pattern that is used to extract fields from every message in the 
-file. The name of the timestamp field in the Grok pattern must match what is 
-specified in the `timestamp_field` parameter. If that parameter is not 
+specify a Grok pattern that is used to extract fields from every message in the
+file. The name of the timestamp field in the Grok pattern must match what is
+specified in the `timestamp_field` parameter. If that parameter is not
 specified, the name of the timestamp field in the Grok pattern must match
-"timestamp". If `grok_pattern` is not specified, the structure finder creates a 
+"timestamp". If `grok_pattern` is not specified, the structure finder creates a
 Grok pattern.
 
 `has_header_row`::
 (Optional, Boolean) If you have set `format` to `delimited`, you can use this
-parameter to indicate whether the column names are in the first row of the file. 
-If this parameter is not specified, the structure finder guesses based on the 
+parameter to indicate whether the column names are in the first row of the file.
+If this parameter is not specified, the structure finder guesses based on the
 similarity of the first row of the file to other rows.
 
 `line_merge_size_limit`::
-(Optional, unsigned integer) The maximum number of characters in a message when 
-lines are merged to form messages while analyzing semi-structured files. The 
-default is `10000`. If you have extremely long messages you may need to increase 
-this, but be aware that this may lead to very long processing times if the way 
+(Optional, unsigned integer) The maximum number of characters in a message when
+lines are merged to form messages while analyzing semi-structured files. The
+default is `10000`. If you have extremely long messages you may need to increase
+this, but be aware that this may lead to very long processing times if the way
 to group lines into messages is misdetected.
 
 `lines_to_sample`::
 (Optional, unsigned integer) The number of lines to include in the structural
-analysis, starting from the beginning of the file. The minimum is 2; the default 
-is `1000`. If the value of this parameter is greater than the number of lines in 
-the file, the analysis proceeds (as long as there are at least two lines in the 
+analysis, starting from the beginning of the file. The minimum is 2; the default
+is `1000`. If the value of this parameter is greater than the number of lines in
+the file, the analysis proceeds (as long as there are at least two lines in the
 file) for all of the lines.
 +
 --
@@ -134,11 +134,11 @@ to request analysis of 100000 lines to achieve some variety.
 --
 
 `quote`::
-(Optional, string) If you have set `format` to `delimited`, you can specify the 
-character used to quote the values in each row if they contain newlines or the 
-delimiter character. Only a single character is supported. If this parameter is 
-not specified, the default value is a double quote (`"`). If your delimited file 
-format does not use quoting, a workaround is to set this argument to a character 
+(Optional, string) If you have set `format` to `delimited`, you can specify the
+character used to quote the values in each row if they contain newlines or the
+delimiter character. Only a single character is supported. If this parameter is
+not specified, the default value is a double quote (`"`). If your delimited file
+format does not use quoting, a workaround is to set this argument to a character
 that does not appear anywhere in the sample.
 
 `should_trim_fields`::
@@ -149,12 +149,12 @@ value is `true`. Otherwise, the default value is `false`.
 
 `timeout`::
 (Optional, <<time-units,time units>>) Sets the maximum amount of time that the
-structure analysis make take. If the analysis is still running when the timeout 
+structure analysis make take. If the analysis is still running when the timeout
 expires then it will be aborted. The default value is 25 seconds.
 
 `timestamp_field`::
-(Optional, string) The name of the field that contains the primary timestamp of 
-each record in the file. In particular, if the file were ingested into an index, 
+(Optional, string) The name of the field that contains the primary timestamp of
+each record in the file. In particular, if the file were ingested into an index,
 this is the field that would be used to populate the `@timestamp` field.
 +
 --
@@ -200,8 +200,8 @@ Only a subset of Java time format letter groups are supported:
 Additionally `S` letter groups (fractional seconds) of length one to nine are
 supported providing they occur after `ss` and separated from the `ss` by a `.`,
 `,` or `:`. Spacing and punctuation is also permitted with the exception of `?`,
-newline and carriage return, together with literal text enclosed in single 
-quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override 
+newline and carriage return, together with literal text enclosed in single
+quotes. For example, `MM/dd HH.mm.ss,SSSSSS 'in' yyyy` is a valid override
 format.
 
 One valuable use case for this parameter is when the format is semi-structured
@@ -531,8 +531,8 @@ If the request does not encounter errors, you receive the following result:
 // so the fields may get reordered in the JSON the endpoint sees
 
 <1> `num_lines_analyzed` indicates how many lines of the file were analyzed.
-<2> `num_messages_analyzed` indicates how many distinct messages the lines 
-contained. For NDJSON, this value is the same as `num_lines_analyzed`. For other 
+<2> `num_messages_analyzed` indicates how many distinct messages the lines
+contained. For NDJSON, this value is the same as `num_lines_analyzed`. For other
 file formats, messages can span several lines.
 <3> `sample_start` reproduces the first two messages in the file verbatim. This
 may help diagnose parse errors or accidental uploads of the wrong file.
@@ -550,11 +550,11 @@ fields. {es} mappings and ingest pipelines use this format.
 therefore be told the correct timezone by the client.
 <11> `mappings` contains some suitable mappings for an index into which the data
 could be ingested. In this case, the `release_date` field has been given a
-`keyword` type as it is not considered specific enough to convert to the `date` 
+`keyword` type as it is not considered specific enough to convert to the `date`
 type.
 <12> `field_stats` contains the most common values of each field, plus basic
-numeric statistics for the numeric `page_count` field. This information may 
-provide clues that the data needs to be cleaned or transformed prior to use by 
+numeric statistics for the numeric `page_count` field. This information may
+provide clues that the data needs to be cleaned or transformed prior to use by
 other {stack} functionality.
 
 [discrete]
@@ -1456,22 +1456,22 @@ If the request does not encounter errors, you receive the following result:
 // NOTCONSOLE
 
 <1> `num_messages_analyzed` is 2 lower than `num_lines_analyzed` because only
-data records count as messages. The first line contains the column names and in 
+data records count as messages. The first line contains the column names and in
 this sample the second line is blank.
 <2> Unlike the first example, in this case the `format` has been identified as
 `delimited`.
 <3> Because the `format` is `delimited`, the `column_names` field in the output
 lists the column names in the order they appear in the sample.
 <4> `has_header_row` indicates that for this sample the column names were in
-the first row of the sample. (If they hadn't been then it would have been a good 
+the first row of the sample. (If they hadn't been then it would have been a good
 idea to specify them in the `column_names` query parameter.)
 <5> The `delimiter` for this sample is a comma, as it's a CSV file.
-<6> The `quote` character is the default double quote. (The structure finder 
-does not attempt to deduce any other quote character, so if you have a delimited 
-file that's quoted with some other character you must specify it using the 
+<6> The `quote` character is the default double quote. (The structure finder
+does not attempt to deduce any other quote character, so if you have a delimited
+file that's quoted with some other character you must specify it using the
 `quote` query parameter.)
 <7> The `timestamp_field` has been chosen to be `tpep_pickup_datetime`.
-`tpep_dropoff_datetime` would work just as well, but `tpep_pickup_datetime` was 
+`tpep_dropoff_datetime` would work just as well, but `tpep_pickup_datetime` was
 chosen because it comes first in the column order. If you prefer
 `tpep_dropoff_datetime` then force it to be chosen using the
 `timestamp_field` query parameter.
@@ -1479,18 +1479,18 @@ chosen because it comes first in the column order. If you prefer
 <9> `java_timestamp_formats` are the Java time formats recognized in the time
 fields. {es} mappings and ingest pipelines use this format.
 <10> The timestamp format in this sample doesn't specify a timezone, so to
-accurately convert them to UTC timestamps to store in {es} it's necessary to 
-supply the timezone they relate to. `need_client_timezone` will be `false` for 
+accurately convert them to UTC timestamps to store in {es} it's necessary to
+supply the timezone they relate to. `need_client_timezone` will be `false` for
 timestamp formats that include the timezone.
 
 [discrete]
 [[find-structure-example-timeout]]
 === Setting the timeout parameter
 
-If you try to analyze a lot of data then the analysis will take a long time. If 
-you want to limit the amount of processing your {es} cluster performs for a 
-request, use the `timeout` query parameter. The analysis will be aborted and an 
-error returned when the timeout expires. For example, you can replace 20000 
+If you try to analyze a lot of data then the analysis will take a long time. If
+you want to limit the amount of processing your {es} cluster performs for a
+request, use the `timeout` query parameter. The analysis will be aborted and an
+error returned when the timeout expires. For example, you can replace 20000
 lines in the previous example with 200000 and set a 1 second timeout on the
 analysis:
 
@@ -1681,7 +1681,7 @@ this:
 <2> The `multiline_start_pattern` is set on the basis that the timestamp appears
 in the first line of each multi-line log message.
 <3> A very simple `grok_pattern` has been created, which extracts the timestamp
-and recognizable fields that appear in every analyzed message. In this case the 
+and recognizable fields that appear in every analyzed message. In this case the
 only field that was recognized beyond the timestamp was the log level.
 
 [discrete]

@@ -110,7 +110,7 @@ public class FetchPhase {
         SearchHit[] hits = new SearchHit[context.docIdsToLoadSize()];
 
         List<FetchSubPhaseProcessor> processors = getProcessors(context.shardTarget(), fetchContext);
-        NestedDocuments nestedDocuments = context.getNestedDocuments();
+        NestedDocuments nestedDocuments = context.getQueryShardContext().getNestedDocuments();
 
         int currentReaderIndex = -1;
         LeafReaderContext currentReaderContext = null;

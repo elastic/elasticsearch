@@ -239,8 +239,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
-        return fieldComparatorSource(context).newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
+    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
+        return fieldComparatorSource(context).newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
     }
 
     private IndexFieldData.XFieldComparatorSource fieldComparatorSource(QueryShardContext context) throws IOException {

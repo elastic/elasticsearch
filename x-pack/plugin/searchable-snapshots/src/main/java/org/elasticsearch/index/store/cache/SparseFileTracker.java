@@ -104,6 +104,20 @@ public class SparseFileTracker {
         return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
     }
 
+    public long getCompletedRangesLength() {
+        long length = 0;
+        synchronized (mutex) {
+            assert invariant();
+            for (Range range : ranges) {
+                if (range.isPending()) {
+                    continue;
+                }
+                length += range.end - range.start;
+            }
+        }
+        return length;
+    }
+
     /**
      * @return the sum of the length of the ranges
      */

@@ -163,6 +163,10 @@ public class CacheFile {
         return tracker.getCompletedRanges();
     }
 
+    public long getCachedLength() {
+        return tracker.getCompletedRangesLength();
+    }
+
     public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 

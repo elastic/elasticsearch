@@ -40,6 +40,8 @@ import java.util.stream.Stream;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1)
 public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -98,12 +100,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
         assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
 
-        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(restoredIndexName).get();
-        Map<String, List<RecoveryState>> shardRecoveries = recoveryResponse.shardRecoveryStates();
-        assertThat(shardRecoveries.containsKey(restoredIndexName), equalTo(true));
-        List<RecoveryState> recoveryStates = shardRecoveries.get(restoredIndexName);
-        assertThat(recoveryStates.size(), equalTo(1));
-        RecoveryState recoveryState = recoveryStates.get(0);
+        RecoveryState recoveryState = getRecoveryState(restoredIndexName);
 
         assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
 
@@ -114,6 +111,89 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
 
         assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+    }
+
+    public void testFilesStoredInThePersistentCacheAreMarkedAsReusedInRecoveryState() throws Exception {
+        final String fsRepoName = randomAlphaOfLength(10);
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String restoredIndexName = randomBoolean() ? indexName : randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        final String snapshotName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+
+        createRepository(fsRepoName, "fs");
+
+        final Settings.Builder originalIndexSettings = Settings.builder();
+        originalIndexSettings.put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
+        originalIndexSettings.put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+
+        createAndPopulateIndex(indexName, originalIndexSettings);
+
+        final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
+
+        assertAcked(client().admin().indices().prepareDelete(indexName));
+
+        final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            restoredIndexName,
+            fsRepoName,
+            snapshotInfo.snapshotId().getName(),
+            indexName,
+            Settings.EMPTY,
+            Strings.EMPTY_ARRAY,
+            true
+        );
+
+        final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
+        ensureGreen(restoredIndexName);
+
+        for (CacheService cacheService : internalCluster().getDataNodeInstances(CacheService.class)) {
+            cacheService.synchronizeCache();
+        }
+
+        internalCluster().restartRandomDataNode();
+        ensureGreen(restoredIndexName);
+
+        final Index restoredIndex = client().admin()
+            .cluster()
+            .prepareState()
+            .clear()
+            .setMetadata(true)
+            .get()
+            .getState()
+            .metadata()
+            .index(restoredIndexName)
+            .getIndex();
+
+        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME);
+        assertExecutorIsIdle(SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+
+        RecoveryState recoveryState = getRecoveryState(restoredIndexName);
+
+        assertThat(recoveryState.getStage(), equalTo(RecoveryState.Stage.DONE));
+
+        long recoveredBytes = recoveryState.getIndex().recoveredBytes();
+        long physicalCacheSize = getPhysicalCacheSize(restoredIndex, snapshotInfo.snapshotId().getUUID());
+
+        assertThat("Expected to reuse all data from the persistent cache but it didn't", 0L, equalTo(recoveredBytes));
+        assertThat(physicalCacheSize, greaterThan(0L));
+        // Some of the snapshot files are stored directly in the file metadata, those are marked
+        // as reused but we don't write them to disk.
+        assertThat(physicalCacheSize, lessThanOrEqualTo(recoveryState.getIndex().reusedBytes()));
+        assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
+
+        for (RecoveryState.FileDetail fileDetail : recoveryState.getIndex().fileDetails()) {
+            assertThat(fileDetail.name() + " wasn't mark as reused", fileDetail.reused(), equalTo(true));
+        }
+
+        assertAcked(client().admin().indices().prepareDelete(restoredIndexName));
+    }
+
+    private RecoveryState getRecoveryState(String indexName) {
+        final RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries(indexName).get();
+        Map<String, List<RecoveryState>> shardRecoveries = recoveryResponse.shardRecoveryStates();
+        assertThat(shardRecoveries.containsKey(indexName), equalTo(true));
+        List<RecoveryState> recoveryStates = shardRecoveries.get(indexName);
+        assertThat(recoveryStates.size(), equalTo(1));
+        return recoveryStates.get(0);
     }
 
     @SuppressForbidden(reason = "Uses FileSystem APIs")

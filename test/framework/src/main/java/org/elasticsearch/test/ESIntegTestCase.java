@@ -1743,9 +1743,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
+            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             // Default the watermarks to absurdly low to prevent the tests
             // from failing on nodes without enough disk space
-            .put(DestructiveOperations.REQUIRES_NAME_SETTING.getKey(), false)
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
             .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_FLOOD_STAGE_WATERMARK_SETTING.getKey(), "1b")

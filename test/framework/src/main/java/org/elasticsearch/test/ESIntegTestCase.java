@@ -131,7 +131,6 @@ import org.elasticsearch.indices.IndicesRequestCache;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.monitor.os.OsInfo;
 import org.elasticsearch.node.NodeMocksPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -2366,7 +2365,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         final NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
         final boolean anyDebian8Nodes = response.getNodes()
             .stream()
-            .anyMatch(ni -> ni.getInfo(OsInfo.class).getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
+            .anyMatch(ni -> ni.getOs().getPrettyName().equals("Debian GNU/Linux 8 (jessie)"));
         boolean java15Plus = JavaVersion.current().compareTo(JavaVersion.parse("15")) >= 0;
         return anyDebian8Nodes && java15Plus == false;
     }

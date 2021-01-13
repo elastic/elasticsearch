@@ -83,7 +83,11 @@ import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 /**
- * Context object used to create lucene queries on the shard level.
+ * The context used to execute a search request on a shard. It provides access
+ * to required information like mapping definitions and document data.
+ *
+ * This context is used in several components of search execution, including
+ * building queries and fetching hits.
  */
 public class SearchExecutionContext extends QueryRewriteContext {
 
@@ -94,6 +98,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final SimilarityService similarityService;
     private final BitsetFilterCache bitsetFilterCache;
     private final TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataService;
+    private SearchLookup lookup = null;
+
     private final int shardId;
     private final int shardRequestIndex;
     private final IndexSearcher searcher;
@@ -418,8 +424,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         NamedAnalyzer a = mappingLookup.indexAnalyzer(field, f -> null);
         return a == null ? false : a.containsBrokenAnalysis();
     }
-
-    private SearchLookup lookup = null;
 
     /**
      * Get the lookup to use during the search.

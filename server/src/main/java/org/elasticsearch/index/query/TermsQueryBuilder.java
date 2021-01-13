@@ -30,6 +30,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -423,7 +424,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
         }
 
-        protected static BytesRef serialize(Iterable<?> values, boolean convert) {
+        protected static BytesReference serialize(Iterable<?> values, boolean convert) {
             List<?> list;
             if (values instanceof List<?>) {
                 list = (List<?>) values;
@@ -439,7 +440,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
                 }
                 output.writeGenericValue(list);
-                return output.bytes().toBytesRef();
+                return output.bytes();
             } catch (IOException e) {
                 throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
             }
@@ -487,20 +488,20 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     private static class ValuesAfterV8 extends Values {
 
-        private final BytesRef valueRef;
+        private final BytesReference valueRef;
         private final int size;
 
         private ValuesAfterV8(StreamInput in) throws IOException {
-            this(in.readBytesRef());
+            this(in.readBytesReference());
         }
 
         private ValuesAfterV8(Iterable<?> values, boolean convert) {
             this(serialize(values, convert));
         }
 
-        private ValuesAfterV8(BytesRef bytesRef) {
+        private ValuesAfterV8(BytesReference bytesRef) {
             this.valueRef = bytesRef;
-            try (StreamInput in = StreamInput.wrap(valueRef.bytes, valueRef.offset, valueRef.length)) {
+            try (StreamInput in = valueRef.streamInput()) {
                 assert in.readByte() == (byte) 7;
                 size = in.readVInt();
             } catch (IOException e) {
@@ -516,11 +517,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         @Override
         public Iterator iterator() {
             return new Iterator<>() {
-                private final StreamInput in = StreamInput.wrap(valueRef.bytes, valueRef.offset, valueRef.length);
+                private final StreamInput in;
                 private int pos = 0;
 
                 {
                     try {
+                        in = valueRef.streamInput();
                         assert in.readByte() == (byte) 7;
                         assert in.readVInt() == size;
                     } catch (IOException e) {
@@ -548,9 +550,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                out.writeBytesRef(valueRef);
+                out.writeBytesReference(valueRef);
             } else {
-                out.write(valueRef.bytes, valueRef.offset, valueRef.length);
+                valueRef.writeTo(out);
             }
         }
 
@@ -568,7 +570,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
     }
 
-
     /**
      * package private for testing purpose
      *
@@ -581,7 +582,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * {@link #doToQuery} called}.
      * <p>
      *
-     * ToDo: remove in 9.0.0
+     * TODO: remove in 9.0.0
      */
     static class ValuesBeforeV8 extends Values {
 
@@ -624,8 +625,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-                BytesRef bytesRef = serialize(values, false);
-                out.writeBytesRef(bytesRef);
+                BytesReference bytesRef = serialize(values, false);
+                out.writeBytesReference(bytesRef);
             } else {
                 out.writeGenericValue(values);
             }

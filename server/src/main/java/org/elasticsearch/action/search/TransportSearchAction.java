@@ -241,7 +241,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 boolean preFilter, ThreadPool threadPool, SearchResponse.Clusters clusters) {
                 return new AbstractSearchAsyncAction<>(
                     actionName, logger, searchTransportService, connectionLookup, aliasFilter, concreteIndexBoosts,
-                    executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
+                    threadPool.generic(), executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
                     new ArraySearchPhaseResults<>(shardsIts.size()), 1, clusters) {
                     @Override
                     protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
@@ -774,7 +774,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchResponse.Clusters clusters) {
         if (preFilter) {
             return new CanMatchPreFilterSearchPhase(logger, searchTransportService, connectionLookup,
-                aliasFilter, concreteIndexBoosts, executor, searchRequest, listener, shardIterators,
+                aliasFilter, concreteIndexBoosts, threadPool.generic(), searchRequest, listener, shardIterators,
                 timeProvider, clusterState, task, (iter) -> {
                 AbstractSearchAsyncAction<? extends SearchPhaseResult> action = searchAsyncAction(
                     task,
@@ -805,12 +805,12 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             switch (searchRequest.searchType()) {
                 case DFS_QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchDfsQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController,
-                        executor, queryResultConsumer, searchRequest, listener, shardIterators, timeProvider, clusterState, task, clusters);
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, threadPool.generic(), executor,
+                        queryResultConsumer, searchRequest, listener, shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 case QUERY_THEN_FETCH:
                     searchAsyncAction = new SearchQueryThenFetchAsyncAction(logger, searchTransportService, connectionLookup,
-                        aliasFilter, concreteIndexBoosts, searchPhaseController, executor, queryResultConsumer,
+                        aliasFilter, concreteIndexBoosts, searchPhaseController, threadPool.generic(), executor, queryResultConsumer,
                         searchRequest, listener, shardIterators, timeProvider, clusterState, task, clusters);
                     break;
                 default:

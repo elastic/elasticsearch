@@ -74,7 +74,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final SearchTransportService searchTransportService;
-    private final Executor executor;
+    private final Executor initialExecutor;
+    private final Executor phaseExecutor;
     private final ActionListener<SearchResponse> listener;
     private final SearchRequest request;
     /**
@@ -109,7 +110,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     AbstractSearchAsyncAction(String name, Logger logger, SearchTransportService searchTransportService,
                               BiFunction<String, String, Transport.Connection> nodeIdToConnection,
                               Map<String, AliasFilter> aliasFilter, Map<String, Float> concreteIndexBoosts,
-                              Executor executor, SearchRequest request,
+                              Executor initialExecutor, Executor phaseExecutor, SearchRequest request,
                               ActionListener<SearchResponse> listener, GroupShardsIterator<SearchShardIterator> shardsIts,
                               SearchTimeProvider timeProvider, ClusterState clusterState,
                               SearchTask task, SearchPhaseResults<Result> resultConsumer, int maxConcurrentRequestsPerNode,
@@ -148,7 +149,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
-        this.executor = executor;
+        this.initialExecutor = initialExecutor;
+        this.phaseExecutor = phaseExecutor;
         this.request = request;
         this.task = task;
         this.listener = ActionListener.runAfter(listener, this::releaseContext);
@@ -192,7 +194,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 ShardSearchFailure.EMPTY_ARRAY, clusters, null));
             return;
         }
-        executePhase(this);
+        fork(() -> executePhase(this));
     }
 
     @Override
@@ -334,7 +336,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                                                 SearchActionListener<Result> listener);
 
     protected void fork(final Runnable runnable) {
-        executor.execute(new AbstractRunnable() {
+        initialExecutor.execute(new AbstractRunnable() {
             @Override
             public void onFailure(Exception e) {
             }
@@ -697,7 +699,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     @Override
     public final void execute(Runnable command) {
-        executor.execute(command);
+        phaseExecutor.execute(command);
     }
 
     @Override

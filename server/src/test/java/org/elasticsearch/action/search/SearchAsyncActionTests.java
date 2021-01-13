@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -108,6 +109,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node); },
                 aliasFilters,
                 Collections.emptyMap(),
+                EsExecutors.newDirectExecutorService(),
                 null,
                 request,
                 responseListener,
@@ -213,6 +215,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node); },
                 aliasFilters,
                 Collections.emptyMap(),
+                EsExecutors.newDirectExecutorService(),
                 null,
                 request,
                 responseListener,
@@ -315,6 +318,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                             return lookup.get(node); },
                         aliasFilters,
                         Collections.emptyMap(),
+                        executor,
                         executor,
                         request,
                         responseListener,
@@ -425,6 +429,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                 aliasFilters,
                 Collections.emptyMap(),
                 executor,
+                executor,
                 request,
                 responseListener,
                 shardsIter,
@@ -524,6 +529,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node); },
                 aliasFilters,
                 Collections.emptyMap(),
+                EsExecutors.newDirectExecutorService(),
                 null,
                 request,
                 responseListener,
@@ -611,6 +617,7 @@ public class SearchAsyncActionTests extends ESTestCase {
                     return lookup.get(node); },
                 Map.of("_na_", new AliasFilter(null, Strings.EMPTY_ARRAY)),
                 Collections.emptyMap(),
+                EsExecutors.newDirectExecutorService(),
                 null,
                 request,
                 responseListener,

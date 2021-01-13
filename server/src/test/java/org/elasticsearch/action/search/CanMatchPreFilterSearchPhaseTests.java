@@ -265,6 +265,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 aliasFilters,
                 Collections.emptyMap(),
                 executor,
+                executor,
                 searchRequest,
                 responseListener,
                 iter,

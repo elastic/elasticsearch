@@ -9,8 +9,7 @@ your application to {es} 7.12.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-// * <<breaking_712_blah_changes>>
-// * <<breaking_712_blah_changes>>
+* <<breaking_712_engine_changes>>
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -22,7 +21,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 === Engine changes
 
 [[breaking_712_engine_forcemerge_change]]
-.Force-merges on frozen and searchable snapshot indices will fail if merging is required
+.Force-merges on frozen and searchable snapshot indices will fail if merging is required.
 [%collapsible]
 ====
 *Details* +

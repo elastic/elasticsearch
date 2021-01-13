@@ -92,7 +92,9 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                     return;
                 }
 
-                reindexingTaskId = null;
+                synchronized (this) {
+                    reindexingTaskId = null;
+                }
 
                 Exception reindexError = getReindexError(config.getId(), reindexResponse);
                 if (reindexError != null) {
@@ -159,7 +161,9 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
                     LOGGER.info("[{}] Started reindexing", config.getId());
                     Task reindexTask = client.executeLocally(ReindexAction.INSTANCE, reindexRequest,
                         new ContextPreservingActionListener<>(supplier, reindexCompletedListener));
-                    reindexingTaskId = reindexTask.getId();
+                    synchronized (this) {
+                        reindexingTaskId = reindexTask.getId();
+                    }
                     auditor.info(config.getId(),
                         Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_REINDEXING, config.getDest().getIndex()));
                 }
@@ -223,7 +227,16 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
 
     @Override
     public void cancel(String reason, TimeValue timeout) {
-        TaskId reindexTaskId = new TaskId(clusterService.localNode().getId(), reindexingTaskId);
+        TaskId reindexTaskId = null;
+        synchronized (this) {
+            if (reindexingTaskId != null) {
+                reindexTaskId = new TaskId(clusterService.localNode().getId(), reindexingTaskId);
+            }
+        }
+        if (reindexTaskId == null) {
+            return;
+        }
+
         LOGGER.debug("[{}] Cancelling reindex task [{}]", config.getId(), reindexTaskId);
 
         CancelTasksRequest cancelReindex = new CancelTasksRequest();

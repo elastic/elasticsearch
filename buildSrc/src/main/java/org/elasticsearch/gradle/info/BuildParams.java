@@ -209,7 +209,7 @@ public class BuildParams {
             BuildParams.runtimeJavaHome = requireNonNull(runtimeJavaHome);
         }
 
-        public void setIsRutimeJavaHomeSet(boolean isRutimeJavaHomeSet) {
+        public void setIsRuntimeJavaHomeSet(boolean isRutimeJavaHomeSet) {
             BuildParams.isRuntimeJavaHomeSet = isRutimeJavaHomeSet;
         }
 

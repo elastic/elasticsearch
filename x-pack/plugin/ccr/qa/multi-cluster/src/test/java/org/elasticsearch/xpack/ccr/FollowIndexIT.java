@@ -81,7 +81,7 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             assertBusy(() -> verifyCcrMonitoring(leaderIndexName, followIndexName), 30, TimeUnit.SECONDS);
 
             pauseFollow(followIndexName);
-            assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_close")));
+            closeIndex(followIndexName);
             assertOK(client().performRequest(new Request("POST", "/" + followIndexName + "/_ccr/unfollow")));
             Exception e = expectThrows(ResponseException.class, () -> resumeFollow(followIndexName));
             assertThat(e.getMessage(), containsString("follow index [" + followIndexName + "] does not have ccr metadata"));

@@ -1217,8 +1217,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static void closeIndex(String index) throws IOException {
-        Response response = client().performRequest(new Request("POST", "/" + index + "/_close"));
-        assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
+        assertOK(client().performRequest(new Request(HttpPost.METHOD_NAME, "/" + index + "/_close")));
     }
 
     protected static void openIndex(String index) throws IOException {

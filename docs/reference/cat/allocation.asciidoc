@@ -17,7 +17,7 @@ and their disk space.
 `GET /_cat/allocation`
 
 [[cat-allocation-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.

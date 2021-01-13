@@ -16,7 +16,7 @@ Returns the amount of heap memory currently used by the
 `GET /_cat/fielddata`
 
 [[cat-fielddata-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.

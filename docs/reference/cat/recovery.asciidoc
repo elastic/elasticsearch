@@ -19,7 +19,7 @@ indices.
 `GET /_cat/recovery`
 
 [[cat-recovery-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.

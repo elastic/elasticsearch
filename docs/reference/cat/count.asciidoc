@@ -19,7 +19,7 @@ which have not yet been removed by the merge process.
 `GET /_cat/count`
 
 [[cat-count-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `read`
 <<privileges-list-indices,index privilege>> for any data stream, index, or index

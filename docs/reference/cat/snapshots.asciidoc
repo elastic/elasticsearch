@@ -16,7 +16,7 @@ more repositories. A snapshot is a backup of an index or running {es} cluster.
 `GET /_cat/snapshots`
 
 [[cat-snapshots-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `monitor_snapshot`, `create_snapshot`, or `manage`

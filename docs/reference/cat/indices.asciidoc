@@ -16,7 +16,7 @@ indices for data streams.
 `GET /_cat/indices`
 
 [[cat-indices-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API. You must

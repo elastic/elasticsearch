@@ -13,7 +13,7 @@ Returns the <<snapshots-repositories,snapshot repositories>> for a cluster.
 `GET /_cat/repositories`
 
 [[cat-repositories-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `monitor_snapshot`, `create_snapshot`, or `manage`

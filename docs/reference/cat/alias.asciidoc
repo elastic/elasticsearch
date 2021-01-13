@@ -16,7 +16,7 @@ filter and routing information.
 `GET /_cat/aliases`
 
 [[cat-alias-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>

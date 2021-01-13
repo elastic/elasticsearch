@@ -13,7 +13,7 @@ Returns cluster-level changes that have not yet been executed, similar to the
 `GET /_cat/pending_tasks`
 
 [[cat-pending-tasks-api-prereqs]]
-== {api-prereq-title}
+==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the `monitor` or
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.

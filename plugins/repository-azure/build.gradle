@@ -48,6 +48,13 @@ versions << [
 
 dependencies {
   api project(path: 'azure-storage-blob', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'azure-storage-blob')
+  }
   api "com.azure:azure-storage-common:${versions.azure}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"

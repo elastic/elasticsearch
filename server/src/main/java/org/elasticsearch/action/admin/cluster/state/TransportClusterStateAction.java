@@ -41,9 +41,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.node.NodeClosedException;
-import org.elasticsearch.tasks.CancellableTask;
-import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -81,38 +78,25 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
     @Override
     protected void masterOperation(final ClusterStateRequest request, final ClusterState state,
                                    final ActionListener<ClusterStateResponse> listener) throws IOException {
-        assert false : "task is required";
-        throw new UnsupportedOperationException("task is required");
-    }
-
-    @Override
-    protected void masterOperation(final Task task, final ClusterStateRequest request, final ClusterState state,
-                                   final ActionListener<ClusterStateResponse> listener) throws IOException {
-
-        assert task instanceof CancellableTask : task + " not cancellable";
-        final CancellableTask cancellableTask = (CancellableTask) task;
 
         final Predicate<ClusterState> acceptableClusterStatePredicate
             = request.waitForMetadataVersion() == null ? clusterState -> true
             : clusterState -> clusterState.metadata().version() >= request.waitForMetadataVersion();
 
-        final Predicate<ClusterState> acceptableClusterStateOrFailedPredicate = request.local()
+        final Predicate<ClusterState> acceptableClusterStateOrNotMasterPredicate = request.local()
             ? acceptableClusterStatePredicate
-            : acceptableClusterStatePredicate.or(clusterState ->
-                cancellableTask.isCancelled() || clusterState.nodes().isLocalNodeElectedMaster() == false);
+            : acceptableClusterStatePredicate.or(clusterState -> clusterState.nodes().isLocalNodeElectedMaster() == false);
 
         if (acceptableClusterStatePredicate.test(state)) {
             ActionListener.completeWith(listener, () -> buildResponse(request, state));
         } else {
-            assert acceptableClusterStateOrFailedPredicate.test(state) == false;
+            assert acceptableClusterStateOrNotMasterPredicate.test(state) == false;
             new ClusterStateObserver(state, clusterService, request.waitForTimeout(), logger, threadPool.getThreadContext())
                 .waitForNextChange(new ClusterStateObserver.Listener() {
 
                 @Override
                 public void onNewClusterState(ClusterState newState) {
-                    if (cancellableTask.isCancelled()) {
-                        listener.onFailure(new TaskCancelledException("task cancelled"));
-                    } else if (acceptableClusterStatePredicate.test(newState)) {
+                    if (acceptableClusterStatePredicate.test(newState)) {
                         ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                     } else {
                         listener.onFailure(new NotMasterException(
@@ -128,16 +112,12 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     try {
-                        if (cancellableTask.isCancelled()) {
-                            listener.onFailure(new TaskCancelledException("task cancelled"));
-                        } else {
-                            listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
-                        }
+                        listener.onResponse(new ClusterStateResponse(state.getClusterName(), null, true));
                     } catch (Exception e) {
                         listener.onFailure(e);
                     }
                 }
-            }, acceptableClusterStateOrFailedPredicate);
+            }, acceptableClusterStateOrNotMasterPredicate);
         }
     }
 

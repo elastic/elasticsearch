@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.transform;
 import org.apache.commons.compress.archivers.tar.TarArchiveEntry;
 import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.commons.compress.compressors.gzip.GzipCompressorInputStream;
-import org.gradle.api.logging.Logging;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -40,8 +39,6 @@ public abstract class SymbolicLinkPreservingUntarTransform implements UnpackTran
     private static final Path CURRENT_DIR_PATH = Paths.get(".");
 
     public void unpack(File tarFile, File targetDir) throws IOException {
-        Logging.getLogger(SymbolicLinkPreservingUntarTransform.class)
-            .info("Unpacking " + tarFile.getName() + " using " + SymbolicLinkPreservingUntarTransform.class.getSimpleName() + ".");
         Function<String, Path> pathModifier = pathResolver();
 
         TarArchiveInputStream tar = new TarArchiveInputStream(new GzipCompressorInputStream(new FileInputStream(tarFile)));

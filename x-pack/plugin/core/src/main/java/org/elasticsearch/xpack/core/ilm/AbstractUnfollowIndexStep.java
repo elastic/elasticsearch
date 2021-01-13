@@ -30,8 +30,8 @@ abstract class AbstractUnfollowIndexStep extends AsyncActionStep {
             return;
         }
 
-        innerPerformAction(followerIndex, listener);
+        innerPerformAction(followerIndex, currentClusterState, listener);
     }
 
-    abstract void innerPerformAction(String followerIndex, Listener listener);
+    abstract void innerPerformAction(String followerIndex, ClusterState currentClusterState, Listener listener);
 }

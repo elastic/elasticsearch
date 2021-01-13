@@ -426,6 +426,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomMasterTimeout(closeIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions,
             expectedParams);
+        RequestConvertersTests.setRandomWaitForActiveShards(closeIndexRequest::waitForActiveShards, expectedParams);
 
         Request request = IndicesRequestConverters.closeIndex(closeIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_close");

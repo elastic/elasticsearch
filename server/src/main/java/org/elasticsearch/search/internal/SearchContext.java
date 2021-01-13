@@ -32,7 +32,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.RescoreDocIds;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -310,8 +309,6 @@ public abstract class SearchContext implements Releasable {
     public abstract DfsSearchResult dfsResult();
 
     public abstract QuerySearchResult queryResult();
-
-    public abstract NestedDocuments getNestedDocuments();
 
     public abstract FetchPhase fetchPhase();
 

@@ -96,10 +96,10 @@ public class TransportClusterStateAction extends TransportMasterNodeReadAction<C
 
                 @Override
                 public void onNewClusterState(ClusterState newState) {
-                    if (acceptableClusterStatePredicate.test(newState)) {
-                        ActionListener.completeWith(listener, () -> buildResponse(request, newState));
-                    } else if (cancellableTask.isCancelled()) {
+                    if (cancellableTask.isCancelled()) {
                         listener.onFailure(new TaskCancelledException("task cancelled"));
+                    } else if (acceptableClusterStatePredicate.test(newState)) {
+                        ActionListener.completeWith(listener, () -> buildResponse(request, newState));
                     } else {
                         listener.onFailure(new NotMasterException(
                             "master stepped down waiting for metadata version " + request.waitForMetadataVersion()));

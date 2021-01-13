@@ -39,8 +39,8 @@ snippets in lower case.
 ====
 *Details* +
 Text fields can add internal subfields using extra analysis to speed
-up prefix and phrase searches.  Previously these were exposed to
-the field caps API and were available for searching directly.  However,
+up prefix and phrase searches. Previously these were exposed to
+the field caps API and were available for searching directly. However,
 they did not implement all query types and could return bad results
 or throw errors if used via the query DSL. These subfields are now
 internal only and cannot be invoked as searchable fields in queries.

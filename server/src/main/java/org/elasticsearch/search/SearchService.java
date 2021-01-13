@@ -648,18 +648,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     searcherSupplier.close();
                     throw e;
                 }
-                return createAndPutReaderContext(request, indexService, shard, searcherSupplier, false);
+                return createAndPutReaderContext(request, indexService, shard, searcherSupplier, false, defaultKeepAlive);
             }
         } else {
+            final long keepAliveInMillis = getKeepAlive(request);
             final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             final IndexShard shard = indexService.getShard(request.shardId().id());
             final Engine.SearcherSupplier searcherSupplier = shard.acquireSearcherSupplier();
-            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepStatesInContext);
+            return createAndPutReaderContext(request, indexService, shard, searcherSupplier, keepStatesInContext, keepAliveInMillis);
         }
     }
 
     final ReaderContext createAndPutReaderContext(ShardSearchRequest request, IndexService indexService, IndexShard shard,
-                                                  Engine.SearcherSupplier reader, boolean keepStatesInContext) {
+                                                  Engine.SearcherSupplier reader, boolean keepStatesInContext, long keepAliveInMillis) {
         ReaderContext readerContext = null;
         Releasable decreaseScrollContexts = null;
         try {
@@ -672,16 +673,15 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                             + MAX_OPEN_SCROLL_CONTEXT.getKey() + "] setting.");
                 }
             }
-            final long keepAlive = getKeepAlive(request);
             final ShardSearchContextId id = new ShardSearchContextId(sessionId, idGenerator.incrementAndGet());
             if (keepStatesInContext || request.scroll() != null) {
-                readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAlive);
+                readerContext = new LegacyReaderContext(id, indexService, shard, reader, request, keepAliveInMillis);
                 if (request.scroll() != null) {
                     readerContext.addOnClose(decreaseScrollContexts);
                     decreaseScrollContexts = null;
                 }
             } else {
-                readerContext = new ReaderContext(id, indexService, shard, reader, keepAlive, request.keepAlive() == null);
+                readerContext = new ReaderContext(id, indexService, shard, reader, keepAliveInMillis, true);
             }
             reader = null;
             final ReaderContext finalReaderContext = readerContext;

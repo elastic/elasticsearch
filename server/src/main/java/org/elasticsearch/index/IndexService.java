@@ -608,7 +608,6 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             shardId,
             shardRequestIndex,
             indexSettings,
-            bigArrays,
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
             mapperService(),

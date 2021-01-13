@@ -60,7 +60,6 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.xcontent.ContextParser;
@@ -240,11 +239,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                 long bytesToPreallocate,
                                                 int maxBucket,
                                                 MappedFieldType... fieldTypes) throws IOException {
-        /*
-         * Always use the circuit breaking big arrays instance so that the CircuitBreakerService
-         * we're passed gets a chance to break.
-         */
-        BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
         MappingLookup mappingLookup = new MappingLookup(
             Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
@@ -274,7 +268,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
             0,
             -1,
             indexSettings,
-            bigArrays,
             bitsetFilterCache,
             fieldDataBuilder,
             null,
@@ -296,6 +289,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
             queryShardContext,
+            new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
             bytesToPreallocate,
             () -> query,
             null,

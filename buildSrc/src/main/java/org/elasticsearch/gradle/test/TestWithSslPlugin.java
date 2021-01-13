@@ -64,6 +64,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
             File keystoreDir = new File(project.getBuildDir(), "keystore/test/ssl");
             File nodeKeystore = new File(keystoreDir, "test-node.jks");
             File clientKeyStore = new File(keystoreDir, "test-client.jks");
+            @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> clusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);

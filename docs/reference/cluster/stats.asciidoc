@@ -34,9 +34,12 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=node-filter]
 [[cluster-stats-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
-
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeout]
+`timeout`::
+(Optional, <<time-units, time units>>)
+Period to wait for each node to respond. If a node does not respond before its
+timeout expires, the response does not include its stats. However, timed out
+nodes are included in the response's `_nodes.failed` property. Defaults to no
+timeout.
 
 [role="child_attributes"]
 [[cluster-stats-api-response-body]]
@@ -246,7 +249,7 @@ activities.
 
 `fielddata`::
 (object)
-Contains statistics about the field data cache of selected nodes.
+Contains statistics about the <<modules-fielddata, field data cache>> of selected nodes.
 +
 .Properties of `fielddata`
 [%collapsible%open]
@@ -885,11 +888,11 @@ The full version number includes a plus sign (`+`) followed by the build number.
 Vendor of the JVM.
 
 `bundled_jdk`::
-(boolean)
+(Boolean)
 If `true`, the JVM includes a bundled Java Development Kit (JDK).
 
 `using_bundled_jdk`::
-(boolean)
+(Boolean)
 If `true`, a bundled JDK is in use by JVM.
 
 `count`::
@@ -1019,7 +1022,7 @@ Provider Interface (SPI).
 If this plugin extends no other plugins, this array is empty.
 
 `has_native_controller`:::
-(boolean)
+(Boolean)
 If `true`, the plugin has a native controller process.
 ======
 =====

@@ -144,9 +144,8 @@ public abstract class AbstractPointGeometryFieldMapper<Parsed, Processed> extend
                 return points;
             } else if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
                 if (nullValue == null) {
-                    return Collections.emptyList();
-                }
-                else {
+                    return null;
+                } else {
                     return Collections.singletonList(nullValue);
                 }
             } else {

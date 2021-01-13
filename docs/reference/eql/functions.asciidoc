@@ -6,8 +6,6 @@
 <titleabbrev>Function reference</titleabbrev>
 ++++
 
-beta::[]
-
 {es} supports the following <<eql-functions,EQL functions>>. Most EQL functions
 are case-sensitive by default.
 
@@ -137,7 +135,7 @@ field data types:
 --
 
 `<greedy_matching>`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, match the longest possible substring, similar to `.*` in regular
 expressions. If `false`, match the shortest possible substring, similar to `.*?`
 in regular expressions. Defaults to `false`.
@@ -1015,19 +1013,25 @@ expressions. Matching is case-sensitive.
 *Example*
 [source,eql]
 ----
-// The two following expressions are equivalent.
-process.name == "*regsvr32*" or process.name == "*explorer*"
-wildcard(process.name, "*regsvr32*", "*explorer*")
-
+// The * wildcard matches zero or more characters.
 // process.name = "regsvr32.exe"
 wildcard(process.name, "*regsvr32*")                // returns true
 wildcard(process.name, "*regsvr32*", "*explorer*")  // returns true
 wildcard(process.name, "*explorer*")                // returns false
 wildcard(process.name, "*explorer*", "*scrobj*")    // returns false
 
+// The ? wildcard matches exactly one character.
+// process.name = "regsvr32.exe"
+wildcard(process.name, "regsvr32.e?e")                  // returns true
+wildcard(process.name, "regsvr32.e?e", "e?plorer.exe")  // returns true
+wildcard(process.name, "regsvr32.exe?")                 // returns false
+wildcard(process.name, "e?plorer.exe")                  // returns false
+wildcard(process.name, "e?plorer.exe", "scrob?.dll")    // returns false
+
 // empty strings
 wildcard("", "*start*")                             // returns false
 wildcard("", "*")                                   // returns true
+wildcard("", "?")                                   // returns false
 wildcard("", "")                                    // returns true
 
 // null handling
@@ -1060,8 +1064,10 @@ field data types:
 +
 --
 (Required{multi-arg-ref}, string)
-Wildcard expression used to match the source string. If `null`, the function
-returns `null`. Fields are not supported as arguments.
+Wildcard expression used to match the source string. The `*` wildcard matches
+zero or more characters. The `?` wildcard matches exactly one character.
+
+If `null`, the function returns `null`. Fields are not supported as arguments.
 --
 
 *Returns:* boolean

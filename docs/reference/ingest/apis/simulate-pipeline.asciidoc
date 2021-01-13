@@ -86,7 +86,7 @@ Pipeline ID used to simulate an ingest.
 ==== {api-query-parms-title}
 
 `verbose`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the response includes output data
 for each processor in the executed pipeline.
@@ -294,7 +294,7 @@ you can add the `verbose` parameter to the request.
 
 [source,console]
 ----
-POST /_ingest/pipeline/_simulate?verbose
+POST /_ingest/pipeline/_simulate?verbose=true
 {
   "pipeline" :
   {

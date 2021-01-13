@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.watcher.actions.index;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.core.watcher.support.xcontent.XContentSource;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
@@ -29,16 +31,18 @@ public class IndexAction implements Action {
 
     @Nullable final String index;
     @Nullable final String docId;
+    @Nullable final DocWriteRequest.OpType opType;
     @Nullable final String executionTimeField;
     @Nullable final TimeValue timeout;
     @Nullable final ZoneId dynamicNameTimeZone;
     @Nullable final RefreshPolicy refreshPolicy;
 
-    public IndexAction(@Nullable String index, @Nullable String docId,
-                       @Nullable String executionTimeField,
-                       @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone, @Nullable RefreshPolicy refreshPolicy) {
+    public IndexAction(@Nullable String index, @Nullable String docId, @Nullable DocWriteRequest.OpType opType,
+                       @Nullable String executionTimeField, @Nullable TimeValue timeout, @Nullable ZoneId dynamicNameTimeZone,
+                       @Nullable RefreshPolicy refreshPolicy) {
         this.index = index;
         this.docId = docId;
+        this.opType = opType;
         this.executionTimeField = executionTimeField;
         this.timeout = timeout;
         this.dynamicNameTimeZone = dynamicNameTimeZone;
@@ -56,6 +60,10 @@ public class IndexAction implements Action {
 
     public String getDocId() {
         return docId;
+    }
+
+    public DocWriteRequest.OpType getOpType() {
+        return opType;
     }
 
     public String getExecutionTimeField() {
@@ -77,7 +85,9 @@ public class IndexAction implements Action {
 
         IndexAction that = (IndexAction) o;
 
-        return Objects.equals(index, that.index) && Objects.equals(docId, that.docId)
+        return Objects.equals(index, that.index)
+                && Objects.equals(docId, that.docId)
+                && Objects.equals(opType, that.opType)
                 && Objects.equals(executionTimeField, that.executionTimeField)
                 && Objects.equals(timeout, that.timeout)
                 && Objects.equals(dynamicNameTimeZone, that.dynamicNameTimeZone)
@@ -86,7 +96,7 @@ public class IndexAction implements Action {
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+        return Objects.hash(index, docId, opType, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
     @Override
@@ -97,6 +107,9 @@ public class IndexAction implements Action {
         }
         if (docId != null) {
             builder.field(Field.DOC_ID.getPreferredName(), docId);
+        }
+        if (opType != null) {
+            builder.field(Field.OP_TYPE.getPreferredName(), opType);
         }
         if (executionTimeField != null) {
             builder.field(Field.EXECUTION_TIME_FIELD.getPreferredName(), executionTimeField);
@@ -116,6 +129,7 @@ public class IndexAction implements Action {
     public static IndexAction parse(String watchId, String actionId, XContentParser parser) throws IOException {
         String index = null;
         String docId = null;
+        DocWriteRequest.OpType opType = null;
         String executionTimeField = null;
         TimeValue timeout = null;
         ZoneId dynamicNameTimeZone = null;
@@ -143,6 +157,17 @@ public class IndexAction implements Action {
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.DOC_ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     docId = parser.text();
+                } else if (Field.OP_TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
+                    try {
+                        opType = DocWriteRequest.OpType.fromString(parser.text());
+                        if (List.of(DocWriteRequest.OpType.CREATE, DocWriteRequest.OpType.INDEX).contains(opType) == false) {
+                            throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. op_type value for field [{}] " +
+                                "must be [index] or [create]", TYPE, watchId, actionId, currentFieldName);
+                        }
+                    } catch (IllegalArgumentException e) {
+                        throw new ElasticsearchParseException("could not parse [{}] action [{}/{}]. failed to parse op_type value for " +
+                            "field [{}]", TYPE, watchId, actionId, currentFieldName);
+                    }
                 } else if (Field.EXECUTION_TIME_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     executionTimeField = parser.text();
                 } else if (Field.TIMEOUT_HUMAN.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -167,7 +192,7 @@ public class IndexAction implements Action {
             }
         }
 
-        return new IndexAction(index, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+        return new IndexAction(index, docId, opType, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
     }
 
     public static Builder builder(String index) {
@@ -247,6 +272,7 @@ public class IndexAction implements Action {
 
         final String index;
         String docId;
+        DocWriteRequest.OpType opType;
         String executionTimeField;
         TimeValue timeout;
         ZoneId dynamicNameTimeZone;
@@ -258,6 +284,11 @@ public class IndexAction implements Action {
 
         public Builder setDocId(String docId) {
             this.docId = docId;
+            return this;
+        }
+
+        public Builder setOpType(DocWriteRequest.OpType opType) {
+            this.opType = opType;
             return this;
         }
 
@@ -283,13 +314,14 @@ public class IndexAction implements Action {
 
         @Override
         public IndexAction build() {
-            return new IndexAction(index, docId, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
+            return new IndexAction(index, docId, opType, executionTimeField, timeout, dynamicNameTimeZone, refreshPolicy);
         }
     }
 
     interface Field {
         ParseField INDEX = new ParseField("index");
         ParseField DOC_ID = new ParseField("doc_id");
+        ParseField OP_TYPE = new ParseField("op_type");
         ParseField EXECUTION_TIME_FIELD = new ParseField("execution_time_field");
         ParseField SOURCE = new ParseField("source");
         ParseField RESPONSE = new ParseField("response");

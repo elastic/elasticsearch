@@ -34,6 +34,28 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
         LongFieldScript newInstance(LeafReaderContext ctx);
     }
 
+    public static final Factory PARSE_FROM_SOURCE = (field, params, lookup) -> (LeafFactory) ctx -> new LongFieldScript(
+        field,
+        params,
+        lookup,
+        ctx
+    ) {
+        @Override
+        public void execute() {
+            for (Object v : extractFromSource(field)) {
+                if (v instanceof Number) {
+                    emit(((Number) v).longValue());
+                } else if (v instanceof String) {
+                    try {
+                        emit(Long.parseLong((String) v));
+                    } catch (NumberFormatException e) {
+                        // ignore
+                    }
+                }
+            }
+        }
+    };
+
     public LongFieldScript(String fieldName, Map<String, Object> params, SearchLookup searchLookup, LeafReaderContext ctx) {
         super(fieldName, params, searchLookup, ctx);
     }

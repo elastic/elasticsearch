@@ -62,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.ilm.LifecyclePolicyTests.createRandomPolicy;
@@ -219,7 +220,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertFalse(squashResponse.managedByILM());
             assertEquals("squash", squashResponse.getIndex());
 
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testDeleteLifecycle() throws IOException {

@@ -1,0 +1,38 @@
+<?xml version='1.0' encoding='utf-8' ?>
+<connector-plugin class='elasticsearch-jdbc' superclass='jdbc' plugin-version='1.0.0' name='Elasticsearch' version='0.0.0'>
+  <vendor-information>
+    <company name='Elastic' />
+    <support-link url='https://www.elastic.co' />
+    <driver-download-link url="https://www.elastic.co/downloads/jdbc-client"/>
+  </vendor-information>
+  <connection-customization class="elasticsearch-jdbc" enabled="true" version="1.0">
+    <vendor name="Elastic"/>
+    <driver name="Elasticsearch JDBC driver"/>
+    <customizations>
+      <customization name="CAP_SELECT_INTO" value="no"/>
+      <customization name="CAP_SELECT_TOP_INTO" value="no"/>
+      <customization name="CAP_CREATE_TEMP_TABLES" value="no"/>
+      <customization name="CAP_QUERY_BOOLEXPR_TO_INTEXPR" value="no"/>
+      <customization name="CAP_QUERY_GROUP_BY_ALIAS" value="yes"/>
+      <customization name="CAP_QUERY_GROUP_BY_BOOL" value="yes"/>
+      <customization name="CAP_QUERY_GROUP_BY_DEGREE" value="yes"/>
+      <customization name="CAP_QUERY_INOUT_JOINS" value="no"/>
+      <customization name="CAP_QUERY_SORT_BY" value="no"/>
+      <customization name="CAP_QUERY_SUBQUERIES" value="no"/>
+      <customization name="CAP_QUERY_SUPPORTS_LODJOINS" value="no"/>
+      <customization name="CAP_QUERY_TOP_0" value="no"/>
+      <customization name="CAP_QUERY_TOP_N" value="no"/>
+      <customization name="CAP_QUERY_NAKED_JOINS" value="no"/>
+      <customization name="CAP_JDBC_EXPORT_DATA_BATCH" value="no"/>
+      <customization name="CAP_JDBC_METADATA_READ_FOREIGNKEYS" value="no"/>
+      <customization name="CAP_JDBC_METADATA_READ_PRIMARYKEYS" value="no"/>
+      <customization name="CAP_SUPPORTS_UNION" value="no"/>
+      <customization name="CAP_JDBC_SUPPRESS_ENUMERATE_SCHEMAS" value="yes"/>
+      <customization name="CAP_SUPPORTS_SPLIT_FROM_LEFT" value="no"/>
+      <customization name="CAP_SUPPORTS_SPLIT_FROM_RIGHT" value="no"/>
+    </customizations>
+  </connection-customization>
+  <connection-dialog file='connection-dialog.tcd'/>
+  <connection-resolver file="connectionResolver.tdr"/>
+  <dialect file='dialect.tdd'/>
+</connector-plugin>

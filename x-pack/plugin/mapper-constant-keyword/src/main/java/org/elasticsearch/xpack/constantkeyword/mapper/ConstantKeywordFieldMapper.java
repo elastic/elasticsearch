@@ -26,13 +26,12 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
 import org.elasticsearch.index.mapper.ConstantFieldType;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -50,7 +49,7 @@ import java.util.function.Supplier;
 /**
  * A {@link FieldMapper} that assigns every document the same value.
  */
-public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
+public class ConstantKeywordFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "constant_keyword";
 
@@ -59,11 +58,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         // This is defined as updateable because it can be updated once, from [null] to any value,
         // by a dynamic mapping update.  Once it has been set, however, the value cannot be changed.
@@ -89,9 +88,9 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ConstantKeywordFieldMapper build(BuilderContext context) {
+        public ConstantKeywordFieldMapper build(ContentPath contentPath) {
             return new ConstantKeywordFieldMapper(
-                    name, new ConstantKeywordFieldType(buildFullName(context), value.getValue(), meta.getValue()));
+                    name, new ConstantKeywordFieldType(buildFullName(contentPath), value.getValue(), meta.getValue()));
         }
     }
 
@@ -127,11 +126,11 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.BYTES);
+            return new ConstantIndexFieldData.Builder(value, name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -224,11 +223,6 @@ public class ConstantKeywordFieldMapper extends ParametrizedFieldMapper {
 
     ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
         super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
-    }
-
-    @Override
-    protected ConstantKeywordFieldMapper clone() {
-        return (ConstantKeywordFieldMapper) super.clone();
     }
 
     @Override

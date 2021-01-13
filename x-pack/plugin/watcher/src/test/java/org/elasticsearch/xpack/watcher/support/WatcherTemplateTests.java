@@ -45,7 +45,7 @@ public class WatcherTemplateTests extends ESTestCase {
     }
 
     public void testEscaping() throws Exception {
-        XContentType contentType = randomFrom(XContentType.values());
+        XContentType contentType = randomFrom(XContentType.values()).canonical();
         if (rarely()) {
             contentType = null;
         }
@@ -160,7 +160,7 @@ public class WatcherTemplateTests extends ESTestCase {
             return template;
         }
         return new StringBuilder("__")
-                .append(contentType.format().toLowerCase(Locale.ROOT))
+                .append(contentType.queryParameter().toLowerCase(Locale.ROOT))
                 .append("__::")
                 .append(template)
                 .toString();

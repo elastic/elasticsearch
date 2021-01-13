@@ -72,9 +72,8 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.fieldvisitor.IdOnlyFieldVisitor;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
@@ -87,6 +86,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.index.translog.TranslogCorruptedException;
@@ -618,14 +618,34 @@ public class InternalEngine extends Engine {
         }
     }
 
+    private GetResult getFromTranslog(Get get, Translog.Index index, DocumentMapper mapper,
+                                      Function<Searcher, Searcher> searcherWrapper) throws IOException {
+        assert get.isReadFromTranslog();
+        final SingleDocDirectoryReader inMemoryReader = new SingleDocDirectoryReader(shardId, index, mapper, config().getAnalyzer());
+        final Engine.Searcher searcher = new Engine.Searcher("realtime_get", ElasticsearchDirectoryReader.wrap(inMemoryReader, shardId),
+            config().getSimilarity(), config().getQueryCache(), config().getQueryCachingPolicy(), inMemoryReader);
+        final Searcher wrappedSearcher = searcherWrapper.apply(searcher);
+        if (wrappedSearcher == searcher) {
+            searcher.close();
+            assert inMemoryReader.assertMemorySegmentStatus(false);
+            final TranslogLeafReader translogLeafReader = new TranslogLeafReader(index);
+            return new GetResult(new Engine.Searcher("realtime_get", translogLeafReader,
+                IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), translogLeafReader),
+                new VersionsAndSeqNoResolver.DocIdAndVersion(
+                    0, index.version(), index.seqNo(), index.primaryTerm(), translogLeafReader, 0), true);
+        } else {
+            assert inMemoryReader.assertMemorySegmentStatus(true);
+            return getFromSearcher(get, wrappedSearcher);
+        }
+    }
+
     @Override
-    public GetResult get(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory) throws EngineException {
+    public GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper) {
         assert Objects.equals(get.uid().field(), IdFieldMapper.NAME) : get.uid().field();
         try (ReleasableLock ignored = readLock.acquire()) {
             ensureOpen();
-            SearcherScope scope;
             if (get.realtime()) {
-                VersionValue versionValue = null;
+                final VersionValue versionValue;
                 try (Releasable ignore = versionMap.acquireLock(get.uid().bytes())) {
                     // we need to lock here to access the version map to do this truly in RT
                     versionValue = getVersionFromMap(get.uid().bytes());
@@ -649,15 +669,9 @@ public class InternalEngine extends Engine {
                         // the update call doesn't need the consistency since it's source only + _parent but parent can go away in 7.0
                         if (versionValue.getLocation() != null) {
                             try {
-                                Translog.Operation operation = translog.readOperation(versionValue.getLocation());
+                                final Translog.Operation operation = translog.readOperation(versionValue.getLocation());
                                 if (operation != null) {
-                                    // in the case of a already pruned translog generation we might get null here - yet very unlikely
-                                    final Translog.Index index = (Translog.Index) operation;
-                                    TranslogLeafReader reader = new TranslogLeafReader(index);
-                                    return new GetResult(new Engine.Searcher("realtime_get", reader,
-                                        IndexSearcher.getDefaultSimilarity(), null, IndexSearcher.getDefaultQueryCachingPolicy(), reader),
-                                        new VersionsAndSeqNoResolver.DocIdAndVersion(0, index.version(), index.seqNo(), index.primaryTerm(),
-                                            reader, 0), true);
+                                    return getFromTranslog(get, (Translog.Index) operation, mapper, searcherWrapper);
                                 }
                             } catch (IOException e) {
                                 maybeFailEngine("realtime_get", e); // lets check if the translog has failed with a tragic event
@@ -670,14 +684,11 @@ public class InternalEngine extends Engine {
                     assert versionValue.seqNo >= 0 : versionValue;
                     refreshIfNeeded("realtime_get", versionValue.seqNo);
                 }
-                scope = SearcherScope.INTERNAL;
+                return getFromSearcher(get, acquireSearcher("realtime_get", SearcherScope.INTERNAL, searcherWrapper));
             } else {
                 // we expose what has been externally expose in a point in time snapshot via an explicit refresh
-                scope = SearcherScope.EXTERNAL;
+                return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper));
             }
-
-            // no version, get the version from the index, we know that we refresh on flush
-            return getFromSearcher(get, searcherFactory, scope);
         }
     }
 
@@ -1656,6 +1667,8 @@ public class InternalEngine extends Engine {
 
     @Override
     public void writeIndexingBuffer() throws EngineException {
+        // TODO: revise https://github.com/elastic/elasticsearch/pull/34553 to use IndexWriter.flushNextBuffer to flush only the largest
+        // pending DWPT. Note that benchmarking this PR with a heavy update user case (geonames) and a small heap (1GB) caused OOM.
         refresh("write indexing buffer", SearcherScope.INTERNAL, false);
     }
 
@@ -1774,11 +1787,7 @@ public class InternalEngine extends Engine {
             lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
         } catch (Exception e) {
             if (isClosed.get() == false) {
-                try {
-                    logger.warn("failed to read latest segment infos on flush", e);
-                } catch (Exception inner) {
-                    e.addSuppressed(inner);
-                }
+                logger.warn("failed to read latest segment infos on flush", e);
                 if (Lucene.isCorruptionException(e)) {
                     throw new FlushFailedEngineException(shardId, e);
                 }
@@ -2531,14 +2540,14 @@ public class InternalEngine extends Engine {
     }
 
     @Override
-    public Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup,
+    public Translog.Snapshot newChangesSnapshot(String source,
                                                 long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException {
         ensureOpen();
         refreshIfNeeded(source, toSeqNo);
         Searcher searcher = acquireSearcher(source, SearcherScope.INTERNAL);
         try {
             LuceneChangesSnapshot snapshot = new LuceneChangesSnapshot(
-                searcher, fieldTypeLookup, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
+                searcher, LuceneChangesSnapshot.DEFAULT_BATCH_SIZE, fromSeqNo, toSeqNo, requiredFullRange);
             searcher = null;
             return snapshot;
         } catch (Exception e) {
@@ -2720,7 +2729,7 @@ public class InternalEngine extends Engine {
                 continue;
             }
             final CombinedDocValues dv = new CombinedDocValues(leaf.reader());
-            final IdOnlyFieldVisitor idFieldVisitor = new IdOnlyFieldVisitor();
+            final IdStoredFieldLoader idFieldLoader = new IdStoredFieldLoader(leaf.reader());
             final DocIdSetIterator iterator = scorer.iterator();
             int docId;
             while ((docId = iterator.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
@@ -2728,17 +2737,16 @@ public class InternalEngine extends Engine {
                 final long seqNo = dv.docSeqNo(docId);
                 localCheckpointTracker.markSeqNoAsProcessed(seqNo);
                 localCheckpointTracker.markSeqNoAsPersisted(seqNo);
-                idFieldVisitor.reset();
-                leaf.reader().document(docId, idFieldVisitor);
-                if (idFieldVisitor.getId() == null) {
+                String id = idFieldLoader.id(docId);
+                if (id == null) {
                     assert dv.isTombstone(docId);
                     continue;
                 }
-                final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(idFieldVisitor.getId())).bytes();
+                final BytesRef uid = new Term(IdFieldMapper.NAME, Uid.encodeId(id)).bytes();
                 try (Releasable ignored = versionMap.acquireLock(uid)) {
                     final VersionValue curr = versionMap.getUnderLock(uid);
                     if (curr == null ||
-                        compareOpToVersionMapOnSeqNo(idFieldVisitor.getId(), seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
+                        compareOpToVersionMapOnSeqNo(id, seqNo, primaryTerm, curr) == OpVsLuceneDocStatus.OP_NEWER) {
                         if (dv.isTombstone(docId)) {
                             // use 0L for the start time so we can prune this delete tombstone quickly
                             // when the local checkpoint advances (i.e., after a recovery completed).
@@ -2753,6 +2761,11 @@ public class InternalEngine extends Engine {
         }
         // remove live entries in the version map
         refresh("restore_version_map_and_checkpoint_tracker", SearcherScope.INTERNAL, true);
+    }
+
+    @Override
+    public ShardLongFieldRange getRawFieldRange(String field) {
+        return ShardLongFieldRange.UNKNOWN;
     }
 
 }

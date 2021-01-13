@@ -49,6 +49,7 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
+    public static final String[] VALID_MIME_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
 
     private ConfigurationUtils() {
     }
@@ -305,6 +306,18 @@ public final class ConfigurationUtils {
         return value;
     }
 
+    public static String readMimeTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
+        String propertyName, String defaultValue) {
+        String mimeType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
+
+        if (Arrays.asList(VALID_MIME_TYPES).contains(mimeType) == false) {
+            throw newConfigurationException(processorType, processorTag, propertyName,
+                "property does not contain a supported MIME type [" + mimeType + "]");
+        }
+
+        return mimeType;
+    }
+
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,
                                                                         String propertyName, String reason) {
         String msg;
@@ -334,7 +347,11 @@ public final class ConfigurationUtils {
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
                     try {
-                        processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        if (entry.getValue() == null) {
+                            throw newConfigurationException(entry.getKey(), null, null, "processor config cannot be [null]");
+                        } else {
+                            processors.add(readProcessor(processorFactories, scriptService, entry.getKey(), entry.getValue()));
+                        }
                     } catch (Exception e) {
                         exception = ExceptionsHelper.useOrSuppress(exception, e);
                     }

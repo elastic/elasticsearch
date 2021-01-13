@@ -66,6 +66,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -472,9 +473,9 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
         DirectoryReader reader = DirectoryReader.open(w);
         IndexSearcher searcher = newSearcher(reader);
 
-        QueryShardContext context = new QueryShardContext(0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, xContentRegistry(), writableRegistry(),
-            null, null, () -> 0L, null, null, () -> true, null);
+        QueryShardContext context = new QueryShardContext(0, 0, indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         final int iters = 10;
         for (int iter = 0; iter < iters; ++iter) {
@@ -644,18 +645,15 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
         MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, false, true)
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
 
         MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, false, true)
             .nullValue(2.71f)
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));

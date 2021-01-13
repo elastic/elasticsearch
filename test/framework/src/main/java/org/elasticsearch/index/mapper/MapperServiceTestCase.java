@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,6 +31,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -46,11 +48,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.NestedScope;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -62,9 +66,14 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
@@ -75,6 +84,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.BooleanSupplier;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
@@ -146,6 +156,12 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         return mapperService;
     }
 
+    protected final MapperService createMapperService(Settings settings, String mappings) throws IOException {
+        MapperService mapperService = createMapperService(Version.CURRENT, settings, () -> true, mapping(b -> {}));
+        merge(mapperService, mappings);
+        return mapperService;
+    }
+
     protected final MapperService createMapperService(Version version, XContentBuilder mapping) throws IOException {
         return createMapperService(version, getIndexSettings(), () -> true, mapping);
     }
@@ -157,6 +173,15 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                                                       Settings settings,
                                                       BooleanSupplier idFieldDataEnabled,
                                                       XContentBuilder mapping) throws IOException {
+
+        MapperService mapperService = createMapperService(version, settings, idFieldDataEnabled);
+        merge(mapperService, mapping);
+        return mapperService;
+    }
+
+    protected final MapperService createMapperService(Version version,
+                                                      Settings settings,
+                                                      BooleanSupplier idFieldDataEnabled) {
         settings = Settings.builder()
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
@@ -176,7 +201,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         );
         ScriptService scriptService = new ScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
         SimilarityService similarityService = new SimilarityService(indexSettings, scriptService, Map.of());
-        MapperService mapperService = new MapperService(
+        return new MapperService(
             indexSettings,
             createIndexAnalyzers(indexSettings),
             xContentRegistry(),
@@ -186,8 +211,6 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             idFieldDataEnabled,
             scriptService
         );
-        merge(mapperService, mapping);
-        return mapperService;
     }
 
     protected final void withLuceneIndex(
@@ -195,9 +218,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         CheckedConsumer<RandomIndexWriter, IOException> builder,
         CheckedConsumer<IndexReader, IOException> test
     ) throws IOException {
+        IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService));
         try (
             Directory dir = newDirectory();
-            RandomIndexWriter iw = new RandomIndexWriter(random(), dir, new IndexWriterConfig(mapperService.indexAnalyzer()))
+            RandomIndexWriter iw = new RandomIndexWriter(random(), dir,iwc)
         ) {
             builder.accept(iw);
             try (IndexReader reader = iw.getReader()) {
@@ -236,6 +260,10 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         mapperService.merge(null, new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
     }
 
+    protected final void merge(MapperService mapperService, MapperService.MergeReason reason, String mapping) throws IOException {
+        mapperService.merge(null, new CompressedXContent(mapping), reason);
+    }
+
     /**
      * Merge a new mapping into the one in the provided {@link MapperService} with a specific {@code MergeReason}
      */
@@ -271,11 +299,43 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         });
     }
 
-    private AggregationContext aggregationContext(MapperService mapperService, IndexSearcher searcher, Query query) {
+    protected final XContentBuilder runtimeFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField) throws IOException {
+        return runtimeMapping(b -> {
+            b.startObject("field");
+            buildField.accept(b);
+            b.endObject();
+        });
+    }
+
+    protected final XContentBuilder runtimeMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
+        XContentBuilder builder = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("runtime");
+        buildFields.accept(builder);
+        return builder.endObject().endObject().endObject();
+    }
+
+    private AggregationContext aggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
+        MapperService mapperService,
+        IndexSearcher searcher,
+        Query query
+    ) {
         return new AggregationContext() {
+            private final CircuitBreaker breaker = mock(CircuitBreaker.class);
+            private final MultiBucketConsumer multiBucketConsumer = new MultiBucketConsumer(Integer.MAX_VALUE, breaker);
+
             @Override
             public IndexSearcher searcher() {
                 return searcher;
+            }
+
+            @Override
+            public Aggregator profileIfEnabled(Aggregator agg) throws IOException {
+                return agg;
+            }
+
+            @Override
+            public boolean profiling() {
+                return false;
             }
 
             @Override
@@ -300,7 +360,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
 
             @Override
             public ValuesSourceRegistry getValuesSourceRegistry() {
-                throw new UnsupportedOperationException();
+                return valuesSourceRegistry;
             }
 
             @Override
@@ -347,6 +407,66 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             public NestedScope nestedScope() {
                 throw new UnsupportedOperationException();
             }
+
+            @Override
+            public SubSearchContext subSearchContext() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void addReleasable(Aggregator aggregator) {
+                // TODO we'll have to handle this in the tests eventually
+            }
+
+            @Override
+            public MultiBucketConsumer multiBucketConsumer() {
+                return multiBucketConsumer;
+            }
+
+            @Override
+            public BitsetFilterCache bitsetFilterCache() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public BucketedSort buildBucketedSort(SortBuilder<?> sort, int size, ExtraData values) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public int shardRandomSeed() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long getRelativeTimeInMillis() {
+                return 0;
+            }
+
+            @Override
+            public boolean isCancelled() {
+                return false;
+            }
+
+            @Override
+            public CircuitBreaker breaker() {
+                return breaker;
+            }
+
+            @Override
+            public Analyzer getIndexAnalyzer(Function<String, NamedAnalyzer> unindexedFieldAnalyzer) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isCacheable() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public void close() {
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
@@ -355,10 +475,11 @@ public abstract class MapperServiceTestCase extends ESTestCase {
         List<SourceToParse> docs,
         CheckedConsumer<AggregationContext, IOException> test
     ) throws IOException {
-        withAggregationContext(mapperService, docs, null, test);
+        withAggregationContext(null, mapperService, docs, null, test);
     }
 
     protected final void withAggregationContext(
+        ValuesSourceRegistry valuesSourceRegistry,
         MapperService mapperService,
         List<SourceToParse> docs,
         Query query,
@@ -371,7 +492,7 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                     writer.addDocuments(mapperService.documentMapper().parse(doc).docs());
                 }
             },
-            reader -> test.accept(aggregationContext(mapperService, new IndexSearcher(reader), query))
+            reader -> test.accept(aggregationContext(valuesSourceRegistry, mapperService, new IndexSearcher(reader), query))
         );
     }
 
@@ -382,6 +503,8 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             .thenAnswer(inv -> mapperService.fieldType(inv.getArguments()[0].toString()) != null);
         when(queryShardContext.getIndexAnalyzers()).thenReturn(mapperService.getIndexAnalyzers());
         when(queryShardContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
+        when(queryShardContext.getObjectMapper(anyString())).thenAnswer(
+            inv -> mapperService.getObjectMapper(inv.getArguments()[0].toString()));
         when(queryShardContext.simpleMatchToIndexNames(anyObject())).thenAnswer(
             inv -> mapperService.simpleMatchToFullName(inv.getArguments()[0].toString())
         );

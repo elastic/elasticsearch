@@ -196,7 +196,7 @@ public class JvmInfo implements ReportingService.Info {
         final String javaHome = System.getProperty("java.home");
         final String userDir = System.getProperty("user.dir");
         if (Constants.MAC_OS_X) {
-            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk/Contents/Home").toAbsolutePath());
+            return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk.app/Contents/Home").toAbsolutePath());
         } else {
             return PathUtils.get(javaHome).equals(PathUtils.get(userDir).resolve("jdk").toAbsolutePath());
         }

@@ -48,6 +48,7 @@ import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.VersionType;
@@ -240,7 +241,7 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
             out.writeBoolean(doc != null);
             if (doc != null) {
                 out.writeGenericValue(doc);
-                out.writeEnum(xContentType);
+                XContentHelper.writeTo(out, xContentType);
             } else {
                 out.writeString(id);
             }
@@ -971,9 +972,11 @@ public class MoreLikeThisQueryBuilder extends AbstractQueryBuilder<MoreLikeThisQ
         // set analyzer
         Analyzer analyzerObj = context.getIndexAnalyzers().get(analyzer);
         if (analyzerObj == null) {
-            analyzerObj = context.getIndexAnalyzer();
+            analyzerObj = context.getIndexAnalyzer(f -> {
+                throw new UnsupportedOperationException("No analyzer configured for field " + f);
+            });
         }
-        mltQuery.setAnalyzer(analyzerObj);
+        mltQuery.setAnalyzer(analyzer, analyzerObj);
 
         // set like text fields
         boolean useDefaultField = (fields == null);

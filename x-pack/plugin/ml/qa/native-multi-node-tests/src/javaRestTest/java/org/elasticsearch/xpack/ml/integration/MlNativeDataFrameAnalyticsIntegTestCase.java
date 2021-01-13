@@ -149,7 +149,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
     }
 
     protected void waitUntilAnalyticsIsStopped(String id) throws Exception {
-        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(30));
+        waitUntilAnalyticsIsStopped(id, TimeValue.timeValueSeconds(60));
     }
 
     protected void waitUntilAnalyticsIsStopped(String id, TimeValue waitTime) throws Exception {
@@ -355,8 +355,16 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         if (getFieldValue(mappings, "properties", "ml", "properties", "top_classes") != null) {
             assertThat(
                 mappings.toString(),
+                getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "type"),
+                equalTo("nested"));
+            assertThat(
+                mappings.toString(),
                 getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_name", "type"),
                 equalTo(expectedType));
+            assertThat(
+                mappings.toString(),
+                getFieldValue(mappings, "properties", "ml", "properties", "top_classes", "properties", "class_probability", "type"),
+                equalTo("double"));
         }
     }
 

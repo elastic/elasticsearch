@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.vectors.mapper;
 
 import org.apache.lucene.document.BinaryDocValuesField;
-import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
@@ -16,11 +15,10 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -42,7 +40,7 @@ import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpect
 /**
  * A {@link FieldMapper} for indexing a dense vector of floats.
  */
-public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
+public class DenseVectorFieldMapper extends FieldMapper {
 
     public static final String CONTENT_TYPE = "dense_vector";
     public static short MAX_DIMS_COUNT = 2048; //maximum allowed number of dimensions
@@ -52,7 +50,7 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
         return (DenseVectorFieldMapper) in;
     }
 
-    public static class Builder extends ParametrizedFieldMapper.Builder {
+    public static class Builder extends FieldMapper.Builder {
 
         Parameter<Integer> dims
             = new Parameter<>("dims", false, () -> null, (n, c, o) -> XContentMapValues.nodeIntegerValue(o), m -> toType(m).dims)
@@ -80,13 +78,13 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public DenseVectorFieldMapper build(BuilderContext context) {
+        public DenseVectorFieldMapper build(ContentPath contentPath) {
             return new DenseVectorFieldMapper(
                 name,
-                new DenseVectorFieldType(buildFullName(context), dims.getValue(), meta.getValue()),
+                new DenseVectorFieldType(buildFullName(contentPath), dims.getValue(), meta.getValue()),
                 dims.getValue(),
                 indexVersionCreated,
-                multiFieldsBuilder.build(this, context),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build());
         }
     }
@@ -111,11 +109,11 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
-            return new ArraySourceValueFetcher(name(), mapperService) {
+            return new ArraySourceValueFetcher(name(), context) {
                 @Override
                 protected Object parseSourceValue(Object value) {
                     return value;
@@ -136,7 +134,7 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.BYTES);
+            return new VectorIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -152,14 +150,8 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
     private DenseVectorFieldMapper(String simpleName, MappedFieldType mappedFieldType, int dims,
                                    Version indexCreatedVersion, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, mappedFieldType, multiFields, copyTo);
-        assert fieldType.indexOptions() == IndexOptions.NONE;
         this.indexCreatedVersion = indexCreatedVersion;
         this.dims = dims;
-    }
-
-    @Override
-    protected DenseVectorFieldMapper clone() {
-        return (DenseVectorFieldMapper) super.clone();
     }
 
     @Override
@@ -218,16 +210,6 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    protected boolean indexedByDefault() {
-        return false;
-    }
-
-    @Override
-    protected boolean docValuesByDefault() {
-        return true;
-    }
-
-    @Override
     protected void parseCreateField(ParseContext context) {
         throw new AssertionError("parse is implemented directly");
     }
@@ -238,7 +220,7 @@ public class DenseVectorFieldMapper extends ParametrizedFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName(), indexCreatedVersion).init(this);
     }
 }

@@ -111,12 +111,6 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public void postCollection() throws IOException {
-            throw new IllegalStateException(
-                    "Deferred collectors cannot be collected directly. They must be collected through the recording wrapper.");
-        }
-
-        @Override
         public Aggregator resolveSortPath(PathElement next, Iterator<PathElement> path) {
             return in.resolveSortPath(next, path);
         }
@@ -124,6 +118,11 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         @Override
         public BucketComparator bucketComparator(String key, SortOrder order) {
             throw new UnsupportedOperationException("Can't sort on deferred aggregations");
+        }
+
+        @Override
+        public Aggregator[] subAggregators() {
+            return in.subAggregators();
         }
     }
 

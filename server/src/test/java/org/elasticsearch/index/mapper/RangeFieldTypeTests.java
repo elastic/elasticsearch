@@ -52,6 +52,7 @@ import java.net.InetAddress;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -212,8 +213,8 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
         Settings indexSettings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(randomAlphaOfLengthBetween(1, 10), indexSettings);
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null);
+        return new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null,
+            xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
     }
 
     public void testDateRangeQueryUsingMappingFormat() {
@@ -494,18 +495,15 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("yyyy/MM/dd||epoch_millis")
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990/12/29", "gte", 597429487111L);
         assertEquals(List.of(Map.of("lt", "1990/12/29", "gte", "1988/12/06")),
@@ -513,18 +511,15 @@ public class RangeFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testParseSourceValueWithFormat() throws IOException {
-        Settings settings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.id).build();
-        Mapper.BuilderContext context = new Mapper.BuilderContext(settings, new ContentPath());
-
         MappedFieldType longMapper = new RangeFieldMapper.Builder("field", RangeType.LONG, true)
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         Map<String, Object> longRange = Map.of("gte", 3.14, "lt", "42.9");
         assertEquals(List.of(Map.of("gte", 3L, "lt", 42L)), fetchSourceValue(longMapper, longRange));
 
         MappedFieldType dateMapper = new RangeFieldMapper.Builder("field", RangeType.DATE, true)
             .format("strict_date_time")
-            .build(context)
+            .build(new ContentPath())
             .fieldType();
         Map<String, Object> dateRange = Map.of("lt", "1990-12-29T00:00:00.000Z");
         assertEquals(List.of(Map.of("lt", "1990/12/29")), fetchSourceValue(dateMapper, dateRange, "yyy/MM/dd"));

@@ -108,6 +108,23 @@ tag::assignment-explanation-dfanalytics[]
 Contains messages relating to the selection of a node.
 end::assignment-explanation-dfanalytics[]
 
+tag::assignment-memory-basis[]
+Where should the memory requirement used for deciding which node the job
+will run on come from? The possible values are:
++
+--
+* `model_memory_limit`: The job's memory requirement will be calculated on
+the basis that its model memory will grow to the `model_memory_limit`
+specified in the `analysis_limits` of its config.
+* `current_model_bytes`: The job's memory requirement will be calculated on
+the basis that its current model memory size is a good reflection of what
+it will be in the future.
+* `peak_model_bytes`: The job's memory requirement will be calculated on
+the basis that its peak model memory size is a good reflection of what
+the model size will be in the future.
+--
+end::assignment-memory-basis[]
+
 tag::background-persist-interval[]
 Advanced configuration option. The time between each periodic persistence of the
 model. The default value is a randomized value between 3 to 4 hours, which
@@ -307,7 +324,7 @@ Specifies whether the feature influence calculation is enabled. Defaults to
 end::compute-feature-influence[]
 
 tag::custom-preprocessor[]
-(Optional, boolean)
+(Optional, Boolean)
 Boolean value indicating if the analytics job created the preprocessor
 or if a user provided it. This adjusts the feature importance calculation.
 When `true`, the feature importance calculation returns importance for the
@@ -462,7 +479,7 @@ real-time {dfeed} runs. In particular, the default `check_window` span
 calculation is based on the maximum of `2h` or `8 * bucket_span`.
 
 `enabled`::
-(boolean) Specifies whether the {dfeed} periodically checks for delayed data.
+(Boolean) Specifies whether the {dfeed} periodically checks for delayed data.
 Defaults to `true`.
 ====
 end::delayed-data-check-config[]
@@ -753,6 +770,25 @@ For more information about these options, see <<multi-index>>.
 --
 end::indices-options[]
 
+tag::runtime-mappings[]
+Specifies runtime fields for the datafeed search.
++
+--
+For example:
+```
+{
+  "day_of_week": {
+    "type": "keyword",
+    "script": {
+      "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+    }
+  }
+}
+```
+
+--
+end::runtime-mappings[]
+
 tag::inference-config-classification-num-top-classes[]
 Specifies the number of top class predictions to return. Defaults to 0.
 end::inference-config-classification-num-top-classes[]
@@ -974,8 +1010,9 @@ There are three available modes:
 +
 --
 * `auto`: The chunk size is dynamically calculated. This is the default and
-recommended value.
-* `manual`: Chunking is applied according to the specified `time_span`.
+recommended value when the {dfeed} does not use aggregations.
+* `manual`: Chunking is applied according to the specified `time_span`. Use this
+mode when the {dfeed} uses aggregations.
 * `off`: No chunking is applied.
 --
 end::mode[]
@@ -1029,7 +1066,8 @@ values:
 --
 * `ok`: The models stayed below the configured value.
 * `soft_limit`: The models used more than 60% of the configured memory limit
-and older unused models will be pruned to free up space.
+and older unused models will be pruned to free up space. Additionally, in
+categorization jobs no further category examples will be stored.
 * `hard_limit`: The models used more space than the configured memory limit.
 As a result, not all incoming data was processed.
 --
@@ -1283,7 +1321,9 @@ and <<script-fields,Script fields>>.
 end::script-fields[]
 
 tag::scroll-size[]
-The `size` parameter that is used in {es} searches. The default value is `1000`.
+The `size` parameter that is used in {es} searches when the {dfeed} does not use
+aggregations. The default value is `1000`. The maximum value is the value of
+`index.max_result_window` which is 10,000 by default.
 end::scroll-size[]
 
 tag::search-bucket-avg[]

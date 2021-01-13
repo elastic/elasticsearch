@@ -41,6 +41,7 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.apache.logging.log4j.status.StatusConsoleListener;
 import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusLogger;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
@@ -93,11 +94,14 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -183,6 +187,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> nettyLoggedLeaks = new ArrayList<>();
+    public static final int MIN_PRIVATE_PORT = 13301;
+
     private HeaderWarningAppender headerWarningAppender;
 
     @AfterClass
@@ -408,7 +414,17 @@ public abstract class ESTestCase extends LuceneTestCase {
         //appropriate test
         try {
             final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            assertNull("unexpected warning headers", warnings);
+            if (warnings != null && JvmInfo.jvmInfo().getBundledJdk() == false) {
+                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
+                final List<String> filteredWarnings = warnings
+                    .stream()
+                    .filter(k -> k.contains(
+                        "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release") == false)
+                    .collect(Collectors.toList());
+                assertThat("unexpected warning headers", filteredWarnings, empty());
+            } else {
+                assertNull("unexpected warning headers", warnings);
+            }
         } finally {
             resetDeprecationLogger();
         }
@@ -1378,6 +1394,17 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     /**
+     * Creates an IndexAnalyzers with a single default analyzer
+     */
+    protected IndexAnalyzers createDefaultIndexAnalyzers() {
+        return new IndexAnalyzers(
+            Map.of("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, new StandardAnalyzer())),
+            Map.of(),
+            Map.of()
+        );
+    }
+
+    /**
      * Creates an TestAnalysis with all the default analyzers configured.
      */
     public static TestAnalysis createTestAnalysis(Index index, Settings settings, AnalysisPlugin... analysisPlugins)
@@ -1475,7 +1502,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             startAt = Math.floorMod(workerId - 1, 223) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return 10300 + (startAt * 100);
+        return MIN_PRIVATE_PORT + (startAt * 100);
     }
 
     protected static InetAddress randomIp(boolean v4) {

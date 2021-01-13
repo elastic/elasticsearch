@@ -83,7 +83,7 @@ public class TransportClusterUpdateSettingsAction extends
                                    final ActionListener<ClusterUpdateSettingsResponse> listener) {
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         clusterService.submitStateUpdateTask("cluster_update_settings",
-                new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.IMMEDIATE, request, listener) {
+                new AckedClusterStateUpdateTask(Priority.IMMEDIATE, request, listener) {
 
             private volatile boolean changed = false;
 
@@ -126,7 +126,7 @@ public class TransportClusterUpdateSettingsAction extends
                 // to the components until the ClusterStateListener instances have been invoked, but are visible after
                 // the first update task has been completed.
                 clusterService.submitStateUpdateTask("reroute_after_cluster_update_settings",
-                        new AckedClusterStateUpdateTask<ClusterUpdateSettingsResponse>(Priority.URGENT, request, listener) {
+                        new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
 
                     @Override
                     public boolean mustAck(DiscoveryNode discoveryNode) {

@@ -41,6 +41,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -69,6 +70,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * This is an internal action, that executes msearch requests for enrich indices in a more efficient manner.
@@ -229,11 +232,21 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             final IndexShard indexShard = indicesService.getShardOrNull(shardId);
             try (Engine.Searcher searcher = indexShard.acquireSearcher("enrich_msearch")) {
                 final FieldsVisitor visitor = new FieldsVisitor(true);
+                /*
+                 * Enrich doesn't support defining runtime fields in its
+                 * configuration. We could add support for that if we'd
+                 * like it but, for now at least, you can't configure any
+                 * runtime fields so it is safe to build the context without
+                 * any.
+                 */
+                Map<String, Object> runtimeFields = emptyMap();
                 final QueryShardContext context = indexService.newQueryShardContext(
                     shardId.id(),
+                    0,
                     searcher,
                     () -> { throw new UnsupportedOperationException(); },
-                    null
+                    null,
+                    runtimeFields
                 );
                 final MultiSearchResponse.Item[] items = new MultiSearchResponse.Item[request.multiSearchRequest.requests().size()];
                 for (int i = 0; i < request.multiSearchRequest.requests().size(); i++) {
@@ -284,7 +297,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
             XContentType.SMILE.xContent(),
             new BytesStreamOutput(source.length()),
             includes,
-            excludes
+            excludes,
+            ParsedMediaType.parseMediaType(XContentType.SMILE, emptyMap())
         );
         XContentParser sourceParser = XContentHelper.createParser(
             NamedXContentRegistry.EMPTY,

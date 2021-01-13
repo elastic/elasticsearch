@@ -37,7 +37,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/master?v
+GET /_cat/master?v=true
 --------------------------------------------------
 
 The API returns the following response:

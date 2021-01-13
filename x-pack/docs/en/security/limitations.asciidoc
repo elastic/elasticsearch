@@ -9,8 +9,8 @@
 [discrete]
 === Plugins
 
-Elasticsearch's plugin infrastructure is extremely flexible in terms of what can
-be extended. While it opens up Elasticsearch to a wide variety of (often custom)
+{es}'s plugin infrastructure is extremely flexible in terms of what can
+be extended. While it opens up {es} to a wide variety of (often custom)
 additional functionality, when it comes to security, this high extensibility level
 comes at a cost. We have no control over the third-party plugins' code (open
 source or not) and therefore we cannot guarantee their compliance with
@@ -20,7 +20,7 @@ officially supported on clusters with {security-features} enabled.
 [discrete]
 === Changes in wildcard behavior
 
-Elasticsearch clusters with the {security-features} enabled apply the `/_all`
+{es} clusters with the {security-features} enabled apply the `/_all`
 wildcard, and all other wildcards, to the data streams, indices, and index aliases that the current user has
 privileges for, not all data streams, indices, and index aliases on the cluster.
 
@@ -38,44 +38,43 @@ Aliases containing filters are not a secure way to restrict access to individual
 documents, due to the limitations described in
 <<alias-limitations, Index and field names can be leaked when using aliases>>.
 The {stack-security-features} provide a secure way to restrict access to
-documents through the 
+documents through the
 <<field-and-document-access-control, document-level security>> feature.
 
 [discrete]
+[[field-document-limitations]]
 === Field and document level security limitations
 
-When a user's role enables document or field level security for a data stream or index:
+When a user's role enables document or <<field-level-security,field level security>> for a data stream or index:
 
 * The user cannot perform write operations:
 ** The update API isn't supported.
 ** Update requests included in bulk requests aren't supported.
 * The request cache is disabled for search requests.
 
-When a user's role enables document level security for a data stream or index:
+When a user's role enables <<document-level-security,document level security>> for a data stream or index:
 
-* Document level security isn't applied for APIs that aren't document based.
-  An example is the field stats API.
 * Document level security doesn't affect global index statistics that relevancy
-  scoring uses. So this means that scores are computed without taking the role
-  query into account. Note that documents not matching with the role query are
+  scoring uses. This means that scores are computed without taking the role
+  query into account. Documents that don't match the role query are
   never returned.
-* The `has_child` and `has_parent` queries aren't supported as query in the
-  role definition. The `has_child` and `has_parent` queries can be used in the
-  search API with document level security enabled.
-* Any query that makes remote calls to fetch data to query by isn't supported.
-  The following queries aren't supported:
-** The `terms` query with terms lookup isn't supported.
-** The `geo_shape` query with indexed shapes isn't supported.
-** The `percolate` query isn't supported.
-* If suggesters are specified and document level security is enabled then
-  the specified suggesters are ignored.
+* The `has_child` and `has_parent` queries aren't supported as query parameters
+in the role definition. The `has_child` and `has_parent` queries can be used in
+the search API with document level security enabled.
+* <<date-math,Date math>> expressions cannot contain `now` in <<ranges-on-dates,range queries with date fields>>
+* Any query that makes remote calls to fetch query data isn't supported,
+including the following queries:
+** `terms` query with terms lookup
+** `geo_shape` query with indexed shapes
+** `percolate` query
+* If suggesters are specified and document level security is enabled, the specified suggesters are ignored.
 * A search request cannot be profiled if document level security is enabled.
 
 [discrete]
 [[alias-limitations]]
 === Index and field names can be leaked when using aliases
 
-Calling certain Elasticsearch APIs on an alias can potentially leak information
+Calling certain {es} APIs on an alias can potentially leak information
 about indices that the user isn't authorized to access. For example, when you get
 the mappings for an alias with the `_mapping` API, the response includes the
 index name and mappings for each index that the alias applies to.

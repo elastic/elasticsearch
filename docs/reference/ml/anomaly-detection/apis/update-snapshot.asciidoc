@@ -41,7 +41,7 @@ The following properties can be updated after the model snapshot is created:
 (Optional, string) A description of the model snapshot.
 
 `retain`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=retain]
 
 

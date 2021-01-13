@@ -16,10 +16,10 @@ import org.elasticsearch.action.admin.indices.open.OpenIndexClusterStateUpdateRe
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
+import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.OpenIndexClusterStateUpdateResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -125,7 +125,7 @@ public final class TransportFreezeIndexAction extends
     private void toggleFrozenSettings(final Index[] concreteIndices, final FreezeRequest request,
                                       final ActionListener<FreezeResponse> listener) {
         clusterService.submitStateUpdateTask("toggle-frozen-settings",
-            new AckedClusterStateUpdateTask<>(Priority.URGENT, request, new ActionListener<AcknowledgedResponse>() {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, new ActionListener<>() {
                 @Override
                 public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                     OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest()
@@ -133,7 +133,7 @@ public final class TransportFreezeIndexAction extends
                         .indices(concreteIndices).waitForActiveShards(request.waitForActiveShards());
                     indexStateService.openIndex(updateRequest, new ActionListener<>() {
                         @Override
-                        public void onResponse(OpenIndexClusterStateUpdateResponse openIndexClusterStateUpdateResponse) {
+                        public void onResponse(ShardsAcknowledgedResponse openIndexClusterStateUpdateResponse) {
                             listener.onResponse(new FreezeResponse(openIndexClusterStateUpdateResponse.isAcknowledged(),
                                 openIndexClusterStateUpdateResponse.isShardsAcknowledged()));
                         }
@@ -177,11 +177,6 @@ public final class TransportFreezeIndexAction extends
                     builder.put(imdBuilder.build(), true);
                 }
                 return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
-            }
-
-            @Override
-            protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                return AcknowledgedResponse.of(acknowledged);
             }
         });
     }

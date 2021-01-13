@@ -50,16 +50,6 @@
   - match: { status.state.active : false }
 
   - do:
-      warnings:
-        - "this request accesses system indices: [.watches], but in a future major version, direct access to system indices will be prevented by default"
-      search:
-        rest_total_hits_as_int: true
-        index: .watches
-        body: { "query": { "term": { "_id": "my_watch" } } }
-  - match: { hits.total: 1 }
-  - match: { hits.hits.0._source.status.state.active: false }
-
-  - do:
       watcher.get_watch:
         id: "my_watch"
   - match: { found : true}
@@ -71,16 +61,6 @@
         watch_id: "my_watch"
 
   - match: { status.state.active : true }
-
-  - do:
-      warnings:
-        - "this request accesses system indices: [.watches], but in a future major version, direct access to system indices will be prevented by default"
-      search:
-        rest_total_hits_as_int: true
-        index: .watches
-        body: { "query": { "term": { "_id": "my_watch" } } }
-  - match: { hits.total: 1 }
-  - match: { hits.hits.0._source.status.state.active: true }
 
   - do:
       watcher.get_watch:

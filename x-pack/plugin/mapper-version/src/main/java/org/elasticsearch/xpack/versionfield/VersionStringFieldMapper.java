@@ -33,11 +33,10 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
@@ -66,7 +65,7 @@ import static org.elasticsearch.xpack.versionfield.VersionEncoder.encodeVersion;
 /**
  * A {@link FieldMapper} for indexing fields with version strings.
  */
-public class VersionStringFieldMapper extends ParametrizedFieldMapper {
+public class VersionStringFieldMapper extends FieldMapper {
 
     private static final byte[] MIN_VALUE = new byte[16];
     private static final byte[] MAX_VALUE = new byte[16];
@@ -88,7 +87,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
     }
 
-    static class Builder extends ParametrizedFieldMapper.Builder {
+    static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -96,18 +95,18 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
             super(name);
         }
 
-        private VersionStringFieldType buildFieldType(BuilderContext context, FieldType fieldtype) {
-            return new VersionStringFieldType(buildFullName(context), fieldtype, meta.getValue());
+        private VersionStringFieldType buildFieldType(ContentPath contentPath, FieldType fieldtype) {
+            return new VersionStringFieldType(buildFullName(contentPath), fieldtype, meta.getValue());
         }
 
         @Override
-        public VersionStringFieldMapper build(BuilderContext context) {
+        public VersionStringFieldMapper build(ContentPath contentPath) {
             FieldType fieldtype = new FieldType(Defaults.FIELD_TYPE);
             return new VersionStringFieldMapper(
                 name,
                 fieldtype,
-                buildFieldType(context, fieldtype),
-                multiFieldsBuilder.build(this, context),
+                buildFieldType(contentPath, fieldtype),
+                multiFieldsBuilder.build(this, contentPath),
                 copyTo.build()
             );
         }
@@ -124,7 +123,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         private VersionStringFieldType(String name, FieldType fieldType, Map<String, String> meta) {
             super(name, true, false, true, new TextSearchInfo(fieldType, null, Lucene.KEYWORD_ANALYZER, Lucene.KEYWORD_ANALYZER), meta);
-            setIndexAnalyzer(Lucene.KEYWORD_ANALYZER);
         }
 
         @Override
@@ -133,8 +131,8 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
-            return SourceValueFetcher.toString(name(), mapperService, format);
+        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
@@ -270,7 +268,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-            return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.BYTES);
+            return new SortedSetOrdinalsIndexFieldData.Builder(name(), VersionScriptDocValues::new, CoreValuesSourceType.KEYWORD);
         }
 
         @Override
@@ -311,7 +309,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
         MultiFields multiFields,
         CopyTo copyTo
     ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+        super(simpleName, mappedFieldType, Lucene.KEYWORD_ANALYZER, multiFields, copyTo);
         this.fieldType = fieldType;
     }
 
@@ -323,11 +321,6 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     @Override
     protected String contentType() {
         return CONTENT_TYPE;
-    }
-
-    @Override
-    protected VersionStringFieldMapper clone() {
-        return (VersionStringFieldMapper) super.clone();
     }
 
     @Override
@@ -389,7 +382,7 @@ public class VersionStringFieldMapper extends ParametrizedFieldMapper {
     };
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder(simpleName()).init(this);
     }
 }

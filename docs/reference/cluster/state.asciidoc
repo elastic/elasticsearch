@@ -99,7 +99,7 @@ To target all data streams and indices in a cluster, omit this parameter or use
 ==== {api-query-parms-title}
 
 `allow_no_indices`::
-    (Optional, boolean) If `true`, the wildcard indices expression that resolves 
+    (Optional, Boolean) If `true`, the wildcard indices expression that resolves 
     into no concrete indices will be ignored. (This includes `_all` string or 
     when no indices have been specified).
 +
@@ -113,7 +113,7 @@ Defaults to `true`.
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
     
 `ignore_unavailable`::
-    (Optional, boolean) If `true`, unavailable indices (missing or closed) will 
+    (Optional, Boolean) If `true`, unavailable indices (missing or closed) will 
     be ignored.
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]

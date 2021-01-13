@@ -22,9 +22,6 @@ grant {
   // needed to apply additional sandboxing to tika parsing
   permission java.security.SecurityPermission "createAccessControlContext";
 
-  // TODO: fix PDFBox not to actually install bouncy castle like this
-  permission java.security.SecurityPermission "putProviderProperty.BC";
-  permission java.security.SecurityPermission "insertProvider";
   // TODO: fix POI XWPF to not do this: https://bz.apache.org/bugzilla/show_bug.cgi?id=58597
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed by xmlbeans, as part of POI for MS xml docs

@@ -141,11 +141,12 @@ public class DiskThresholdDecider extends AllocationDecider {
         return totalSize;
     }
 
+    private static final Decision YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS = Decision.single(Decision.Type.YES, NAME, "the node " +
+            "is above the low watermark, but less than the high watermark, and this primary shard has never been allocated before");
 
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-        ClusterInfo clusterInfo = allocation.clusterInfo();
-        ImmutableOpenMap<String, DiskUsage> usages = clusterInfo.getNodeMostAvailableDiskUsages();
+        ImmutableOpenMap<String, DiskUsage> usages = allocation.clusterInfo().getNodeMostAvailableDiskUsages();
         final Decision decision = earlyTerminate(allocation, usages);
         if (decision != null) {
             return decision;
@@ -206,9 +207,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                                     "but allowing allocation because primary has never been allocated",
                             diskThresholdSettings.getFreeBytesThresholdLow(), freeBytesValue, node.nodeId());
                 }
-                return allocation.decision(Decision.YES, NAME,
-                        "the node is above the low watermark, but less than the high watermark, and this primary shard has " +
-                        "never been allocated before");
+                return YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS;
             } else {
                 // Even though the primary has never been allocated, the node is
                 // above the high watermark, so don't allow allocating the shard
@@ -249,9 +248,7 @@ public class DiskThresholdDecider extends AllocationDecider {
                             Strings.format1Decimals(usedDiskThresholdLow, "%"),
                             Strings.format1Decimals(usedDiskPercentage, "%"), node.nodeId());
                 }
-                return allocation.decision(Decision.YES, NAME,
-                    "the node is above the low watermark, but less than the high watermark, and this primary shard has " +
-                    "never been allocated before");
+                return YES_UNALLOCATED_PRIMARY_BETWEEN_WATERMARKS;
             } else {
                 // Even though the primary has never been allocated, the node is
                 // above the high watermark, so don't allow allocating the shard
@@ -307,6 +304,9 @@ public class DiskThresholdDecider extends AllocationDecider {
                 new ByteSizeValue(freeBytesAfterShard));
     }
 
+    private static final Decision YES_NOT_MOST_UTILIZED_DISK = Decision.single(Decision.Type.YES, NAME,
+            "this shard is not allocated on the most utilized disk and can remain");
+
     @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.currentNodeId().equals(node.nodeId()) == false) {
@@ -330,8 +330,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
         }
         if (dataPath == null || usage.getPath().equals(dataPath) == false) {
-            return allocation.decision(Decision.YES, NAME,
-                    "this shard is not allocated on the most utilized disk and can remain");
+            return YES_NOT_MOST_UTILIZED_DISK;
         }
         if (freeBytes < 0L) {
             final long sizeOfRelocatingShards = sizeOfRelocatingShards(node, true, usage.getPath(),
@@ -425,35 +424,29 @@ public class DiskThresholdDecider extends AllocationDecider {
         return newUsage.getFreeDiskAsPercentage();
     }
 
+    private static final Decision YES_DISABLED = Decision.single(Decision.Type.YES, NAME, "the disk threshold decider is disabled");
+
+    private static final Decision YES_SINGLE_DATA_NODE =
+            Decision.single(Decision.Type.YES, NAME, "there is only a single data node present");
+
+    private static final Decision YES_USAGES_UNAVAILABLE = Decision.single(Decision.Type.YES, NAME, "disk usages are unavailable");
+
     private Decision earlyTerminate(RoutingAllocation allocation, ImmutableOpenMap<String, DiskUsage> usages) {
         // Always allow allocation if the decider is disabled
         if (diskThresholdSettings.isEnabled() == false) {
-            return allocation.decision(Decision.YES, NAME, "the disk threshold decider is disabled");
+            return YES_DISABLED;
         }
 
         // Allow allocation regardless if only a single data node is available
         if (enableForSingleDataNode == false && allocation.nodes().getDataNodes().size() <= 1) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("only a single data node is present, allowing allocation");
-            }
-            return allocation.decision(Decision.YES, NAME, "there is only a single data node present");
-        }
-
-        // Fail open there is no info available
-        final ClusterInfo clusterInfo = allocation.clusterInfo();
-        if (clusterInfo == null) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("cluster info unavailable for disk threshold decider, allowing allocation.");
-            }
-            return allocation.decision(Decision.YES, NAME, "the cluster info is unavailable");
+            logger.trace("only a single data node is present, allowing allocation");
+            return YES_SINGLE_DATA_NODE;
         }
 
         // Fail open if there are no disk usages available
         if (usages.isEmpty()) {
-            if (logger.isTraceEnabled()) {
-                logger.trace("unable to determine disk usages for disk-aware allocation, allowing allocation");
-            }
-            return allocation.decision(Decision.YES, NAME, "disk usages are unavailable");
+            logger.trace("unable to determine disk usages for disk-aware allocation, allowing allocation");
+            return YES_USAGES_UNAVAILABLE;
         }
         return null;
     }

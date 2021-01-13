@@ -63,7 +63,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildca
 == {api-request-body-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-jobs]
 
 `bucket_span`::
@@ -76,7 +76,7 @@ value.
 time.
 
 `exclude_interim`::
-(Optional, boolean) If `true`, the output excludes interim overall buckets.
+(Optional, Boolean) If `true`, the output excludes interim overall buckets.
 Overall buckets are interim if any of the job buckets within the overall bucket
 interval are interim. By default, interim results are included.
 
@@ -102,7 +102,7 @@ properties:
 of the job with the longest one.
 
 `is_interim`::
-(boolean)
+(Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=is-interim]
 
 `jobs`::

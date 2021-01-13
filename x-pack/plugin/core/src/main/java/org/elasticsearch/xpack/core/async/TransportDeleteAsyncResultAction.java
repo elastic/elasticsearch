@@ -17,7 +17,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
@@ -52,8 +51,7 @@ public class TransportDeleteAsyncResultAction extends HandledTransportAction<Del
         if (clusterService.localNode().getId().equals(searchId.getTaskId().getNodeId()) || node == null) {
             deleteResultsService.deleteResult(request, listener);
         } else {
-            TransportRequestOptions.Builder builder = TransportRequestOptions.builder();
-            transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request, builder.build(),
+            transportService.sendRequest(node, DeleteAsyncResultAction.NAME, request,
                 new ActionListenerResponseHandler<>(listener, AcknowledgedResponse::readFrom, ThreadPool.Names.SAME));
         }
     }

@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ObjectMapper.Nested;
@@ -71,6 +70,7 @@ import java.util.function.Function;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 
 public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends ESTestCase {
@@ -201,9 +201,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-                null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
+        return new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+                null, null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
+                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
             public MappedFieldType getFieldType(String name) {
@@ -212,8 +212,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
 
             @Override
             public ObjectMapper getObjectMapper(String name) {
-                BuilderContext context = new BuilderContext(this.getIndexSettings().getSettings(), new ContentPath());
-                return new ObjectMapper.Builder(name).nested(Nested.newNested()).build(context);
+                return new ObjectMapper.Builder(name, Version.CURRENT).nested(Nested.newNested()).build(new ContentPath());
             }
         };
     }

@@ -37,8 +37,12 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -55,8 +59,10 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.lucene.BytesRefs.toBytesRef;
 import static org.elasticsearch.test.EqualsHashCodeTestUtils.checkEqualsAndHashCode;
 import static org.mockito.Matchers.any;
@@ -162,10 +168,8 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
             Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
                     indexSettings);
-            MapperService mapperService = mock(MapperService.class);
             ScriptService scriptService = mock(ScriptService.class);
             MappedFieldType fieldType = mockFieldType(suggestionBuilder.field());
-            when(mapperService.fieldType(any(String.class))).thenReturn(fieldType);
             IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
                 new HashMap<>() {
                     @Override
@@ -175,12 +179,15 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
                 },
                 Collections.emptyMap(),
                 Collections.emptyMap());
+            MapperService mapperService = mock(MapperService.class);
             when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
             when(scriptService.compile(any(Script.class), any())).then(invocation -> new TestTemplateService.MockTemplateScript.Factory(
                     ((Script) invocation.getArguments()[0]).getIdOrCode()));
-            QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-                    System::currentTimeMillis, null, null, () -> true, null);
+            List<FieldMapper> mappers = Collections.singletonList(new MockFieldMapper(fieldType));
+            MappingLookup lookup = new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
+            QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+                null, mapperService, lookup, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
+                    System::currentTimeMillis, null, null, () -> true, null, emptyMap());
 
             SuggestionContext suggestionContext = suggestionBuilder.build(mockShardContext);
             assertEquals(toBytesRef(suggestionBuilder.text()), suggestionContext.getText());
@@ -213,14 +220,10 @@ public abstract class AbstractSuggestionBuilderTestCase<SB extends SuggestionBui
         Settings indexSettings = builder.build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index(randomAlphaOfLengthBetween(1, 10), "_na_"),
             indexSettings);
-        MapperService mapperService = mock(MapperService.class);
-        ScriptService scriptService = mock(ScriptService.class);
 
-        when(mapperService.getNamedAnalyzer(any(String.class))).then(
-            invocation -> new NamedAnalyzer((String) invocation.getArguments()[0], AnalyzerScope.INDEX, new SimpleAnalyzer()));
-        QueryShardContext mockShardContext = new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-            null, mapperService, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, null,
-            System::currentTimeMillis, null, null, () -> true, null);
+        QueryShardContext mockShardContext = new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
+            null, mock(MapperService.class), MappingLookup.EMPTY, null, null, xContentRegistry(), namedWriteableRegistry, null, null,
+            System::currentTimeMillis, null, null, () -> true, null, emptyMap());
         if (randomBoolean()) {
             mockShardContext.setAllowUnmappedFields(randomBoolean());
         }

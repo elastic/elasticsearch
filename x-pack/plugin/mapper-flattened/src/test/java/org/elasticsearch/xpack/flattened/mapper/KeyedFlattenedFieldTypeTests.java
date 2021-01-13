@@ -20,9 +20,11 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.xpack.flattened.mapper.FlattenedFieldMapper.KeyedFlattenedFieldType;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
 
@@ -147,5 +149,13 @@ public class KeyedFlattenedFieldTypeTests extends FieldTypeTestCase {
         UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
             () -> ft.wildcardQuery("valu*", null, false, randomMockShardContext()));
         assertEquals("[wildcard] queries are not currently supported on keyed [flattened] fields.", e.getMessage());
+    }
+
+    public void testFetchIsEmpty() throws IOException {
+        Map<String, Object> sourceValue = Map.of("key", "value");
+        KeyedFlattenedFieldType ft = createFieldType();
+
+        assertEquals(List.of(), fetchSourceValue(ft, sourceValue));
+        assertEquals(List.of(), fetchSourceValue(ft, null));
     }
 }

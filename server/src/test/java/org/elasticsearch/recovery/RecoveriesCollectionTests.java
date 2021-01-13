@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.replication.ESIndexLevelReplicationTestCase;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveriesCollection;
@@ -41,7 +42,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
     static final PeerRecoveryTargetService.RecoveryListener listener = new PeerRecoveryTargetService.RecoveryListener() {
         @Override
-        public void onRecoveryDone(RecoveryState state) {
+        public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
 
         }
 
@@ -76,7 +77,7 @@ public class RecoveriesCollectionTests extends ESIndexLevelReplicationTestCase {
             final long recoveryId = startRecovery(collection, shards.getPrimaryNode(), shards.addReplica(),
                 new PeerRecoveryTargetService.RecoveryListener() {
                     @Override
-                    public void onRecoveryDone(RecoveryState state) {
+                    public void onRecoveryDone(RecoveryState state, ShardLongFieldRange timestampMillisFieldRange) {
                         latch.countDown();
                     }
 

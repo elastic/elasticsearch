@@ -154,6 +154,7 @@ public abstract class WatchRecord implements ToXContentObject {
         builder.field(WATCH_ID.getPreferredName(), id.watchId());
         builder.field(NODE.getPreferredName(), nodeId);
         builder.field(STATE.getPreferredName(), state.id());
+        builder.field("@timestamp", triggerEvent.triggeredTime());
 
         if (user != null) {
             builder.field(USER.getPreferredName(), user);

@@ -31,11 +31,11 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -49,18 +49,35 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.plain.AbstractLeafOrdinalsFieldData;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RootObjectMapper;
+import org.elasticsearch.index.mapper.RuntimeFieldType;
+import org.elasticsearch.index.mapper.TestRuntimeField;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.mapper.MapperRegistry;
+import org.elasticsearch.plugins.MapperPlugin;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.MultiValueMode;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.LeafDocLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.sort.BucketedSort;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -68,15 +85,19 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -183,9 +204,27 @@ public class QueryShardContextTests extends ESTestCase {
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         QueryShardContext context = new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null, null,
-            null, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> 0L, null, null, () -> true, null);
+            0,
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> 0L,
+            null,
+            null,
+            () -> true,
+            null,
+            emptyMap()
+        );
 
         assertTrue(context.indexSortedOnField("sort_field"));
         assertFalse(context.indexSortedOnField("second_sort_field"));
@@ -193,108 +232,160 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public void testFielddataLookupSelfReference() {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-                //simulate a runtime field that depends on itself e.g. field: doc['field']
-                return leafLookup.doc().get(field).toString();
-            });
+        QueryShardContext queryShardContext = createQueryShardContext(
+            // simulate a runtime field that depends on itself e.g. field: doc['field']
+            runtimeField("field", leafLookup -> leafLookup.doc().get("field").toString())
+        );
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field", queryShardContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: field -> field", iae.getMessage());
     }
 
     public void testFielddataLookupLooseLoop() {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            //simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['1']
-            if (field.equals("4")) {
-                return leafLookup.doc().get("1").toString();
-            }
-            return leafLookup.doc().get(Integer.toString(Integer.parseInt(field) + 1)).toString();
-        });
+        QueryShardContext queryShardContext = createQueryShardContext(
+            // simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['1']
+            runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
+            runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
+            runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
+            runtimeField("4", leafLookup -> leafLookup.doc().get("1").get(0).toString())
+        );
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: 1 -> 2 -> 3 -> 4 -> 1", iae.getMessage());
     }
 
     public void testFielddataLookupTerminatesInLoop() {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            //simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
-            if (field.equals("4")) {
-                return leafLookup.doc().get("4").toString();
-            }
-            return leafLookup.doc().get(Integer.toString(Integer.parseInt(field) + 1)).toString();
-        });
+        QueryShardContext queryShardContext = createQueryShardContext(
+            // simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
+            runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
+            runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
+            runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
+            runtimeField("4", leafLookup -> leafLookup.doc().get("4").get(0).toString())
+        );
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: 1 -> 2 -> 3 -> 4 -> 4", iae.getMessage());
     }
 
     public void testFielddataLookupSometimesLoop() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            if (docId == 0) {
-                return field + "_" + docId;
-            } else {
-                assert docId == 1;
-                if (field.equals("field4")) {
-                    return leafLookup.doc().get("field1").toString();
+        QueryShardContext queryShardContext = createQueryShardContext(
+            // simulate a runtime field cycle in the second doc: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
+            runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
+            runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
+            runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
+            runtimeField("4", (leafLookup, docId) -> {
+                if (docId == 0) {
+                    return "escape!";
                 }
-                int i = Integer.parseInt(field.substring(field.length() - 1));
-                return leafLookup.doc().get("field" + (i + 1)).toString();
-            }
-        });
-        List<String> values = collect("field1", queryShardContext, new TermQuery(new Term("indexed_field", "first")));
-        assertEquals(List.of("field1_0"), values);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field1", queryShardContext));
-        assertEquals("Cyclic dependency detected while resolving runtime fields: field1 -> field2 -> field3 -> field4 -> field1",
-            iae.getMessage());
+                return leafLookup.doc().get("4").get(0).toString();
+            })
+        );
+        List<String> values = collect("1", queryShardContext, new TermQuery(new Term("indexed_field", "first")));
+        assertEquals(List.of("escape!"), values);
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
+        assertEquals("Cyclic dependency detected while resolving runtime fields: 1 -> 2 -> 3 -> 4 -> 4", iae.getMessage());
     }
 
     public void testFielddataLookupBeyondMaxDepth() {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            int i = Integer.parseInt(field);
-            return leafLookup.doc().get(Integer.toString(i + 1)).toString();
-        });
+        QueryShardContext queryShardContext = createQueryShardContext(
+            runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
+            runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
+            runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
+            runtimeField("4", leafLookup -> leafLookup.doc().get("5").get(0).toString()),
+            runtimeField("5", leafLookup -> leafLookup.doc().get("6").get(0).toString()),
+            runtimeField("6", leafLookup -> "cat")
+        );
         IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
         assertEquals("Field requires resolving too many dependent fields: 1 -> 2 -> 3 -> 4 -> 5 -> 6", iae.getMessage());
     }
 
     public void testFielddataLookupReferencesBelowMaxDepth() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            int i = Integer.parseInt(field.substring(field.length() - 1));
-            if (i == 5) {
-                return "test";
-            } else {
-                ScriptDocValues<?> scriptDocValues = leafLookup.doc().get("field" + (i + 1));
-                return scriptDocValues.get(0).toString() + docId;
-            }
-        });
-        assertEquals(List.of("test0000", "test1111"), collect("field1", queryShardContext));
+        QueryShardContext queryShardContext = createQueryShardContext(
+            runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
+            runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
+            runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
+            runtimeField("4", leafLookup -> leafLookup.doc().get("5").get(0).toString()),
+            runtimeField("5", (leafLookup, docId) -> "cat on doc " + docId)
+        );
+        assertEquals(List.of("cat on doc 0", "cat on doc 1"), collect("1", queryShardContext));
     }
 
     public void testFielddataLookupOneFieldManyReferences() throws IOException {
         int numFields = randomIntBetween(5, 20);
-        QueryShardContext queryShardContext = createQueryShardContext("uuid", null, (field, leafLookup, docId) -> {
-            if (field.equals("field")) {
-                StringBuilder value = new StringBuilder();
-                for (int i = 0; i < numFields; i++) {
-                    value.append(leafLookup.doc().get("field" + i).get(0));
-                }
-                return value.toString();
-            } else {
-                return "test" + docId;
+        List<RuntimeFieldType> fields = new ArrayList<>(numFields + 1);
+        fields.add(runtimeField("root", leafLookup -> {
+            StringBuilder value = new StringBuilder();
+            for (int i = 0; i < numFields; i++) {
+                value.append(leafLookup.doc().get(i).get(0));
             }
-        });
-        StringBuilder expectedFirstDoc = new StringBuilder();
-        StringBuilder expectedSecondDoc = new StringBuilder();
+            return value.toString();
+        }));
+        StringBuilder expected = new StringBuilder();
         for (int i = 0; i < numFields; i++) {
-            expectedFirstDoc.append("test0");
-            expectedSecondDoc.append("test1");
+            String fieldValue = Integer.toString(i);
+            fields.add(runtimeField(Integer.toString(i), leafLookup -> fieldValue));
+            expected.append(i);
         }
-        assertEquals(List.of(expectedFirstDoc.toString(), expectedSecondDoc.toString()), collect("field", queryShardContext));
+        assertEquals(
+            List.of(expected.toString(), expected.toString()),
+            collect("root", createQueryShardContext("uuid", null, createMappingLookup(List.of(), fields), Map.of(), List.of()))
+        );
+    }
+
+    private static MappingLookup createMappingLookup(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
+        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(Collectors.toList());
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder("_doc", Version.CURRENT);
+        runtimeFields.forEach(builder::addRuntime);
+        Mapping mapping = new Mapping(builder.build(new ContentPath()), new MetadataFieldMapper[0], Collections.emptyMap());
+        return new MappingLookup(mapping, mappers, Collections.emptyList(), Collections.emptyList(), null, null, null);
+    }
+
+    public void testSearchRequestRuntimeFields() {
+        /*
+         * Making these immutable here test that we don't modify them.
+         * Modifying them would cause all kinds of problems if two
+         * shards are parsed on the same node.
+         */
+        Map<String, Object> runtimeMappings = Map.ofEntries(
+            Map.entry("cat", Map.of("type", "keyword")),
+            Map.entry("dog", Map.of("type", "long"))
+        );
+        QueryShardContext qsc = createQueryShardContext(
+            "uuid",
+            null,
+            createMappingLookup(List.of(new MockFieldMapper.FakeFieldType("pig"), new MockFieldMapper.FakeFieldType("cat")), List.of()),
+            runtimeMappings,
+            Collections.singletonList(new TestRuntimeField.Plugin()));
+        assertTrue(qsc.isFieldMapped("cat"));
+        assertThat(qsc.getFieldType("cat"), instanceOf(TestRuntimeField.class));
+        assertThat(qsc.simpleMatchToIndexNames("cat"), equalTo(Set.of("cat")));
+        assertTrue(qsc.isFieldMapped("dog"));
+        assertThat(qsc.getFieldType("dog"), instanceOf(TestRuntimeField.class));
+        assertThat(qsc.simpleMatchToIndexNames("dog"), equalTo(Set.of("dog")));
+        assertTrue(qsc.isFieldMapped("pig"));
+        assertThat(qsc.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(qsc.simpleMatchToIndexNames("pig"), equalTo(Set.of("pig")));
+        assertThat(qsc.simpleMatchToIndexNames("*"), equalTo(Set.of("cat", "dog", "pig")));
     }
 
     public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
-        return createQueryShardContext(indexUuid, clusterAlias, null);
+        return createQueryShardContext(indexUuid, clusterAlias, MappingLookup.EMPTY, Map.of(), List.of());
     }
 
-    private static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias,
-        TriFunction<String, LeafSearchLookup, Integer, String> runtimeDocValues) {
+    private static QueryShardContext createQueryShardContext(RuntimeFieldType... fieldTypes) {
+        return createQueryShardContext(
+            "uuid",
+            null,
+            createMappingLookup(Collections.emptyList(), List.of(fieldTypes)),
+            Collections.emptyMap(),
+            Collections.emptyList()
+        );
+    }
+
+    private static QueryShardContext createQueryShardContext(
+        String indexUuid,
+        String clusterAlias,
+        MappingLookup mappingLookup,
+        Map<String, Object> runtimeMappings,
+        List<MapperPlugin> mapperPlugins
+    ) {
         IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder("index");
         indexMetadataBuilder.settings(Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
@@ -303,74 +394,156 @@ public class QueryShardContextTests extends ESTestCase {
         );
         IndexMetadata indexMetadata = indexMetadataBuilder.build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
-        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
-            Collections.singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
-            Collections.emptyMap(), Collections.emptyMap()
-        );
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        when(mapperService.index()).thenReturn(indexMetadata.getIndex());
-        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
-        Map<String, Mapper.TypeParser> typeParserMap = IndicesModule.getMappers(Collections.emptyList());
-        Mapper.TypeParser.ParserContext parserContext = new Mapper.TypeParser.ParserContext(name -> null, typeParserMap::get,
-            Version.CURRENT, () -> null, null, null, mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(),
-            () -> {
-                throw new UnsupportedOperationException();
-            });
-        when(mapperService.parserContext()).thenReturn(parserContext);
-        if (runtimeDocValues != null) {
-            when(mapperService.fieldType(any())).thenAnswer(fieldTypeInv -> {
-                String fieldName = (String)fieldTypeInv.getArguments()[0];
-                return mockFieldType(fieldName, (leafSearchLookup, docId) -> runtimeDocValues.apply(fieldName, leafSearchLookup, docId));
-            });
-        }
+        MapperService mapperService = createMapperService(indexSettings, mapperPlugins);
         final long nowInMillis = randomNonNegativeLong();
         return new QueryShardContext(
-            0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE, null,
-                (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
-                mapperService, null, null, NamedXContentRegistry.EMPTY, new NamedWriteableRegistry(Collections.emptyList()),
-            null, null, () -> nowInMillis, clusterAlias, null, () -> true, null);
+            0,
+            0,
+            indexSettings,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null,
+            (mappedFieldType, idxName, searchLookup) -> mappedFieldType.fielddataBuilder(idxName, searchLookup).build(null, null),
+            mapperService,
+            mappingLookup,
+            null,
+            null,
+            NamedXContentRegistry.EMPTY,
+            new NamedWriteableRegistry(Collections.emptyList()),
+            null,
+            null,
+            () -> nowInMillis,
+            clusterAlias,
+            null,
+            () -> true,
+            null,
+            runtimeMappings
+        );
     }
 
-    private static MappedFieldType mockFieldType(String fieldName, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
-        MappedFieldType fieldType = mock(MappedFieldType.class);
-        when(fieldType.name()).thenReturn(fieldName);
-        when(fieldType.fielddataBuilder(any(), any())).thenAnswer(builderInv -> {
-            @SuppressWarnings("unchecked")
-            Supplier<SearchLookup> searchLookup = ((Supplier<SearchLookup>) builderInv.getArguments()[1]);
-            IndexFieldData<?> indexFieldData = mock(IndexFieldData.class);
-            when(indexFieldData.load(any())).thenAnswer(loadArgs -> {
-                LeafReaderContext leafReaderContext = (LeafReaderContext) loadArgs.getArguments()[0];
-                LeafFieldData leafFieldData = mock(LeafFieldData.class);
-                when(leafFieldData.getScriptValues()).thenAnswer(scriptValuesArgs -> new ScriptDocValues<String>() {
-                    String value;
+    private static MapperService createMapperService(
+        IndexSettings indexSettings,
+        List<MapperPlugin> mapperPlugins
+    ) {
+        IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
+            singletonMap("default", new NamedAnalyzer("default", AnalyzerScope.INDEX, null)),
+            emptyMap(),
+            emptyMap()
+        );
+        IndicesModule indicesModule = new IndicesModule(mapperPlugins);
+        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
+        Supplier<QueryShardContext> queryShardContextSupplier = () -> { throw new UnsupportedOperationException(); };
+        MapperService mapperService = mock(MapperService.class);
+        when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
+        when(mapperService.parserContext()).thenReturn(new Mapper.TypeParser.ParserContext(
+            null,
+            mapperRegistry.getMapperParsers()::get,
+            mapperRegistry.getRuntimeFieldTypeParsers()::get,
+            indexSettings.getIndexVersionCreated(),
+            queryShardContextSupplier,
+            null,
+            null,
+            indexAnalyzers,
+            indexSettings,
+            () -> true,
+            false
+        ));
+        return mapperService;
+    }
 
+    private static RuntimeFieldType runtimeField(String name, Function<LeafSearchLookup, String> runtimeDocValues) {
+        return runtimeField(name, (leafLookup, docId) -> runtimeDocValues.apply(leafLookup));
+    }
+
+    private static RuntimeFieldType runtimeField(String name, BiFunction<LeafSearchLookup, Integer, String> runtimeDocValues) {
+        return new TestRuntimeField(name, null) {
+            @Override
+            public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName,
+                                                           Supplier<SearchLookup> searchLookup) {
+                return (cache, breakerService) -> new IndexFieldData<>() {
                     @Override
-                    public int size() {
-                        return 1;
+                    public String getFieldName() {
+                        return name;
                     }
 
                     @Override
-                    public String get(int index) {
-                        assert index == 0;
-                        return value;
+                    public ValuesSourceType getValuesSourceType() {
+                        throw new UnsupportedOperationException();
                     }
 
                     @Override
-                    public void setNextDocId(int docId) {
-                        assert docId >= 0;
-                        LeafSearchLookup leafLookup = searchLookup.get().getLeafSearchLookup(leafReaderContext);
-                        leafLookup.setDocument(docId);
-                        value = runtimeDocValues.apply(leafLookup, docId);
+                    public LeafFieldData load(LeafReaderContext context) {
+                        return new LeafFieldData() {
+                            @Override
+                            public ScriptDocValues<?> getScriptValues() {
+                                return new ScriptDocValues<>() {
+                                    String value;
+
+                                    @Override
+                                    public int size() {
+                                        return 1;
+                                    }
+
+                                    @Override
+                                    public String get(int index) {
+                                        assert index == 0;
+                                        return value;
+                                    }
+
+                                    @Override
+                                    public void setNextDocId(int docId) {
+                                        assert docId >= 0;
+                                        LeafSearchLookup leafLookup = searchLookup.get()
+                                            .getLeafSearchLookup(context);
+                                        leafLookup.setDocument(docId);
+                                        value = runtimeDocValues.apply(leafLookup, docId);
+                                    }
+                                };
+                            }
+
+                            @Override
+                            public SortedBinaryDocValues getBytesValues() {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public long ramBytesUsed() {
+                                throw new UnsupportedOperationException();
+                            }
+
+                            @Override
+                            public void close() {
+                                throw new UnsupportedOperationException();
+                            }
+                        };
                     }
-                });
-                return leafFieldData;
-            });
-            IndexFieldData.Builder builder = mock(IndexFieldData.Builder.class);
-            when(builder.build(any(), any())).thenAnswer(buildInv -> indexFieldData);
-            return builder;
-        });
-        return fieldType;
+
+                    @Override
+                    public LeafFieldData loadDirect(LeafReaderContext context) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public SortField sortField(Object missingValue,
+                                               MultiValueMode sortMode,
+                                               XFieldComparatorSource.Nested nested,
+                                               boolean reverse) {
+                        throw new UnsupportedOperationException();
+                    }
+
+                    @Override
+                    public BucketedSort newBucketedSort(BigArrays bigArrays,
+                                                        Object missingValue,
+                                                        MultiValueMode sortMode,
+                                                        XFieldComparatorSource.Nested nested,
+                                                        SortOrder sortOrder,
+                                                        DocValueFormat format,
+                                                        int bucketSize,
+                                                        BucketedSort.ExtraData extra) {
+                        throw new UnsupportedOperationException();
+                    }
+                };
+            }
+        };
     }
 
     private static List<String> collect(String field, QueryShardContext queryShardContext) throws IOException {
@@ -426,5 +599,4 @@ public class QueryShardContextTests extends ESTestCase {
             return result;
         }
     }
-
 }

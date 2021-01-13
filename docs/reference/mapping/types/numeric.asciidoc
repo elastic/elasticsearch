@@ -165,5 +165,3 @@ The following parameters are accepted by numeric types:
     sorting) will behave as if the document had a value of +2.3+. High values
     of `scaling_factor` improve accuracy but also increase space requirements.
     This parameter is required.
-
-include::unsigned_long.asciidoc[]

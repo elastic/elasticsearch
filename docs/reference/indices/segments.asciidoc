@@ -50,7 +50,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
 
 `verbose`::
 experimental:[]
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the response includes detailed information
 about Lucene's memory usage.
 Defaults to `false`.

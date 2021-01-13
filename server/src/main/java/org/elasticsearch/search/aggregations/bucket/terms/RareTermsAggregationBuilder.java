@@ -84,7 +84,7 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -178,8 +178,12 @@ public class RareTermsAggregationBuilder extends ValuesSourceAggregationBuilder<
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
+
+        RareTermsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+
         return new RareTermsAggregatorFactory(name, config, includeExclude,
-            context, parent, subFactoriesBuilder, metadata, maxDocCount, precision);
+            context, parent, subFactoriesBuilder, metadata, maxDocCount, precision, aggregatorSupplier);
     }
 
     @Override

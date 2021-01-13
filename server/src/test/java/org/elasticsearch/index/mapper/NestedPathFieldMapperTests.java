@@ -21,30 +21,16 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.InternalSettingsPlugin;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Collections;
 
-public class NestedPathFieldMapperTests extends ESSingleNodeTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> getPlugins() {
-        return pluginList(InternalSettingsPlugin.class);
-    }
+public class NestedPathFieldMapperTests extends MapperServiceTestCase {
 
     public void testDefaults() throws IOException {
-        Settings indexSettings = Settings.EMPTY;
-        MapperService mapperService = createIndex("test", indexSettings).mapperService();
-        DocumentMapper mapper = mapperService.merge("_doc",
-            new CompressedXContent("{\"_doc\":{}}"), MapperService.MergeReason.MAPPING_UPDATE);
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
         ParsedDocument document = mapper.parse(new SourceToParse("index", "id", new BytesArray("{}"), XContentType.JSON));
         assertEquals(Collections.<IndexableField>emptyList(), Arrays.asList(document.rootDoc().getFields(NestedPathFieldMapper.NAME)));
     }

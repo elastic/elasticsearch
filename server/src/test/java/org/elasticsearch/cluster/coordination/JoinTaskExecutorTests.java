@@ -19,18 +19,31 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.RerouteService;
+import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.util.HashSet;
+import java.util.List;
+
 import static org.elasticsearch.test.VersionUtils.maxCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomCompatibleVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.Matchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class JoinTaskExecutorTests extends ESTestCase {
 
@@ -117,5 +130,38 @@ public class JoinTaskExecutorTests extends ESTestCase {
         Metadata metadata = metaBuilder.build();
             JoinTaskExecutor.ensureIndexCompatibility(Version.CURRENT,
                 metadata);
+    }
+
+    public void testUpdatesNodeWithNewRoles() throws Exception {
+        // Node roles vary by version, and new roles are suppressed for BWC. This means we can receive a join from a node that's already
+        // in the cluster but with a different set of roles: the node didn't change roles, but the cluster state came via an older master.
+        // In this case we must properly process its join to ensure that the roles are correct.
+
+        final AllocationService allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(allocationService, logger, rerouteService);
+
+        final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final DiscoveryNode actualNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
+        final DiscoveryNode bwcNode = new DiscoveryNode(actualNode.getName(), actualNode.getId(), actualNode.getEphemeralId(),
+                actualNode.getHostName(), actualNode.getHostAddress(), actualNode.getAddress(), actualNode.getAttributes(),
+                new HashSet<>(randomSubsetOf(actualNode.getRoles())), actualNode.getVersion());
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).nodes(DiscoveryNodes.builder()
+                .add(masterNode)
+                .localNodeId(masterNode.getId())
+                .masterNodeId(masterNode.getId())
+                .add(bwcNode)
+        ).build();
+
+        final ClusterStateTaskExecutor.ClusterTasksResult<JoinTaskExecutor.Task> result
+                = joinTaskExecutor.execute(clusterState, List.of(new JoinTaskExecutor.Task(actualNode, "test")));
+        assertThat(result.executionResults.entrySet(), hasSize(1));
+        final ClusterStateTaskExecutor.TaskResult taskResult = result.executionResults.values().iterator().next();
+        assertTrue(taskResult.isSuccess());
+
+        assertThat(result.resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
     }
 }

@@ -58,16 +58,16 @@ public final class InnerHitsPhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) throws IOException {
-                hitExecute(innerHits, hitContext);
+                SearchHit hit = hitContext.hit();
+                SourceLookup rootLookup = searchContext.getRootSourceLookup(hitContext);
+                hitExecute(innerHits, hit, rootLookup);
             }
         };
     }
 
-    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits, HitContext hitContext) throws IOException {
-
-        SearchHit hit = hitContext.hit();
-        SourceLookup sourceLookup = hitContext.sourceLookup();
-
+    private void hitExecute(Map<String, InnerHitsContext.InnerHitSubContext> innerHits,
+                            SearchHit hit,
+                            SourceLookup rootLookup) throws IOException {
         for (Map.Entry<String, InnerHitsContext.InnerHitSubContext> entry : innerHits.entrySet()) {
             InnerHitsContext.InnerHitSubContext innerHitsContext = entry.getValue();
             TopDocsAndMaxScore topDoc = innerHitsContext.topDocs(hit);
@@ -81,9 +81,9 @@ public final class InnerHitsPhase implements FetchSubPhase {
             for (int j = 0; j < topDoc.topDocs.scoreDocs.length; j++) {
                 docIdsToLoad[j] = topDoc.topDocs.scoreDocs[j].doc;
             }
-            innerHitsContext.docIdsToLoad(docIdsToLoad, 0, docIdsToLoad.length);
+            innerHitsContext.docIdsToLoad(docIdsToLoad, docIdsToLoad.length);
             innerHitsContext.setRootId(hit.getId());
-            innerHitsContext.setRootLookup(sourceLookup);
+            innerHitsContext.setRootLookup(rootLookup);
 
             fetchPhase.execute(innerHitsContext);
             FetchSearchResult fetchResult = innerHitsContext.fetchResult();

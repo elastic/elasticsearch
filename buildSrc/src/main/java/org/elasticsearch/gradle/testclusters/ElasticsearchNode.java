@@ -127,7 +127,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
-
     private final AtomicBoolean configurationFrozen = new AtomicBoolean(false);
     private final Path workingDir;
 
@@ -167,6 +166,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private String transportPort = "0";
     private Path confPathData;
     private String keystorePassword = "";
+    private boolean preserveDataDir = false;
 
     ElasticsearchNode(
         String path,
@@ -231,7 +231,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void doSetVersion(String version) {
-        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version + "-";
+        String distroName = "testclusters" + path.replace(":", "-") + "-" + this.name + "-" + version;
         NamedDomainObjectContainer<ElasticsearchDistribution> container = DistributionDownloadPlugin.getContainer(project);
         if (container.findByName(distroName) == null) {
             container.create(distroName);
@@ -422,9 +422,21 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     @Override
+    @Input
+    public boolean isPreserveDataDir() {
+        return preserveDataDir;
+    }
+
+    @Override
+    public void setPreserveDataDir(boolean preserveDataDir) {
+        this.preserveDataDir = preserveDataDir;
+    }
+
+    @Override
     public void freeze() {
         requireNonNull(testDistribution, "null testDistribution passed when configuring test cluster `" + this + "`");
         LOGGER.info("Locking configuration of `{}`", this);
+        distributions.stream().forEach(d -> d.maybeFreeze());
         configurationFrozen.set(true);
     }
 
@@ -452,7 +464,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 logToProcessStdout("Configuring working directory: " + workingDir);
                 // make sure we always start fresh
                 if (Files.exists(workingDir)) {
-                    fileSystemOperations.delete(d -> d.delete(workingDir));
+                    if (preserveDataDir) {
+                        Files.list(workingDir)
+                            .filter(path -> path.equals(confPathData) == false)
+                            .forEach(path -> fileSystemOperations.delete(d -> d.delete(path)));
+                    } else {
+                        fileSystemOperations.delete(d -> d.delete(workingDir));
+                    }
                 }
                 isWorkingDirConfigured = true;
             }
@@ -493,7 +511,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         if (keystoreSettings.isEmpty() == false || keystoreFiles.isEmpty() == false) {
             logToProcessStdout("Adding " + keystoreSettings.size() + " keystore settings and " + keystoreFiles.size() + " keystore files");
 
-            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", "-x", key));
+            keystoreSettings.forEach((key, value) -> runKeystoreCommandWithPassword(keystorePassword, value.toString(), "add", key));
 
             for (Map.Entry<String, File> entry : keystoreFiles.entrySet()) {
                 File file = entry.getValue();
@@ -617,27 +635,23 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        if (testDistribution == TestDistribution.INTEG_TEST) {
-            logToProcessStdout("Installing " + modules.size() + "modules");
-            for (Provider<File> module : modules) {
-                Path destination = getDistroDir().resolve("modules")
-                    .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
-                // only install modules that are not already bundled with the integ-test distribution
-                if (Files.exists(destination) == false) {
-                    fileSystemOperations.copy(spec -> {
-                        if (module.get().getName().toLowerCase().endsWith(".zip")) {
-                            spec.from(archiveOperations.zipTree(module));
-                        } else if (module.get().isDirectory()) {
-                            spec.from(module);
-                        } else {
-                            throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
-                        }
-                        spec.into(destination);
-                    });
-                }
+        logToProcessStdout("Installing " + modules.size() + "modules");
+        for (Provider<File> module : modules) {
+            Path destination = getDistroDir().resolve("modules")
+                .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));
+            // only install modules that are not already bundled with the integ-test distribution
+            if (Files.exists(destination) == false) {
+                fileSystemOperations.copy(spec -> {
+                    if (module.get().getName().toLowerCase().endsWith(".zip")) {
+                        spec.from(archiveOperations.zipTree(module));
+                    } else if (module.get().isDirectory()) {
+                        spec.from(module);
+                    } else {
+                        throw new IllegalArgumentException("Not a valid module " + module + " for " + this);
+                    }
+                    spec.into(destination);
+                });
             }
-        } else {
-            LOGGER.info("Not installing " + modules.size() + "(s) since the " + distributions + " distribution already has them");
         }
     }
 
@@ -737,6 +751,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                     // we replace the reference with the actual value in other environment variables
                     .map(p -> p.replace("${ES_PATH_CONF}", configFile.getParent().toString()))
                     .collect(Collectors.joining(" "));
+        }
+        if (systemProperties.containsKey("io.netty.leakDetection.level") == false) {
+            systemPropertiesString = systemPropertiesString + " -Dio.netty.leakDetection.level=paranoid";
         }
         String jvmArgsString = "";
         if (jvmArgs.isEmpty() == false) {
@@ -874,10 +891,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         // Test clusters are not reused, don't spend time on a graceful shutdown
         stopHandle(esProcess.toHandle(), true);
         reaper.unregister(toString());
-        if (tailLogs) {
-            logFileContents("Standard output of node", esStdoutFile);
-            logFileContents("Standard error of node", esStderrFile);
-        }
         esProcess = null;
         // Clean up the ports file in case this is started again.
         try {
@@ -890,6 +903,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        logFileContents("Standard output of node", esStdoutFile, tailLogs);
+        logFileContents("Standard error of node", esStderrFile, tailLogs);
     }
 
     @Override
@@ -942,7 +957,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         );
     }
 
-    private void logFileContents(String description, Path from) {
+    private void logFileContents(String description, Path from, boolean tailLogs) {
         final Map<String, Integer> errorsAndWarnings = new LinkedHashMap<>();
         LinkedList<String> ring = new LinkedList<>();
         try (LineNumberReader reader = new LineNumberReader(Files.newBufferedReader(from))) {
@@ -971,31 +986,47 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 }
             }
         } catch (IOException e) {
-            throw new UncheckedIOException("Failed to tail log " + this, e);
+            if (tailLogs) {
+                throw new UncheckedIOException("Failed to tail log " + this, e);
+            }
+            return;
         }
 
-        if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
-            LOGGER.error("\n=== {} `{}` ===", description, this);
+        boolean foundNettyLeaks = false;
+        for (String logLine : errorsAndWarnings.keySet()) {
+            if (logLine.contains("ResourceLeakDetector]")) {
+                tailLogs = true;
+                foundNettyLeaks = true;
+                break;
+            }
         }
-        if (errorsAndWarnings.isEmpty() == false) {
-            LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
-            errorsAndWarnings.forEach((message, count) -> {
-                LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                if (count > 1) {
-                    LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
-                }
-            });
-        }
-
-        ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
-
-        if (ring.isEmpty() == false) {
-            LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
-            ring.forEach(message -> {
-                if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+        if (tailLogs) {
+            if (errorsAndWarnings.isEmpty() == false || ring.isEmpty() == false) {
+                LOGGER.error("\n=== {} `{}` ===", description, this);
+            }
+            if (errorsAndWarnings.isEmpty() == false) {
+                LOGGER.lifecycle("\n»    ↓ errors and warnings from " + from + " ↓");
+                errorsAndWarnings.forEach((message, count) -> {
                     LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
-                }
-            });
+                    if (count > 1) {
+                        LOGGER.lifecycle("»   ↑ repeated " + count + " times ↑");
+                    }
+                });
+            }
+
+            ring.removeIf(line -> MESSAGES_WE_DONT_CARE_ABOUT.stream().anyMatch(line::contains));
+
+            if (ring.isEmpty() == false) {
+                LOGGER.lifecycle("»   ↓ last " + TAIL_LOG_MESSAGES_COUNT + " non error or warning messages from " + from + " ↓");
+                ring.forEach(message -> {
+                    if (errorsAndWarnings.containsKey(normalizeLogLine(message)) == false) {
+                        LOGGER.lifecycle("» " + message.replace("\n", "\n»  "));
+                    }
+                });
+            }
+        }
+        if (foundNettyLeaks) {
+            throw new TestClustersException("Found Netty ByteBuf leaks in node logs.");
         }
     }
 

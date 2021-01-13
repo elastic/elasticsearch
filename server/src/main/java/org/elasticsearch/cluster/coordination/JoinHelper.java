@@ -36,8 +36,9 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -86,7 +87,7 @@ public class JoinHelper {
 
     private final Supplier<JoinTaskExecutor> joinTaskExecutorGenerator;
 
-    JoinHelper(AllocationService allocationService, MasterService masterService, TransportService transportService,
+    JoinHelper(Settings settings, AllocationService allocationService, MasterService masterService, TransportService transportService,
                LongSupplier currentTermSupplier, Supplier<ClusterState> currentStateSupplier,
                BiConsumer<JoinRequest, JoinCallback> joinHandler, Function<StartJoinRequest, Join> joinLeaderInTerm,
                Collection<BiConsumer<DiscoveryNode, ClusterState>> joinValidators, RerouteService rerouteService,
@@ -133,15 +134,20 @@ public class JoinHelper {
                 channel.sendResponse(Empty.INSTANCE);
             });
 
+        final List<String> dataPaths = Environment.PATH_DATA_SETTING.get(settings);
         transportService.registerRequestHandler(VALIDATE_JOIN_ACTION_NAME,
             ThreadPool.Names.GENERIC, ValidateJoinRequest::new,
             (request, channel, task) -> {
                 final ClusterState localState = currentStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted() &&
-                    localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
-                    throw new CoordinationStateRejectedException("join validation on cluster state" +
-                        " with a different cluster uuid " + request.getState().metadata().clusterUUID() +
-                        " than local cluster uuid " + localState.metadata().clusterUUID() + ", rejecting");
+                        localState.metadata().clusterUUID().equals(request.getState().metadata().clusterUUID()) == false) {
+                    throw new CoordinationStateRejectedException("This node previously joined a cluster with UUID [" +
+                            localState.metadata().clusterUUID() + "] and is now trying to join a different cluster with UUID [" +
+                            request.getState().metadata().clusterUUID() + "]. This is forbidden and usually indicates an incorrect " +
+                            "discovery or cluster bootstrapping configuration. Note that the cluster UUID persists across restarts and " +
+                            "can only be changed by deleting the contents of the node's data " +
+                            (dataPaths.size() == 1 ? "path " : "paths ") + dataPaths +
+                            " which will also remove any data held by this node.");
                 }
                 joinValidators.forEach(action -> action.accept(transportService.getLocalNode(), request.getState()));
                 channel.sendResponse(Empty.INSTANCE);
@@ -240,15 +246,9 @@ public class JoinHelper {
         final Tuple<DiscoveryNode, JoinRequest> dedupKey = Tuple.tuple(destination, joinRequest);
         if (pendingOutgoingJoins.add(dedupKey)) {
             logger.debug("attempting to join {} with {}", destination, joinRequest);
-            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest,
-                new TransportResponseHandler<Empty>() {
+            transportService.sendRequest(destination, JOIN_ACTION_NAME, joinRequest, new TransportResponseHandler.Empty() {
                     @Override
-                    public Empty read(StreamInput in) {
-                        return Empty.INSTANCE;
-                    }
-
-                    @Override
-                    public void handleResponse(Empty response) {
+                    public void handleResponse(TransportResponse.Empty response) {
                         pendingOutgoingJoins.remove(dedupKey);
                         logger.debug("successfully joined {} with {}", destination, joinRequest);
                         lastFailedJoinAttempt.set(null);
@@ -261,11 +261,6 @@ public class JoinHelper {
                         attempt.logNow();
                         lastFailedJoinAttempt.set(attempt);
                     }
-
-                    @Override
-                    public String executor() {
-                        return Names.SAME;
-                    }
                 });
         } else {
             logger.debug("already attempting to join {} with request {}, not sending request", destination, joinRequest);
@@ -275,26 +270,15 @@ public class JoinHelper {
     void sendStartJoinRequest(final StartJoinRequest startJoinRequest, final DiscoveryNode destination) {
         assert startJoinRequest.getSourceNode().isMasterNode()
             : "sending start-join request for master-ineligible " + startJoinRequest.getSourceNode();
-        transportService.sendRequest(destination, START_JOIN_ACTION_NAME,
-            startJoinRequest, new TransportResponseHandler<Empty>() {
+        transportService.sendRequest(destination, START_JOIN_ACTION_NAME, startJoinRequest, new TransportResponseHandler.Empty() {
                 @Override
-                public Empty read(StreamInput in) {
-                    return Empty.INSTANCE;
-                }
-
-                @Override
-                public void handleResponse(Empty response) {
+                public void handleResponse(TransportResponse.Empty response) {
                     logger.debug("successful response to {} from {}", startJoinRequest, destination);
                 }
 
                 @Override
                 public void handleException(TransportException exp) {
                     logger.debug(new ParameterizedMessage("failure in response to {} from {}", startJoinRequest, destination), exp);
-                }
-
-                @Override
-                public String executor() {
-                    return ThreadPool.Names.SAME;
                 }
             });
     }

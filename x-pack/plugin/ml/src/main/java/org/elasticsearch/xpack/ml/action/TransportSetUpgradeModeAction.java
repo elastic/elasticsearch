@@ -225,17 +225,17 @@ public class TransportSetUpgradeModeAction extends AcknowledgedTransportMasterNo
 
         //<1> Change MlMetadata to indicate that upgrade_mode is now enabled
         clusterService.submitStateUpdateTask("ml-set-upgrade-mode",
-            new AckedClusterStateUpdateTask<AcknowledgedResponse>(request, clusterStateUpdateListener) {
+            new AckedClusterStateUpdateTask(request, clusterStateUpdateListener) {
 
                 @Override
                 protected AcknowledgedResponse newResponse(boolean acknowledged) {
-                    logger.info("Cluster update response built: " + acknowledged);
+                    logger.trace("Cluster update response built: " + acknowledged);
                     return AcknowledgedResponse.of(acknowledged);
                 }
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    logger.info("Executing cluster state update");
+                    logger.trace("Executing cluster state update");
                     MlMetadata.Builder builder = new MlMetadata.Builder(currentState.metadata().custom(MlMetadata.TYPE));
                     builder.isUpgradeMode(request.isEnabled());
                     ClusterState.Builder newState = ClusterState.builder(currentState);

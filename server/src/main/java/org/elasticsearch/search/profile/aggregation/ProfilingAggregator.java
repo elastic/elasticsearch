@@ -119,19 +119,13 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public void postCollection() throws IOException {
-        Timer timer = profileBreakdown.getTimer(AggregationTimingType.POST_COLLECTION);
-        timer.start();
-        try {
-            delegate.postCollection();
-        } finally {
-            timer.stop();
-        }
+    public String toString() {
+        return delegate.toString();
     }
 
     @Override
-    public String toString() {
-        return delegate.toString();
+    public Aggregator[] subAggregators() {
+        return delegate.subAggregators();
     }
 
     public static Aggregator unwrap(Aggregator agg) {

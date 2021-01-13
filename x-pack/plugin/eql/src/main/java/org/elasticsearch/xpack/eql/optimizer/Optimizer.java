@@ -7,14 +7,16 @@
 package org.elasticsearch.xpack.eql.optimizer;
 
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveBinaryComparison;
+import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveNotEquals;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
+import org.elasticsearch.xpack.eql.util.StringUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
@@ -22,17 +24,19 @@ import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.ql.expression.predicate.regex.Like;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanFunctionEqualsElimination;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanLiteralsOnTheRight;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BooleanSimplification;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineBinaryComparisons;
+import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.CombineDisjunctionsToIn;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.ConstantFolding;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.OptimizerRule;
 import org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PropagateEquals;
@@ -45,7 +49,6 @@ import org.elasticsearch.xpack.ql.plan.logical.Filter;
 import org.elasticsearch.xpack.ql.plan.logical.Limit;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
-import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -67,11 +70,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     @Override
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitution", Limiter.ONCE,
+                new ReplaceWildcards(),
                 new ReplaceSurrogateFunction(),
                 new ReplaceRegexMatch());
-
-        Batch syntactic = new Batch("Rewrite Syntactic Sugar", Limiter.ONCE,
-                new AddMissingEquals());
 
         Batch operators = new Batch("Operator Optimization",
                 new ConstantFolding(),
@@ -83,6 +84,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 new ReplaceNullChecks(),
                 new PropagateEquals(),
                 new CombineBinaryComparisons(),
+                new CombineDisjunctionsToIn(),
                 new PushDownAndCombineFilters(),
                 // prune/elimination
                 new PruneFilters(),
@@ -104,33 +106,47 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         Batch label = new Batch("Set as Optimized", Limiter.ONCE,
                 new SetAsOptimized());
 
-        return asList(substitutions, syntactic, operators, constraints, operators, ordering, local, label);
+        return asList(substitutions, operators, constraints, operators, ordering, local, label);
     }
 
-    private static class AddMissingEquals extends OptimizerRule<Filter> {
+    private static class ReplaceWildcards extends OptimizerRule<Filter> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            // check the condition itself
-            Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
-            // otherwise look for binary logic
-            if (condition == filter.condition()) {
-                condition = condition.transformUp(b ->
-                    b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
-                , BinaryLogic.class);
-            }
+            return filter.transformExpressionsUp(InsensitiveBinaryComparison.class, cmp -> {
+                // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
+                Expression result = cmp;
+                Expression target = null;
+                String wildString = null;
 
-            if (condition != filter.condition()) {
-                filter = new Filter(filter.source(), filter.child(), condition);
-            }
-            return filter;
+                // check only the right side
+                if (isWildcard(cmp.right())) {
+                    wildString = (String) cmp.right().fold();
+                    target = cmp.left();
+                }
+
+                if (target != null) {
+                    Expression like = new Like(cmp.source(), target, StringUtils.toLikePattern(wildString), true);
+                    if (cmp instanceof InsensitiveNotEquals) {
+                        like = new Not(cmp.source(), like);
+                    }
+
+                    result = like;
+                }
+
+                return result;
+            });
         }
 
-        private Expression replaceRawBoolFieldWithEquals(Expression e) {
-            if (e instanceof FieldAttribute) {
-                e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
+        private static boolean isWildcard(Expression expr) {
+            if (expr instanceof Literal) {
+                Object value = expr.fold();
+                if (value instanceof String) {
+                    String string = (String) value;
+                    return string.contains("*") || string.contains("?");
+                }
             }
-            return e;
+            return false;
         }
     }
 
@@ -139,21 +155,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
 
-            return filter.transformExpressionsUp(e -> {
+            return filter.transformExpressionsUp(BinaryComparison.class, cmp -> {
+                Expression result = cmp;
                 // expr == null || expr != null
-                if (e instanceof Equals || e instanceof NotEquals) {
-                    BinaryComparison cmp = (BinaryComparison) e;
-
+                if (cmp instanceof Equals || cmp instanceof NotEquals) {
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
-                        if (e instanceof Equals) {
-                            e = new IsNull(e.source(), cmp.left());
+                        if (cmp instanceof Equals) {
+                            result = new IsNull(cmp.source(), cmp.left());
                         } else {
-                            e = new IsNotNull(e.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), cmp.left());
                         }
                     }
                 }
-
-                return e;
+                return result;
             });
         }
     }
@@ -303,8 +317,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // collect constraints for each filter
             join.queries().forEach(k ->
-                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
-                                  , Filter.class));
+                k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                ));
 
             if (constraints.isEmpty() == false) {
                 List<KeyedFilter> queries = join.queries().stream()
@@ -402,7 +416,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Join join = (Join) child;
                     List<KeyedFilter> queries = join.queries();
 
-                    // the main reason ASC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    // the main reason DESC is used is the lack of search_before (which is emulated through search_after + ASC)
+                    // see https://github.com/elastic/elasticsearch/issues/62118
                     List<Order> ascendingOrders = changeOrderDirection(orderBy.order(), OrderDirection.ASC);
                     // preserve the order direction as is (can be DESC) for the base query
                     List<KeyedFilter> orderedQueries = new ArrayList<>(queries.size());
@@ -430,7 +445,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             LogicalPlan child = orderBy.child();
             // the default order by is the first pipe
             // so it has to be on top of a event query or join/sequence
-            return child instanceof Project || child instanceof Join;
+            return child instanceof Filter || child instanceof Join;
         }
 
         private static List<Order> changeOrderDirection(List<Order> orders, Order.OrderDirection direction) {

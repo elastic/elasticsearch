@@ -105,7 +105,12 @@ public class HttpResponse implements ToXContentObject {
         if (values == null || values.length == 0) {
             return null;
         }
-        return XContentType.fromMediaType(values[0]);
+        try {
+            return XContentType.fromMediaType(values[0]);
+        } catch (IllegalArgumentException e) {
+            //HttpInputTests - content-type being unrecognized_content_type
+            return null;
+        }
     }
 
     @Override

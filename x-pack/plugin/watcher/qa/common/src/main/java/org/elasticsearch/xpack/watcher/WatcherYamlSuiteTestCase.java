@@ -7,10 +7,7 @@ package org.elasticsearch.xpack.watcher;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -19,11 +16,11 @@ import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
 
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.xpack.watcher.WatcherRestTestCase.deleteAllWatcherData;
 
 /**
  * Parent test class for Watcher YAML based REST tests
@@ -63,7 +60,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                     int watcherCount = (int) response.evaluate("stats.0.watch_count");
                     if (watcherCount > 0) {
                         logger.info("expected 0 active watches, but got [{}], deleting watcher indices again", watcherCount);
-                        deleteWatcherIndices();
+                        deleteAllWatcherData();
                     }
                     // all good here, we are done
                     break;
@@ -100,22 +97,6 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
                     throw new AssertionError("unknown state[" + state + "]");
             }
         }, 60, TimeUnit.SECONDS);
-        deleteWatcherIndices();
-    }
-
-    private static void deleteWatcherIndices() throws IOException {
-        Request deleteWatchesIndexRequest = new Request("DELETE", ".watches");
-        deleteWatchesIndexRequest.addParameter("ignore_unavailable", "true");
-        deleteWatchesIndexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
-            final String expectedWaring = "this request accesses system indices: [.watches], but in a future major version, direct "
-                + "access to system indices will be prevented by default";
-            // There might not be a warning if the .watches index doesn't exist
-            return (warnings.isEmpty() || warnings.get(0).equals(expectedWaring)) == false;
-        }));
-        ESRestTestCase.adminClient().performRequest(deleteWatchesIndexRequest);
-
-        Request deleteWatchHistoryRequest = new Request("DELETE", ".watcher-history-*");
-        deleteWatchHistoryRequest.addParameter("ignore_unavailable", "true");
-        ESRestTestCase.adminClient().performRequest(deleteWatchHistoryRequest);
+        deleteAllWatcherData();
     }
 }

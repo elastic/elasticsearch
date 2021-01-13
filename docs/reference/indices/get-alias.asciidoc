@@ -51,7 +51,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 Defaults to `all`.
 
 `ignore_unavailable`::
-(Optional, boolean)
+(Optional, Boolean)
 If `false`, requests that include a missing index in the `<index>` argument
 return an error. Defaults to `false`.
 

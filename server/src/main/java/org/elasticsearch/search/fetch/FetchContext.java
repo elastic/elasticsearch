@@ -20,20 +20,21 @@
 package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.search.fetch.subphase.InnerHitsContext;
+import org.elasticsearch.search.fetch.subphase.InnerHitsContext.InnerHitSubContext;
 import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.rescore.RescoreContext;
 
 import java.util.Collections;
@@ -52,7 +53,7 @@ public class FetchContext {
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getQueryShardContext().newFetchLookup();
+        this.searchLookup = searchContext.getQueryShardContext().lookup();
     }
 
     /**
@@ -67,20 +68,6 @@ public class FetchContext {
      */
     public ContextIndexSearcher searcher() {
         return searchContext.searcher();
-    }
-
-    /**
-     * The mapper service for the index we are fetching documents from
-     */
-    public MapperService mapperService() {
-        return searchContext.mapperService();
-    }
-
-    /**
-     * The index settings for the index we are fetching documents from
-     */
-    public IndexSettings getIndexSettings() {
-        return mapperService().getIndexSettings();
     }
 
     /**
@@ -167,6 +154,14 @@ public class FetchContext {
     }
 
     /**
+     * Does the index analyzer for this field have token filters that may produce
+     * backwards offsets in term vectors
+     */
+    public boolean containsBrokenAnalysis(String field) {
+        return getQueryShardContext().containsBrokenAnalysis(field);
+    }
+
+    /**
      * Should the response include scores, even if scores were not calculated in the original query
      */
     public boolean fetchScores() {
@@ -206,5 +201,28 @@ public class FetchContext {
      */
     public SearchExtBuilder getSearchExt(String name) {
         return searchContext.getSearchExt(name);
+    }
+
+    public QueryShardContext getQueryShardContext() {
+        return searchContext.getQueryShardContext();
+    }
+
+    /**
+     * For a hit document that's being processed, return the source lookup representing the
+     * root document. This method is used to pass down the root source when processing this
+     * document's nested inner hits.
+     *
+     * @param hitContext The context of the hit that's being processed.
+     */
+    public SourceLookup getRootSourceLookup(FetchSubPhase.HitContext hitContext) {
+        // Usually the root source simply belongs to the hit we're processing. But if
+        // there are multiple layers of inner hits and we're in a nested context, then
+        // the root source is found on the inner hits context.
+        if (searchContext instanceof InnerHitSubContext && hitContext.hit().getNestedIdentity() != null) {
+            InnerHitSubContext innerHitsContext = (InnerHitSubContext) searchContext;
+            return innerHitsContext.getRootLookup();
+        } else {
+            return hitContext.sourceLookup();
+        }
     }
 }

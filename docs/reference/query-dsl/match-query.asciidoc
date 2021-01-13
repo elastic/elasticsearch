@@ -58,7 +58,7 @@ default analyzer is used.
 `auto_generate_synonyms_phrase_query`::
 +
 --
-(Optional, boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
+(Optional, Boolean) If `true`, <<query-dsl-match-query-phrase,match phrase>>
 queries are automatically created for multi-term synonyms. Defaults to `true`.
 
 See <<query-dsl-match-query-synonyms,Use synonyms with match query>> for an
@@ -79,7 +79,7 @@ expand. Defaults to `50`.
 matching. Defaults to `0`.
 
 `fuzzy_transpositions`::
-(Optional, boolean) If `true`, edits for fuzzy matching include
+(Optional, Boolean) If `true`, edits for fuzzy matching include
 transpositions of two adjacent characters (ab → ba). Defaults to `true`.
 
 `fuzzy_rewrite`::
@@ -94,7 +94,7 @@ method of `top_terms_blended_freqs_${max_expansions}` by default.
 --
 
 `lenient`::
-(Optional, boolean) If `true`, format-based errors, such as providing a text
+(Optional, Boolean) If `true`, format-based errors, such as providing a text
 `query` value for a <<number,numeric>> field, are ignored. Defaults to `false`.
 
 `operator`::

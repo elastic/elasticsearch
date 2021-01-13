@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeSta
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.action.TransportOpenJobAction.JobTask;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.job.JobManager;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzerTests;
@@ -58,6 +57,7 @@ import org.elasticsearch.xpack.ml.job.process.autodetect.params.DataLoadParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.FlushJobParams;
 import org.elasticsearch.xpack.ml.job.process.autodetect.params.TimeRange;
 import org.elasticsearch.xpack.ml.job.process.normalizer.NormalizerFactory;
+import org.elasticsearch.xpack.ml.job.task.JobTask;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -273,7 +273,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         when(autodetectProcess.isProcessAlive()).thenReturn(true);
         when(autodetectProcess.readAutodetectResults()).thenReturn(Collections.emptyIterator());
 
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         Settings.Builder settings = Settings.builder();
         settings.put(MachineLearning.MAX_OPEN_JOBS_PER_NODE.getKey(), 3);
         AutodetectProcessManager manager = createSpyManager(settings.build());
@@ -620,7 +620,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq("my_id"), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         AutodetectProcessManager manager = createSpyManager();
         doCallRealMethod().when(manager).create(any(), any(), any(), any());
 
@@ -694,7 +694,7 @@ public class AutodetectProcessManagerTests extends ESTestCase {
         }).when(jobManager).getJob(eq(jobId), any());
 
         AutodetectProcess autodetectProcess = mock(AutodetectProcess.class);
-        autodetectFactory = (j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
+        autodetectFactory = (pid, j, autodetectParams, e, onProcessCrash) -> autodetectProcess;
         return createManager(Settings.EMPTY);
     }
 

@@ -72,11 +72,11 @@ public final class TypeFieldType extends ConstantFieldType {
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
         deprecationLogger.deprecate("typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
-        return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.BYTES);
+        return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.KEYWORD);
     }
 
     @Override
-    public ValueFetcher valueFetcher(MapperService mapperService, SearchLookup searchLookup, String format) {
+    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
 

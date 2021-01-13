@@ -115,8 +115,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BitsetFilterCache bitsetFilterCache;
     private final NodeEnvironment nodeEnv;
     private final ShardStoreDeleter shardStoreDeleter;
+    private final IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener;
     private final IndexStorePlugin.DirectoryFactory directoryFactory;
     private final IndexStorePlugin.RecoveryStateFactory recoveryStateFactory;
+    private final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier;
     private final CheckedFunction<DirectoryReader, DirectoryReader, IOException> readerWrapper;
     private final IndexCache indexCache;
     private final MapperService mapperService;
@@ -134,8 +136,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     private final BooleanSupplier allowExpensiveQueries;
     private volatile AsyncRefreshTask refreshTask;
     private volatile AsyncTranslogFSync fsyncTask;
-    private volatile AsyncGlobalCheckpointTask globalCheckpointTask;
-    private volatile AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
+    private final AsyncGlobalCheckpointTask globalCheckpointTask;
+    private final AsyncRetentionLeaseSyncTask retentionLeaseSyncTask;
 
     // don't convert to Setting<> and register... we only set this in tests and register via a plugin
     private final String INDEX_TRANSLOG_RETENTION_CHECK_INTERVAL_SETTING = "index.translog.retention.check_interval";
@@ -178,7 +180,9 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             BooleanSupplier allowExpensiveQueries,
             IndexNameExpressionResolver expressionResolver,
             ValuesSourceRegistry valuesSourceRegistry,
-            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory) {
+            IndexStorePlugin.RecoveryStateFactory recoveryStateFactory,
+            IndexStorePlugin.IndexFoldersDeletionListener indexFoldersDeletionListener,
+            IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier) {
         super(indexSettings);
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.indexSettings = indexSettings;
@@ -188,11 +192,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         this.circuitBreakerService = circuitBreakerService;
         this.expressionResolver = expressionResolver;
         this.valuesSourceRegistry =  valuesSourceRegistry;
+        this.snapshotCommitSupplier = snapshotCommitSupplier;
         if (needsMapperService(indexSettings, indexCreationContext)) {
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, null, System::currentTimeMillis, null), idFieldDataEnabled, scriptService);
+                () -> newQueryShardContext(0, 0, null, System::currentTimeMillis, null, emptyMap()), idFieldDataEnabled, scriptService);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -219,6 +224,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
 
         this.shardStoreDeleter = shardStoreDeleter;
+        this.indexFoldersDeletionListener = indexFoldersDeletionListener;
         this.bigArrays = bigArrays;
         this.threadPool = threadPool;
         this.scriptService = scriptService;
@@ -414,7 +420,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             } catch (IllegalStateException ex) {
                 logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
                 try {
-                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
+                    ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings, shardPaths ->
+                        indexFoldersDeletionListener.beforeShardFoldersDeleted(shardId, this.indexSettings, shardPaths));
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings.customDataPath());
                 } catch (Exception inner) {
                     ex.addSuppressed(inner);
@@ -479,7 +486,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                     indexingOperationListeners,
                     () -> globalCheckpointSyncer.accept(shardId),
                     retentionLeaseSyncer,
-                    circuitBreakerService);
+                    circuitBreakerService,
+                    snapshotCommitSupplier);
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
             eventListener.afterIndexShardCreated(indexShard);
             shards = Maps.copyMapWithAddedEntry(shards, shardId.id(), indexShard);
@@ -526,7 +534,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
                 // and close the shard so no operations are allowed to it
                 if (indexShard != null) {
                     try {
-                        // only flush we are we closed (closed index or shutdown) and if we are not deleted
+                        // only flush if we are closed (closed index or shutdown) and if we are not deleted
                         final boolean flushEngine = deleted.get() == false && closed.get();
                         indexShard.close(reason, flushEngine);
                     } catch (Exception e) {
@@ -586,13 +594,38 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(int shardId, IndexSearcher searcher, LongSupplier nowInMillis, String clusterAlias) {
+    public QueryShardContext newQueryShardContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        String clusterAlias,
+        Map<String, Object> runtimeMappings
+    ) {
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
         return new QueryShardContext(
-            shardId, indexSettings, bigArrays, indexCache.bitsetFilterCache(), indexFieldData::getForField, mapperService(),
-            similarityService(), scriptService, xContentRegistry, namedWriteableRegistry, client, searcher, nowInMillis, clusterAlias,
-            indexNameMatcher, allowExpensiveQueries, valuesSourceRegistry);
+            shardId,
+            shardRequestIndex,
+            indexSettings,
+            bigArrays,
+            indexCache.bitsetFilterCache(),
+            indexFieldData::getForField,
+            mapperService(),
+            mapperService().mappingLookup(),
+            similarityService(),
+            scriptService,
+            xContentRegistry,
+            namedWriteableRegistry,
+            client,
+            searcher,
+            nowInMillis,
+            clusterAlias,
+            indexNameMatcher,
+            allowExpensiveQueries,
+            valuesSourceRegistry,
+            runtimeMappings
+        );
     }
 
     /**

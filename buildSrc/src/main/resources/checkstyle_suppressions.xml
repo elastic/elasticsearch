@@ -49,5 +49,5 @@
   <suppress files="modules[/\\]reindex[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ReindexDocumentationIT.java" id="SnippetLength" />
 
   <!-- Gradle requires inputs to be seriablizable -->
-  <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
+  <suppress files="buildSrc[/\\]src[/\\]main[/\\]java[/\\]org[/\\]elasticsearch[/\\]gradle[/\\]internal[/\\]precommit[/\\]TestingConventionRule.java" checks="RegexpSinglelineJava" />
 </suppressions>

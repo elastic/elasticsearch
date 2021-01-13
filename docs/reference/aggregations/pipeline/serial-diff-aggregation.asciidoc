@@ -1,5 +1,8 @@
 [[search-aggregations-pipeline-serialdiff-aggregation]]
-=== Serial Differencing Aggregation
+=== Serial differencing aggregation
+++++
+<titleabbrev>Serial differencing</titleabbrev>
+++++
 
 Serial differencing is a technique where values in a time series are subtracted from itself at
 different time lags or periods. For example, the datapoint f(x) = f(x~t~) - f(x~t-n~), where n is the period being used.

@@ -52,9 +52,9 @@ final class ESPolicy extends Policy {
 
     ESPolicy(Map<String, URL> codebases, PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults,
              PermissionCollection dataPathPermission) {
-        this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
+        this.template = PolicyUtil.readPolicy(getClass().getResource(POLICY_RESOURCE), codebases);
         this.dataPathPermission = dataPathPermission;
-        this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
+        this.untrusted = PolicyUtil.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), Collections.emptyMap());
         if (filterBadDefaults) {
             this.system = new SystemPolicy(Policy.getPolicy());
         } else {

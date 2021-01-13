@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -77,6 +76,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
@@ -88,9 +88,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     @Before
     private void setup() {
         settings = createIndexSettings();
-        queryShardContext = new QueryShardContext(0, settings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null, () -> true, null);
+        queryShardContext = new QueryShardContext(0, 0, settings,
+            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null,
+                null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -511,7 +511,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
 
         try {
             RollupJob job = new RollupJob(config, Collections.emptyMap());
-            final SyncRollupIndexer action = new SyncRollupIndexer(threadPool, ThreadPool.Names.GENERIC, job, searcher,
+            final SyncRollupIndexer action = new SyncRollupIndexer(threadPool, job, searcher,
                     fieldTypeLookup.values().toArray(new MappedFieldType[0]), fieldTypeLookup.get(dateHistoField));
             rollupConsumer.accept(action.triggerAndWaitForCompletion(now));
         } finally {
@@ -536,7 +536,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getHistogram() != null) {
             for (String field : job.getGroupConfig().getHistogram().getFields()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(field, NumberFieldMapper.NumberType.LONG, false, false)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -545,7 +545,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getGroupConfig().getTerms() != null) {
             for (String field : job.getGroupConfig().getTerms().getFields()) {
                 MappedFieldType ft = new KeywordFieldMapper.Builder(field)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -554,7 +554,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         if (job.getMetricsConfig() != null) {
             for (MetricConfig metric : job.getMetricsConfig()) {
                 MappedFieldType ft = new NumberFieldMapper.Builder(metric.getField(), NumberFieldMapper.NumberType.LONG, false, false)
-                        .build(new Mapper.BuilderContext(settings.getSettings(), new ContentPath(0)))
+                        .build(new ContentPath(0))
                         .fieldType();
                 fieldTypes.put(ft.name(), ft);
             }
@@ -608,9 +608,9 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
         private final CountDownLatch latch = new CountDownLatch(1);
         private Exception exc;
 
-        SyncRollupIndexer(ThreadPool threadPool, String executorName, RollupJob job, IndexSearcher searcher,
+        SyncRollupIndexer(ThreadPool threadPool, RollupJob job, IndexSearcher searcher,
                           MappedFieldType[] fieldTypes, MappedFieldType timestampField) {
-            super(threadPool, executorName, job, new AtomicReference<>(IndexerState.STARTED), null);
+            super(threadPool, job, new AtomicReference<>(IndexerState.STARTED), null);
             this.searcher = searcher;
             this.fieldTypes = fieldTypes;
             this.timestampField = timestampField;

@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 
@@ -49,13 +49,13 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-                SearchContext searchContext = createSearchContext(
+                AggregationContext context = createAggregationContext(
                     indexSearcher,
                     null,
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
 
-                return new BucketsAggregator("test", AggregatorFactories.EMPTY, searchContext, null, null, null) {
+                return new BucketsAggregator("test", AggregatorFactories.EMPTY, context, null, null, null) {
                     @Override
                     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
                         return null;
@@ -83,7 +83,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
             mergeAggregator.incrementBucketDocCount(i, i);
         }
 
-        mergeAggregator.mergeBuckets(10, bucket -> bucket % 5);
+        mergeAggregator.rewriteBuckets(10, bucket -> bucket % 5);
 
         for(int i=0; i<5; i++) {
             // The i'th bucket should now have all docs whose index % 5 = i
@@ -109,7 +109,7 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
         }
 
         // Put the buckets in indices 5 ... 14 into bucket 5, and delete the rest of the buckets
-        mergeAggregator.mergeBuckets(10, bucket -> (5 <= bucket && bucket < 15) ? 5 : -1);
+        mergeAggregator.rewriteBuckets(10, bucket -> (5 <= bucket && bucket < 15) ? 5 : -1);
 
         assertEquals(mergeAggregator.getDocCounts().size(), 10); // Confirm that the 10 other buckets were deleted
         for(int i=0; i<10; i++){

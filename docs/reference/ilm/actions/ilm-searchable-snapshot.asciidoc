@@ -4,12 +4,20 @@
 
 beta::[]
 
-Phases allowed: cold.
+Phases allowed: hot, cold.
 
 Takes a snapshot of the managed index in the configured repository
 and mounts it as a searchable snapshot.
 If the managed index is part of a <<data-streams, data stream>>,
 the mounted index replaces the original index in the data stream.
+
+To use the `searchable_snapshot` action in the `hot` phase, the `rollover`
+action *must* be present. If no rollover action is configured, {ilm-init}
+will reject the policy.
+
+IMPORTANT: If the `searchable_snapshot` action is used in the `hot` phase the
+subsequent phases cannot define any of the `shrink`, `forcemerge`, `freeze` or
+`searchable_snapshot` (also available in the cold phase) actions.
 
 [NOTE]
 This action cannot be performed on a data stream's write index. Attempts to do
@@ -21,7 +29,7 @@ Using a policy that makes use of the <<ilm-rollover, rollover>> action
 in the hot phase will avoid this situation and the need for a manual rollover for future
 managed indices.
 
-By default, this snapshot is deleted by the <<ilm-delete-action, delete action>> in the delete phase.
+By default, this snapshot is deleted by the <<ilm-delete, delete action>> in the delete phase.
 To keep the snapshot, set `delete_searchable_snapshot` to `false` in the delete action.
 
 [[ilm-searchable-snapshot-options]]
@@ -33,7 +41,7 @@ Specifies where to store the snapshot.
 See <<snapshots-register-repository>> for more information.
 
 `force_merge_index`::
-(Optional, boolean)
+(Optional, Boolean)
 Force merges the managed index to one segment.
 Defaults to `true`.
 If the managed index was already force merged using the
@@ -43,7 +51,7 @@ the `searchable snapshot` action force merge step will be a no-op.
 [NOTE]
 The `forcemerge` action is best effort. It might happen that some of
 the shards are relocating, in which case they will not be merged.
-The `searchable-snapshot` action will continue executing even if not all shards
+The `searchable_snapshot` action will continue executing even if not all shards
 are force merged.
 
 [[ilm-searchable-snapshot-ex]]

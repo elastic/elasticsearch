@@ -59,8 +59,8 @@ import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -70,6 +70,7 @@ import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogStats;
@@ -96,7 +97,6 @@ import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -550,18 +550,16 @@ public abstract class Engine implements Closeable {
     public static class NoOpResult extends Result {
 
         NoOpResult(long term, long seqNo) {
-            super(Operation.TYPE.NO_OP, term, 0, seqNo);
+            super(Operation.TYPE.NO_OP, 0, term, seqNo);
         }
 
         NoOpResult(long term, long seqNo, Exception failure) {
-            super(Operation.TYPE.NO_OP, failure, term, 0, seqNo);
+            super(Operation.TYPE.NO_OP, failure, 0, term, seqNo);
         }
 
     }
 
-    protected final GetResult getFromSearcher(Get get, BiFunction<String, SearcherScope, Engine.Searcher> searcherFactory,
-                                                SearcherScope scope) throws EngineException {
-        final Engine.Searcher searcher = searcherFactory.apply("get", scope);
+    protected final GetResult getFromSearcher(Get get, Engine.Searcher searcher) throws EngineException {
         final DocIdAndVersion docIdAndVersion;
         try {
             docIdAndVersion = VersionsAndSeqNoResolver.loadDocIdAndVersion(searcher.getIndexReader(), get.uid(), true);
@@ -596,7 +594,7 @@ public abstract class Engine implements Closeable {
         }
     }
 
-    public abstract GetResult get(Get get, BiFunction<String, SearcherScope, Searcher> searcherFactory) throws EngineException;
+    public abstract GetResult get(Get get, DocumentMapper mapper, Function<Engine.Searcher, Engine.Searcher> searcherWrapper);
 
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
@@ -707,8 +705,8 @@ public abstract class Engine implements Closeable {
      * Creates a new history snapshot from Lucene for reading operations whose seqno in the requesting seqno range (both inclusive).
      * This feature requires soft-deletes enabled. If soft-deletes are disabled, this method will throw an {@link IllegalStateException}.
      */
-    public abstract Translog.Snapshot newChangesSnapshot(String source, Function<String, MappedFieldType> fieldTypeLookup,
-                                                         long fromSeqNo, long toSeqNo, boolean requiredFullRange) throws IOException;
+    public abstract Translog.Snapshot newChangesSnapshot(String source, long fromSeqNo,
+                                                         long toSeqNo, boolean requiredFullRange) throws IOException;
 
     /**
      * Checks if this engine has every operations since  {@code startingSeqNo}(inclusive) in its history (either Lucene or translog)
@@ -1078,6 +1076,13 @@ public abstract class Engine implements Closeable {
     public abstract IndexCommitRef acquireSafeIndexCommit() throws EngineException;
 
     /**
+     * Acquires the index commit that should be included in a snapshot.
+     */
+    public final IndexCommitRef acquireIndexCommitForSnapshot() throws EngineException {
+        return engineConfig.getSnapshotCommitSupplier().acquireIndexCommitForSnapshot(this);
+    }
+
+    /**
      * @return a summary of the contents of the current safe commit
      */
     public abstract SafeCommitInfo getSafeCommitInfo();
@@ -1207,6 +1212,15 @@ public abstract class Engine implements Closeable {
         protected abstract void doClose();
 
         protected abstract Searcher acquireSearcherInternal(String source);
+
+        /**
+         * Returns an id associated with this searcher if exists. Two searchers with the same searcher id must have
+         * identical Lucene level indices (i.e., identical segments with same docs using same doc-ids).
+         */
+        @Nullable
+        public String getSearcherId() {
+            return null;
+        }
     }
 
     public static final class Searcher extends IndexSearcher implements Releasable {
@@ -1616,6 +1630,7 @@ public abstract class Engine implements Closeable {
             this.docIdAndVersion = docIdAndVersion;
             this.searcher = searcher;
             this.fromTranslog = fromTranslog;
+            assert fromTranslog == false || searcher.getIndexReader() instanceof TranslogLeafReader;
         }
 
         public GetResult(Engine.Searcher searcher, DocIdAndVersion docIdAndVersion, boolean fromTranslog) {
@@ -1630,6 +1645,10 @@ public abstract class Engine implements Closeable {
             return this.version;
         }
 
+        /**
+         * Returns {@code true} iff the get was performed from a translog operation. Notes that this returns {@code false}
+         * if the get was performed on an in-memory Lucene segment created from the corresponding translog operation.
+         */
         public boolean isFromTranslog() {
             return fromTranslog;
         }
@@ -1858,4 +1877,12 @@ public abstract class Engine implements Closeable {
      * to advance this marker to at least the given sequence number.
      */
     public abstract void advanceMaxSeqNoOfUpdatesOrDeletes(long maxSeqNoOfUpdatesOnPrimary);
+
+    /**
+     * @return a {@link ShardLongFieldRange} containing the min and max raw values of the given field for this shard if the engine
+     * guarantees these values never to change, or {@link ShardLongFieldRange#EMPTY} if this field is empty, or
+     * {@link ShardLongFieldRange#UNKNOWN} if this field's value range may change in future.
+     */
+    public abstract ShardLongFieldRange getRawFieldRange(String field) throws IOException;
+
 }

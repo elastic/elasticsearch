@@ -53,7 +53,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
@@ -73,6 +72,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.function.Supplier;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -108,19 +108,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void setUp() throws Exception {
         Builder builder = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.CURRENT);
         builder.ignoreAbove(MAX_FIELD_LENGTH);
-        wildcardFieldType = builder.build(
-            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
-        );
+        wildcardFieldType = builder.build(new ContentPath(0));
 
         Builder builder79 = new WildcardFieldMapper.Builder(WILDCARD_FIELD_NAME, Version.V_7_9_0);
-        wildcardFieldType79 = builder79.build(
-            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
-        );
+        wildcardFieldType79 = builder79.build(new ContentPath(0));
 
         org.elasticsearch.index.mapper.KeywordFieldMapper.Builder kwBuilder = new KeywordFieldMapper.Builder(KEYWORD_FIELD_NAME);
-        keywordFieldType = kwBuilder.build(
-            new Mapper.BuilderContext(Settings.EMPTY, new ContentPath(0))
-        );
+        keywordFieldType = kwBuilder.build(new ContentPath(0));
         super.setUp();
     }
 
@@ -903,9 +897,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
-                null, null, null, xContentRegistry(), null, null, null,
-                () -> randomNonNegativeLong(), null, null, () -> true, null) {
+        return new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+                null, null, null, null, xContentRegistry(), null, null, null,
+                () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 
             @Override
             public MappedFieldType getFieldType(String name) {

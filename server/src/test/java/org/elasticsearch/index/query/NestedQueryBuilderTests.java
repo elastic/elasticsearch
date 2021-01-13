@@ -311,14 +311,10 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     public void testBuildIgnoreUnmappedNestQuery() throws Exception {
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         when(queryShardContext.getObjectMapper("path")).thenReturn(null);
+        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
+        when(queryShardContext.getIndexSettings()).thenReturn(settings);
         SearchContext searchContext = mock(SearchContext.class);
         when(searchContext.getQueryShardContext()).thenReturn(queryShardContext);
-
-        MapperService mapperService = mock(MapperService.class);
-        IndexSettings settings = new IndexSettings(newIndexMeta("index", Settings.EMPTY), Settings.EMPTY);
-        when(mapperService.getIndexSettings()).thenReturn(settings);
-        when(searchContext.mapperService()).thenReturn(mapperService);
-
         InnerHitBuilder leafInnerHits = randomNestedInnerHits();
         NestedQueryBuilder query1 = new NestedQueryBuilder("path", new MatchAllQueryBuilder(), ScoreMode.None);
         query1.innerHit(leafInnerHits);

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.security.action.user;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
@@ -16,7 +17,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledAction;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
-import org.elasticsearch.xpack.core.security.action.user.SetEnabledResponse;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.XPackUser;
@@ -25,7 +25,7 @@ import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 /**
  * Transport action that handles setting a native or reserved user to enabled
  */
-public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, SetEnabledResponse> {
+public class TransportSetEnabledAction extends HandledTransportAction<SetEnabledRequest, ActionResponse.Empty> {
 
     private final Settings settings;
     private final ThreadPool threadPool;
@@ -43,7 +43,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
     }
 
     @Override
-    protected void doExecute(Task task, SetEnabledRequest request, ActionListener<SetEnabledResponse> listener) {
+    protected void doExecute(Task task, SetEnabledRequest request, ActionListener<ActionResponse.Empty> listener) {
         final String username = request.username();
         // make sure the user is not disabling themselves
         if (securityContext.getUser().principal().equals(request.username())) {
@@ -60,7 +60,7 @@ public class TransportSetEnabledAction extends HandledTransportAction<SetEnabled
         usersStore.setEnabled(username, request.enabled(), request.getRefreshPolicy(), new ActionListener<Void>() {
             @Override
             public void onResponse(Void v) {
-                listener.onResponse(new SetEnabledResponse());
+                listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
 
             @Override

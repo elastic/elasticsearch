@@ -37,6 +37,15 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-h]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=help]
 
+`nodes`::
+(Optional, string)
+Comma-separated list of node IDs or names used to limit the response. Supports
+wildcard (`*`) expressions.
+
+`parent_task_id`::
+(Optional, string)
+Parent task ID used to limit the response.
+
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-s]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=time]
@@ -55,7 +64,7 @@ include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 [source,console]
 ----
-GET _cat/tasks?v
+GET _cat/tasks?v=true
 ----
 // TEST[skip:No tasks to retrieve]
 

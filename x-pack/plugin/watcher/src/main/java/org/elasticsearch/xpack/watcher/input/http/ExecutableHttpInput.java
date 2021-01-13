@@ -99,7 +99,7 @@ public class ExecutableHttpInput extends ExecutableInput<HttpInput, HttpInput.Re
                 }
             } catch (Exception e) {
                 throw new ElasticsearchParseException("could not parse response body [{}] it does not appear to be [{}]", type(), ctx.id(),
-                        response.body().utf8ToString(), contentType.format());
+                        response.body().utf8ToString(), contentType.queryParameter());
             }
         } else {
             payloadMap.put("_value", response.body().utf8ToString());

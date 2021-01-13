@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchAction;
@@ -29,25 +30,22 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
-import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.TransformMessages;
+import org.elasticsearch.xpack.core.transform.transforms.SettingsConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
-import org.elasticsearch.xpack.core.transform.transforms.pivot.GroupConfig;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 import org.elasticsearch.xpack.transform.Transform;
 import org.elasticsearch.xpack.transform.transforms.Function;
+import org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -63,13 +61,17 @@ public class Pivot implements Function {
 
     private final PivotConfig config;
     private final String transformId;
+    private final SettingsConfig settings;
+    private final Version version;
 
     // objects for re-using
     private final CompositeAggregationBuilder cachedCompositeAggregation;
 
-    public Pivot(PivotConfig config, String transformId) {
+    public Pivot(PivotConfig config, String transformId, SettingsConfig settings, Version version) {
         this.config = config;
         this.transformId = transformId;
+        this.settings = settings;
+        this.version = version == null ? Version.CURRENT : version;
         this.cachedCompositeAggregation = createCompositeAggregation(config);
     }
 
@@ -79,7 +81,7 @@ public class Pivot implements Function {
             if (TransformAggregations.isSupportedByTransform(agg.getType()) == false) {
                 // todo: change to ValidationException
                 listener.onFailure(
-                    new ElasticsearchStatusException("Unsupported aggregation type [" + agg.getType() + "]", RestStatus.BAD_REQUEST)
+                    new ElasticsearchStatusException("Unsupported aggregation type [{}]", RestStatus.BAD_REQUEST, agg.getType())
                 );
                 return;
             }
@@ -101,9 +103,7 @@ public class Pivot implements Function {
             if (response.status() != RestStatus.OK) {
                 listener.onFailure(
                     new ElasticsearchStatusException(
-                        "Unexpected status from response of test query: " + response.status(),
-                        response.status()
-                    )
+                        "Unexpected status from response of test query: {}", response.status(), response.status())
                 );
                 return;
             }
@@ -131,6 +131,7 @@ public class Pivot implements Function {
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
+        ClientHelper.assertNoAuthorizationHeader(headers);
         ClientHelper.executeWithHeadersAsync(
             headers,
             ClientHelper.TRANSFORM_ORIGIN,
@@ -142,17 +143,16 @@ public class Pivot implements Function {
                     final Aggregations aggregations = r.getAggregations();
                     if (aggregations == null) {
                         listener.onFailure(
-                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST)
-                        );
+                            new ElasticsearchStatusException("Source indices have been deleted or closed.", RestStatus.BAD_REQUEST));
                         return;
                     }
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     TransformIndexerStats stats = new TransformIndexerStats();
-                    // remove all internal fields
 
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats).peek(
-                        doc -> doc.keySet().removeIf(k -> k.startsWith("_"))
-                    ).collect(Collectors.toList());
+                    List<Map<String, Object>> docs =
+                        extractResults(agg, fieldTypeMap, stats)
+                            .map(DocumentConversionUtils::removeInternalFields)
+                            .collect(Collectors.toList());
 
                     listener.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {
@@ -181,7 +181,7 @@ public class Pivot implements Function {
         return config.getMaxPageSearchSize() == null ? Transform.DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE : config.getMaxPageSearchSize();
     }
 
-    public SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
+    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
         QueryBuilder queryBuilder = sourceConfig.getQueryConfig().getQuery();
 
         SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
@@ -190,8 +190,6 @@ public class Pivot implements Function {
         sourceBuilder.query(queryBuilder);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-
-        logger.trace("Search request: {}", searchRequest);
         return searchRequest;
     }
 
@@ -208,22 +206,27 @@ public class Pivot implements Function {
         return CompositeBucketsChangeCollector.buildChangeCollector(config.getGroupConfig().getGroups(), synchronizationField);
     }
 
-    public Stream<Map<String, Object>> extractResults(
+    private Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
         TransformIndexerStats transformIndexerStats
     ) {
-        GroupConfig groups = config.getGroupConfig();
-        Collection<AggregationBuilder> aggregationBuilders = config.getAggregationConfig().getAggregatorFactories();
-        Collection<PipelineAggregationBuilder> pipelineAggregationBuilders = config.getAggregationConfig().getPipelineAggregatorFactories();
+        // defines how dates are written, if not specified in settings
+        // < 7.11 as epoch millis
+        // >= 7.11 as string
+        // note: it depends on the version when the transform has been created, not the version of the code
+        boolean datesAsEpoch = settings.getDatesAsEpochMillis() != null ? settings.getDatesAsEpochMillis()
+            : version.onOrAfter(Version.V_7_11_0) ? false
+            : true;
 
         return AggregationResultUtils.extractCompositeAggregationResults(
             agg,
-            groups,
-            aggregationBuilders,
-            pipelineAggregationBuilders,
+            config.getGroupConfig(),
+            config.getAggregationConfig().getAggregatorFactories(),
+            config.getAggregationConfig().getPipelineAggregatorFactories(),
             fieldTypeMap,
-            transformIndexerStats
+            transformIndexerStats,
+            datesAsEpoch
         );
     }
 
@@ -287,41 +290,15 @@ public class Pivot implements Function {
         Map<String, String> fieldMappings,
         TransformIndexerStats stats
     ) {
-        return extractResults(agg, fieldMappings, stats).map(document -> {
-            String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
-
-            if (id == null) {
-                throw new RuntimeException("Expected a document id but got null.");
-            }
-
-            XContentBuilder builder;
-            try {
-                builder = jsonBuilder();
-                builder.startObject();
-                for (Map.Entry<String, ?> value : document.entrySet()) {
-                    // skip all internal fields
-                    if (value.getKey().startsWith("_") == false) {
-                        builder.field(value.getKey(), value.getValue());
-                    }
-                }
-                builder.endObject();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            IndexRequest request = new IndexRequest(destinationIndex).source(builder).id(id);
-            if (destinationPipeline != null) {
-                request.setPipeline(destinationPipeline);
-            }
-            return request;
-        });
+        return extractResults(agg, fieldMappings, stats)
+            .map(document -> DocumentConversionUtils.convertDocumentToIndexRequest(document, destinationIndex, destinationPipeline));
     }
 
     private static CompositeAggregationBuilder createCompositeAggregation(PivotConfig config) {
         final CompositeAggregationBuilder compositeAggregation = createCompositeAggregationSources(config);
 
-        config.getAggregationConfig().getAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
-        config.getAggregationConfig().getPipelineAggregatorFactories().forEach(agg -> compositeAggregation.subAggregation(agg));
+        config.getAggregationConfig().getAggregatorFactories().forEach(compositeAggregation::subAggregation);
+        config.getAggregationConfig().getPipelineAggregatorFactories().forEach(compositeAggregation::subAggregation);
 
         return compositeAggregation;
     }
@@ -337,7 +314,8 @@ public class Pivot implements Function {
                 .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, BytesReference.bytes(builder).streamInput());
             compositeAggregation = CompositeAggregationBuilder.PARSER.parse(parser, COMPOSITE_AGGREGATION_NAME);
         } catch (IOException e) {
-            throw new RuntimeException(TransformMessages.TRANSFORM_PIVOT_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, e);
+            throw new RuntimeException(
+                TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_CREATE_COMPOSITE_AGGREGATION, "pivot"), e);
         }
         return compositeAggregation;
     }

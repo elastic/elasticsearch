@@ -20,6 +20,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
@@ -69,7 +70,7 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
     }
 
     private DocumentMapperForType docMapper(String type) {
-        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type);
+        RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder(type, Version.CURRENT);
         DocumentMapper.Builder b = new DocumentMapper.Builder(rootBuilder, mapperService);
         return new DocumentMapperForType(b.build(), null);
     }

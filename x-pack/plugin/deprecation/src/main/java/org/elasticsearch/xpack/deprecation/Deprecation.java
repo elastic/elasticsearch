@@ -31,6 +31,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingComponent;
+import org.elasticsearch.xpack.deprecation.logging.DeprecationIndexingTemplateRegistry;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -75,8 +76,11 @@ public class Deprecation extends Plugin implements ActionPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings());
+        final DeprecationIndexingTemplateRegistry templateRegistry =
+            new DeprecationIndexingTemplateRegistry(environment.settings(), clusterService, threadPool, client, xContentRegistry);
+        templateRegistry.initialize();
 
+        final DeprecationIndexingComponent component = new DeprecationIndexingComponent(client, environment.settings());
         clusterService.addListener(component);
 
         return List.of(component);

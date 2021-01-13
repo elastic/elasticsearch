@@ -6,7 +6,7 @@ import org.elasticsearch.gradle.testclusters.TestDistribution
 if (BuildParams.inFipsJvm) {
 
   allprojects {
-    String javaSecurityFilename = BuildParams.runtimeJavaDetails.startsWith('Oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+    String javaSecurityFilename = BuildParams.runtimeJavaDetails.startsWith('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
     File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')

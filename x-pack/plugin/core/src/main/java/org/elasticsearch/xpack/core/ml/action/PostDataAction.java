@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -125,7 +126,7 @@ public class PostDataAction extends ActionType<PostDataAction.Response> {
             boolean hasXContentType = xContentType != null;
             out.writeBoolean(hasXContentType);
             if (hasXContentType) {
-                out.writeEnum(xContentType);
+                XContentHelper.writeTo(out, xContentType);
             }
         }
 

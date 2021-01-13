@@ -79,10 +79,14 @@ public class XContentParserTests extends ESTestCase {
             assertEquals(value, number.floatValue(), 0.0f);
 
             switch (xContentType) {
+                case VND_CBOR:
+                case VND_SMILE:
                 case CBOR:
                 case SMILE:
                     assertThat(number, instanceOf(Float.class));
                     break;
+                case VND_JSON:
+                case VND_YAML:
                 case JSON:
                 case YAML:
                     assertThat(number, instanceOf(Double.class));

@@ -32,8 +32,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -60,6 +63,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -74,17 +78,16 @@ import static org.mockito.Mockito.when;
 
 public class DocumentSubsetBitsetCacheTests extends ESTestCase {
 
-    private static final String MISSING_FIELD_NAME = "does-not-exist";
     private static final int FIELD_COUNT = 10;
     private ExecutorService singleThreadExecutor;
 
     @Before
-    public void setUpExecutor() throws Exception {
+    public void setUpExecutor() {
         singleThreadExecutor = Executors.newSingleThreadExecutor();
     }
 
     @After
-    public void cleanUpExecutor() throws Exception {
+    public void cleanUpExecutor() {
         singleThreadExecutor.shutdown();
     }
 
@@ -106,7 +109,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     public void testNullBitSetIsReturnedForNonMatchingQuery() throws Exception {
         final DocumentSubsetBitsetCache cache = newCache(Settings.EMPTY);
         runTestOnIndex((shardContext, leafContext) -> {
-            final Query query = QueryBuilders.termQuery(MISSING_FIELD_NAME, "any-value").rewrite(shardContext).toQuery(shardContext);
+            final Query query = QueryBuilders.termQuery("not-mapped", "any-value").rewrite(shardContext).toQuery(shardContext);
             final BitSet bitSet = cache.getBitSet(query, leafContext);
             assertThat(bitSet, nullValue());
         });
@@ -536,7 +539,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         }
     }
 
-    private TestIndexContext testIndex(MapperService mapperService, Client client) throws IOException {
+    private TestIndexContext testIndex(MappingLookup mappingLookup, Client client) throws IOException {
         TestIndexContext context = null;
 
         final long nowInMillis = randomNonNegativeLong();
@@ -563,8 +566,8 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             directoryReader = DirectoryReader.open(directory);
             final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
-            final QueryShardContext shardContext = new QueryShardContext(shardId.id(), indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
-                null, null, mapperService, null, null, xContentRegistry(), writableRegistry(),
+            final QueryShardContext shardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+                null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null, emptyMap());
 
             context = new TestIndexContext(directory, iw, directoryReader, shardContext, leaf);
@@ -585,15 +588,15 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
     }
 
     private void runTestOnIndices(int numberIndices, CheckedConsumer<List<TestIndexContext>, Exception> body) throws Exception {
-        final MapperService mapperService = mock(MapperService.class);
-        when(mapperService.fieldType(Mockito.anyString())).thenAnswer(invocation -> {
-            final String fieldName = (String) invocation.getArguments()[0];
-            if (fieldName.equals(MISSING_FIELD_NAME)) {
-                return null;
-            } else {
-                return new KeywordFieldMapper.KeywordFieldType(fieldName);
-            }
-        });
+        List<FieldMapper> types = new ArrayList<>();
+        for (int i = 0; i < 11; i++) { // the tests use fields 1 to 10.
+            // This field has a value.
+            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("field-" + i)));
+            // This field never has a value
+            types.add(new MockFieldMapper(new KeywordFieldMapper.KeywordFieldType("dne-" + i)));
+        }
+
+        MappingLookup mappingLookup = new MappingLookup(Mapping.EMPTY, types, emptyList(), emptyList(), null, null, null);
 
         final Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
@@ -601,7 +604,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
         final List<TestIndexContext> context = new ArrayList<>(numberIndices);
         try {
             for (int i = 0; i < numberIndices; i++) {
-                context.add(testIndex(mapperService, client));
+                context.add(testIndex(mappingLookup, client));
             }
 
             body.accept(context);

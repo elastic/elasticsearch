@@ -97,18 +97,18 @@ are five possible modes an action can be associated with:
 | Name              | Description
 
 | `simulate`        | The action execution is simulated. Each action type
-                      define its own simulation operation mode. For example, the
+                      defines its own simulation operation mode. For example, the
                       <<actions-email,`email` action>> creates
                       the email that would have been sent but does not actually
                       send it. In this mode, the action might be throttled if the
                       current state of the watch indicates it should be.
 
 | `force_simulate`  | Similar to the `simulate` mode, except the action is
-                      not be throttled even if the current state of the watch
+                      not throttled even if the current state of the watch
                       indicates it should be.
 
 | `execute`         | Executes the action as it would have been executed if the
-                      watch would have been triggered by its own trigger. The
+                      watch had been triggered by its own trigger. The
                       execution might be throttled if the current state of the
                       watch indicates it should be.
 

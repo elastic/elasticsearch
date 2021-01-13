@@ -37,6 +37,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.core.XPackSettings.SECURITY_ENABLED;
 import static org.elasticsearch.xpack.core.XPackSettings.TRANSPORT_SSL_ENABLED;
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for cluster stats.
@@ -82,13 +83,12 @@ public class ClusterStatsCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) throws Exception {
-        final Supplier<ClusterStatsResponse> clusterStatsSupplier =
-                () -> client.admin().cluster().prepareClusterStats().get(getCollectionTimeout());
+                                                  final ClusterState clusterState) {
         final Supplier<List<XPackFeatureSet.Usage>> usageSupplier =
                 () -> new XPackUsageRequestBuilder(client).get().getUsages();
 
-        final ClusterStatsResponse clusterStats = clusterStatsSupplier.get();
+        final ClusterStatsResponse clusterStats = client.admin().cluster().prepareClusterStats().setTimeout(getCollectionTimeout()).get();
+        ensureNoTimeouts(getCollectionTimeout(), clusterStats);
 
         final String clusterName = clusterService.getClusterName().value();
         final String clusterUuid = clusterUuid(clusterState);

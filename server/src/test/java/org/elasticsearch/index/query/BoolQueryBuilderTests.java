@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParseException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.hamcrest.Matchers;
 
@@ -39,8 +40,10 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQueryBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -446,5 +449,18 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         IllegalStateException e = expectThrows(IllegalStateException.class,
                 () -> boolQuery.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
+    }
+
+    public void testExceedMaxNestedDepth() throws IOException {
+        BoolQueryBuilder query = new BoolQueryBuilder();
+        query.should(new BoolQueryBuilder().should(new BoolQueryBuilder().should(RandomQueryBuilder.createQuery(random()))));
+        BoolQueryBuilder.setMaxNestedDepth(2);
+        try (XContentParser parser = createParser(JsonXContent.jsonXContent, query.toString())) {
+            XContentParseException e = expectThrows(XContentParseException.class,
+                () -> parseInnerQueryBuilder(parser));
+            assertThat(e.getCause().getCause(), Matchers.instanceOf(IllegalArgumentException.class));
+            assertEquals("The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
+                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]", e.getCause().getCause().getMessage());
+        }
     }
 }

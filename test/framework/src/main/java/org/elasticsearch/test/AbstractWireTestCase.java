@@ -23,6 +23,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,7 +95,7 @@ public abstract class AbstractWireTestCase<T> extends ESTestCase {
      */
     protected void assertEqualInstances(T expectedInstance, T newInstance) {
         assertNotSame(newInstance, expectedInstance);
-        assertEquals(expectedInstance, newInstance);
+        assertThat(expectedInstance, Matchers.equalTo(newInstance));
         assertEquals(expectedInstance.hashCode(), newInstance.hashCode());
     }
 

@@ -105,7 +105,9 @@ public class BuildPluginIT extends GradleIntegrationTestCase {
             .withProjectDir(tmpDir.getRoot())
             .withArguments("clean", "hello", "-s", "-i", "--warning-mode=all", "--scan")
             .withPluginClasspath()
+            .forwardOutput()
             .buildAndFail();
+
         assertOutputContains(
             result.getOutput(),
             "repository [" + name + "] on project with path [:] is not using a secure protocol for artifacts on [" + url + "]"

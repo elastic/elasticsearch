@@ -99,11 +99,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new SourceFieldMapper(), c -> new Builder());
 
-    public static boolean isEnabled(Function<String, MappedFieldType> fieldTypeLookup) {
-        MappedFieldType sourceField = fieldTypeLookup.apply(NAME);
-        return sourceField != null && sourceField.isStored();
-    }
-
     static final class SourceFieldType extends MappedFieldType {
 
         private SourceFieldType(boolean enabled) {

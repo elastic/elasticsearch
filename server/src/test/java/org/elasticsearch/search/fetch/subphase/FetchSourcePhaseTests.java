@@ -25,7 +25,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
@@ -37,7 +36,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.mockito.Matchers.matches;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -156,7 +154,7 @@ public class FetchSourcePhaseTests extends ESTestCase {
         when(fetchContext.getIndexName()).thenReturn("index");
         QueryShardContext qsc = mock(QueryShardContext.class);
         when(fetchContext.getQueryShardContext()).thenReturn(qsc);
-        when(qsc.getFieldType(matches("_source"))).thenReturn(new MockFieldMapper.FakeFieldType("_source", source != null));
+        when(qsc.isSourceEnabled()).thenReturn(source != null);
 
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 

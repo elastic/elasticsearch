@@ -1,12 +1,12 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-delete-autoscaling-policy]]
 === Delete autoscaling policy API
 ++++
 <titleabbrev>Delete autoscaling policy</titleabbrev>
 ++++
 
-experimental[]
+include::../autoscaling-designed-for-note.asciidoc[]
 
 Delete autoscaling policy.
 

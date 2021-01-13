@@ -29,7 +29,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -388,11 +387,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     @Override
     public FetchSearchResult fetchResult() {
         return in.fetchResult();
-    }
-
-    @Override
-    public NestedDocuments getNestedDocuments() {
-        return in.getNestedDocuments();
     }
 
     @Override

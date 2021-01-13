@@ -22,27 +22,22 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 
-public class PathMatchDynamicTemplateTests extends ESSingleNodeTestCase {
+public class PathMatchDynamicTemplateTests extends MapperServiceTestCase {
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-mapping.json");
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
-
-        MapperService mapperService = index.mapperService();
+        MapperService mapperService = createMapperService(mapping);
 
         byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/pathmatch/test-data.json");
         ParsedDocument parsedDoc = mapperService.documentMapper().parse(
             new SourceToParse("test", "1", new BytesArray(json), XContentType.JSON));
-        client().admin().indices().preparePutMapping("test")
-            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
+
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");

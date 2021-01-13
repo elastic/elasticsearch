@@ -124,7 +124,7 @@ public class ValidateJsonAgainstSchemaTask extends DefaultTask {
             sb.append(getReport().toURI().toASCIIString());
             sb.append(System.lineSeparator());
             sb.append(
-                String.format("JSON validation failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
+                String.format("Verification failed: %d files contained %d violations", errors.keySet().size(), errors.values().size())
             );
             throw new JsonSchemaException(sb.toString());
         }

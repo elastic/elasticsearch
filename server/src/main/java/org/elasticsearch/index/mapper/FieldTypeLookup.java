@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -43,11 +44,16 @@ final class FieldTypeLookup {
      * For convenience, the set of copied fields includes the field itself.
      */
     private final Map<String, Set<String>> fieldToCopiedFields = new HashMap<>();
+    private final String type;
     private final DynamicKeyFieldTypeLookup dynamicKeyLookup;
 
-    FieldTypeLookup(Collection<FieldMapper> fieldMappers,
-                    Collection<FieldAliasMapper> fieldAliasMappers,
-                    Collection<RuntimeFieldType> runtimeFieldTypes) {
+    FieldTypeLookup(
+        String type,
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers,
+        Collection<RuntimeFieldType> runtimeFieldTypes
+    ) {
+        this.type = type;
         Map<String, DynamicKeyFieldMapper> dynamicKeyMappers = new HashMap<>();
 
         for (FieldMapper fieldMapper : fieldMappers) {
@@ -89,6 +95,10 @@ final class FieldTypeLookup {
      * Returns the mapped field type for the given field name.
      */
     MappedFieldType get(String field) {
+        if (field.equals(TypeFieldType.NAME)) {
+            return new TypeFieldType(type);
+        }
+
         MappedFieldType fieldType = fullNameToFieldType.get(field);
         if (fieldType != null) {
             return fieldType;
@@ -103,6 +113,10 @@ final class FieldTypeLookup {
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     Set<String> simpleMatchToFullName(String pattern) {
+        if (Regex.isSimpleMatchPattern(pattern) == false) {
+            // no wildcards
+            return Collections.singleton(pattern);
+        }
         Set<String> fields = new HashSet<>();
         for (String field : fullNameToFieldType.keySet()) {
             if (Regex.simpleMatch(pattern, field)) {
@@ -125,6 +139,9 @@ final class FieldTypeLookup {
      * @return A set of paths in the _source that contain the field's values.
      */
     Set<String> sourcePaths(String field) {
+        if (fullNameToFieldType.isEmpty()) {
+            return Set.of();
+        }
         String resolvedField = field;
         int lastDotIndex = field.lastIndexOf('.');
         if (lastDotIndex > 0) {

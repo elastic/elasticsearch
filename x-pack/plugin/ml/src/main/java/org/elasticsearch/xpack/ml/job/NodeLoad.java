@@ -93,6 +93,20 @@ public class NodeLoad {
     }
 
     /**
+     * @return The available memory on the node
+     */
+    public long getFreeMemory() {
+        return Math.max(maxMemory - assignedJobMemory, 0L);
+    }
+
+    /**
+     * @return The number of jobs that can still be assigned to the node
+     */
+    public int remainingJobs() {
+        return Math.max(maxJobs - (int)numAssignedJobs, 0);
+    }
+
+    /**
      * @return Returns a comma delimited string of errors if any were encountered.
      */
     @Nullable

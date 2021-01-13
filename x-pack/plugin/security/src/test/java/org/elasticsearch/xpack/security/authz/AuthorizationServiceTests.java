@@ -106,6 +106,8 @@ import org.elasticsearch.xpack.core.search.action.ClosePointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.ClosePointInTimeRequest;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeAction;
 import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.InvalidateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
@@ -669,9 +671,13 @@ public class AuthorizationServiceTests extends ESTestCase {
         final Authentication authentication = createAuthentication(new User("test user", "non-existent-role"));
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         mockEmptyMetadata();
-        assertThrowsAuthorizationException(
-            () -> authorize(authentication, action, request),
-            action, "test user");
+
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+            () -> authorize(authentication, action, request));
+        assertThat(securityException,
+            throwableWithMessage(containsString("[" + action + "] is unauthorized for user [test user] on indices [")));
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the privileges [read,all]")));
+
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
@@ -705,9 +711,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("no_indices", role);
         mockEmptyMetadata();
 
-        assertThrowsAuthorizationException(
-            () -> authorize(authentication, action, request),
-            action, "test user");
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+            () -> authorize(authentication, action, request));
+        assertThat(securityException,
+            throwableWithMessage(containsString("[" + action + "] is unauthorized for user [test user] on indices [")));
+        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the privileges [read,all]")));
+
         verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request),
             authzInfoRoles(new String[]{role.getName()}));
         verifyNoMoreInteractions(auditTrail);
@@ -942,6 +951,61 @@ public class AuthorizationServiceTests extends ESTestCase {
         assertThat(response.getResponses()[0].getFailureMessage(), containsString("[create_doc,create,index,write,all]") );
         assertThat(response.getResponses()[1].getFailureMessage(), containsString("[create,index,write,all]") );
         assertThat(response.getResponses()[2].getFailureMessage(), containsString("[delete,write,all]") );
+    }
+
+    public void testDenialErrorMessagesForClusterHealthAction() throws IOException {
+        RoleDescriptor role = new RoleDescriptor("role_" + randomAlphaOfLengthBetween(3, 6),
+            new String[0], // no cluster privileges
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("index-*").privileges("all").build() } , null);
+        User user = new User(randomAlphaOfLengthBetween(6, 8), role.getName());
+        final Authentication authentication = createAuthentication(user);
+        roleMap.put(role.getName(), role);
+
+        AuditUtil.getOrGenerateRequestId(threadContext);
+
+        TransportRequest request = new ClusterHealthRequest();
+
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+            () -> authorize(authentication, ClusterHealthAction.NAME, request));
+        assertThat(securityException, throwableWithMessage(
+            containsString("[" + ClusterHealthAction.NAME + "] is unauthorized for user [" + user.principal() + "]")));
+        assertThat(securityException,
+            throwableWithMessage(containsString("this action is granted by the privileges [monitor,manage,all]")));
+    }
+
+    public void testDenialErrorMessagesForInvalidateApiKeyAction() throws IOException {
+        RoleDescriptor role = new RoleDescriptor("role_" + randomAlphaOfLengthBetween(3, 6),
+            new String[0], // no cluster privileges
+            new IndicesPrivileges[]{IndicesPrivileges.builder().indices("index-*").privileges("all").build()}, null);
+        User user = new User(randomAlphaOfLengthBetween(6, 8), role.getName());
+        final Authentication authentication = createAuthentication(user);
+        roleMap.put(role.getName(), role);
+
+        AuditUtil.getOrGenerateRequestId(threadContext);
+
+        // Own API Key
+        {
+            TransportRequest request = new InvalidateApiKeyRequest(null, null, null, true, null);
+
+            ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+                () -> authorize(authentication, InvalidateApiKeyAction.NAME, request));
+            assertThat(securityException, throwableWithMessage(
+                containsString("[" + InvalidateApiKeyAction.NAME + "] is unauthorized for user [" + user.principal() + "]")));
+            assertThat(securityException, throwableWithMessage(
+                containsString("this action is granted by the privileges [manage_own_api_key,manage_api_key,manage_security,all]")));
+        }
+
+        // All API Keys
+        {
+            TransportRequest request = new InvalidateApiKeyRequest(null, null, null, false, null);
+
+            ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+                () -> authorize(authentication, InvalidateApiKeyAction.NAME, request));
+            assertThat(securityException, throwableWithMessage(
+                containsString("[" + InvalidateApiKeyAction.NAME + "] is unauthorized for user [" + user.principal() + "]")));
+            assertThat(securityException, throwableWithMessage(
+                containsString("this action is granted by the privileges [manage_api_key,manage_security,all]")));
+        }
     }
 
     public void testDenialForAnonymousUser() throws IOException {

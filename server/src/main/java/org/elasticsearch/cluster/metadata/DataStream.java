@@ -122,19 +122,20 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param newWriteIndex the new write backing index. Must conform to the naming convention for
-     *                      backing indices on data streams. See {@link #getDefaultBackingIndexName}.
+     * @param writeIndexUuid UUID for the data stream's new write index
+     * @param minNodeVersion minimum cluster node version
+     *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index newWriteIndex) {
-        assert newWriteIndex.getName().equals(getDefaultBackingIndexName(name, generation + 1));
+    public DataStream rollover(String writeIndexUuid, Version minNodeVersion) {
         if (replicated) {
             throw new IllegalArgumentException("data stream [" + name + "] cannot be rolled over, " +
                 "because it is a replicated data stream");
         }
 
         List<Index> backingIndices = new ArrayList<>(indices);
-        backingIndices.add(newWriteIndex);
+        final String newWriteIndexName = DataStream.getDefaultBackingIndexName(getName(), getGeneration() + 1, minNodeVersion);
+        backingIndices.add(new Index(newWriteIndexName, writeIndexUuid));
         return new DataStream(name, timeStampField, backingIndices, generation + 1, metadata, hidden, replicated);
     }
 
@@ -190,7 +191,11 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
      * @return backing index name
      */
     public static String getDefaultBackingIndexName(String dataStreamName, long generation) {
-        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis());
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), Version.CURRENT);
+    }
+
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, Version minNodeVersion) {
+        return getDefaultBackingIndexName(dataStreamName, generation, System.currentTimeMillis(), minNodeVersion);
     }
 
     /**
@@ -205,6 +210,22 @@ public final class DataStream extends AbstractDiffable<DataStream> implements To
     public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis) {
         return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%s-%06d", dataStreamName, DATE_FORMATTER.formatMillis(epochMillis),
             generation);
+    }
+
+    public static String getDefaultBackingIndexName(String dataStreamName, long generation, long epochMillis, Version minNodeVersion) {
+        if (minNodeVersion.onOrAfter(NEW_FEATURES_VERSION)) {
+            return String.format(Locale.ROOT,
+                BACKING_INDEX_PREFIX + "%s-%s-%06d",
+                dataStreamName,
+                DATE_FORMATTER.formatMillis(epochMillis),
+                generation);
+        } else {
+            return getLegacyDefaultBackingIndexName(dataStreamName, generation);
+        }
+    }
+
+    public static String getLegacyDefaultBackingIndexName(String dataStreamName, long generation) {
+        return String.format(Locale.ROOT, BACKING_INDEX_PREFIX + "%s-%06d", dataStreamName, generation);
     }
 
     public DataStream(StreamInput in) throws IOException {

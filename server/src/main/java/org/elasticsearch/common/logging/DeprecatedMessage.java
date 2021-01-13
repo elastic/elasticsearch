@@ -40,7 +40,7 @@ public class DeprecatedMessage  {
             .field("data_stream.namespace", "default")
             .field("ecs.version", ECS_VERSION)
             .field("key", key)
-            .field("category", category.name().toLowerCase(Locale.ROOT));
+            .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
 
         if (Strings.isNullOrEmpty(xOpaqueId)) {
             return esLogMessage;

@@ -164,7 +164,7 @@ public class CacheFile {
     }
 
     public long getCachedLength() {
-        return tracker.getCompletedRangesLength();
+        return tracker.getRecoveredBytesFromPersistentCache();
     }
 
     public void acquire(final EvictionListener listener) throws IOException {

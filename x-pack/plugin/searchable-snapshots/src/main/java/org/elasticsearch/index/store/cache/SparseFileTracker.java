@@ -37,6 +37,8 @@ public class SparseFileTracker {
 
     private final long length;
 
+    private final long recoveredBytesFromPersistentCache;
+
     /**
      * Creates a new empty {@link SparseFileTracker}
      *
@@ -60,6 +62,7 @@ public class SparseFileTracker {
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
+        long recoveredBytesFromPersistentCache = 0;
         if (ranges.isEmpty() == false) {
             synchronized (mutex) {
                 Range previous = null;
@@ -77,10 +80,12 @@ public class SparseFileTracker {
                     final boolean added = this.ranges.add(range);
                     assert added : range + " already exist in " + this.ranges;
                     previous = range;
+                    recoveredBytesFromPersistentCache += range.end - range.start;
                 }
                 assert invariant();
             }
         }
+        this.recoveredBytesFromPersistentCache = recoveredBytesFromPersistentCache;
     }
 
     public long getLength() {
@@ -104,18 +109,8 @@ public class SparseFileTracker {
         return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
     }
 
-    public long getCompletedRangesLength() {
-        long length = 0;
-        synchronized (mutex) {
-            assert invariant();
-            for (Range range : ranges) {
-                if (range.isPending()) {
-                    continue;
-                }
-                length += range.end - range.start;
-            }
-        }
-        return length;
+    public long getRecoveredBytesFromPersistentCache() {
+        return recoveredBytesFromPersistentCache;
     }
 
     /**

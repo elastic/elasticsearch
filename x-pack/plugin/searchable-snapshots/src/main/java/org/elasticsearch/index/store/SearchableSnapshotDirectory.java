@@ -212,7 +212,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
-                    evictCacheFilesIfNeeded();
+                    waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
                     prewarmCache(preWarmListener);
                 }
@@ -428,10 +428,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     /**
-     * Evicts all cache files associated to the current searchable snapshot shard in case a
+     * Waits for the eviction of cache files associated with the current searchable snapshot shard to be processed in case a
      * previous instance of that same shard has been marked as evicted on this node.
      */
-    private void evictCacheFilesIfNeeded() {
+    private void waitForPendingEvictions() {
         assert Thread.holdsLock(this);
         cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }

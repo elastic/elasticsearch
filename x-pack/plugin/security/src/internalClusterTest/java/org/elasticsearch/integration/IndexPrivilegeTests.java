@@ -476,7 +476,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                 } else {
                     assertAccessIsDenied(user, "POST", "/" + index + "/_refresh");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_flush/synced?ignore_unavailable=false");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                 }
                 break;

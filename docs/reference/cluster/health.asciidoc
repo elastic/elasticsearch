@@ -11,6 +11,12 @@ Returns the health status of a cluster.
 
 `GET _cluster/health/<target>`
 
+[[cluster-health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cluster-health-api-desc]]
 ==== {api-description-title}
 

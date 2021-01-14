@@ -445,10 +445,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
         }
 
-        public boolean isEmpty() {
-            return size() == 0;
-        }
-
         @Override
         final public boolean add(Object o) {
             throw new UnsupportedOperationException();

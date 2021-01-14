@@ -449,23 +449,19 @@ public class CacheService extends AbstractLifecycleComponent {
      * Processes and waits for all pending shard evictions to complete.
      */
     private void processAllPendingShardsEvictions() {
-        final List<Future<?>> pendingFutures;
         synchronized (shardsEvictionsMutex) {
             allowShardsEvictions = false;
-            pendingFutures = new ArrayList<>(pendingShardsEvictions.values());
         }
-        if (pendingFutures.isEmpty() == false) {
-            try {
-                if (shardsEvictionsLock.writeLock().tryLock(10L, TimeUnit.SECONDS) == false) {
-                    logger.warn("waiting for shards evictions to be processed");
-                    shardsEvictionsLock.writeLock().lock(); // wait indefinitely
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                logger.warn("interrupted while waiting shards evictions to be processed", e);
-            } finally {
-                shardsEvictionsLock.writeLock().unlock();
+        try {
+            if (shardsEvictionsLock.writeLock().tryLock(10L, TimeUnit.SECONDS) == false) {
+                logger.warn("waiting for shards evictions to be processed");
+                shardsEvictionsLock.writeLock().lock(); // wait indefinitely
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("interrupted while waiting shards evictions to be processed", e);
+        } finally {
+            shardsEvictionsLock.writeLock().unlock();
         }
     }
 

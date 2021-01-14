@@ -387,6 +387,7 @@ public class CacheService extends AbstractLifecycleComponent {
      * @param shardId           the {@link ShardId}
      */
     public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        assert assertGenericThreadPool();
         final Future<?> future;
         synchronized (shardsEvictionsMutex) {
             if (allowShardsEvictions == false) {

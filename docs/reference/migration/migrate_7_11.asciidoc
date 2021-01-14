@@ -49,12 +49,12 @@ settings of the transform.
 
 [discrete]
 [[breaking_711_ml_changes]]
-=== Machine Learning changes
+=== Machine learning changes
 .The trained models API parameter `for_export` is now renamed to `exclude_generated`.
 [%collapsible]
 ====
 *Details* +
-The trained models API (`GET _ml/trained_models/`) no longer accepts `for_export` when
-getting a model. `exclude_generated` is required instead, which behaves the same.
+The {ref}/get-trained-models.html[get trained models API] no longer accepts `for_export`.
+Use `exclude_generated` instead.
 ====
 //end::notable-breaking-changes[]

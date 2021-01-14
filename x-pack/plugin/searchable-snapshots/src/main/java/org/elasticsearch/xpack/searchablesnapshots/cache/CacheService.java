@@ -413,7 +413,11 @@ public class CacheService extends AbstractLifecycleComponent {
         shardsEvictionsLock.readLock().lock();
         try {
             try {
-                if (allowShardsEvictions) {
+                final boolean canEvict;
+                synchronized (shardsEvictionsMutex) {
+                    canEvict = allowShardsEvictions;
+                }
+                if (canEvict) {
                     final List<CacheFile> cacheFilesToEvict = new ArrayList<>();
                     cache.forEach((cacheKey, cacheFile) -> {
                         if (shardEviction.matches(cacheKey)) {

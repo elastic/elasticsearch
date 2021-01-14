@@ -36,6 +36,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 
 public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, StatsAggregationBuilder> {
     public static final String NAME = "stats";
@@ -107,5 +109,10 @@ public class StatsAggregationBuilder extends ValuesSourceAggregationBuilder.Leaf
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Optional<Set<String>> getOutputFieldNames() {
+        return Optional.of(InternalStats.METRIC_NAMES);
     }
 }

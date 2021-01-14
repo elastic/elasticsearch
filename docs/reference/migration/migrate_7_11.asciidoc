@@ -34,6 +34,17 @@ enable <<deprecation-logging, deprecation logging>>.
 //tag::notable-breaking-changes[]
 
 [discrete]
+[[breaking_711_ml_changes]]
+=== Machine learning changes
+.The trained models API parameter `for_export` is now renamed to `exclude_generated`.
+[%collapsible]
+====
+*Details* +
+The {ref}/get-trained-models.html[get trained models API] no longer accepts `for_export`.
+Use `exclude_generated` instead.
+====
+
+[discrete]
 [[breaking_711_search_changes]]
 ==== Search changes
 

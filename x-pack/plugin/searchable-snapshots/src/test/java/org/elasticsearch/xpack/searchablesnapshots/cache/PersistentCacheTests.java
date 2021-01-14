@@ -131,17 +131,15 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         final List<CacheFile> cacheFiles = randomCacheFiles(cacheService);
         cacheService.synchronizeCache();
 
-        if (cacheFiles.isEmpty() == false) {
-            final List<CacheFile> removedCacheFiles = randomSubsetOf(cacheFiles);
-            for (CacheFile removedCacheFile : removedCacheFiles) {
-                if (randomBoolean()) {
-                    // evict cache file from the cache
-                    cacheService.removeFromCache(removedCacheFile.getCacheKey());
-                } else {
-                    IOUtils.rm(removedCacheFile.getFile());
-                }
-                cacheFiles.remove(removedCacheFile);
+        final List<CacheFile> removedCacheFiles = randomSubsetOf(cacheFiles);
+        for (CacheFile removedCacheFile : removedCacheFiles) {
+            if (randomBoolean()) {
+                // evict cache file from the cache
+                cacheService.removeFromCache(removedCacheFile.getCacheKey());
+            } else {
+                IOUtils.rm(removedCacheFile.getFile());
             }
+            cacheFiles.remove(removedCacheFile);
         }
         cacheService.stop();
 

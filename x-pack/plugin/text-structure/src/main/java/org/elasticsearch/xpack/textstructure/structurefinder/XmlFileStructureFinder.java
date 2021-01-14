@@ -7,7 +7,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.w3c.dom.Document;
 import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
 public class XmlFileStructureFinder implements FileStructureFinder {
 
     private final List<String> sampleMessages;
-    private final FileStructure structure;
+    private final TextStructure structure;
 
     static XmlFileStructureFinder makeXmlFileStructureFinder(
         List<String> explanation,
@@ -89,7 +89,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         assert messagePrefix.charAt(0) == '<';
         String topLevelTag = messagePrefix.substring(1);
 
-        FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.XML).setCharset(charsetName)
+        TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.XML).setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(preamble.toString())
             .setNumLinesAnalyzed(linesConsumed)
@@ -140,7 +140,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
             outerFieldMappings.put(FileStructureUtils.DEFAULT_TIMESTAMP_FIELD, timeField.v2().getEsDateMappingTypeWithoutFormat());
         }
 
-        FileStructure structure = structureBuilder.setMappings(
+        TextStructure structure = structureBuilder.setMappings(
             Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, outerFieldMappings)
         ).setExplanation(explanation).build();
 
@@ -166,7 +166,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
         return docBuilderFactory;
     }
 
-    private XmlFileStructureFinder(List<String> sampleMessages, FileStructure structure) {
+    private XmlFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }
@@ -177,7 +177,7 @@ public class XmlFileStructureFinder implements FileStructureFinder {
     }
 
     @Override
-    public FileStructure getStructure() {
+    public TextStructure getStructure() {
         return structure;
     }
 

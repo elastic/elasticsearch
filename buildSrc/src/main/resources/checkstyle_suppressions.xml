@@ -45,6 +45,7 @@
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]SnapshotClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]StoredScriptsDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]TasksClientDocumentationIT.java" id="SnippetLength" />
+  <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]TextStructureClientDocumentationIT.java" id="SnippetLength" />
   <suppress files="client[/\\]rest-high-level[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]WatcherDocumentationIT.java" id="SnippetLength" />
   <suppress files="modules[/\\]reindex[/\\]src[/\\]test[/\\]java[/\\]org[/\\]elasticsearch[/\\]client[/\\]documentation[/\\]ReindexDocumentationIT.java" id="SnippetLength" />
 

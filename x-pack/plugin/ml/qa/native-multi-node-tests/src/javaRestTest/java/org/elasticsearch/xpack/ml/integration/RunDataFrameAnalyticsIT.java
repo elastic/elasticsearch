@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.junit.After;
 import org.junit.Before;
 
@@ -610,11 +611,10 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
         NodeAcknowledgedResponse response = startAnalytics(id);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
+        // Wait until progress for first phase is over 1
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(id).getState();
-            assertThat(state, is(anyOf(equalTo(DataFrameAnalyticsState.REINDEXING), equalTo(DataFrameAnalyticsState.ANALYZING),
-                equalTo(DataFrameAnalyticsState.STOPPED))));
+            List<PhaseProgress> progress = getAnalyticsStats(id).getProgress();
+            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
         });
         stopAnalytics(id);
         waitUntilAnalyticsIsStopped(id);

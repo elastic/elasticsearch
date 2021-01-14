@@ -171,14 +171,14 @@ public class JsonLogLine {
 
     private static ObjectParser<JsonLogLine, Void> createESParser(boolean ignoreUnknownFields) {
         ObjectParser<JsonLogLine, Void> parser = new ObjectParser<>("search_template", ignoreUnknownFields, JsonLogLine::new);
-        parser.declareString(JsonLogLine::setDataset, new ParseField("event.dataset"));
+        parser.declareString(JsonLogLine::setDataset, new ParseField("type"));
         parser.declareString(JsonLogLine::setTimestamp, new ParseField("timestamp"));
         parser.declareString(JsonLogLine::setLevel, new ParseField("level"));
         parser.declareString(JsonLogLine::setComponent, new ParseField("component"));
-        parser.declareString(JsonLogLine::setClusterName, new ParseField("elasticsearch.cluster.name"));
-        parser.declareString(JsonLogLine::setNodeName, new ParseField("elasticsearch.node.name"));
-        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("elasticsearch.cluster.uuid"));
-        parser.declareString(JsonLogLine::setNodeId, new ParseField("elasticsearch.node.id"));
+        parser.declareString(JsonLogLine::setClusterName, new ParseField("cluster.name"));
+        parser.declareString(JsonLogLine::setNodeName, new ParseField("node.name"));
+        parser.declareString(JsonLogLine::setClusterUuid, new ParseField("cluster.uuid"));
+        parser.declareString(JsonLogLine::setNodeId, new ParseField("node.id"));
         parser.declareString(JsonLogLine::setMessage, new ParseField("message"));
         parser.declareStringArray(JsonLogLine::setStacktrace, new ParseField("stacktrace"));
 

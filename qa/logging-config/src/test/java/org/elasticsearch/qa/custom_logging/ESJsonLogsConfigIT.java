@@ -49,6 +49,8 @@ public class ESJsonLogsConfigIT extends JsonLogsIntegTestCase {
 
         return AccessController.doPrivileged((PrivilegedAction<BufferedReader>) () -> {
             try {
+                String temp = Files.readString(logFile);
+
                 return Files.newBufferedReader(logFile, StandardCharsets.UTF_8);
             } catch (IOException e) {
                 throw new RuntimeException(e);

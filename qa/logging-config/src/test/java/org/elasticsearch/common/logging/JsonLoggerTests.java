@@ -100,7 +100,7 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("event.dataset", "deprecation"),
+                    hasEntry("event.dataset", "elasticsearch.deprecation"),
                     hasEntry("log.level", "DEPRECATION"),
                     hasEntry("log.logger", "deprecation.test"),
                     hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -137,7 +137,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "deprecation"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -173,7 +173,7 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("event.dataset", "file"),
+                    hasEntry("event.dataset", "elasticsearch.file"),
                     hasEntry("log.level", "INFO"),
                     hasEntry("log.logger", "test"),
                     hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -201,7 +201,7 @@ public class JsonLoggerTests extends ESTestCase {
 
             assertThat(jsonLogs, contains(
                 allOf(
-                    hasEntry("event.dataset", "file"),
+                    hasEntry("event.dataset", "elasticsearch.file"),
                     hasEntry("log.level", "INFO"),
                     hasEntry("log.logger", "test"),
                     hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -227,11 +227,11 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
 
             assertThat(jsonLogs, contains(
-                logLine("file", Level.ERROR, "sample-name", "test", "This is an error message"),
-                logLine("file", Level.WARN, "sample-name", "test", "This is a warning message"),
-                logLine("file", Level.INFO, "sample-name", "test", "This is an info message"),
-                logLine("file", Level.DEBUG, "sample-name", "test", "This is a debug message"),
-                logLine("file", Level.TRACE, "sample-name", "test", "This is a trace message")
+                logLine("elasticsearch.file", Level.ERROR, "sample-name", "test", "This is an error message"),
+                logLine("elasticsearch.file", Level.WARN, "sample-name", "test", "This is a warning message"),
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "test", "This is an info message"),
+                logLine("elasticsearch.file", Level.DEBUG, "sample-name", "test", "This is a debug message"),
+                logLine("elasticsearch.file", Level.TRACE, "sample-name", "test", "This is a trace message")
             ));
         }
     }
@@ -247,9 +247,9 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "prefix.shardIdLogger",
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "prefix.shardIdLogger",
                     "This is an info message with a shardId", Map.of(JsonLogLine::getTags, List.of("[indexName][123]"))),
-                logLine("file", Level.INFO, "sample-name", "prefix.prefixLogger",
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "prefix.prefixLogger",
                     "This is an info message with a prefix", Map.of(JsonLogLine::getTags, List.of("PREFIX")))
             ));
         }
@@ -274,7 +274,7 @@ public class JsonLoggerTests extends ESTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(path)) {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
-                logLine("file", Level.INFO, "sample-name", "test", json)
+                logLine("elasticsearch.file", Level.INFO, "sample-name", "test", json)
             ));
         }
     }
@@ -288,7 +288,7 @@ public class JsonLoggerTests extends ESTestCase {
             List<JsonLogLine> jsonLogs = collectLines(stream);
             assertThat(jsonLogs, contains(
                 allOf(
-                    logLine("file", Level.ERROR, "sample-name", "test", "error message"),
+                    logLine("elasticsearch.file", Level.ERROR, "sample-name", "test", "error message"),
                     stacktraceMatches("java.lang.Exception: exception message.*Caused by: java.lang.RuntimeException: cause message.*")
                 )
             ));
@@ -318,7 +318,7 @@ public class JsonLoggerTests extends ESTestCase {
             assertThat(jsonLogs, contains(
                 allOf(
                     //message field will have a single line with json escaped
-                    logLine("file", Level.ERROR, "sample-name", "test", "error message " + json),
+                    logLine("elasticsearch.file", Level.ERROR, "sample-name", "test", "error message " + json),
 
                     //stacktrace message will be single line
                     stacktraceWith("java.lang.Exception: " + json)
@@ -346,7 +346,7 @@ public class JsonLoggerTests extends ESTestCase {
 
                 assertThat(jsonLogs, contains(
                     allOf(
-                        hasEntry("event.dataset", "deprecation"),
+                        hasEntry("event.dataset", "elasticsearch.deprecation"),
                         hasEntry("log.level", "DEPRECATION"),
                         hasEntry("log.logger", "deprecation.test"),
                         hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -377,7 +377,7 @@ public class JsonLoggerTests extends ESTestCase {
                     jsonLogs,
                     contains(
                         allOf(
-                            hasEntry("event.dataset", "deprecation"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),
@@ -386,7 +386,7 @@ public class JsonLoggerTests extends ESTestCase {
                             hasEntry(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME, "ID1")
                         ),
                         allOf(
-                            hasEntry("event.dataset", "deprecation"),
+                            hasEntry("event.dataset", "elasticsearch.deprecation"),
                             hasEntry("log.level", "DEPRECATION"),
                             hasEntry("log.logger", "deprecation.test"),
                             hasEntry("elasticsearch.cluster.name", "elasticsearch"),

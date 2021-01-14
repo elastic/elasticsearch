@@ -44,14 +44,13 @@ import java.util.Set;
  * log messages are formatted in {@link org.apache.logging.log4j.core.layout.JsonLayout}
  * There are fields which are always present in the log line:
  * <ul>
- * <li>event.dataset - the type of logs. These represent appenders and help docker distinguish log streams.</li>
+ * <li>type - the type of logs. These represent appenders and help docker distinguish log streams.</li>
  * <li>timestamp - ISO8601 with additional timezone ID</li>
  * <li>level - INFO, WARN etc</li>
  * <li>component - logger name, most of the times class name</li>
- * <li>elasticsearch.cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
- * <li>elasticsearch.node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in
- * elasticsearch.yml</li>
- * <li>elasticsearch.node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeIdConverter and present
+ * <li>cluster.name - taken from sys:es.logs.cluster_name system property because it is always set</li>
+ * <li>node.name - taken from NodeNamePatternConverter, as it can be set in runtime as hostname when not set in elasticsearch.yml</li>
+ * <li>node_and_cluster_id - in json as node.id and cluster.uuid - taken from NodeIdConverter and present
  * once clusterStateUpdate is first received</li>
  * <li>message - a json escaped message. Multiline messages will be converted to single line with new line explicitly
  * replaced to \n</li>
@@ -76,26 +75,26 @@ public class ESJsonLayout extends AbstractStringLayout {
     private final PatternLayout patternLayout;
     private String esmessagefields;
 
-    protected ESJsonLayout(String dataset, Charset charset, String[] overrideFields) {
+    protected ESJsonLayout(String typeName, Charset charset, String[] overrideFields) {
         super(charset);
         this.esmessagefields = String.join(",",overrideFields);
         this.patternLayout = PatternLayout.newBuilder()
-                                          .withPattern(pattern(dataset, overrideFields))
+                                          .withPattern(pattern(typeName, overrideFields))
                                           .withAlwaysWriteExceptions(false)
                                           .build();
     }
 
-    private String pattern(String dataset, String[] esmessagefields) {
-        if (Strings.isEmpty(dataset)) {
-            throw new IllegalArgumentException("layout parameter 'dataset' cannot be empty");
+    private String pattern(String type, String[] esmessagefields) {
+        if (Strings.isEmpty(type)) {
+            throw new IllegalArgumentException("layout parameter 'type_name' cannot be empty");
         }
         Map<String, Object> map = new LinkedHashMap<>();
-        map.put("event.dataset", inQuotes(dataset));
+        map.put("type", inQuotes(type));
         map.put("timestamp", inQuotes("%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}"));
         map.put("level", inQuotes("%p"));
         map.put("component", inQuotes("%c{1.}"));
-        map.put("elasticsearch.cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
-        map.put("elasticsearch.node.name", inQuotes("%node_name"));
+        map.put("cluster.name", inQuotes("${sys:es.logs.cluster_name}"));
+        map.put("node.name", inQuotes("%node_name"));
         map.put("message", inQuotes("%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}"));
 
 
@@ -149,10 +148,10 @@ public class ESJsonLayout extends AbstractStringLayout {
     }
 
     @PluginFactory
-    public static ESJsonLayout createLayout(String dataset,
+    public static ESJsonLayout createLayout(String type,
                                             Charset charset,
                                             String[] overrideFields) {
-        return new ESJsonLayout(dataset, charset, overrideFields);
+        return new ESJsonLayout(type, charset, overrideFields);
     }
 
     PatternLayout getPatternLayout() {
@@ -162,8 +161,8 @@ public class ESJsonLayout extends AbstractStringLayout {
     public static class Builder<B extends ESJsonLayout.Builder<B>> extends AbstractStringLayout.Builder<B>
         implements org.apache.logging.log4j.core.util.Builder<ESJsonLayout> {
 
-        @PluginAttribute("dataset")
-        String dataset;
+        @PluginAttribute("type_name")
+        String type;
 
         @PluginAttribute(value = "charset", defaultString = "UTF-8")
         Charset charset;
@@ -178,7 +177,7 @@ public class ESJsonLayout extends AbstractStringLayout {
         @Override
         public ESJsonLayout build() {
             String[] split = Strings.isNullOrEmpty(overrideFields) ? new String[]{} : overrideFields.split(",");
-            return ESJsonLayout.createLayout(dataset, charset, split);
+            return ESJsonLayout.createLayout(type, charset, split);
         }
 
         public Charset getCharset() {
@@ -190,12 +189,12 @@ public class ESJsonLayout extends AbstractStringLayout {
             return asBuilder();
         }
 
-        public String getDataset() {
-            return dataset;
+        public String getType() {
+            return type;
         }
 
-        public B setDataset(final String dataset) {
-            this.dataset = dataset;
+        public B setType(final String type) {
+            this.type = type;
             return asBuilder();
         }
 

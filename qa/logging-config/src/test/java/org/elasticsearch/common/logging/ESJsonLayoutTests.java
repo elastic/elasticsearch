@@ -36,18 +36,18 @@ public class ESJsonLayoutTests extends ESTestCase {
 
     public void testLayout() {
         ESJsonLayout server = ESJsonLayout.newBuilder()
-                                          .setDataset("server")
+                                          .setType("server")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
 
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
-                "\"event.dataset\": \"server\", " +
+                "\"type\": \"server\", " +
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"elasticsearch.cluster.name\": \"${sys:es.logs.cluster_name}\", " +
-                "\"elasticsearch.node.name\": \"%node_name\", " +
+                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"node.name\": \"%node_name\", " +
                 "\"message\": \"%notEmpty{%enc{%marker}{JSON} }%enc{%.-10000m}{JSON}\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%notEmpty{, %CustomMapFields }" +
@@ -56,7 +56,7 @@ public class ESJsonLayoutTests extends ESTestCase {
 
     public void testLayoutWithAdditionalFieldOverride() {
         ESJsonLayout server = ESJsonLayout.newBuilder()
-                                          .setDataset("server")
+                                          .setType("server")
                                           .setOverrideFields("message")
                                           .build();
         String conversionPattern = server.getPatternLayout().getConversionPattern();
@@ -64,12 +64,12 @@ public class ESJsonLayoutTests extends ESTestCase {
         //message field is removed as is expected to be provided by a field from a message
         assertThat(conversionPattern, Matchers.equalTo(
             "{" +
-                "\"event.dataset\": \"server\", " +
+                "\"type\": \"server\", " +
                 "\"timestamp\": \"%d{yyyy-MM-dd'T'HH:mm:ss,SSSZZ}\", " +
                 "\"level\": \"%p\", " +
                 "\"component\": \"%c{1.}\", " +
-                "\"elasticsearch.cluster.name\": \"${sys:es.logs.cluster_name}\", " +
-                "\"elasticsearch.node.name\": \"%node_name\"" +
+                "\"cluster.name\": \"${sys:es.logs.cluster_name}\", " +
+                "\"node.name\": \"%node_name\"" +
                 "%notEmpty{, %node_and_cluster_id }" +
                 "%notEmpty{, %CustomMapFields }" +
                 "%exceptionAsJson }" + System.lineSeparator()));

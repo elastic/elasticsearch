@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -76,8 +75,6 @@ import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
-
-//import org.apache.lucene.util.automaton.RegExp;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
 
@@ -897,10 +894,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+        return new QueryShardContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, null, xContentRegistry(), null, null, null,
                 () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
-
             @Override
             public MappedFieldType getFieldType(String name) {
                 return provideMappedFieldType(name);

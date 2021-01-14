@@ -1938,7 +1938,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(String source, Exception e) {
-                listener.onFailure(e);
+                if (deleteFromRepoTask == null) {
+                    listener.onFailure(e);
+                } else {
+                    deleteFromRepoTask.onFailure(source, e);
+                }
             }
 
             @Override

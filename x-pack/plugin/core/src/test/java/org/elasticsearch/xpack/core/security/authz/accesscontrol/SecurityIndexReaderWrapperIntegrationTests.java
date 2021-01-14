@@ -26,7 +26,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -87,7 +86,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);
@@ -216,7 +215,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
         Client client = mock(Client.class);
         when(client.settings()).thenReturn(Settings.EMPTY);
         final long nowInMillis = randomNonNegativeLong();
-        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+        QueryShardContext realQueryShardContext = new QueryShardContext(shardId.id(), 0, indexSettings,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         QueryShardContext queryShardContext = spy(realQueryShardContext);

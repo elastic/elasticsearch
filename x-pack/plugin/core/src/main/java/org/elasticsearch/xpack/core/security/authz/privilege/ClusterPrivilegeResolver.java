@@ -55,6 +55,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_API_KEY_PATTERN = Collections.singleton("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Collections.singleton(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Collections.singleton("cluster:monitor/*");
+    private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Collections.singleton("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/data_frame/*", "cluster:monitor/transform/*"));
     private static final Set<String> MONITOR_ML_PATTERN = Collections.singleton("cluster:monitor/xpack/ml/*");
@@ -102,6 +103,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED =
         new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_TRANSFORM_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_TEXT_STRUCTURE =
+        new ActionClusterPrivilege("monitor_text_structure", MONITOR_TEXT_STRUCTURE_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM =
             new ActionClusterPrivilege("monitor_transform", MONITOR_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
@@ -157,6 +160,7 @@ public class ClusterPrivilegeResolver {
         ALL,
         MONITOR,
         MONITOR_ML,
+        MONITOR_TEXT_STRUCTURE,
         MONITOR_TRANSFORM_DEPRECATED,
         MONITOR_TRANSFORM,
         MONITOR_WATCHER,

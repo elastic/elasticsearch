@@ -312,10 +312,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
             cacheFile -> assertFalse("Cache file should be evicted: " + cacheFile, Files.exists(cacheFile.getFile()))
         );
         afterShardRecoveryCacheFiles.forEach(
-            (cacheFile, exists) -> assertFalse(
-                "Cache file should have been evicted after shard recovery: " + cacheFile,
-                Files.exists(cacheFile.getFile())
-            )
+            (cacheFile, exists) -> assertFalse("Cache file should have been evicted after shard recovery: " + cacheFile, exists)
         );
         assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0));
 

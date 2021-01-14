@@ -27,6 +27,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 /**
@@ -84,5 +85,20 @@ public class ClusterStateRequestTests extends ESTestCase {
         assertThat(in.expandWildcardsClosed(), equalTo(out.expandWildcardsClosed()));
         assertThat(in.expandWildcardsOpen(), equalTo(out.expandWildcardsOpen()));
         assertThat(in.allowNoIndices(), equalTo(out.allowNoIndices()));
+    }
+
+    public void testDescription() {
+        assertThat(new ClusterStateRequest().clear().getDescription(), equalTo("cluster state [master timeout [30s]]"));
+        assertThat(new ClusterStateRequest().masterNodeTimeout("5m").getDescription(),
+                equalTo("cluster state [routing table, nodes, metadata, blocks, customs, master timeout [5m]]"));
+        assertThat(new ClusterStateRequest().clear().routingTable(true).getDescription(), containsString("routing table"));
+        assertThat(new ClusterStateRequest().clear().nodes(true).getDescription(), containsString("nodes"));
+        assertThat(new ClusterStateRequest().clear().metadata(true).getDescription(), containsString("metadata"));
+        assertThat(new ClusterStateRequest().clear().blocks(true).getDescription(), containsString("blocks"));
+        assertThat(new ClusterStateRequest().clear().customs(true).getDescription(), containsString("customs"));
+        assertThat(new ClusterStateRequest().local(true).getDescription(), containsString("local"));
+        assertThat(new ClusterStateRequest().waitForMetadataVersion(23L).getDescription(),
+                containsString("wait for metadata version [23] with timeout [1m]"));
+        assertThat(new ClusterStateRequest().indices("foo", "bar").getDescription(), containsString("indices [foo, bar]"));
     }
 }

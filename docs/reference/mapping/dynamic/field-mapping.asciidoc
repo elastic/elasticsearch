@@ -14,6 +14,7 @@ NOTE: The field data types in the following table are the only
 explicitly map all other data types.
 
 [[dynamic-field-mapping-types]]
+// tag::dynamic-field-mapping-types-tag[]
 [cols="3"]
 |===
 h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
@@ -21,13 +22,14 @@ h| JSON data type h| `dynamic:true` h| `dynamic:runtime`
  |`true` or `false` 2*| `boolean`
  |`double` | `float` | `double`
  |`integer` 2*| `long`
- |`object`<<dynamic-object-footnote,^1^>>  2*| `object`
+ |`object`^1^  2*| `object`
  |`array` 2*|  Depends on the first non-`null` value in the array
  |`string` that passes <<date-detection,date detection>> 2*| `date`
  |`string` that passes <<numeric-detection,numeric detection>> | `float` or `long` | `double` or `long`
  |`string` that doesn't pass `date` detection or `numeric` detection | `text` with a `.keyword` sub-field | `keyword`
-3+| [[dynamic-object-footnote]] ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
+3+| ^1^Objects are always mapped as part of the `properties` section, even when the `dynamic` parameter is set to `runtime`. | |
 |===
+// end::dynamic-field-mapping-types-tag[]
 
 You can disable dynamic mapping, both at the document and at the
 <<object,`object`>> level. Setting the `dynamic` parameter to

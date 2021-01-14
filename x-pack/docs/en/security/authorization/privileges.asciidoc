@@ -19,9 +19,6 @@ details on existing repositories and snapshots.
 `grant_api_key`::
 Privileges to create {es} API keys on behalf of other users.
 
-`monitor_snapshot`::
-Privileges to list and view details on existing repositories and snapshots.
-
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
 This includes snapshotting, updating settings, and rerouting. It also includes
@@ -143,9 +140,6 @@ security roles of the user who created or updated them.
 All cluster read-only operations, like cluster health and state, hot threads,
 node info, node and cluster stats, and pending cluster tasks.
 
-`monitor_transform`::
-All read-only operations related to {transforms}.
-
 `monitor_ml`::
 All read-only {ml} operations, such as getting information about {dfeeds}, jobs,
 model snapshots, or results.
@@ -164,6 +158,15 @@ All read-only rollup operations, such as viewing the list of historical and
 currently running rollup jobs and their capabilities.
 
 endif::[]
+
+`monitor_snapshot`::
+Privileges to list and view details on existing repositories and snapshots.
+
+`monitor_text_structure`::
+All read-only operations related to the <<find-structure,find structure API>>.
+
+`monitor_transform`::
+All read-only operations related to {transforms}.
 
 `monitor_watcher`::
 All read-only watcher operations, such as getting a watch and watcher stats.

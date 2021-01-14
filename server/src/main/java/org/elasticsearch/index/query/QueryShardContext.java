@@ -36,7 +36,6 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
@@ -64,6 +63,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -89,7 +89,6 @@ public class QueryShardContext extends QueryRewriteContext {
 
     private final ScriptService scriptService;
     private final IndexSettings indexSettings;
-    private final BigArrays bigArrays;
     private final MapperService mapperService;
     private final MappingLookup mappingLookup;
     private final SimilarityService similarityService;
@@ -119,7 +118,6 @@ public class QueryShardContext extends QueryRewriteContext {
         int shardId,
         int shardRequestIndex,
         IndexSettings indexSettings,
-        BigArrays bigArrays,
         BitsetFilterCache bitsetFilterCache,
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
         MapperService mapperService,
@@ -141,7 +139,6 @@ public class QueryShardContext extends QueryRewriteContext {
             shardId,
             shardRequestIndex,
             indexSettings,
-            bigArrays,
             bitsetFilterCache,
             indexFieldDataLookup,
             mapperService,
@@ -169,7 +166,6 @@ public class QueryShardContext extends QueryRewriteContext {
             source.shardId,
             source.shardRequestIndex,
             source.indexSettings,
-            source.bigArrays,
             source.bitsetFilterCache,
             source.indexFieldDataService,
             source.mapperService,
@@ -191,7 +187,6 @@ public class QueryShardContext extends QueryRewriteContext {
     private QueryShardContext(int shardId,
                               int shardRequestIndex,
                               IndexSettings indexSettings,
-                              BigArrays bigArrays,
                               BitsetFilterCache bitsetFilterCache,
                               TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
                               MapperService mapperService,
@@ -214,7 +209,6 @@ public class QueryShardContext extends QueryRewriteContext {
         this.similarityService = similarityService;
         this.mapperService = mapperService;
         this.mappingLookup = mappingLookup;
-        this.bigArrays = bigArrays;
         this.bitsetFilterCache = bitsetFilterCache;
         this.indexFieldDataService = indexFieldDataLookup;
         this.allowUnmappedFields = indexSettings.isDefaultAllowUnmappedFields();
@@ -606,13 +600,6 @@ public class QueryShardContext extends QueryRewriteContext {
         return fullyQualifiedIndex;
     }
 
-    /**
-     * Return the {@link BigArrays} instance for this node.
-     */
-    public BigArrays bigArrays() {  // TODO this is only used in agg land, maybe remove it from here?
-        return bigArrays;
-    }
-
     private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
         Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
         if (runtimeMappings.isEmpty() == false) {
@@ -627,5 +614,9 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
+    }
+
+    public NestedDocuments getNestedDocuments() {
+        return new NestedDocuments(mappingLookup, bitsetFilterCache::getBitSetProducer);
     }
 }

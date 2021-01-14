@@ -75,7 +75,7 @@ public class TextStructureClientDocumentationIT extends ESRestHighLevelClientTes
         }
         {
             // tag::find-structure-execute-listener
-            ActionListener<FindStructureResponse> listener = new ActionListener<>() {
+            ActionListener<FindStructureResponse> listener = new ActionListener<FindStructureResponse>() {
                 @Override
                 public void onResponse(FindStructureResponse response) {
                     // <1>

@@ -73,10 +73,6 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     "  indices:\n" +
                     "    - names: 'b'\n" +
                     "      privileges: [ monitor ]\n" +
-                    "maintenance_a_role:\n" +
-                    "  indices:\n" +
-                    "    - names: 'a'\n" +
-                    "      privileges: [ maintenance ]\n" +
                     "maintenance_a_view_meta_b_role:\n" +
                     "  indices:\n" +
                     "    - names: 'a'\n" +

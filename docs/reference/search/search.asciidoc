@@ -424,12 +424,13 @@ script has access to the entire context of a document, including the original
 Your script must include `emit` to return calculated values. For
 example:
 +
-[source,json]
+[source,js]
 ----
 "script": {
   "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
         }
 ----
+// NOTCONSOLE
 ====
 
 [[request-body-search-seq-no-primary-term]]

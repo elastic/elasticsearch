@@ -66,10 +66,6 @@ cd elasticsearch-{version}/ <2>
     `elasticsearch-{version}-darwin-x86_64.tar.gz: OK`.
 <2> This directory is known as `$ES_HOME`.
 
-Alternatively, you can download the following package, which includes only
-Apache 2.0 licensed code:
-https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-oss-{version}-darwin-x86_64.tar.gz
-
 endif::[]
 
 ifdef::include-xpack[]

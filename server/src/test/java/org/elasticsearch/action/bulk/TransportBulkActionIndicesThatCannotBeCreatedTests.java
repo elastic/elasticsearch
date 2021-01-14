@@ -63,8 +63,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     public void testNonExceptional() {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
-        bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)));
+        bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)).source("foo", "bar"));
+        bulkRequest.add(new IndexRequest(randomAlphaOfLength(5)).source("foo", "bar"));
         bulkRequest.add(new DeleteRequest(randomAlphaOfLength(5)));
         bulkRequest.add(new UpdateRequest(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         // Test emulating that index can be auto-created
@@ -77,8 +77,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     public void testAllFail() {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("no"));
-        bulkRequest.add(new IndexRequest("can't"));
+        bulkRequest.add(new IndexRequest("no").source("foo", "bar"));
+        bulkRequest.add(new IndexRequest("can't").source("foo", "bar"));
         bulkRequest.add(new DeleteRequest("do").version(0).versionType(VersionType.EXTERNAL));
         bulkRequest.add(new UpdateRequest("nothin", randomAlphaOfLength(5)));
         indicesThatCannotBeCreatedTestCase(Set.of("no", "can't", "do", "nothin"), bulkRequest, index -> true, index -> {
@@ -88,8 +88,8 @@ public class TransportBulkActionIndicesThatCannotBeCreatedTests extends ESTestCa
 
     public void testSomeFail() {
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new IndexRequest("ok"));
-        bulkRequest.add(new IndexRequest("bad"));
+        bulkRequest.add(new IndexRequest("ok").source("foo", "bar"));
+        bulkRequest.add(new IndexRequest("bad").source("foo", "bar"));
         // Emulate auto_create_index=-bad,+*
         indicesThatCannotBeCreatedTestCase(Set.of("bad"), bulkRequest, index -> true, index -> {
             if (index.equals("bad")) {

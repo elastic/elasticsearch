@@ -97,7 +97,7 @@ public class BulkProcessorTests extends ESTestCase {
         assertNull(threadPool.getThreadContext().getTransient(transientKey));
 
         // add a single item which won't be over the size or number of items
-        bulkProcessor.add(new IndexRequest());
+        bulkProcessor.add(new IndexRequest().source("foo", "bar"));
 
         // wait for flush to execute
         latch.await();
@@ -159,7 +159,7 @@ public class BulkProcessorTests extends ESTestCase {
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
             CountDownLatch startGate = new CountDownLatch(1 + concurrentClients);
 
-            IndexRequest indexRequest = new IndexRequest();
+            IndexRequest indexRequest = new IndexRequest().source("foo", "bar");
             String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
             BytesReference bytesReference =
                 BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });
@@ -260,7 +260,7 @@ public class BulkProcessorTests extends ESTestCase {
             BulkRequest::new)) {
 
             ExecutorService executorService = Executors.newFixedThreadPool(concurrentClients);
-            IndexRequest indexRequest = new IndexRequest();
+            IndexRequest indexRequest = new IndexRequest().source("foo", "bar");
             String bulkRequest = "{ \"index\" : { \"_index\" : \"test\", \"_id\" : \"1\" } }\n" + "{ \"field1\" : \"value1\" }\n";
             BytesReference bytesReference =
                 BytesReference.fromByteBuffers(new ByteBuffer[]{ ByteBuffer.wrap(bulkRequest.getBytes(StandardCharsets.UTF_8)) });

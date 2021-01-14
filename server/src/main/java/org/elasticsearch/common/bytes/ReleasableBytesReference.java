@@ -34,18 +34,18 @@ import java.io.OutputStream;
  * An extension to {@link BytesReference} that requires releasing its content. This
  * class exists to make it explicit when a bytes reference needs to be released, and when not.
  */
-public final class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
+public class ReleasableBytesReference implements RefCounted, Releasable, BytesReference {
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    private final AbstractRefCounted refCounted;
+    protected final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
         this.delegate = delegate;
         this.refCounted = new RefCountedReleasable(releasable);
     }
 
-    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    protected ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
         refCounted.incRef();
@@ -93,11 +93,13 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public byte get(int index) {
+        assert refCount() > 0;
         return delegate.get(index);
     }
 
     @Override
     public int getInt(int index) {
+        assert refCount() > 0;
         return delegate.getInt(index);
     }
 
@@ -119,6 +121,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public long ramBytesUsed() {
+        assert refCount() > 0;
         return delegate.ramBytesUsed();
     }
 
@@ -147,7 +150,11 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
     @Override
     public String utf8ToString() {
         assert refCount() > 0;
-        return delegate.utf8ToString();
+        try {
+            return delegate.utf8ToString();
+        } catch (Throwable t) {
+          throw new AssertionError(t);
+        }
     }
 
     @Override
@@ -164,6 +171,7 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     @Override
     public int compareTo(BytesReference o) {
+        assert refCount() > 0;
         return delegate.compareTo(o);
     }
 

@@ -26,6 +26,7 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -47,6 +48,7 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -189,12 +191,17 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
         final IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         final IndexShard indexShard = indexService.getShard(shardId.getId());
         final UpdateHelper.Result result = updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis);
+        final ActionListener<UpdateResponse> wrappedListener;
+        final BulkRequest bulk;
         switch (result.getResponseResult()) {
             case CREATED:
                 IndexRequest upsertRequest = result.action();
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference upsertSourceBytes = upsertRequest.source();
-                client.bulk(toSingleItemBulkRequest(upsertRequest), wrapBulkResponse(
+                bulk = toSingleItemBulkRequest(upsertRequest);
+                wrappedListener =
+                        ActionListener.runAfter(listener, Releasables.releaseOnce(bulk::decRef)::close);
+                client.bulk(bulk, wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
                                 response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
@@ -209,16 +216,18 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 update.setGetResult(null);
                             }
                             update.setForcedRefresh(response.forcedRefresh());
-                            listener.onResponse(update);
-                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
+                            wrappedListener.onResponse(update);
+                        }, exception -> handleUpdateFailureWithRetry(wrappedListener, request, exception, retryCount)))
                 );
 
                 break;
             case UPDATED:
                 IndexRequest indexRequest = result.action();
+                bulk = toSingleItemBulkRequest(indexRequest);
+                wrappedListener = ActionListener.runAfter(listener, Releasables.releaseOnce(bulk::decRef)::close);
                 // we fetch it from the index request so we don't generate the bytes twice, its already done in the index request
                 final BytesReference indexSourceBytes = indexRequest.source();
-                client.bulk(toSingleItemBulkRequest(indexRequest), wrapBulkResponse(
+                client.bulk(bulk, wrapBulkResponse(
                         ActionListener.<IndexResponse>wrap(response -> {
                             UpdateResponse update = new UpdateResponse(response.getShardInfo(), response.getShardId(),
                                 response.getId(), response.getSeqNo(), response.getPrimaryTerm(),
@@ -227,8 +236,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                                 response.getSeqNo(), response.getPrimaryTerm(), response.getVersion(),
                                 result.updatedSourceAsMap(), result.updateSourceContentType(), indexSourceBytes));
                             update.setForcedRefresh(response.forcedRefresh());
-                            listener.onResponse(update);
-                        }, exception -> handleUpdateFailureWithRetry(listener, request, exception, retryCount)))
+                            wrappedListener.onResponse(update);
+                        }, exception -> handleUpdateFailureWithRetry(wrappedListener, request, exception, retryCount)))
                 );
                 break;
             case DELETED:

@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -41,7 +42,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
  * Generic interface to group ActionRequest, which perform writes to a single document
  * Action requests implementing this can be part of {@link org.elasticsearch.action.bulk.BulkRequest}
  */
-public interface DocWriteRequest<T> extends IndicesRequest, Accountable {
+public interface DocWriteRequest<T> extends IndicesRequest, Accountable, RefCounted {
 
     // Flag set for disallowing index auto creation for an individual write request.
     String REQUIRE_ALIAS = "require_alias";

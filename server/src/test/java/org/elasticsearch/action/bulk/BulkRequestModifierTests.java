@@ -85,7 +85,7 @@ public class BulkRequestModifierTests extends ESTestCase {
     public void testPipelineFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {
-            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)).source("foo", "bar"));
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);
@@ -130,7 +130,7 @@ public class BulkRequestModifierTests extends ESTestCase {
     public void testNoFailures() {
         BulkRequest originalBulkRequest = new BulkRequest();
         for (int i = 0; i < 32; i++) {
-            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)));
+            originalBulkRequest.add(new IndexRequest("index").id(String.valueOf(i)).source("foo", "bar"));
         }
 
         TransportBulkAction.BulkRequestModifier modifier = new TransportBulkAction.BulkRequestModifier(originalBulkRequest);

@@ -39,6 +39,7 @@ import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.nio.BytesChannelContext;
@@ -55,6 +56,7 @@ import org.elasticsearch.nio.ServerChannelContext;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.InboundPipeline;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.StatsTracker;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpServerChannel;
@@ -268,6 +270,38 @@ public class MockNioTransport extends TcpTransport {
         }
     }
 
+    private static final LeakTracker leakTracker = new LeakTracker(Releasable.class);
+
+    private static final class LeakAwareReleasableBytesReference extends ReleasableBytesReference {
+
+        LeakAwareReleasableBytesReference(BytesReference delegate, Releasable releasable) {
+            super(delegate, new RefCountedReleasable(releasable));
+            this.refCounted.decRef();
+        }
+
+        private static final class RefCountedReleasable extends AbstractRefCounted {
+            private final LeakTracker.Leak<Releasable> leak;
+
+            private final Releasable releasable;
+
+            RefCountedReleasable(Releasable releasable) {
+                super("bytes-reference-leak");
+                this.releasable = releasable;
+                leak = leakTracker.track(releasable);
+            }
+
+            @Override
+            protected void closeInternal() {
+                leak.close(releasable);
+                releasable.close();
+            }
+
+            @Override
+            protected void track() {
+                leak.record();
+            }
+        }
+    }
     private static class MockTcpReadWriteHandler extends BytesWriteHandler {
 
         private final MockSocketChannel channel;
@@ -291,8 +325,15 @@ public class MockNioTransport extends TcpTransport {
             for (int i = 0; i < pages.length; ++i) {
                 references[i] = BytesReference.fromByteBuffer(pages[i].byteBuffer());
             }
-            Releasable releasable = () -> IOUtils.closeWhileHandlingException(pages);
-            try (ReleasableBytesReference reference = new ReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
+            Releasable releasable = () -> {
+                try {
+                    IOUtils.close(pages);
+                } catch (IOException e) {
+                    throw new AssertionError(e);
+                }
+            };
+            try (ReleasableBytesReference reference =
+                         new LeakAwareReleasableBytesReference(CompositeBytesReference.of(references), releasable)) {
                 pipeline.handleBytes(channel, reference);
                 return reference.length();
             }

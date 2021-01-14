@@ -230,20 +230,6 @@ public class BulkRequestTests extends ESTestCase {
                 "RefreshPolicy is not supported on an item request. Set it on the BulkRequest instead."));
     }
 
-    // issue 15120
-    public void testBulkNoSource() throws Exception {
-        BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(new UpdateRequest("index", "id"));
-        bulkRequest.add(new IndexRequest("index").id("id"));
-        ActionRequestValidationException validate = bulkRequest.validate();
-        assertThat(validate, notNullValue());
-        assertThat(validate.validationErrors(), not(empty()));
-        assertThat(validate.validationErrors(), contains(
-                "script or doc is missing",
-                "source is missing",
-                "content type is missing"));
-    }
-
     public void testCannotAddNullRequests() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         expectThrows(NullPointerException.class, () -> bulkRequest.add((IndexRequest) null));

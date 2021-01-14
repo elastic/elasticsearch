@@ -288,7 +288,7 @@ public class TransportBulkActionTests extends ESTestCase {
             final DocWriteRequest<?> subRequest;
             switch (randomIntBetween(1, 3)) {
                 case 1:
-                    subRequest = new IndexRequest(index);
+                    subRequest = new IndexRequest(index).source("foo", "bar");
                     break;
                 case 2:
                     subRequest = new DeleteRequest(index).id("0");

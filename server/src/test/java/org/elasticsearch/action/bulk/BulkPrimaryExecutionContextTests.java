@@ -73,10 +73,10 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
             final DocWriteRequest request;
             switch (randomFrom(DocWriteRequest.OpType.values())) {
                 case INDEX:
-                    request = new IndexRequest("index").id("id_" + i);
+                    request = new IndexRequest("index").id("id_" + i).source("foo", "bar");
                     break;
                 case CREATE:
-                    request = new IndexRequest("index").id("id_" + i).create(true);
+                    request = new IndexRequest("index").id("id_" + i).source("foo", "bar").create(true);
                     break;
                 case UPDATE:
                     request = new UpdateRequest("index", "id_" + i);
@@ -128,7 +128,7 @@ public class BulkPrimaryExecutionContextTests extends ESTestCase {
                     }
                     break;
                 case UPDATE:
-                    context.setRequestToExecute(new IndexRequest(current.index()).id(current.id()));
+                    context.setRequestToExecute(new IndexRequest(current.index()).source("foo", "bar").id(current.id()));
                     if (failure) {
                         result = new Engine.IndexResult(new ElasticsearchException("bla"), 1, 1, 1);
                     } else {

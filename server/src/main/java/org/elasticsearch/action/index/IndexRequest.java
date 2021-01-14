@@ -36,10 +36,12 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -92,7 +94,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     @Nullable
     private String routing;
 
-    private BytesReference source;
+    private ReleasableBytesReference source;
 
     private OpType opType = OpType.INDEX;
 
@@ -120,6 +122,15 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     private long ifSeqNo = UNASSIGNED_SEQ_NO;
     private long ifPrimaryTerm = UNASSIGNED_PRIMARY_TERM;
 
+    private final AbstractRefCounted refCounted = new AbstractRefCounted("index-request") {
+        @Override
+        protected void closeInternal() {
+            if (source != null) {
+                source.decRef();
+            }
+        }
+    };
+
     public IndexRequest(StreamInput in) throws IOException {
         this(null, in);
     }
@@ -132,7 +143,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         }
         id = in.readOptionalString();
         routing = in.readOptionalString();
-        source = in.readBytesReference();
+        source = in.readReleasableBytesReference();
         opType = OpType.fromId(in.readByte());
         version = in.readLong();
         versionType = VersionType.fromValue(in.readByte());
@@ -339,10 +350,12 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * The source of the document to index, recopied to a new array if it is unsafe.
      */
     public BytesReference source() {
+        assert refCounted.refCount() > 0;
         return source;
     }
 
     public Map<String, Object> sourceAsMap() {
+        assert refCounted.refCount() > 0;
         return XContentHelper.convertToMap(source, false, contentType).v2();
     }
 
@@ -432,7 +445,11 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * Sets the document to index in bytes form.
      */
     public IndexRequest source(BytesReference source, XContentType xContentType) {
-        this.source = Objects.requireNonNull(source);
+        assert refCounted.refCount() > 0;
+        if (this.source != null) {
+            this.source.decRef();
+        }
+        this.source = ReleasableBytesReference.wrap(Objects.requireNonNull(source));
         this.contentType = Objects.requireNonNull(xContentType);
         return this;
     }
@@ -637,6 +654,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     private void writeBody(StreamOutput out) throws IOException {
+        assert refCounted.refCount() > 0;
         if (out.getVersion().before(Version.V_8_0_0)) {
             out.writeOptionalString(MapperService.SINGLE_MAPPING_NAME);
         }
@@ -676,7 +694,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
                 sSource = "n/a, actual length: [" + new ByteSizeValue(source.length()).toString() + "], max length: " +
                     new ByteSizeValue(MAX_SOURCE_LENGTH_IN_TOSTRING).toString();
             } else {
-                sSource = XContentHelper.convertToJson(source, false);
+                sSource = XContentHelper.convertToJson(source, false, contentType);
             }
         } catch (Exception e) {
             // ignore
@@ -722,5 +740,19 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     public IndexRequest setRequireAlias(boolean requireAlias) {
         this.requireAlias = requireAlias;
         return this;
+    }
+    @Override
+    public void incRef() {
+        refCounted.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return refCounted.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return refCounted.decRef();
     }
 }

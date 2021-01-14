@@ -27,17 +27,18 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class BulkItemRequest implements Writeable, Accountable {
+public class BulkItemRequest implements Writeable, Accountable, RefCounted {
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkItemRequest.class);
 
-    private int id;
-    private DocWriteRequest<?> request;
+    private final int id;
+    private final DocWriteRequest<?> request;
     private volatile BulkItemResponse primaryResponse;
 
     BulkItemRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
@@ -119,5 +120,20 @@ public class BulkItemRequest implements Writeable, Accountable {
     @Override
     public long ramBytesUsed() {
         return SHALLOW_SIZE + request.ramBytesUsed();
+    }
+
+    @Override
+    public void incRef() {
+        request.incRef();
+    }
+
+    @Override
+    public boolean tryIncRef() {
+        return request.tryIncRef();
+    }
+
+    @Override
+    public boolean decRef() {
+        return request.decRef();
     }
 }

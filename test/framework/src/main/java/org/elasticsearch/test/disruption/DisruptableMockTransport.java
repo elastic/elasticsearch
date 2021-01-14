@@ -270,6 +270,8 @@ public abstract class DisruptableMockTransport extends MockTransport {
             } catch (Exception ee) {
                 logger.warn("failed to send failure", e);
             }
+        } finally {
+            copiedRequest.decRef();
         }
     }
 

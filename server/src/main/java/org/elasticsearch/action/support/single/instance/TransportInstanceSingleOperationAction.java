@@ -259,6 +259,7 @@ public abstract class TransportInstanceSingleOperationAction<
 
         @Override
         public void messageReceived(final Request request, final TransportChannel channel, Task task) throws Exception {
+            request.incRef();
             threadPool.executor(executor(request.shardId)).execute(new AbstractRunnable() {
                 @Override
                 public void onFailure(Exception e) {
@@ -273,6 +274,11 @@ public abstract class TransportInstanceSingleOperationAction<
                 @Override
                 protected void doRun() {
                     shardOperation(request, ActionListener.wrap(channel::sendResponse, this::onFailure));
+                }
+
+                @Override
+                public void onAfter() {
+                    request.decRef();
                 }
             });
         }

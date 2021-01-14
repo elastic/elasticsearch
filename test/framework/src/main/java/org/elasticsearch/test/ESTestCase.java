@@ -210,29 +210,30 @@ public abstract class ESTestCase extends LuceneTestCase {
         setTestSysProps();
         LogConfigurator.loadLog4jPlugins();
 
-        String leakLoggerName = "io.netty.util.ResourceLeakDetector";
-        Logger leakLogger = LogManager.getLogger(leakLoggerName);
-        Appender leakAppender = new AbstractAppender(leakLoggerName, null,
-            PatternLayout.newBuilder().withPattern("%m").build()) {
-            @Override
-            public void append(LogEvent event) {
-                String message = event.getMessage().getFormattedMessage();
-                if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
-                    synchronized (nettyLoggedLeaks) {
-                        nettyLoggedLeaks.add(message);
+        List<String> leakLoggerNames = List.of("io.netty.util.ResourceLeakDetector", "org.elasticsearch.transport.LeakTracker");
+        for (String leakLoggerName : leakLoggerNames) {
+            Logger leakLogger = LogManager.getLogger(leakLoggerName);
+            Appender leakAppender = new AbstractAppender(leakLoggerName, null,
+                    PatternLayout.newBuilder().withPattern("%m").build()) {
+                @Override
+                public void append(LogEvent event) {
+                    String message = event.getMessage().getFormattedMessage();
+                    if (Level.ERROR.equals(event.getLevel()) && message.contains("LEAK:")) {
+                        synchronized (nettyLoggedLeaks) {
+                            nettyLoggedLeaks.add(message);
+                        }
                     }
                 }
-            }
-        };
-        leakAppender.start();
-        Loggers.addAppender(leakLogger, leakAppender);
-
-        // shutdown hook so that when the test JVM exits, logging is shutdown too
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            leakAppender.stop();
-            LoggerContext context = (LoggerContext) LogManager.getContext(false);
-            Configurator.shutdown(context);
-        }));
+            };
+            leakAppender.start();
+            Loggers.addAppender(leakLogger, leakAppender);
+            // shutdown hook so that when the test JVM exits, logging is shutdown too
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                leakAppender.stop();
+                LoggerContext context = (LoggerContext) LogManager.getContext(false);
+                Configurator.shutdown(context);
+            }));
+        }
 
         BootstrapForTesting.ensureInitialized();
 

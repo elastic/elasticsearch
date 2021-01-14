@@ -217,9 +217,7 @@ public class InboundHandler {
                             }
                         } else {
                             boolean success = false;
-                            if (request instanceof RefCounted) {
-                                ((RefCounted) request).incRef();
-                            }
+                            request.incRef();
                             try {
                                 threadPool.executor(executor).execute(new AbstractRunnable() {
                                     @Override

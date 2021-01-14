@@ -33,15 +33,12 @@ public class Page implements Closeable {
     // released.
     private final RefCountedCloseable refCountedCloseable;
 
-    public Page(ByteBuffer byteBuffer) {
-        this(byteBuffer, () -> {});
-    }
-
     public Page(ByteBuffer byteBuffer, Runnable closeable) {
         this(byteBuffer, new RefCountedCloseable(closeable));
     }
 
     private Page(ByteBuffer byteBuffer, RefCountedCloseable refCountedCloseable) {
+        assert refCountedCloseable.refCount() > 0;
         this.byteBuffer = byteBuffer;
         this.refCountedCloseable = refCountedCloseable;
     }
@@ -64,6 +61,7 @@ public class Page implements Closeable {
      * @return the byte buffer
      */
     public ByteBuffer byteBuffer() {
+        assert refCountedCloseable.refCount() > 0;
         return byteBuffer;
     }
 

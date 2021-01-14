@@ -148,6 +148,12 @@ public class TransportBulkActionIngestTests extends ESTestCase {
         }
 
         @Override
+        protected void doExecute(Task task, BulkRequest bulkRequest, ActionListener<BulkResponse> listener) {
+            bulkRequest.incRef();
+            super.doExecute(task, bulkRequest, listener);
+        }
+
+        @Override
         void executeBulk(Task task, final BulkRequest bulkRequest, final long startTimeNanos, final ActionListener<BulkResponse> listener,
                 final AtomicArray<BulkItemResponse> responses, Map<String, IndexNotFoundException> indicesThatCannotBeCreated) {
             assertTrue(indexCreated);

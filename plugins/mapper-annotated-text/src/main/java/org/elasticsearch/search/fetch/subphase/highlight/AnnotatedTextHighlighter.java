@@ -61,11 +61,6 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
     }
 
     @Override
-    protected Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
-        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, limitToMaxAnalyzedOffset, maxOffset));
-    }
-
-    @Override
     protected PassageFormatter getPassageFormatter(HitContext hitContext, SearchHighlightContext.Field field, Encoder encoder) {
         return new AnnotatedPassageFormatter(encoder);
     }

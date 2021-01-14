@@ -20,16 +20,28 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
+import org.apache.http.RequestLine;
+import org.apache.http.StatusLine;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
+import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.hamcrest.CoreMatchers;
+import org.hamcrest.core.IsIterableContaining;
+import org.mockito.Mock;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.is;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
@@ -64,5 +76,31 @@ public class ClientYamlTestExecutionContextTests extends ESTestCase {
 
         assertEquals("foo2", headersRef.get().get("foo"));
         assertEquals("baz bar1", headersRef.get().get("foo1"));
+    }
+
+    public void testStashHeadersOnException() throws IOException {
+        final Version version = VersionUtils.randomVersion(random());
+        final ClientYamlTestExecutionContext context =
+            new ClientYamlTestExecutionContext(null, randomBoolean()) {
+                @Override
+                ClientYamlTestResponse callApiInternal(String apiName, Map<String, String> params,
+                                                       HttpEntity entity, Map<String, String> headers, NodeSelector nodeSelector) {
+                    throw new RuntimeException("boom!");
+                }
+
+                @Override
+                public Version esVersion() {
+                    return version;
+                }
+            };
+        final Map<String, String> headers = new HashMap<>();
+        headers.put("Accept", "application/json");
+        headers.put("Authorization", "Basic password==");
+        try {
+            context.callApi("test", Collections.emptyMap(), Collections.emptyList(), headers);
+        } catch (Exception e) {
+            //do nothing...behavior we are testing is the finally block of the production code
+        }
+        assertThat(context.stash().getValue("$request_headers"), is(headers));
     }
 }

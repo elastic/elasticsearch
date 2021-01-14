@@ -456,16 +456,20 @@ public class CacheService extends AbstractLifecycleComponent {
         synchronized (shardsEvictionsMutex) {
             allowShardsEvictions = false;
         }
+        boolean success = false;
         try {
             if (shardsEvictionsLock.writeLock().tryLock(10L, TimeUnit.SECONDS) == false) {
                 logger.warn("waiting for shards evictions to be processed");
                 shardsEvictionsLock.writeLock().lock(); // wait indefinitely
             }
+            success = true;
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             logger.warn("interrupted while waiting shards evictions to be processed", e);
         } finally {
-            shardsEvictionsLock.writeLock().unlock();
+            if (success) {
+                shardsEvictionsLock.writeLock().unlock();
+            }
         }
     }
 

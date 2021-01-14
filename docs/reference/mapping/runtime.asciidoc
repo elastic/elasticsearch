@@ -105,6 +105,7 @@ PUT my-index/
 
 The `runtime` section can be any of these data types:
 
+// tag::runtime-data-types[]
 * `boolean`
 * `date`
 * `double`
@@ -112,6 +113,7 @@ The `runtime` section can be any of these data types:
 * `ip`
 * `keyword`
 * `long`
+// end::runtime-data-types[]
 
 Runtime fields with a `type` of `date` can accept the
 <<mapping-date-format,`format`>> parameter exactly as the `date` field type.

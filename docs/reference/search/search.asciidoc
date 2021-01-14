@@ -405,6 +405,32 @@ lower `_score` are not included in the search results.
 Defines a <<runtime-search-request,runtime field>> in the search request that
 exist only as part of the query. Fields defined in the search request take
 precedence over fields defined with the same name in the index mappings.
++
+.Properties of `runtime_mappings` objects
+[%collapsible%open]
+====
+`type`::
+(Required, string)
+<<mapping-types,Data type>> of the object, which can be any of the following:
++
+include::{es-ref-dir}/mapping/runtime.asciidoc[tag=runtime-data-types]
+
+`script`::
+(Optional, string)
+<<modules-scripting-using,Painless script>> that is executed at query time. The
+script has access to the entire context of a document, including the original
+`_source` and any mapped fields plus their values.
++
+Your script must include `emit` to return calculated values. For
+example:
++
+[source,json]
+----
+"script": {
+  "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        }
+----
+====
 
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::

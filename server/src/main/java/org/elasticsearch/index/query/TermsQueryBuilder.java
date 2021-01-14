@@ -481,6 +481,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
     }
 
+    /**
+     * Store terms as a {@link BytesReference}.
+     * <p>
+     * When users send a query contain a lot of terms, A {@link BytesReference} can help
+     * gc and reduce the cost of {@link #doWriteTo}, which can be slow for lots of terms.
+     */
     private static class ValuesAfterV8 extends Values {
 
         private final BytesReference valueRef;

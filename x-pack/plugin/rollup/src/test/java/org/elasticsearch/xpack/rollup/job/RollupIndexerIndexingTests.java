@@ -32,7 +32,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -89,7 +88,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
     private void setup() {
         settings = createIndexSettings();
         queryShardContext = new QueryShardContext(0, 0, settings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null,
+            null, null, null, null, null, null,
                 null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
     }
 

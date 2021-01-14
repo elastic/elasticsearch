@@ -26,7 +26,6 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -201,7 +200,7 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, 0, idxSettings, BigArrays.NON_RECYCLING_INSTANCE, bitsetFilterCache, indexFieldDataLookup,
+        return new QueryShardContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, scriptService, xContentRegistry(), namedWriteableRegistry, null, searcher,
                 () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
 

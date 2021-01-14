@@ -81,6 +81,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.BiPredicate;
+import java.util.function.Supplier;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
@@ -227,40 +228,41 @@ public class AzureBlobStore implements BlobStore {
         final AtomicInteger blobsDeleted = new AtomicInteger(0);
         final AtomicLong bytesDeleted = new AtomicLong(0);
 
-        try {
-            final BlobServiceClient client = client();
-            SocketAccess.doPrivilegedVoidException(() -> {
-                final BlobContainerClient blobContainerClient = client.getBlobContainerClient(container);
-                final BlobContainerAsyncClient blobContainerAsyncClient = asyncClient().getBlobContainerAsyncClient(container);
-                final Queue<String> directories = new ArrayDeque<>();
-                directories.offer(path);
-                String directoryName;
-                List<Mono<Void>> deleteTasks = new ArrayList<>();
-                while ((directoryName = directories.poll()) != null) {
-                    final BlobListDetails blobListDetails = new BlobListDetails()
-                        .setRetrieveMetadata(true);
+        final BlobServiceClient client = client();
+        SocketAccess.doPrivilegedVoidException(() -> {
+            final BlobContainerClient blobContainerClient = client.getBlobContainerClient(container);
+            final BlobContainerAsyncClient blobContainerAsyncClient = asyncClient().getBlobContainerAsyncClient(container);
+            final Queue<String> directories = new ArrayDeque<>();
+            directories.offer(path);
+            String directoryName;
+            List<Mono<Void>> deleteTasks = new ArrayList<>();
+            while ((directoryName = directories.poll()) != null) {
+                final BlobListDetails blobListDetails = new BlobListDetails()
+                    .setRetrieveMetadata(true);
 
-                    final ListBlobsOptions options = new ListBlobsOptions()
-                        .setPrefix(directoryName)
-                        .setDetails(blobListDetails);
+                final ListBlobsOptions options = new ListBlobsOptions()
+                    .setPrefix(directoryName)
+                    .setDetails(blobListDetails);
 
-                    for (BlobItem blobItem : blobContainerClient.listBlobsByHierarchy("/", options, null)) {
-                        if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
-                            directories.offer(blobItem.getName());
-                        } else {
-                            BlobAsyncClient blobAsyncClient = blobContainerAsyncClient.getBlobAsyncClient(blobItem.getName());
-                            deleteTasks.add(blobAsyncClient.delete());
-                            bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
-                            blobsDeleted.incrementAndGet();
-                        }
+                for (BlobItem blobItem : blobContainerClient.listBlobsByHierarchy("/", options, null)) {
+                    if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
+                        directories.offer(blobItem.getName());
+                    } else {
+                        BlobAsyncClient blobAsyncClient = blobContainerAsyncClient.getBlobAsyncClient(blobItem.getName());
+                        final Mono<Void> deleteTask = blobAsyncClient.delete()
+                            // Ignore not found blobs, as it's possible that due to network errors a request
+                            // for an already deleted blob is retried, causing an error.
+                            .onErrorResume(this::isNotFoundError, throwable -> Mono.empty())
+                            .onErrorMap(throwable -> new IOException("Error deleting blob " + blobItem.getName(), throwable));
+                        deleteTasks.add(deleteTask);
+                        bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
+                        blobsDeleted.incrementAndGet();
                     }
                 }
+            }
 
-                executeDeleteTasks(deleteTasks);
-            });
-        } catch (Exception e) {
-            throw new IOException("Deleting directory [" + path + "] failed", e);
-        }
+            executeDeleteTasks(deleteTasks, () -> "Deleting directory [" + path + "] failed");
+        });
 
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
@@ -270,31 +272,43 @@ public class AzureBlobStore implements BlobStore {
             return;
         }
 
-        try {
-            BlobServiceAsyncClient asyncClient = asyncClient();
-            SocketAccess.doPrivilegedVoidException(() -> {
-                List<Mono<Void>> deleteTasks = new ArrayList<>(blobs.size());
-                final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
-                for (String blob : blobs) {
-                    final Mono<Void> deleteTask = blobContainerClient.getBlobAsyncClient(blob)
-                        .delete()
-                        // Ignore not found blobs
-                        .onErrorResume(e -> (e instanceof BlobStorageException) && ((BlobStorageException) e).getStatusCode() == 404,
-                            throwable -> Mono.empty());
-                    deleteTasks.add(deleteTask);
-                }
+        BlobServiceAsyncClient asyncClient = asyncClient();
+        SocketAccess.doPrivilegedVoidException(() -> {
+            List<Mono<Void>> deleteTasks = new ArrayList<>(blobs.size());
+            final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
+            for (String blob : blobs) {
+                final Mono<Void> deleteTask = blobContainerClient.getBlobAsyncClient(blob)
+                    .delete()
+                    // Ignore not found blobs
+                    .onErrorResume(this::isNotFoundError, throwable -> Mono.empty())
+                    .onErrorMap(throwable -> new IOException("Error deleting blob " + blob, throwable));
 
-                executeDeleteTasks(deleteTasks);
-            });
-        } catch (Exception e) {
-            throw new IOException("Unable to delete blobs " + blobs, e);
-        }
+                deleteTasks.add(deleteTask);
+            }
+
+            executeDeleteTasks(deleteTasks, () -> "Unable to delete blobs " + blobs);
+        });
     }
 
-    private void executeDeleteTasks(List<Mono<Void>> deleteTasks) {
-        // zipDelayError executes all tasks in parallel and delays
-        // error propagation until all tasks have finished.
-        Mono.zipDelayError(deleteTasks, results -> null).block();
+    private boolean isNotFoundError(Throwable e) {
+        return e instanceof BlobStorageException && ((BlobStorageException) e).getStatusCode() == 404;
+    }
+
+    private void executeDeleteTasks(List<Mono<Void>> deleteTasks, Supplier<String> errorMessageSupplier) throws IOException {
+        try {
+            // zipDelayError executes all tasks in parallel and delays
+            // error propagation until all tasks have finished.
+            Mono.zipDelayError(deleteTasks, results -> null).block();
+        } catch (Exception e) {
+            final IOException exception = new IOException(errorMessageSupplier.get());
+            for (Throwable suppressed : e.getSuppressed()) {
+                // We're only interested about the blob deletion exceptions and not in the reactor internals exceptions
+                if (suppressed instanceof IOException) {
+                    exception.addSuppressed(suppressed);
+                }
+            }
+            throw exception;
+        }
     }
 
     public InputStream getInputStream(String blob, long position, final @Nullable Long length) throws IOException {

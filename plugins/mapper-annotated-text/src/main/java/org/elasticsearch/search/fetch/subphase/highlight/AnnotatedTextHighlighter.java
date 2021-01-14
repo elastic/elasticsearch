@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;
@@ -57,6 +58,11 @@ public class AnnotatedTextHighlighter extends UnifiedHighlighter {
         ((AnnotatedPassageFormatter) highlighter.getFormatter()).setAnnotations(annotations);
         ((AnnotatedHighlighterAnalyzer) highlighter.getIndexAnalyzer()).setAnnotations(annotations);
         return strings;
+    }
+
+    @Override
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
+        return new AnnotatedHighlighterAnalyzer(super.wrapAnalyzer(analyzer, limitToMaxAnalyzedOffset, maxOffset));
     }
 
     @Override

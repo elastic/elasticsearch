@@ -251,7 +251,7 @@ public abstract class AggregationContext implements Releasable {
      */
     public static class ProductionAggregationContext extends AggregationContext {
         private final QueryShardContext context;
-        private final PreallocatedCircuitBreakerService breakerService;
+        private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
         private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
@@ -266,6 +266,7 @@ public abstract class AggregationContext implements Releasable {
 
         public ProductionAggregationContext(
             QueryShardContext context,
+            BigArrays bigArrays,
             long bytesToPreallocate,
             Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
@@ -285,16 +286,16 @@ public abstract class AggregationContext implements Releasable {
                  * anything. Setting the breakerService reference to null will
                  * cause us to skip it when we close this context.
                  */
-                this.breakerService = null;
-                this.bigArrays = context.bigArrays().withCircuitBreaking();
+                this.preallocatedBreakerService = null;
+                this.bigArrays = bigArrays.withCircuitBreaking();
             } else {
-                this.breakerService = new PreallocatedCircuitBreakerService(
-                    context.bigArrays().breakerService(),
+                this.preallocatedBreakerService = new PreallocatedCircuitBreakerService(
+                    bigArrays.breakerService(),
                     CircuitBreaker.REQUEST,
                     bytesToPreallocate,
                     "aggregations"
                 );
-                this.bigArrays = context.bigArrays().withBreakerService(breakerService).withCircuitBreaking();
+                this.bigArrays = bigArrays.withBreakerService(preallocatedBreakerService).withCircuitBreaking();
             }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
@@ -416,7 +417,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public BucketedSort buildBucketedSort(SortBuilder<?> sort, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
-            return sort.buildBucketedSort(context, bucketSize, extra);
+            return sort.buildBucketedSort(context, bigArrays, bucketSize, extra);
         }
 
         @Override
@@ -436,7 +437,8 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public CircuitBreaker breaker() {
-            return context.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+            // preallocatedBreakerService may be null if we haven't preallocated so use the one in bigArrays.
+            return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         }
 
         @Override
@@ -456,7 +458,7 @@ public abstract class AggregationContext implements Releasable {
              * after all the aggregations that allocate bytes on it.
              */
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
-            releaseMe.add(breakerService);
+            releaseMe.add(preallocatedBreakerService);
             Releasables.close(releaseMe);
         }
     }

@@ -127,10 +127,18 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         createRepository(fsRepoName, "test-fs");
         int numberOfShards = 1;
 
-        createAndPopulateIndex(
-            indexName,
-            Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true).put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+        assertAcked(
+            prepareCreate(
+                indexName,
+                Settings.builder()
+                    .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+            )
         );
+        ensureGreen(indexName);
+
+        final int documentCount = randomIntBetween(1000, 3000);
+        populateIndex(indexName, documentCount);
 
         final SnapshotInfo snapshotInfo = createFullSnapshot(fsRepoName, snapshotName);
 
@@ -138,6 +146,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
 
         mountSnapshot(fsRepoName, snapshotName, indexName, restoredIndexName, Settings.EMPTY);
         ensureGreen(restoredIndexName);
+        assertBusy(() -> assertThat(getRecoveryState(restoredIndexName).getStage(), equalTo(RecoveryState.Stage.DONE)));
 
         for (CacheService cacheService : internalCluster().getDataNodeInstances(CacheService.class)) {
             cacheService.synchronizeCache();
@@ -176,6 +185,7 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
         final IndexId indexId = repositoryData.resolveIndexId(indexName);
         long inMemoryCacheSize = 0;
+        long expectedPhysicalCacheSize = 0;
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             final BlobStoreIndexShardSnapshot snapshot = blobStoreRepository.loadShardSnapshot(
                 blobStoreRepository.shardContainer(indexId, shardId),
@@ -186,8 +196,15 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
                 .filter(f -> f.metadata().hashEqualsContents())
                 .mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length)
                 .sum();
+
+            expectedPhysicalCacheSize += snapshot.indexFiles()
+                .stream()
+                .filter(f -> f.metadata().hashEqualsContents() == false)
+                .mapToLong(BlobStoreIndexShardSnapshot.FileInfo::length)
+                .sum();
         }
 
+        assertThat(physicalCacheSize, equalTo(expectedPhysicalCacheSize));
         assertThat(physicalCacheSize + inMemoryCacheSize, equalTo(recoveryState.getIndex().reusedBytes()));
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
 
@@ -257,7 +274,6 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
                     protected void assertSnapshotOrGenericThread() {
                         // ignore
                     }
-
                 }
             );
         }

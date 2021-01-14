@@ -480,8 +480,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                         final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                        final long cachedSize = ((CachedBlobContainerIndexInput) input).prefetchPart(part);
-                        if (cachedSize == file.length()) {
+                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                        if (persistentCacheLength == file.length()) {
                             recoveryState.markIndexFileAsReused(file.physicalName());
                         } else {
                             recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));

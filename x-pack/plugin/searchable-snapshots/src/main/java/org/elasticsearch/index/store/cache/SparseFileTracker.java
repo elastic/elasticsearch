@@ -37,7 +37,10 @@ public class SparseFileTracker {
 
     private final long length;
 
-    private final long recoveredBytesFromPersistentCache;
+    /**
+     * Represents the number of bytes that were present at disk when this file metainformation was loaded into memory
+     */
+    private final long initialLength;
 
     /**
      * Creates a new empty {@link SparseFileTracker}
@@ -62,7 +65,7 @@ public class SparseFileTracker {
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
-        long recoveredBytesFromPersistentCache = 0;
+        long initialLength = 0;
         if (ranges.isEmpty() == false) {
             synchronized (mutex) {
                 Range previous = null;
@@ -80,12 +83,12 @@ public class SparseFileTracker {
                     final boolean added = this.ranges.add(range);
                     assert added : range + " already exist in " + this.ranges;
                     previous = range;
-                    recoveredBytesFromPersistentCache += range.end - range.start;
+                    initialLength += range.end - range.start;
                 }
                 assert invariant();
             }
         }
-        this.recoveredBytesFromPersistentCache = recoveredBytesFromPersistentCache;
+        this.initialLength = initialLength;
     }
 
     public long getLength() {
@@ -109,8 +112,8 @@ public class SparseFileTracker {
         return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
     }
 
-    public long getRecoveredBytesFromPersistentCache() {
-        return recoveredBytesFromPersistentCache;
+    public long getInitialLength() {
+        return initialLength;
     }
 
     /**

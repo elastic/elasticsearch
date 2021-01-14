@@ -435,9 +435,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
-     * @return the number of bytes that were present in the persistent cache
+     * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
      */
-    public long prefetchPart(final int part) throws IOException {
+    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
@@ -457,7 +457,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     partRange.v2(),
                     cacheFileReference
                 );
-                return cacheFile.getCachedLength();
+                return Tuple.tuple(cacheFile.getInitialLength(), 0L);
             }
 
             final long rangeStart = range.v1();
@@ -512,7 +512,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
             assert totalBytesRead == rangeLength;
-            return cacheFile.getCachedLength();
+            return Tuple.tuple(cacheFile.getInitialLength(), rangeLength);
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }

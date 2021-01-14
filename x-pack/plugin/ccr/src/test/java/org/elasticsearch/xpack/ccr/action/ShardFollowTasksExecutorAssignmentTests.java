@@ -24,6 +24,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.Arrays;
 import java.util.Collections;

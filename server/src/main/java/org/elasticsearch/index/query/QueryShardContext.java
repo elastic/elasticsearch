@@ -67,6 +67,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -676,5 +677,9 @@ public class QueryShardContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
+    }
+
+    public NestedDocuments getNestedDocuments() {
+        return new NestedDocuments(mappingLookup, indexVersionCreated(), bitsetFilterCache::getBitSetProducer);
     }
 }

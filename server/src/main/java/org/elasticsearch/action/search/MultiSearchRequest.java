@@ -361,11 +361,6 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                     .map(SearchRequest::buildDescription)
                     .collect(Collectors.joining(action + "[", ",", "]"));
             }
-
-            @Override
-            public boolean shouldCancelChildrenOnCancellation() {
-                return true;
-            }
         };
     }
 }

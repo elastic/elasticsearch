@@ -86,7 +86,7 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -111,6 +111,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.MultiBucketConsumerService.MultiBucketConsumer;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
+import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -136,8 +137,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -148,7 +151,9 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.test.InternalAggregationTestCase.DEFAULT_MAX_BUCKETS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.when;
 
 /**
@@ -246,19 +251,17 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * we're passed gets a chance to break.
          */
         BigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService).withCircuitBreaking();
-
         MappingLookup mappingLookup = new MappingLookup(
-            "_doc",
+            Mapping.EMPTY,
             Arrays.stream(fieldTypes).map(this::buildMockFieldMapper).collect(toList()),
             objectMappers(),
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
                 .collect(toList()),
-            org.elasticsearch.common.collect.List.of(),
-            0,
-            sourceToParse -> null,
-            true
+            null,
+            null,
+            null
         );
 
         TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataBuilder = (
@@ -315,7 +318,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
     /**
      * Build a {@link FieldMapper} to create the {@link MappingLookup} used for the aggs.
-     * {@code protected} so subclasses can have it. 
+     * {@code protected} so subclasses can have it.
      */
     protected FieldMapper buildMockFieldMapper(MappedFieldType ft) {
         return new MockFieldMapper(ft);
@@ -364,15 +367,29 @@ public abstract class AggregatorTestCase extends ESTestCase {
             throw new RuntimeException(e);
         }
         when(ctx.fetchPhase()).thenReturn(new FetchPhase(Arrays.asList(new FetchSourcePhase(), new FetchDocValuesPhase())));
-        when(ctx.getQueryShardContext()).thenReturn(queryShardContext);
+
+        /*
+         * Use a QueryShardContext that doesn't contain nested documents so we
+         * don't try to fetch them which would require mocking a whole menagerie
+         * of stuff.
+         */
+        QueryShardContext subQSC = spy(queryShardContext);
+        MappingLookup disableNestedLookup = new MappingLookup(
+            Mapping.EMPTY,
+            org.elasticsearch.common.collect.Set.of(),
+            org.elasticsearch.common.collect.Set.of(),
+            org.elasticsearch.common.collect.Set.of(),
+            null,
+            null,
+            null
+        );
+        doReturn(new NestedDocuments(disableNestedLookup, Version.CURRENT, bitsetFilterCache::getBitSetProducer)).when(subQSC)
+            .getNestedDocuments();
+        when(ctx.getQueryShardContext()).thenReturn(subQSC);
+
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(ctx.indexShard()).thenReturn(indexShard);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.hasNested()).thenReturn(false);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
-        NestedDocuments nested = new NestedDocuments(mapperService, bitsetFilterCache::getBitSetProducer);
-        when(ctx.getNestedDocuments()).thenReturn(nested);
         return new SubSearchContext(ctx);
     }
 
@@ -523,6 +540,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
                 V agg = searchAndReduce(indexSearcher, query, aggregationBuilder, fieldTypes);
                 verify.accept(agg);
+
+                verifyOutputFieldNames(aggregationBuilder, agg);
             }
         }
     }
@@ -545,6 +564,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 verify.accept(searcher, createAggregator(aggregationBuilder, context));
             }
         }
+    }
+
+    protected <T extends AggregationBuilder, V extends InternalAggregation> void verifyOutputFieldNames(T aggregationBuilder, V agg)
+        throws IOException {
+        if (aggregationBuilder.getOutputFieldNames().isPresent() == false) {
+            // aggregation does not support output field names yet
+            return;
+        }
+
+        assert agg instanceof NumericMetricsAggregation.MultiValue : "only multi value aggs are supported";
+
+        NumericMetricsAggregation.MultiValue multiValueAgg = (NumericMetricsAggregation.MultiValue) agg;
+        Set<String> valueNames = new HashSet<>();
+        for (String name : multiValueAgg.valueNames()) {
+            valueNames.add(name);
+        }
+
+        assertEquals(aggregationBuilder.getOutputFieldNames().get(), valueNames);
     }
 
     /**

@@ -126,6 +126,7 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
     }
 
     public void testTemplateExists() throws IOException {
+        assumeFalse("fails in FIPS mode: https://github.com/elastic/elasticsearch/issues/66820", inFipsJvm());
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
             {

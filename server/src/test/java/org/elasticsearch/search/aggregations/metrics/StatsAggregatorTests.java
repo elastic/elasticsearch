@@ -50,7 +50,6 @@ import org.elasticsearch.search.lookup.LeafDocLookup;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -88,7 +87,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(Double.NEGATIVE_INFINITY, stats.getMax(), 0);
                 assertFalse(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -119,7 +118,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -203,7 +202,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expectedMin, stats.getMin(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
         testCase(
             stats("_name").field(ft.name()),
@@ -220,7 +219,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expectedMin, stats.getMin(), 0d);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -400,7 +399,7 @@ public class StatsAggregatorTests extends AggregatorTestCase {
                 assertEquals(expected.sum / expected.count, stats.getAvg(), TOLERANCE);
                 assertTrue(AggregationInspectionHelper.hasValue(stats));
             },
-            singleton(ft)
+            ft
         );
     }
 
@@ -445,24 +444,15 @@ public class StatsAggregatorTests extends AggregatorTestCase {
             builder,
             iw -> iw.addDocuments(docs),
             stats -> verify.accept(expected, stats),
-            singleton(ft)
+            ft
         );
     }
 
     private void testCase(StatsAggregationBuilder builder,
                           CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
                           Consumer<InternalStats> verify,
-                          Collection<MappedFieldType> fieldTypes) throws IOException {
-        try (Directory directory = newDirectory();
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
-            buildIndex.accept(indexWriter);
-            try (IndexReader reader = indexWriter.getReader()) {
-                IndexSearcher searcher = new IndexSearcher(reader);
-                final MappedFieldType[] fieldTypesArray = fieldTypes.toArray(new MappedFieldType[0]);
-                final InternalStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), builder, fieldTypesArray);
-                verify.accept(stats);
-            }
-        }
+                          MappedFieldType... fieldTypes) throws IOException {
+        testCase(builder, new MatchAllDocsQuery(), buildIndex, verify, fieldTypes);
     }
 
     static class SimpleStatsAggregator {

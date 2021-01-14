@@ -60,6 +60,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
@@ -371,9 +372,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>();
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"),
-            new Template(null, null, aliases),
-            null, null, null, null, null, null);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo-*", "bar-*"))
+            .template(new Template(null, null, aliases)).build();
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template).build();
@@ -389,8 +389,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(Arrays.asList("foo-*", "bar-*"), null,
-            Collections.singletonList("ct"), null, null, null, null, null);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Arrays.asList("foo-*", "bar-*"))
+            .componentTemplates(Collections.singletonList("ct")).build();
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
@@ -424,9 +424,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         Map<String, AliasMetadata> aliases = new HashMap<>();
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"),
-            new Template(null, null, aliases),
-            null, null, null, null, null, null);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("*"))
+            .template(new Template(null, null, aliases)).build();
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("test-template", template).build();
@@ -446,8 +445,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         aliases.put("foo-write", AliasMetadata.builder("foo-write").build());
         aliases.put("bar-write", AliasMetadata.builder("bar-write").writeIndex(randomBoolean()).build());
         final ComponentTemplate ct = new ComponentTemplate(new Template(null, null, aliases), null, null);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList("*"), null,
-            Collections.singletonList("ct"), null, null, null, null, null);
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(Collections.singletonList("*"))
+            .componentTemplates(Collections.singletonList("ct")).build();
 
         final Metadata metadata = Metadata.builder().put(createMetadata(randomAlphaOfLengthBetween(5, 7)), false)
             .put("ct", ct)
@@ -540,8 +539,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final DataStream dataStream = DataStreamTestHelper.randomInstance()
             // ensure no replicate data stream
             .promoteDataStream();
-        ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(dataStream.getName() + "*"),
-            null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
+        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(Collections.singletonList(dataStream.getName() + "*"))
+            .dataStreamTemplate( new ComposableIndexTemplate.DataStreamTemplate()).build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
@@ -564,16 +564,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup = new MappingLookup(
-                "_doc",
+                Mapping.EMPTY,
                 org.elasticsearch.common.collect.List.of(mockedTimestampField, dateFieldMapper),
                 org.elasticsearch.common.collect.List.of(),
                 org.elasticsearch.common.collect.List.of(),
-                org.elasticsearch.common.collect.List.of(),
-                0,
                 null,
-                false
-            );
-
+                null,
+                null);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
@@ -649,8 +646,9 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             rolloverTarget = dataStream.getName();
             sourceIndexName = dataStream.getIndices().get(dataStream.getIndices().size() - 1).getName();
             defaultRolloverIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration() + 1);
-            ComposableIndexTemplate template = new ComposableIndexTemplate(Collections.singletonList(dataStream.getName() + "*"),
-                null, null, null, null, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
+            ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+                .indexPatterns(Collections.singletonList(dataStream.getName() + "*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
             builder.put("template", template);
             for (Index index : dataStream.getIndices()) {
                 builder.put(DataStreamTestHelper.getIndexMetadataBuilderForIndex(index));

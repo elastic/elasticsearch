@@ -6,7 +6,7 @@
 <titleabbrev>Find file structure</titleabbrev>
 ++++
 
-experimental[]
+deprecated::[7.12.0,Replaced by <<find-structure>>]
 
 Finds the structure of a text file. The text file must contain data that is
 suitable to be ingested into {es}.

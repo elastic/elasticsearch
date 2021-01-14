@@ -14,6 +14,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.transform.transforms.DestConfig;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -61,6 +63,17 @@ public class TransformIT extends TransformIntegTestCase {
         int min = 10 + (row % 49);
         int sec = 10 + (row % 49);
         return "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
+    }
+
+    @Before
+    public void setClusterSettings() throws IOException {
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity(
+            "{\"transient\": {"
+                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
+        );
+        client().performRequest(settingsRequest);
     }
 
     @After

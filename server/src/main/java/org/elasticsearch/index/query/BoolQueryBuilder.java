@@ -44,6 +44,7 @@ import java.util.function.Consumer;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
+import static org.elasticsearch.search.SearchModule.INDICES_MAX_NESTED_DEPTH_SETTING;
 
 /**
  * A Query that matches documents matching boolean combinations of other queries.
@@ -60,6 +61,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     private static final ParseField MUST = new ParseField("must");
     private static final ParseField MINIMUM_SHOULD_MATCH = new ParseField("minimum_should_match");
     private static final ParseField ADJUST_PURE_NEGATIVE = new ParseField("adjust_pure_negative");
+    private static int maxNestedDepth = 20;
 
     private final List<QueryBuilder> mustClauses = new ArrayList<>();
 
@@ -93,6 +95,17 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             in.readBoolean(); // disable_coord
         }
         minimumShouldMatch = in.readOptionalString();
+    }
+
+    /**
+     * Set the maximum nested depth of bool queries.
+     * Default value is 20.
+     */
+    public static void setMaxNestedDepth(int maxNestedDepth) {
+        if (maxNestedDepth < 1) {
+            throw new IllegalArgumentException("maxNestedDepth must be >= 1");
+        }
+        BoolQueryBuilder.maxNestedDepth = maxNestedDepth;
     }
 
     @Override
@@ -276,15 +289,15 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         builder.endArray();
     }
 
-    private static final ObjectParser<BoolQueryBuilder, Void> PARSER = new ObjectParser<>("bool", BoolQueryBuilder::new);
+    private static final ObjectParser<BoolQueryBuilder, Integer> PARSER = new ObjectParser<>("bool", BoolQueryBuilder::new);
     static {
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::must), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::must), (p, c) -> parseInnerQueryBuilder(p, c),
             MUST);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::should), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::should), (p, c) -> parseInnerQueryBuilder(p, c),
             SHOULD);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::mustNot), (p, c) -> parseInnerQueryBuilder(p, c),
             MUST_NOT);
-        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p),
+        PARSER.declareObjectArrayOrNull((builder, clauses) -> clauses.forEach(builder::filter), (p, c) -> parseInnerQueryBuilder(p, c),
             FILTER);
         PARSER.declareBoolean(BoolQueryBuilder::adjustPureNegative, ADJUST_PURE_NEGATIVE);
         PARSER.declareField(BoolQueryBuilder::minimumShouldMatch, (p, c) -> p.textOrNull(),
@@ -293,8 +306,13 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         PARSER.declareFloat(BoolQueryBuilder::boost, BOOST_FIELD);
     }
 
-    public static BoolQueryBuilder fromXContent(XContentParser parser) throws IOException, ParsingException {
-        return PARSER.parse(parser, null);
+    public static BoolQueryBuilder fromXContent(XContentParser parser, Integer nestedDepth) throws IOException, ParsingException {
+        nestedDepth++;
+        if (nestedDepth > maxNestedDepth) {
+            throw new IllegalArgumentException("The nested depth of the query exceeds the maximum nested depth for bool queries set in [" +
+                INDICES_MAX_NESTED_DEPTH_SETTING.getKey() + "]");
+        }
+        return PARSER.parse(parser, nestedDepth);
     }
 
     @Override

@@ -156,7 +156,6 @@ public class Constants {
         "cluster:admin/xpack/rollup/start",
         "cluster:admin/xpack/rollup/stop",
         "cluster:admin/xpack/searchable_snapshots/cache/clear",
-        "cluster:admin/xpack/searchable_snapshots/cache/store",
         "cluster:admin/xpack/security/api_key/create",
         "cluster:admin/xpack/security/api_key/get",
         "cluster:admin/xpack/security/api_key/grant",
@@ -225,6 +224,7 @@ public class Constants {
         "cluster:monitor/task",
         "cluster:monitor/task/get",
         "cluster:monitor/tasks/lists",
+        "cluster:monitor/text_structure/findstructure",
         "cluster:monitor/transform/get",
         "cluster:monitor/transform/stats/get",
         "cluster:monitor/xpack/analytics/stats",
@@ -240,7 +240,6 @@ public class Constants {
         "cluster:monitor/xpack/ml/data_frame/evaluate",
         "cluster:monitor/xpack/ml/datafeeds/get",
         "cluster:monitor/xpack/ml/datafeeds/stats/get",
-        "cluster:monitor/xpack/ml/findfilestructure",
         "cluster:monitor/xpack/ml/inference/get",
         "cluster:monitor/xpack/ml/inference/stats/get",
         "cluster:monitor/xpack/ml/info/get",
@@ -368,6 +367,7 @@ public class Constants {
         "internal:admin/ccr/restore/file_chunk/get",
         "internal:admin/ccr/restore/session/clear",
         "internal:admin/ccr/restore/session/put",
+        "internal:admin/xpack/searchable_snapshots/cache/store",
         "internal:indices/admin/upgrade"
     );
 }

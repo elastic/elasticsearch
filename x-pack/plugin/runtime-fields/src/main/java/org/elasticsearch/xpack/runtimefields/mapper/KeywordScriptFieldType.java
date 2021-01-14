@@ -16,7 +16,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.fielddata.StringScriptFieldData;
@@ -92,7 +92,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldExistsQuery(script, leafFactory(context), name());
     }
@@ -104,7 +104,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         int prefixLength,
         int maxExpansions,
         boolean transpositions,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         return StringScriptFieldFuzzyQuery.build(
@@ -119,12 +119,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query prefixQuery(
-        String value,
-        RewriteMethod method,
-        boolean caseInsensitive,
-        org.elasticsearch.index.query.QueryShardContext context
-    ) {
+    public Query prefixQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldPrefixQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }
@@ -137,7 +132,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldRangeQuery(
@@ -158,7 +153,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
         int matchFlags,
         int maxDeterminizedStates,
         RewriteMethod method,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         if (matchFlags != 0) {
@@ -176,7 +171,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldTermQuery(
             script,
@@ -188,7 +183,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldTermQuery(
             script,
@@ -200,14 +195,14 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(List<?> values, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
         return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);
     }
 
     @Override
-    public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+    public Query wildcardQuery(String value, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new StringScriptFieldWildcardQuery(script, leafFactory(context), name(), value, caseInsensitive);
     }

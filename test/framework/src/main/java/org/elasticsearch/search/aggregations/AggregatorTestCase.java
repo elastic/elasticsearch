@@ -94,7 +94,7 @@ import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -266,7 +266,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {}
         });
-        QueryShardContext queryShardContext = new QueryShardContext(
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
             indexSettings,
@@ -290,13 +290,13 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         MultiBucketConsumer consumer = new MultiBucketConsumer(maxBucket, breakerService.getBreaker(CircuitBreaker.REQUEST));
         AggregationContext context = new ProductionAggregationContext(
-            queryShardContext,
+            searchExecutionContext,
             new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), breakerService),
             bytesToPreallocate,
             () -> query,
             null,
             consumer,
-            () -> buildSubSearchContext(indexSettings, queryShardContext, bitsetFilterCache),
+            () -> buildSubSearchContext(indexSettings, searchExecutionContext, bitsetFilterCache),
             bitsetFilterCache,
             randomInt(),
             () -> 0L,
@@ -327,7 +327,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
      */
     private SubSearchContext buildSubSearchContext(
         IndexSettings indexSettings,
-        QueryShardContext queryShardContext,
+        SearchExecutionContext searchExecutionContext,
         BitsetFilterCache bitsetFilterCache
     ) {
         SearchContext ctx = mock(SearchContext.class);
@@ -346,8 +346,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             when(ctx.searcher()).thenReturn(
                 new ContextIndexSearcher(
-                    queryShardContext.searcher().getIndexReader(),
-                    queryShardContext.searcher().getSimilarity(),
+                    searchExecutionContext.searcher().getIndexReader(),
+                    searchExecutionContext.searcher().getSimilarity(),
                     queryCache,
                     queryCachingPolicy,
                     false
@@ -363,10 +363,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * don't try to fetch them which would require mocking a whole menagerie
          * of stuff.
          */
-        QueryShardContext subQSC = spy(queryShardContext);
+        SearchExecutionContext subContext = spy(searchExecutionContext);
         MappingLookup disableNestedLookup = new MappingLookup(Mapping.EMPTY, Set.of(), Set.of(), Set.of(), null, null, null);
-        doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subQSC).getNestedDocuments();
-        when(ctx.getQueryShardContext()).thenReturn(subQSC);
+        doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer)).when(subContext).getNestedDocuments();
+        when(ctx.getSearchExecutionContext()).thenReturn(subContext);
 
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));

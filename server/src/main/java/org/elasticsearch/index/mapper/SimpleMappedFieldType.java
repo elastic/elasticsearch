@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.time.ZoneId;
 import java.util.Map;
@@ -39,7 +39,7 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
 
     @Override
     public final Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                  ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+                                  ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
         if (relation == ShapeRelation.DISJOINT) {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
                     "] does not support DISJOINT ranges");
@@ -51,11 +51,11 @@ public abstract class SimpleMappedFieldType extends MappedFieldType {
     }
 
     /**
-     * Same as {@link #rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, QueryShardContext)}
+     * Same as {@link #rangeQuery(Object, Object, boolean, boolean, ShapeRelation, ZoneId, DateMathParser, SearchExecutionContext)}
      * but without the trouble of relations or date-specific options.
      */
     protected Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-            QueryShardContext context) {
+            SearchExecutionContext context) {
         throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] does not support range queries");
     }
 

@@ -30,7 +30,6 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -566,7 +565,7 @@ public class DocumentSubsetBitsetCacheTests extends ESTestCase {
             directoryReader = DirectoryReader.open(directory);
             final LeafReaderContext leaf = directoryReader.leaves().get(0);
 
-            final QueryShardContext shardContext = new QueryShardContext(shardId.id(), 0, indexSettings, BigArrays.NON_RECYCLING_INSTANCE,
+            final QueryShardContext shardContext = new QueryShardContext(shardId.id(), 0, indexSettings,
                 null, null, null, mappingLookup, null, null, xContentRegistry(), writableRegistry(),
                 client, new IndexSearcher(directoryReader), () -> nowInMillis, null, null, () -> true, null, emptyMap());
 

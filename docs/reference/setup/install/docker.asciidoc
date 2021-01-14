@@ -36,10 +36,6 @@ ifeval::["{release-state}"!="unreleased"]
 docker pull {docker-repo}:{version}
 --------------------------------------------
 
-Alternatively, you can download other Docker images that contain only features
-available under the Apache 2.0 license. To download the images, go to
-https://www.docker.elastic.co[www.docker.elastic.co].
-
 endif::[]
 
 [[docker-cli-run-dev-mode]]

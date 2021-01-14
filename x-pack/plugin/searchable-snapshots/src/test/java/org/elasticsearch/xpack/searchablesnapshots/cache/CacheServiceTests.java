@@ -284,13 +284,12 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
 
         final Map<CacheFile, Boolean> afterShardRecoveryCacheFiles = ConcurrentCollections.newConcurrentMap();
-        final Thread shardRecoveryThread = new Thread(() -> {
+        final Future<?> waitForShardEvictionFuture = threadPool.generic().submit(() -> {
             cacheService.waitForCacheFilesEvictionIfNeeded(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
             for (CacheFile cacheFile : cacheFilesAssociatedWithShard) {
                 afterShardRecoveryCacheFiles.put(cacheFile, Files.exists(cacheFile.getFile()));
             }
         });
-        shardRecoveryThread.start();
 
         blockingListener.waitForBlock();
 
@@ -298,15 +297,16 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(cacheService.isPendingShardEviction(shard));
         assertThat(pendingShardsEvictions, aMapWithSize(1));
 
-        final Future<?> shardEvictionFuture = pendingShardsEvictions.get(shard);
+        final Future<?> pendingShardEvictionFuture = pendingShardsEvictions.get(shard);
         assertTrue(Files.exists(randomCacheFile.getFile()));
-        assertThat(shardEvictionFuture, notNullValue());
-        assertFalse(shardEvictionFuture.isDone());
+        assertThat(pendingShardEvictionFuture, notNullValue());
+        assertFalse(pendingShardEvictionFuture.isDone());
 
         blockingListener.unblock();
+        FutureUtils.get(waitForShardEvictionFuture);
 
-        FutureUtils.get(shardEvictionFuture);
-        shardRecoveryThread.join();
+        assertTrue(pendingShardEvictionFuture.isDone());
+        FutureUtils.get(pendingShardEvictionFuture);
 
         cacheFilesAssociatedWithShard.forEach(
             cacheFile -> assertFalse("Cache file should be evicted: " + cacheFile, Files.exists(cacheFile.getFile()))

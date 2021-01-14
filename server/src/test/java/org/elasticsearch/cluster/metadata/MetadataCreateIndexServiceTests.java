@@ -46,7 +46,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.Index;
@@ -125,7 +124,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         queryShardContext = new QueryShardContext(0, 0,
             new IndexSettings(IndexMetadata.builder("test").settings(indexSettings).build(), indexSettings),
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap());
     }
 

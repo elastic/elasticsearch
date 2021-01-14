@@ -19,9 +19,10 @@ definitions of policy components.
 
 * If the {es} {security-features} are enabled, you must have the `manage_ilm`
 cluster privilege to use this API. You must also have the `manage` index
-privilege on all indices being managed by `policy`. All operations executed by
-{ilm} for a policy are executed as the user that put the latest version of a
-policy. For more information, see <<security-privileges>>.
+privilege on all indices being managed by `policy`. {ilm-init} performs
+operations as the user who last updated the policy. {ilm-init} only has the
+<<security-privileges,privileges>> assigned to the user at the time of the
+last policy update.
 
 [[ilm-put-lifecycle-desc]]
 ==== {api-description-title}

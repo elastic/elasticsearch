@@ -24,6 +24,7 @@ import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -104,8 +105,9 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
-        return new BucketedSort.ForFloats(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra) {
+    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
+        return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
             @Override
             public boolean needsScores() { return true; }
 

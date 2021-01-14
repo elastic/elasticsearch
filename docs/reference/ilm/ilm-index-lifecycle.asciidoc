@@ -26,8 +26,8 @@ When an index rolls over, a manually-applied policy isn't automatically applied 
 
 If you use {es}'s security features, {ilm-init} performs operations as the user
 who last updated the policy. {ilm-init} only has the
-<<security-privileges,privileges>> assigned to the user at the time of the
-last policy update.
+<<defining-roles,roles>> assigned to the user at the time of the last policy
+update.
 
 [discrete]
 [[ilm-phase-transitions]]

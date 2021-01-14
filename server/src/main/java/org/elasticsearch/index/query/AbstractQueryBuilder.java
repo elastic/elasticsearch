@@ -298,6 +298,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * Parses a query excluding the query element that wraps it
      */
     public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+        return parseInnerQueryBuilder(parser, Integer.valueOf(0));
+    }
+
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser, Integer nestedDepth) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                 throw new ParsingException(parser.getTokenLocation(), "[_na] query malformed, must start with start_object");
@@ -317,7 +321,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         }
         QueryBuilder result;
         try {
-            result = parser.namedObject(QueryBuilder.class, queryName, null);
+            result = parser.namedObject(QueryBuilder.class, queryName, nestedDepth);
         } catch (NamedObjectNotFoundException e) {
             String message = String.format(Locale.ROOT, "unknown query [%s]%s", queryName,
                     SuggestingErrorOnUnknown.suggest(queryName, e.getCandidates()));

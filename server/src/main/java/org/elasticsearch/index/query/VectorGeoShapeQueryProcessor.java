@@ -43,7 +43,7 @@ public class VectorGeoShapeQueryProcessor {
         WITHIN_UNSUPPORTED_GEOMETRIES.add(MultiLine.class);
     }
 
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
             throw new QueryShardException(context,
@@ -53,7 +53,7 @@ public class VectorGeoShapeQueryProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    private Query getVectorQueryFromShape(Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         final LatLonGeometry[] luceneGeometries;
         if (relation == ShapeRelation.WITHIN) {
             luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, queryShape, WITHIN_UNSUPPORTED_GEOMETRIES);

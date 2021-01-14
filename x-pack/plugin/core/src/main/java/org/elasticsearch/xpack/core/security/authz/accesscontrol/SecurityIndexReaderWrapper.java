@@ -14,7 +14,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.license.XPackLicenseState;
@@ -44,17 +44,17 @@ import java.util.function.Function;
 public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryReader, DirectoryReader, IOException> {
     private static final Logger logger = LogManager.getLogger(SecurityIndexReaderWrapper.class);
 
-    private final Function<ShardId, QueryShardContext> queryShardContextProvider;
+    private final Function<ShardId, SearchExecutionContext> searchExecutionContextProvider;
     private final DocumentSubsetBitsetCache bitsetCache;
     private final XPackLicenseState licenseState;
     private final SecurityContext securityContext;
     private final ScriptService scriptService;
 
-    public SecurityIndexReaderWrapper(Function<ShardId, QueryShardContext> queryShardContextProvider,
+    public SecurityIndexReaderWrapper(Function<ShardId, SearchExecutionContext> searchExecutionContextProvider,
                                       DocumentSubsetBitsetCache bitsetCache, SecurityContext securityContext,
                                       XPackLicenseState licenseState, ScriptService scriptService) {
         this.scriptService = scriptService;
-        this.queryShardContextProvider = queryShardContextProvider;
+        this.searchExecutionContextProvider = searchExecutionContextProvider;
         this.bitsetCache = bitsetCache;
         this.securityContext = securityContext;
         this.licenseState = licenseState;
@@ -84,7 +84,7 @@ public class SecurityIndexReaderWrapper implements CheckedFunction<DirectoryRead
             DirectoryReader wrappedReader = reader;
             DocumentPermissions documentPermissions = permissions.getDocumentPermissions();
             if (documentPermissions != null && documentPermissions.hasDocumentLevelPermissions()) {
-                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, queryShardContextProvider);
+                BooleanQuery filterQuery = documentPermissions.filter(getUser(), scriptService, shardId, searchExecutionContextProvider);
                 if (filterQuery != null) {
                     wrappedReader = DocumentSubsetReader.wrap(wrappedReader, bitsetCache, new ConstantScoreQuery(filterQuery));
                 }

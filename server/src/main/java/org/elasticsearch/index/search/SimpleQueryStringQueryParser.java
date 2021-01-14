@@ -39,7 +39,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
 
 import java.io.IOException;
@@ -57,18 +57,18 @@ import static org.elasticsearch.common.lucene.search.Queries.newUnmappedFieldQue
 public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
     private final Settings settings;
-    private QueryShardContext context;
+    private SearchExecutionContext context;
     private final MultiMatchQuery queryBuilder;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags,
-                                        Settings settings, QueryShardContext context) {
+                                        Settings settings, SearchExecutionContext context) {
         this(null, weights, flags, settings, context);
     }
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
     public SimpleQueryStringQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
-                                        Settings settings, QueryShardContext context) {
+                                        Settings settings, SearchExecutionContext context) {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;

@@ -30,14 +30,19 @@ public class StatsHolder {
         dataCountsTracker = new DataCountsTracker();
     }
 
+    public void setProgressTracker(List<PhaseProgress> progress) {
+        progressTracker = new ProgressTracker(progress);
+    }
+
     public void adjustProgressTracker(List<String> analysisPhases, boolean hasInferencePhase) {
         int reindexingProgressPercent = progressTracker.getReindexingProgressPercent();
         progressTracker = ProgressTracker.fromZeroes(analysisPhases, hasInferencePhase);
 
-        // If reindexing progress was less than 100 (ie not complete) we reset it to 1
+        // If reindexing progress was more than 0 and less than 100 (ie not complete) we reset it to 1
         // as we will have to do reindexing from scratch and at the same time we want
         // to differentiate from a job that has never started before.
-        progressTracker.updateReindexingProgress(reindexingProgressPercent < 100 ? 1 : reindexingProgressPercent);
+        progressTracker.updateReindexingProgress(
+            (reindexingProgressPercent > 0 && reindexingProgressPercent < 100) ? 1 : reindexingProgressPercent);
     }
 
     public void resetProgressTracker(List<String> analysisPhases, boolean hasInferencePhase) {

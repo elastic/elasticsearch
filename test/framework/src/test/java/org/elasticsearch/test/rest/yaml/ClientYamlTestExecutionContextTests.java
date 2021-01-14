@@ -20,28 +20,18 @@
 package org.elasticsearch.test.rest.yaml;
 
 import org.apache.http.HttpEntity;
-import org.apache.http.RequestLine;
-import org.apache.http.StatusLine;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.NodeSelector;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.hamcrest.CoreMatchers;
-import org.hamcrest.core.IsIterableContaining;
-import org.mockito.Mock;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.is;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ClientYamlTestExecutionContextTests extends ESTestCase {
 

@@ -86,7 +86,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         this.fieldName = fieldName;
         //already converted in {@link fromXContent}
-        this.values = values == null ? null : new ValuesAfterV8(values, false);
+        this.values = values == null ? null : new BinaryValues(values, false);
         this.termsLookup = termsLookup;
         this.supplier = null;
     }
@@ -169,7 +169,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (values instanceof Values) {
             this.values = (Values) values;
         } else {
-            this.values = new ValuesAfterV8(values, true);
+            this.values = new BinaryValues(values, true);
         }
         this.termsLookup = null;
         this.supplier = null;
@@ -404,10 +404,10 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
         private static Values readFrom(StreamInput in) throws IOException {
             if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
-                return in.readOptionalWriteable(ValuesAfterV8::new);
+                return in.readOptionalWriteable(BinaryValues::new);
             } else {
                 List<?> list = (List<?>)in.readGenericValue();
-                return list == null ? null : new ValuesBeforeV8(list);
+                return list == null ? null : new ListValues(list);
             }
         }
 
@@ -487,20 +487,20 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * When users send a query contain a lot of terms, A {@link BytesReference} can help
      * gc and reduce the cost of {@link #doWriteTo}, which can be slow for lots of terms.
      */
-    private static class ValuesAfterV8 extends Values {
+    private static class BinaryValues extends Values {
 
         private final BytesReference valueRef;
         private final int size;
 
-        private ValuesAfterV8(StreamInput in) throws IOException {
+        private BinaryValues(StreamInput in) throws IOException {
             this(in.readBytesReference());
         }
 
-        private ValuesAfterV8(Iterable<?> values, boolean convert) {
+        private BinaryValues(Iterable<?> values, boolean convert) {
             this(serialize(values, convert));
         }
 
-        private ValuesAfterV8(BytesReference bytesRef) {
+        private BinaryValues(BytesReference bytesRef) {
             this.valueRef = bytesRef;
             try (StreamInput in = valueRef.streamInput()) {
                 size = consumerHeadersAndGetListSize(in);
@@ -559,7 +559,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ValuesAfterV8 that = (ValuesAfterV8) o;
+            BinaryValues that = (BinaryValues) o;
             return Objects.equals(valueRef, that.valueRef);
         }
 
@@ -576,8 +576,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     /**
-     * package private for testing purpose
-     *
      * This is for lower version requests compatible.
      * <p>
      * If we do not keep this, it could be expensive when receiving a request from
@@ -589,11 +587,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      *
      * TODO: remove in 9.0.0
      */
-    static class ValuesBeforeV8 extends Values {
+    private static class ListValues extends Values {
 
         private final List<?> values;
 
-        private ValuesBeforeV8(List<?> values) throws IOException {
+        private ListValues(List<?> values) throws IOException {
             this.values = values;
         }
 
@@ -641,7 +639,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            ValuesBeforeV8 that = (ValuesBeforeV8) o;
+            ListValues that = (ListValues) o;
             return Objects.equals(values, that.values);
         }
 

@@ -41,6 +41,7 @@ import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.indices.CloseIndexRequest;
@@ -641,6 +642,22 @@ public class IndicesRequestConvertersTests extends ESTestCase {
         RequestConvertersTests.setRandomMasterTimeout(closeIndexRequest, expectedParams);
         RequestConvertersTests.setRandomIndicesOptions(closeIndexRequest::indicesOptions, closeIndexRequest::indicesOptions,
             expectedParams);
+        switch (between(0, 3)) {
+            case 0:
+                break;
+            case 1:
+                closeIndexRequest.waitForActiveShards(ActiveShardCount.DEFAULT);
+                expectedParams.put("wait_for_active_shards", "index-setting");
+                break;
+            case 2:
+                closeIndexRequest.waitForActiveShards(ActiveShardCount.ALL);
+                expectedParams.put("wait_for_active_shards", "all");
+                break;
+            case 3:
+                closeIndexRequest.waitForActiveShards(ActiveShardCount.from(1));
+                expectedParams.put("wait_for_active_shards", "1");
+                break;
+        }
 
         Request request = IndicesRequestConverters.closeIndex(closeIndexRequest);
         StringJoiner endpoint = new StringJoiner("/", "/", "").add(String.join(",", indices)).add("_close");

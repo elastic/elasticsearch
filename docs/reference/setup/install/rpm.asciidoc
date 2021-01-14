@@ -98,8 +98,6 @@ endif::[]
 
 ==================================================
 
-endif::[]
-
 [[install-rpm]]
 ==== Download and install the RPM manually
 

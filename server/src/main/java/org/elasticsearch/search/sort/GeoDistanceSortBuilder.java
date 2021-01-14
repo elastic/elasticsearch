@@ -603,7 +603,8 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
         GeoPoint[] localPoints = localPoints();
         MultiValueMode localSortMode = localSortMode();
         IndexGeoPointFieldData geoIndexFieldData = fieldData(context);
@@ -612,7 +613,7 @@ public class GeoDistanceSortBuilder extends SortBuilder<GeoDistanceSortBuilder> 
         // TODO implement the single point optimization above
 
         return comparatorSource(localPoints, localSortMode, geoIndexFieldData, nested)
-                .newBucketedSort(context.bigArrays(), order, DocValueFormat.RAW, bucketSize, extra);
+                .newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
     }
 
     private GeoPoint[] localPoints() {

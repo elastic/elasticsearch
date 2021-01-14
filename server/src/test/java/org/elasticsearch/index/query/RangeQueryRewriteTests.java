@@ -24,7 +24,6 @@ import org.apache.lucene.index.MultiReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.MappedFieldType.Relation;
@@ -45,7 +44,6 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             0,
             0,
             indexService.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE,
             null,
             null,
             indexService.mapperService(),
@@ -78,7 +76,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new QueryShardContext(0, 0, indexService.getIndexSettings(), null, null, null,
+        QueryRewriteContext context = new QueryShardContext(0, 0, indexService.getIndexSettings(), null, null,
             indexService.mapperService(), indexService.mapperService().mappingLookup(), null, null, xContentRegistry(), writableRegistry(),
                 null, null, null, null, null, () -> true, null, emptyMap());
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
@@ -102,7 +100,6 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             0,
             0,
             indexService.getIndexSettings(),
-            BigArrays.NON_RECYCLING_INSTANCE,
             null,
             null,
             indexService.mapperService(),

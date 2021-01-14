@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.search.highlight.Encoder;
 import org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter;
 import org.apache.lucene.search.uhighlight.PassageFormatter;

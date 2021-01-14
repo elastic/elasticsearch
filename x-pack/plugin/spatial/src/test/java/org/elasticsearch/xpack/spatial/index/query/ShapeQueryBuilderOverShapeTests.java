@@ -13,7 +13,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.util.ShapeTestUtils;
 
 import java.io.IOException;
@@ -28,7 +28,7 @@ public class ShapeQueryBuilderOverShapeTests extends ShapeQueryBuilderTests {
 
     @Override
     protected ShapeRelation getShapeRelation(ShapeType type) {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         if (context.indexVersionCreated().onOrAfter(Version.V_7_5_0)) { // CONTAINS is only supported from version 7.5
             if (type == ShapeType.LINESTRING || type == ShapeType.MULTILINESTRING) {
                 return randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS);

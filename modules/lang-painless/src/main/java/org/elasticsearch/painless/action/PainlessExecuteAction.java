@@ -65,7 +65,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -538,7 +538,7 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
         }
 
         private static Response prepareRamIndex(Request request,
-                                                CheckedBiFunction<QueryShardContext, LeafReaderContext, Response, IOException> handler,
+                                                CheckedBiFunction<SearchExecutionContext, LeafReaderContext, Response, IOException> handler,
                                                 IndexService indexService) throws IOException {
 
             Analyzer defaultAnalyzer = indexService.getIndexAnalyzers().getDefaultIndexAnalyzer();
@@ -555,8 +555,8 @@ public class PainlessExecuteAction extends ActionType<PainlessExecuteAction.Resp
                         final IndexSearcher searcher = new IndexSearcher(indexReader);
                         searcher.setQueryCache(null);
                         final long absoluteStartMillis = System.currentTimeMillis();
-                        QueryShardContext context =
-                            indexService.newQueryShardContext(0, 0, searcher, () -> absoluteStartMillis, null, emptyMap());
+                        SearchExecutionContext context =
+                            indexService.newSearchExecutionContext(0, 0, searcher, () -> absoluteStartMillis, null, emptyMap());
                         return handler.apply(context, indexReader.leaves().get(0));
                     }
                 }

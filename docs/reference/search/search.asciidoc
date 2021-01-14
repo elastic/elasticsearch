@@ -399,6 +399,13 @@ lower `_score` are not included in the search results.
 (Optional, <<query-dsl,query object>>) Defines the search definition using the
 <<query-dsl,Query DSL>>.
 
+[[search-api-body-runtime]]
+`runtime_mappings`::
+(Optional, object)
+Defines a <<runtime-search-request,runtime field>> in the search request that
+exist only as part of the query. Fields defined in the search request take
+precedence over fields defined with the same name in the index mappings.
+
 [[request-body-search-seq-no-primary-term]]
 `seq_no_primary_term`::
 (Optional, Boolean) If `true`, returns sequence number and primary term of the

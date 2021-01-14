@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
@@ -73,14 +74,14 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
-    // TODO geo_ip are missing?
     private static final Set<String> RUNTIME_TYPES = Set.of(
         BooleanFieldMapper.CONTENT_TYPE,
         DateFieldMapper.CONTENT_TYPE,
         NumberType.DOUBLE.typeName(),
         KeywordFieldMapper.CONTENT_TYPE,
         IpFieldMapper.CONTENT_TYPE,
-        NumberType.LONG.typeName()
+        NumberType.LONG.typeName(),
+        GeoPointFieldMapper.CONTENT_TYPE
     );
 
     protected abstract Map<String, Object> dynamicTemplateFor();
@@ -109,13 +110,15 @@ public abstract class CoreTestTranslater {
                 Map<String, String> params = Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
                 for (String type : RUNTIME_TYPES) {
-                    if (type.equals("ip") || type.equals("keyword")) {
-                        // There isn't a dynamic template to pick up ips. They'll just look like strings.
+                    if (type.equals(IpFieldMapper.CONTENT_TYPE) ||
+                        type.equals(GeoPointFieldMapper.CONTENT_TYPE) ||
+                        type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                        // There isn't a dynamic template to pick up ips and geopoints. They'll just look like strings.
                         continue;
                     }
                     //It would be great to use dynamic:runtime and remove the need for dynamic templates.
                     //Unfortunately, string fields get dynamically mapped as a multi-field which we can't mimic from a dynamic
-                    //template either, hence we register a dynamic template for each type besides string
+                    //template either, hence we register a dynamic template for each type besides string.
                     HashMap<String, Object> map = new HashMap<>();
                     map.put("match_mapping_type", type);
                     map.putAll(dynamicTemplateFor());

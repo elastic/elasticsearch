@@ -31,7 +31,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -98,18 +98,18 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             emitTypesDeprecationWarning();
             return new MatchAllDocsQuery();
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             emitTypesDeprecationWarning();
             if (type == null) {
                 return false;
@@ -119,7 +119,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
-                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, QueryShardContext context) {
+                                ShapeRelation relation, ZoneId timeZone, DateMathParser parser, SearchExecutionContext context) {
             emitTypesDeprecationWarning();
             BytesRef lower = (BytesRef) lowerTerm;
             BytesRef upper = (BytesRef) upperTerm;

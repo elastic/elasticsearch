@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
@@ -392,7 +392,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public SortFieldAndFormat build(QueryShardContext context) throws IOException {
+    public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         final boolean reverse = order == SortOrder.DESC;
 
         if (DOC_FIELD_NAME.equals(fieldName)) {
@@ -441,10 +441,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     /**
-     * Returns whether some values of the given {@link QueryShardContext#getIndexReader()} are within the
+     * Returns whether some values of the given {@link SearchExecutionContext#getIndexReader()} are within the
      * primary sort value provided in the <code>bottomSortValues</code>.
      */
-    public boolean isBottomSortShardDisjoint(QueryShardContext context, SearchSortValuesAndFormats bottomSortValues) throws IOException {
+    public boolean isBottomSortShardDisjoint(SearchExecutionContext context,
+                                             SearchSortValuesAndFormats bottomSortValues) throws IOException {
         if (bottomSortValues == null || bottomSortValues.getRawSortValues().length == 0) {
             return false;
         }
@@ -481,7 +482,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
         throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
             throw new IllegalArgumentException("sorting by _doc is not supported");
@@ -517,7 +518,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
     }
 
-    private MappedFieldType resolveUnmappedType(QueryShardContext context) {
+    private MappedFieldType resolveUnmappedType(SearchExecutionContext context) {
         if (unmappedType == null) {
             throw new QueryShardException(context, "No mapping found for [" + fieldName + "] in order to sort on");
         }
@@ -532,7 +533,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         return order == SortOrder.DESC ? MultiValueMode.MAX : MultiValueMode.MIN;
     }
 
-    private Nested nested(QueryShardContext context, MappedFieldType fieldType) throws IOException {
+    private Nested nested(SearchExecutionContext context, MappedFieldType fieldType) throws IOException {
         if (fieldType == null) {
             return null;
         }
@@ -572,7 +573,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      * The value can be extracted on non-nested indexed mapped fields of type keyword, numeric or date, other fields
      * and configurations return <code>null</code>.
      */
-    public static MinAndMax<?> getMinMaxOrNull(QueryShardContext context, FieldSortBuilder sortBuilder) throws IOException {
+    public static MinAndMax<?> getMinMaxOrNull(SearchExecutionContext context, FieldSortBuilder sortBuilder) throws IOException {
         SortAndFormats sort = SortBuilder.buildSort(Collections.singletonList(sortBuilder), context).get();
         SortField sortField = sort.sort.getSort()[0];
         if (sortField.getField() == null) {
@@ -653,7 +654,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     /**
      * Throws an exception if max children is not located at top level nested sort.
      */
-    static void validateMaxChildrenExistOnlyInTopLevelNestedSort(QueryShardContext context, NestedSortBuilder nestedSort) {
+    static void validateMaxChildrenExistOnlyInTopLevelNestedSort(SearchExecutionContext context, NestedSortBuilder nestedSort) {
         for (NestedSortBuilder child = nestedSort.getNestedSort(); child != null; child = child.getNestedSort()) {
             if (child.getMaxChildren() != Integer.MAX_VALUE) {
                 throw new QueryShardException(context,

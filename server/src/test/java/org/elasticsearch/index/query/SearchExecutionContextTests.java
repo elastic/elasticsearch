@@ -100,10 +100,10 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class QueryShardContextTests extends ESTestCase {
+public class SearchExecutionContextTests extends ESTestCase {
 
     public void testFailIfFieldMappingNotFound() {
-        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
+        SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         context.setAllowUnmappedFields(false);
         MappedFieldType fieldType = new TextFieldMapper.TextFieldType("text");
         MappedFieldType result = context.failIfFieldMappingNotFound("name", fieldType);
@@ -128,13 +128,13 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public void testBuildAnonymousFieldType() {
-        QueryShardContext context = createQueryShardContext("uuid", null);
+        SearchExecutionContext context = createSearchExecutionContext("uuid", null);
         assertThat(context.buildAnonymousFieldType("keyword"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertThat(context.buildAnonymousFieldType("long"), instanceOf(NumberFieldMapper.NumberFieldType.class));
     }
 
     public void testToQueryFails() {
-        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
+        SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, null);
         Exception exc = expectThrows(Exception.class,
             () -> context.toQuery(new AbstractQueryBuilder() {
                 @Override
@@ -153,7 +153,7 @@ public class QueryShardContextTests extends ESTestCase {
                 }
 
                 @Override
-                protected Query doToQuery(QueryShardContext context) throws IOException {
+                protected Query doToQuery(SearchExecutionContext context) throws IOException {
                     throw new RuntimeException("boom");
                 }
 
@@ -172,7 +172,7 @@ public class QueryShardContextTests extends ESTestCase {
 
     public void testClusterAlias() throws IOException {
         final String clusterAlias = randomBoolean() ? null : "remote_cluster";
-        QueryShardContext context = createQueryShardContext(IndexMetadata.INDEX_UUID_NA_VALUE, clusterAlias);
+        SearchExecutionContext context = createSearchExecutionContext(IndexMetadata.INDEX_UUID_NA_VALUE, clusterAlias);
 
         IndexFieldMapper mapper = new IndexFieldMapper();
 
@@ -185,9 +185,9 @@ public class QueryShardContextTests extends ESTestCase {
     public void testGetFullyQualifiedIndex() {
         String clusterAlias = randomAlphaOfLengthBetween(5, 10);
         String indexUuid = randomAlphaOfLengthBetween(3, 10);
-        QueryShardContext shardContext = createQueryShardContext(indexUuid, clusterAlias);
-        assertThat(shardContext.getFullyQualifiedIndex().getName(), equalTo(clusterAlias + ":index"));
-        assertThat(shardContext.getFullyQualifiedIndex().getUUID(), equalTo(indexUuid));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(indexUuid, clusterAlias);
+        assertThat(searchExecutionContext.getFullyQualifiedIndex().getName(), equalTo(clusterAlias + ":index"));
+        assertThat(searchExecutionContext.getFullyQualifiedIndex().getUUID(), equalTo(indexUuid));
     }
 
     public void testIndexSortedOnField() {
@@ -202,7 +202,7 @@ public class QueryShardContextTests extends ESTestCase {
             .build();
 
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        QueryShardContext context = new QueryShardContext(
+        SearchExecutionContext context = new SearchExecutionContext(
             0,
             0,
             indexSettings,
@@ -230,40 +230,40 @@ public class QueryShardContextTests extends ESTestCase {
     }
 
     public void testFielddataLookupSelfReference() {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             // simulate a runtime field that depends on itself e.g. field: doc['field']
             runtimeField("field", leafLookup -> leafLookup.doc().get("field").toString())
         );
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field", queryShardContext));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("field", searchExecutionContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: field -> field", iae.getMessage());
     }
 
     public void testFielddataLookupLooseLoop() {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             // simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['1']
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
             runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
             runtimeField("4", leafLookup -> leafLookup.doc().get("1").get(0).toString())
         );
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", searchExecutionContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: 1 -> 2 -> 3 -> 4 -> 1", iae.getMessage());
     }
 
     public void testFielddataLookupTerminatesInLoop() {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             // simulate a runtime field cycle: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
             runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
             runtimeField("4", leafLookup -> leafLookup.doc().get("4").get(0).toString())
         );
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", searchExecutionContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: 1 -> 2 -> 3 -> 4 -> 4", iae.getMessage());
     }
 
     public void testFielddataLookupSometimesLoop() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             // simulate a runtime field cycle in the second doc: 1: doc['2'] 2: doc['3'] 3: doc['4'] 4: doc['4']
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
@@ -275,14 +275,14 @@ public class QueryShardContextTests extends ESTestCase {
                 return leafLookup.doc().get("4").get(0).toString();
             })
         );
-        List<String> values = collect("1", queryShardContext, new TermQuery(new Term("indexed_field", "first")));
+        List<String> values = collect("1", searchExecutionContext, new TermQuery(new Term("indexed_field", "first")));
         assertEquals(org.elasticsearch.common.collect.List.of("escape!"), values);
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", searchExecutionContext));
         assertEquals("Cyclic dependency detected while resolving runtime fields: 1 -> 2 -> 3 -> 4 -> 4", iae.getMessage());
     }
 
     public void testFielddataLookupBeyondMaxDepth() {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
             runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
@@ -290,19 +290,19 @@ public class QueryShardContextTests extends ESTestCase {
             runtimeField("5", leafLookup -> leafLookup.doc().get("6").get(0).toString()),
             runtimeField("6", leafLookup -> "cat")
         );
-        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", queryShardContext));
+        IllegalArgumentException iae = expectThrows(IllegalArgumentException.class, () -> collect("1", searchExecutionContext));
         assertEquals("Field requires resolving too many dependent fields: 1 -> 2 -> 3 -> 4 -> 5 -> 6", iae.getMessage());
     }
 
     public void testFielddataLookupReferencesBelowMaxDepth() throws IOException {
-        QueryShardContext queryShardContext = createQueryShardContext(
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
             runtimeField("1", leafLookup -> leafLookup.doc().get("2").get(0).toString()),
             runtimeField("2", leafLookup -> leafLookup.doc().get("3").get(0).toString()),
             runtimeField("3", leafLookup -> leafLookup.doc().get("4").get(0).toString()),
             runtimeField("4", leafLookup -> leafLookup.doc().get("5").get(0).toString()),
             runtimeField("5", (leafLookup, docId) -> "cat on doc " + docId)
         );
-        assertEquals(org.elasticsearch.common.collect.List.of("cat on doc 0", "cat on doc 1"), collect("1", queryShardContext));
+        assertEquals(org.elasticsearch.common.collect.List.of("cat on doc 0", "cat on doc 1"), collect("1", searchExecutionContext));
     }
 
     public void testFielddataLookupOneFieldManyReferences() throws IOException {
@@ -323,7 +323,8 @@ public class QueryShardContextTests extends ESTestCase {
         }
         assertEquals(
             org.elasticsearch.common.collect.List.of(expected.toString(), expected.toString()),
-            collect("root", createQueryShardContext("uuid", null, createMappingLookup(org.elasticsearch.common.collect.List.of(), fields),
+            collect("root", createSearchExecutionContext("uuid", null,
+                createMappingLookup(org.elasticsearch.common.collect.List.of(), fields),
                 org.elasticsearch.common.collect.Map.of(), org.elasticsearch.common.collect.List.of()))
         );
     }
@@ -346,27 +347,27 @@ public class QueryShardContextTests extends ESTestCase {
             org.elasticsearch.common.collect.Map.entry("cat", org.elasticsearch.common.collect.Map.of("type", "keyword")),
             org.elasticsearch.common.collect.Map.entry("dog", org.elasticsearch.common.collect.Map.of("type", "long"))
         );
-        QueryShardContext qsc = createQueryShardContext(
+        SearchExecutionContext context = createSearchExecutionContext(
             "uuid",
             null,
             createMappingLookup(org.elasticsearch.common.collect.List.of(new MockFieldMapper.FakeFieldType("pig"),
                 new MockFieldMapper.FakeFieldType("cat")), org.elasticsearch.common.collect.List.of()),
             runtimeMappings,
             Collections.singletonList(new TestRuntimeField.Plugin()));
-        assertTrue(qsc.isFieldMapped("cat"));
-        assertThat(qsc.getFieldType("cat"), instanceOf(TestRuntimeField.class));
-        assertThat(qsc.simpleMatchToIndexNames("cat"), equalTo(org.elasticsearch.common.collect.Set.of("cat")));
-        assertTrue(qsc.isFieldMapped("dog"));
-        assertThat(qsc.getFieldType("dog"), instanceOf(TestRuntimeField.class));
-        assertThat(qsc.simpleMatchToIndexNames("dog"), equalTo(org.elasticsearch.common.collect.Set.of("dog")));
-        assertTrue(qsc.isFieldMapped("pig"));
-        assertThat(qsc.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
-        assertThat(qsc.simpleMatchToIndexNames("pig"), equalTo(org.elasticsearch.common.collect.Set.of("pig")));
-        assertThat(qsc.simpleMatchToIndexNames("*"), equalTo(org.elasticsearch.common.collect.Set.of("cat", "dog", "pig")));
+        assertTrue(context.isFieldMapped("cat"));
+        assertThat(context.getFieldType("cat"), instanceOf(TestRuntimeField.class));
+        assertThat(context.simpleMatchToIndexNames("cat"), equalTo(org.elasticsearch.common.collect.Set.of("cat")));
+        assertTrue(context.isFieldMapped("dog"));
+        assertThat(context.getFieldType("dog"), instanceOf(TestRuntimeField.class));
+        assertThat(context.simpleMatchToIndexNames("dog"), equalTo(org.elasticsearch.common.collect.Set.of("dog")));
+        assertTrue(context.isFieldMapped("pig"));
+        assertThat(context.getFieldType("pig"), instanceOf(MockFieldMapper.FakeFieldType.class));
+        assertThat(context.simpleMatchToIndexNames("pig"), equalTo(org.elasticsearch.common.collect.Set.of("pig")));
+        assertThat(context.simpleMatchToIndexNames("*"), equalTo(org.elasticsearch.common.collect.Set.of("cat", "dog", "pig")));
     }
 
-    public static QueryShardContext createQueryShardContext(String indexUuid, String clusterAlias) {
-        return createQueryShardContext(
+    public static SearchExecutionContext createSearchExecutionContext(String indexUuid, String clusterAlias) {
+        return createSearchExecutionContext(
             indexUuid,
             clusterAlias,
             MappingLookup.EMPTY,
@@ -375,8 +376,8 @@ public class QueryShardContextTests extends ESTestCase {
         );
     }
 
-    private static QueryShardContext createQueryShardContext(RuntimeFieldType... fieldTypes) {
-        return createQueryShardContext(
+    private static SearchExecutionContext createSearchExecutionContext(RuntimeFieldType... fieldTypes) {
+        return createSearchExecutionContext(
             "uuid",
             null,
             createMappingLookup(Collections.emptyList(), org.elasticsearch.common.collect.List.of(fieldTypes)),
@@ -385,7 +386,7 @@ public class QueryShardContextTests extends ESTestCase {
         );
     }
 
-    private static QueryShardContext createQueryShardContext(
+    private static SearchExecutionContext createSearchExecutionContext(
         String indexUuid,
         String clusterAlias,
         MappingLookup mappingLookup,
@@ -402,7 +403,7 @@ public class QueryShardContextTests extends ESTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         MapperService mapperService = createMapperService(indexSettings, mapperPlugins);
         final long nowInMillis = randomNonNegativeLong();
-        return new QueryShardContext(
+        return new SearchExecutionContext(
             0,
             0,
             indexSettings,
@@ -436,7 +437,7 @@ public class QueryShardContextTests extends ESTestCase {
         );
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        Supplier<QueryShardContext> queryShardContextSupplier = () -> { throw new UnsupportedOperationException(); };
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier = () -> { throw new UnsupportedOperationException(); };
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.getIndexAnalyzers()).thenReturn(indexAnalyzers);
         when(mapperService.parserContext()).thenReturn(new Mapper.TypeParser.ParserContext(
@@ -444,7 +445,7 @@ public class QueryShardContextTests extends ESTestCase {
             mapperRegistry.getMapperParsers()::get,
             mapperRegistry.getRuntimeFieldTypeParsers()::get,
             indexSettings.getIndexVersionCreated(),
-            queryShardContextSupplier,
+            searchExecutionContextSupplier,
             null,
             null,
             indexAnalyzers,
@@ -551,23 +552,23 @@ public class QueryShardContextTests extends ESTestCase {
         };
     }
 
-    private static List<String> collect(String field, QueryShardContext queryShardContext) throws IOException {
-        return collect(field, queryShardContext, new MatchAllDocsQuery());
+    private static List<String> collect(String field, SearchExecutionContext searchExecutionContext) throws IOException {
+        return collect(field, searchExecutionContext, new MatchAllDocsQuery());
     }
 
-    private static List<String> collect(String field, QueryShardContext queryShardContext, Query query) throws IOException {
+    private static List<String> collect(String field, SearchExecutionContext searchExecutionContext, Query query) throws IOException {
         List<String> result = new ArrayList<>();
         try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             indexWriter.addDocument(Collections.singletonList(new StringField("indexed_field", "first", Field.Store.NO)));
             indexWriter.addDocument(Collections.singletonList(new StringField("indexed_field", "second", Field.Store.NO)));
             try (DirectoryReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                MappedFieldType fieldType = queryShardContext.getFieldType(field);
+                MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
                 IndexFieldData<?> indexFieldData;
                 if (randomBoolean()) {
-                    indexFieldData = queryShardContext.getForField(fieldType);
+                    indexFieldData = searchExecutionContext.getForField(fieldType);
                 } else {
-                    indexFieldData = queryShardContext.lookup().doc().getForField(fieldType);
+                    indexFieldData = searchExecutionContext.lookup().doc().getForField(fieldType);
                 }
                 searcher.search(query, new Collector() {
                     @Override
@@ -586,7 +587,7 @@ public class QueryShardContextTests extends ESTestCase {
                             public void collect(int doc) throws IOException {
                                 ScriptDocValues<?> scriptDocValues;
                                 if(randomBoolean()) {
-                                    LeafDocLookup leafDocLookup = queryShardContext.lookup().doc().getLeafDocLookup(context);
+                                    LeafDocLookup leafDocLookup = searchExecutionContext.lookup().doc().getLeafDocLookup(context);
                                     leafDocLookup.setDocument(doc);
                                     scriptDocValues = leafDocLookup.get(field);
                                 } else {

@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -523,7 +523,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
             return null;
         }
     }
@@ -567,7 +567,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected SuggestionSearchContext.SuggestionContext build(QueryShardContext context) throws IOException {
+        protected SuggestionSearchContext.SuggestionContext build(SearchExecutionContext context) throws IOException {
             return null;
         }
 

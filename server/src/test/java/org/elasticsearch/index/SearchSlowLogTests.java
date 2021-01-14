@@ -244,16 +244,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogWithTypes() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
-        searchContext.getQueryShardContext().setTypes("type1", "type2");
+        searchContext.getSearchExecutionContext().setTypes("type1", "type2");
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
 
-        searchContext.getQueryShardContext().setTypes("type1");
+        searchContext.getSearchExecutionContext().setTypes("type1");
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
 
-        searchContext.getQueryShardContext().setTypes();
+        searchContext.getSearchExecutionContext().setTypes();
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[]"));
     }

@@ -9,6 +9,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.stats.DataCountsTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
 import org.elasticsearch.xpack.ml.dataframe.stats.StatsPersister;
+import org.elasticsearch.xpack.ml.dataframe.steps.StepResponse;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -116,7 +118,8 @@ public class AnalyticsProcessManager {
         this.numAllocatedProcessors = numAllocatedProcessors;
     }
 
-    public void runJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory) {
+    public void runJob(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, DataFrameDataExtractorFactory dataExtractorFactory,
+                       ActionListener<StepResponse> listener) {
         executorServiceForJob.execute(() -> {
             ProcessContext processContext = new ProcessContext(config);
             synchronized (processContextByAllocation) {
@@ -125,11 +128,11 @@ public class AnalyticsProcessManager {
                         task.getParams().getId());
                     // The task was requested to stop before we created the process context
                     auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
-                    task.markAsCompleted();
+                    listener.onResponse(new StepResponse(true));
                     return;
                 }
                 if (processContextByAllocation.putIfAbsent(task.getAllocationId(), processContext) != null) {
-                    task.setFailed(ExceptionsHelper.serverError(
+                    listener.onFailure(ExceptionsHelper.serverError(
                         "[" + config.getId() + "] Could not create process as one already exists"));
                     return;
                 }
@@ -143,18 +146,19 @@ public class AnalyticsProcessManager {
                 isProcessStarted = processContext.startProcess(dataExtractorFactory, task, hasState);
             } catch (Exception e) {
                 processContext.stop();
-                task.setFailed(processContext.getFailureReason() == null ?
+                processContextByAllocation.remove(task.getAllocationId());
+                listener.onFailure(processContext.getFailureReason() == null ?
                         e : ExceptionsHelper.serverError(processContext.getFailureReason()));
                 return;
             }
 
             if (isProcessStarted) {
                 executorServiceForProcess.execute(() -> processContext.resultProcessor.get().process(processContext.process.get()));
-                executorServiceForProcess.execute(() -> processData(task, processContext, hasState));
+                executorServiceForProcess.execute(() -> processData(task, processContext, hasState, listener));
             } else {
                 processContextByAllocation.remove(task.getAllocationId());
                 auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
-                task.markAsCompleted();
+                listener.onResponse(new StepResponse(true));
             }
         });
     }
@@ -174,7 +178,8 @@ public class AnalyticsProcessManager {
         }
     }
 
-    private void processData(DataFrameAnalyticsTask task, ProcessContext processContext, boolean hasState) {
+    private void processData(DataFrameAnalyticsTask task, ProcessContext processContext, boolean hasState,
+                             ActionListener<StepResponse> listener) {
         LOGGER.info("[{}] Started loading data", processContext.config.getId());
         auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_LOADING_DATA));
 
@@ -189,7 +194,7 @@ public class AnalyticsProcessManager {
             process.writeEndOfDataMessage();
             process.flushStream();
 
-            restoreState(task, config, process, hasState);
+            restoreState(config, process, hasState);
 
             LOGGER.info("[{}] Started analyzing", processContext.config.getId());
             auditor.info(processContext.config.getId(), Messages.getMessage(Messages.DATA_FRAME_ANALYTICS_AUDIT_STARTED_ANALYZING));
@@ -227,13 +232,11 @@ public class AnalyticsProcessManager {
                 processContextByAllocation.size());
 
             if (processContext.getFailureReason() == null) {
-                // This results in marking the persistent task as complete
-                LOGGER.info("[{}] Marking task completed", config.getId());
                 auditor.info(config.getId(), Messages.DATA_FRAME_ANALYTICS_AUDIT_FINISHED_ANALYSIS);
-                task.markAsCompleted();
+                listener.onResponse(new StepResponse(false));
             } else {
                 LOGGER.error("[{}] Marking task failed; {}", config.getId(), processContext.getFailureReason());
-                task.setFailed(ExceptionsHelper.serverError(processContext.getFailureReason()));
+                listener.onFailure(ExceptionsHelper.serverError(processContext.getFailureReason()));
                 // Note: We are not marking the task as failed here as we want the user to be able to inspect the failure reason.
             }
         }
@@ -293,8 +296,7 @@ public class AnalyticsProcessManager {
         process.writeRecord(headerRecord);
     }
 
-    private void restoreState(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, AnalyticsProcess<AnalyticsResult> process,
-                              boolean hasState) {
+    private void restoreState(DataFrameAnalyticsConfig config, AnalyticsProcess<AnalyticsResult> process, boolean hasState) {
         if (config.getAnalysis().persistsState() == false) {
             LOGGER.debug("[{}] Analysis does not support state", config.getId());
             return;
@@ -312,7 +314,7 @@ public class AnalyticsProcessManager {
             process.restoreState(client, config.getAnalysis().getStateDocIdPrefix(config.getId()));
         } catch (Exception e) {
             LOGGER.error(new ParameterizedMessage("[{}] Failed to restore state", process.getConfig().jobId()), e);
-            task.setFailed(ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage()));
+            throw ExceptionsHelper.serverError("Failed to restore state: " + e.getMessage());
         }
     }
 
@@ -461,8 +463,7 @@ public class AnalyticsProcessManager {
         /**
          * @return {@code true} if the process was started or {@code false} if it was not because it was stopped in the meantime
          */
-        synchronized boolean startProcess(DataFrameDataExtractorFactory dataExtractorFactory,
-                                          DataFrameAnalyticsTask task,
+        synchronized boolean startProcess(DataFrameDataExtractorFactory dataExtractorFactory, DataFrameAnalyticsTask task,
                                           boolean hasState) {
             if (task.isStopping()) {
                 // The job was stopped before we started the process so no need to start it

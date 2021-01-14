@@ -405,7 +405,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param shardEviction the shard eviction to process
      */
-    void processShardEviction(ShardEviction shardEviction) {
+    private void processShardEviction(ShardEviction shardEviction) {
         assert isPendingShardEviction(shardEviction) : "shard is not marked as evicted: " + shardEviction;
         assert assertGenericThreadPool();
 

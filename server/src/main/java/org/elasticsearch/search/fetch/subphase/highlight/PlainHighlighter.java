@@ -117,15 +117,10 @@ public class PlainHighlighter implements Highlighter {
             int textLength = text.length();
             if ((limitToMaxAnalyzedOffset == false) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() + "]"
-                        + "doc of [" + context.getIndexName() + "] index " + "has exceeded [" + maxAnalyzedOffset  + "]"
-                        + " - maximum allowed to be analyzed for highlighting. "
-                        + "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "]"
-                        + "index level setting. Alternatively, set the query parameter ["
-                        + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()  + "] to [true] to highlight the field up to the ["
-                        + maxAnalyzedOffset + "]. "
-                        + "For large texts, indexing with offsets or term vectors, and highlighting "
-                        + "with unified or fvh highlighter is recommended!"
+                    "The length [" + textLength + "] of field [" + field +"] in doc[" + hitContext.hit().getId() + "]/index["
+                        + context.getIndexName() +"] exceeds the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] "
+                        + "limit [" + maxAnalyzedOffset + "]. To ignore text beyond this limit when highlighting, set the query "
+                        + "parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString() + "] to [true]."
                 );
             }
 

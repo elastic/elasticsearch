@@ -19,6 +19,12 @@
 
 package org.apache.lucene.search.uhighlight;
 
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.hamcrest.CoreMatchers.equalTo;
+
+import java.text.BreakIterator;
+import java.util.Locale;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.custom.CustomAnalyzer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizerFactory;
@@ -47,12 +53,6 @@ import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.test.ESTestCase;
-
-import java.text.BreakIterator;
-import java.util.Locale;
-
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
-import static org.hamcrest.CoreMatchers.equalTo;
 
 public class CustomUnifiedHighlighterTests extends ESTestCase {
 
@@ -299,9 +299,11 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             assertHighlightOneDoc("text", new String[] {"exceeds max analyzed offset"},
                     analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 0, new String[] {}, 10, false);
         });
-        assertEquals("The length of [text] field of [0] doc of [index] index has exceeded [10] - maximum allowed to be analyzed for "
-                + "highlighting. This maximum can be set by changing the [index.highlight.max_analyzed_offset] index level setting. "
-                + "For large texts, indexing with offsets or term vectors is recommended!", e.getMessage());
+        assertEquals(
+            "The length [27] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [10]. To "
+                + "ignore text beyond this limit when highlighting, set the query parameter [limit_to_max_analyzed_offset] to [true].",
+            e.getMessage()
+        );
 
         assertHighlightOneDoc("text", new String[] {"exceeds max analyzed offset"},
                 analyzer, query, Locale.ROOT, BreakIterator.getSentenceInstance(Locale.ROOT), 1, new String[] {"exceeds"}, 10, true);

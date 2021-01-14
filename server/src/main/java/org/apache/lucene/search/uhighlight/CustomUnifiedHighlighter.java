@@ -130,15 +130,10 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int fieldValueLength = fieldValue.length();
         if (((limitToMaxAnalyzedOffset == false) && (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
-                "The length of [" + field + "] field of [" + docId + "]"
-                    + "doc of [" + index + "] index " + "has exceeded [" + maxAnalyzedOffset  + "]"
-                    + " - maximum allowed to be analyzed for highlighting. "
-                    + "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "]"
-                    + "index level setting. Alternatively, set the query parameter ["
-                    + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()  + "] to [true] to highlight the field up to the ["
-                    + maxAnalyzedOffset + "]. "
-                    + "For large texts, indexing with offsets or term vectors, and highlighting "
-                    + "with unified or fvh highlighter is recommended!"
+                "The length [" + fieldValueLength + "] of field [" + field +"] in doc[" + docId + "]/index[" + index +"] exceeds the ["
+                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "] limit [" + maxAnalyzedOffset + "]. To ignore text beyond "
+                    + "this limit when highlighting, set the query parameter [" + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()
+                    + "] to [true]."
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);

@@ -19,6 +19,14 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
+import static org.hamcrest.CoreMatchers.equalTo;
+
+import java.net.URLEncoder;
+import java.text.BreakIterator;
+import java.util.ArrayList;
+import java.util.Locale;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
@@ -50,14 +58,6 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.AnnotationAnalyzerWrapper;
 import org.elasticsearch.test.ESTestCase;
 
-import java.net.URLEncoder;
-import java.text.BreakIterator;
-import java.util.ArrayList;
-import java.util.Locale;
-
-import static org.apache.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
-import static org.hamcrest.CoreMatchers.equalTo;
-
 public class AnnotatedTextHighlighterTests extends ESTestCase {
 
     private void assertHighlightOneDoc(String fieldName, String[] markedUpInputs,
@@ -73,14 +73,9 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             int noMatchSize, String[] expectedPassages,
             int maxAnalyzedOffset, boolean limitToMaxAnalyzedOffset) throws Exception {
 
-        Directory dir = null;
-        DirectoryReader reader = null;
-        try {
-            dir = newDirectory();
-
+        try (Directory dir = newDirectory()) {
             // Annotated fields wrap the usual analyzer with one that injects extra tokens
             Analyzer wrapperAnalyzer = new AnnotationAnalyzerWrapper(new StandardAnalyzer());
-            ;
             IndexWriterConfig iwc = newIndexWriterConfig(wrapperAnalyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
             RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
@@ -98,55 +93,49 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
                 doc.add(field);
             }
             iw.addDocument(doc);
-            reader = iw.getReader();
-            IndexSearcher searcher = newSearcher(reader);
-            iw.close();
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                iw.close();
 
-            AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
-            for (int i = 0; i < markedUpInputs.length; i++) {
-                annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
-            }
-            AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
-            hiliteAnalyzer.setAnnotations(annotations);
-            AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
-            passageFormatter.setAnnotations(annotations);
+                AnnotatedText[] annotations = new AnnotatedText[markedUpInputs.length];
+                for (int i = 0; i < markedUpInputs.length; i++) {
+                    annotations[i] = AnnotatedText.parse(markedUpInputs[i]);
+                }
+                AnnotatedHighlighterAnalyzer hiliteAnalyzer = new AnnotatedHighlighterAnalyzer(wrapperAnalyzer);
+                hiliteAnalyzer.setAnnotations(annotations);
+                AnnotatedPassageFormatter passageFormatter = new AnnotatedPassageFormatter(new DefaultEncoder());
+                passageFormatter.setAnnotations(annotations);
 
-            ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
-            for (int i = 0; i < annotations.length; i++) {
-                plainTextForHighlighter.add(annotations[i].textMinusMarkup);
-            }
+                ArrayList<Object> plainTextForHighlighter = new ArrayList<>(annotations.length);
+                for (int i = 0; i < annotations.length; i++) {
+                    plainTextForHighlighter.add(annotations[i].textMinusMarkup);
+                }
 
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-            assertThat(topDocs.totalHits.value, equalTo(1L));
-            String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
-            CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    hiliteAnalyzer,
-                    UnifiedHighlighter.OffsetSource.ANALYSIS,
-                    passageFormatter,
-                    locale,
-                    breakIterator,
-                    "index",
-                    "text",
-                    query,
-                    noMatchSize,
-                    expectedPassages.length,
-                    name -> "text".equals(name),
-                    maxAnalyzedOffset,
-                    limitToMaxAnalyzedOffset
-            );
-            highlighter.setFieldMatcher((name) -> "text".equals(name));
-            final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-            assertEquals(expectedPassages.length, snippets.length);
-            for (int i = 0; i < snippets.length; i++) {
-                assertEquals(expectedPassages[i], snippets[i].getText());
-            }
-        } finally {
-            if (reader != null) {
-                reader.close();
-            }
-            if (dir != null) {
-                dir.close();
+                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
+                assertThat(topDocs.totalHits.value, equalTo(1L));
+                String rawValue = Strings.collectionToDelimitedString(plainTextForHighlighter, String.valueOf(MULTIVAL_SEP_CHAR));
+                CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+                        searcher,
+                        hiliteAnalyzer,
+                        UnifiedHighlighter.OffsetSource.ANALYSIS,
+                        passageFormatter,
+                        locale,
+                        breakIterator,
+                        "index",
+                        "text",
+                        query,
+                        noMatchSize,
+                        expectedPassages.length,
+                        name -> "text".equals(name),
+                        maxAnalyzedOffset,
+                        limitToMaxAnalyzedOffset
+                );
+                highlighter.setFieldMatcher((name) -> "text".equals(name));
+                final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
+                assertEquals(expectedPassages.length, snippets.length);
+                for (int i = 0; i < snippets.length; i++) {
+                    assertEquals(expectedPassages[i], snippets[i].getText());
+                }
             }
         }
     }
@@ -242,9 +231,8 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             )
         );
         assertEquals(
-            "The length of [text] field of [0] doc of [index] index has exceeded [15] - maximum allowed to be analyzed for "
-                + "highlighting. This maximum can be set by changing the [index.highlight.max_analyzed_offset] index level setting. "
-                + "For large texts, indexing with offsets or term vectors is recommended!",
+            "The length [38] of field [text] in doc[0]/index[index] exceeds the [index.highlight.max_analyzed_offset] limit [15]. To "
+                + "ignore text beyond this limit when highlighting, set the query parameter [limit_to_max_analyzed_offset] to [true].",
             e.getMessage()
         );
 

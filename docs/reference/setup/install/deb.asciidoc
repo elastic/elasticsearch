@@ -105,7 +105,6 @@ endif::[]
 
 include::skip-set-kernel-parameters.asciidoc[]
 
-==================================================
 
 [[install-deb]]
 ==== Download and install the Debian package manually

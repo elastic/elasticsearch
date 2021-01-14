@@ -96,7 +96,6 @@ must explicitly enable the repository as indicated in the sample commands above.
 
 endif::[]
 
-==================================================
 
 [[install-rpm]]
 ==== Download and install the RPM manually

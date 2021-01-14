@@ -214,7 +214,8 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
     public void testExceedMaxAnalyzedOffset() throws Exception {
         TermQuery query = new TermQuery(new Term("text", "exceeds"));
         BreakIterator breakIterator = new CustomSeparatorBreakIterator(MULTIVAL_SEP_CHAR);
-        assertHighlightOneDoc("text", new String[] { "[Short Text](Short+Text)" }, query, Locale.ROOT, breakIterator, 0, new String[] {});
+        assertHighlightOneDoc("text", new String[] { "[Short Text](Short+Text)" }, query, Locale.ROOT, breakIterator, 0, new String[] {},
+                10, false);
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
@@ -236,7 +237,16 @@ public class AnnotatedTextHighlighterTests extends ESTestCase {
             e.getMessage()
         );
 
-        assertHighlightOneDoc("text", new String[] { "[Long Text exceeds](Long+Text+exceeds) MAX analyzed offset" },
-            query, Locale.ROOT, breakIterator, 0, new String[] {"Long Text [exceeds](_hit_term=exceeds) MAX analyzed offset"}, 15, true);
+        assertHighlightOneDoc(
+            "text",
+            new String[] { "[Long Text Exceeds](Long+Text+Exceeds) MAX analyzed offset [Long Text Exceeds](Long+Text+Exceeds)" },
+            query,
+            Locale.ROOT,
+            breakIterator,
+            0,
+            new String[] { "Long Text [Exceeds](_hit_term=exceeds) MAX analyzed offset [Long Text Exceeds](Long+Text+Exceeds)" },
+            15,
+            true
+        );
     }
 }

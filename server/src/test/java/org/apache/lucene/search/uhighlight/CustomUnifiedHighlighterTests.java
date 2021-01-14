@@ -68,10 +68,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                                        Locale locale, BreakIterator breakIterator,
                                        int noMatchSize, String[] expectedPassages,
                                        int maxAnalyzedOffset, boolean limitToMaxAnalyzedOffset) throws Exception {
-        Directory dir = null;
-        DirectoryReader reader = null;
-        try {
-            dir = newDirectory();
+        try (Directory dir = newDirectory()){
             IndexWriterConfig iwc = newIndexWriterConfig(analyzer);
             iwc.setMergePolicy(newTieredMergePolicy(random()));
             RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
@@ -85,39 +82,33 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
                 doc.add(field);
             }
             iw.addDocument(doc);
-            reader = iw.getReader();
-            IndexSearcher searcher = newSearcher(reader);
-            iw.close();
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
-            assertThat(topDocs.totalHits.value, equalTo(1L));
-            String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
-            CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
-                    searcher,
-                    analyzer,
-                    UnifiedHighlighter.OffsetSource.ANALYSIS,
-                    new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
-                    locale,
-                    breakIterator,
-                    "index",
-                    "text",
-                    query,
-                    noMatchSize,
-                    expectedPassages.length,
-                    name -> "text".equals(name),
-                    maxAnalyzedOffset,
-                    limitToMaxAnalyzedOffset
-            );
-            final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
-            assertEquals(snippets.length, expectedPassages.length);
-            for (int i = 0; i < snippets.length; i++) {
-                assertEquals(snippets[i].getText(), expectedPassages[i]);
-            }
-        } finally {
-            if (reader != null) {
-                reader.close();
-            }
-            if (dir != null) {
-                dir.close();
+            try (DirectoryReader reader = iw.getReader()) {
+                IndexSearcher searcher = newSearcher(reader);
+                iw.close();
+                TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), 1, Sort.INDEXORDER);
+                assertThat(topDocs.totalHits.value, equalTo(1L));
+                String rawValue = Strings.arrayToDelimitedString(inputs, String.valueOf(MULTIVAL_SEP_CHAR));
+                CustomUnifiedHighlighter highlighter = new CustomUnifiedHighlighter(
+                        searcher,
+                        analyzer,
+                        UnifiedHighlighter.OffsetSource.ANALYSIS,
+                        new CustomPassageFormatter("<b>", "</b>", new DefaultEncoder()),
+                        locale,
+                        breakIterator,
+                        "index",
+                        "text",
+                        query,
+                        noMatchSize,
+                        expectedPassages.length,
+                        name -> "text".equals(name),
+                        maxAnalyzedOffset,
+                        limitToMaxAnalyzedOffset
+                );
+                final Snippet[] snippets = highlighter.highlightField(getOnlyLeafReader(reader), topDocs.scoreDocs[0].doc, () -> rawValue);
+                assertEquals(snippets.length, expectedPassages.length);
+                for (int i = 0; i < snippets.length; i++) {
+                    assertEquals(snippets[i].getText(), expectedPassages[i]);
+                }
             }
         }
     }

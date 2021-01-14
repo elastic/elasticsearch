@@ -161,15 +161,11 @@ public class UnifiedHighlighter implements Highlighter {
             field.fieldOptions().postTags()[0], encoder);
     }
 
-    protected Analyzer wrapAnalyzer(Analyzer analyzer) {
-        return analyzer;
-    }
-
-    private Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
+    protected Analyzer wrapAnalyzer(Analyzer analyzer, boolean limitToMaxAnalyzedOffset, int maxOffset) {
         if (limitToMaxAnalyzedOffset) {
             analyzer = new LimitTokenOffsetAnalyzer(analyzer, maxOffset);
         }
-        return wrapAnalyzer(analyzer);
+        return analyzer;
     }
 
     protected List<Object> loadFieldValues(

@@ -45,15 +45,15 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     private Map<String, Object> buildEvent() {
         event = new HashMap<>();
-        var source = new HashMap<String, Object>();
+        HashMap<String, Object> source = new HashMap<>();
         source.put("ip", "128.232.110.120");
         source.put("port", 34855);
         event.put("source", source);
-        var destination = new HashMap<String, Object>();
+        HashMap<String, Object> destination = new HashMap<>();
         destination.put("ip", "66.35.250.204");
         destination.put("port", 80);
         event.put("destination", destination);
-        var network = new HashMap<String, Object>();
+        HashMap<String, Object> network = new HashMap<>();
         network.put("transport", "TCP");
         event.put("network", network);
         return event;
@@ -69,7 +69,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsInvalidSourceIp() throws Exception {
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.put("ip", 2162716280L);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
         assertThat(e.getMessage(), containsString("field [source.ip] of type [java.lang.Long] cannot be cast to [java.lang.String]"));
@@ -77,7 +77,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsInvalidSourcePort() throws Exception {
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.put("port", 0);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
         assertThat(e.getMessage(), containsString("invalid source port"));
@@ -85,7 +85,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsInvalidDestinationIp() throws Exception {
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         String invalidIp = "308.111.1.2.3";
         destination.put("ip", invalidIp);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
@@ -94,7 +94,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsInvalidDestinationPort() throws Exception {
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         destination.put("port", null);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
         assertThat(e.getMessage(), containsString("invalid destination port [0]"));
@@ -102,7 +102,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsUnknownProtocol() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", "xyz");
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> testCommunityIdProcessor(event, null));
         assertThat(e.getMessage(), containsString("could not convert string [xyz] to transport protocol"));
@@ -110,9 +110,9 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsIcmp() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", "icmp");
-        var icmp = new HashMap<String, Object>();
+        Map<String, Object> icmp = new HashMap<>();
         icmp.put("type", 3);
         icmp.put("code", 3);
         event.put("icmp", icmp);
@@ -121,53 +121,53 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testBeatsIcmpWithoutTypeOrCode() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", "icmp");
         testCommunityIdProcessor(event, "1:PAE85ZfR4SbNXl5URZwWYyDehwU=");
     }
 
     public void testBeatsIgmp() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", "igmp");
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.remove("port");
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         destination.remove("port");
         testCommunityIdProcessor(event, "1:D3t8Q1aFA6Ev0A/AO4i9PnU3AeI=");
     }
 
     public void testBeatsProtocolNumberAsString() throws Exception {
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.remove("port");
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         destination.remove("port");
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", "2");
         testCommunityIdProcessor(event, "1:D3t8Q1aFA6Ev0A/AO4i9PnU3AeI=");
     }
 
     public void testBeatsProtocolNumber() throws Exception {
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.remove("port");
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         destination.remove("port");
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", 2);
         testCommunityIdProcessor(event, "1:D3t8Q1aFA6Ev0A/AO4i9PnU3AeI=");
     }
 
     public void testBeatsIanaNumber() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.remove("transport");
         network.put("iana_number", CommunityIdProcessor.Transport.Tcp.getTransportNumber());
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
@@ -175,19 +175,19 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testIpv6() throws Exception {
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.put("ip", "2001:0db8:85a3:0000:0000:8a2e:0370:7334");
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         destination.put("ip", "2001:0:9d38:6ab8:1c48:3a1c:a95a:b1c2");
         testCommunityIdProcessor(event, "1:YC1+javPJ2LpK5xVyw1udfT83Qs=");
     }
 
     public void testIcmpWithCodeEquivalent() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.put("transport", "icmp");
-        var icmp = new HashMap<String, Object>();
+        Map<String, Object> icmp = new HashMap<String, Object>();
         icmp.put("type", 10);
         icmp.put("code", 3);
         event.put("icmp", icmp);
@@ -198,7 +198,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
         // iana
         event = buildEvent();
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.remove("transport");
         network.put("iana_number", CommunityIdProcessor.Transport.Tcp.getTransportNumber());
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
@@ -209,13 +209,13 @@ public class CommunityIdProcessorTests extends ESTestCase {
         // protocol number
         event = buildEvent();
         @SuppressWarnings("unchecked")
-        var source = (Map<String, Object>) event.get("source");
+        Map<String, Object> source = (Map<String, Object>) event.get("source");
         source.remove("port");
         @SuppressWarnings("unchecked")
-        var destination = (Map<String, Object>) event.get("destination");
+        Map<String, Object> destination = (Map<String, Object>) event.get("destination");
         destination.remove("port");
         @SuppressWarnings("unchecked")
-        var network2 = (Map<String, Object>) event.get("network");
+        Map<String, Object> network2 = (Map<String, Object>) event.get("network");
         network2.put("transport", 2);
         testCommunityIdProcessor(event, "1:D3t8Q1aFA6Ev0A/AO4i9PnU3AeI=");
 
@@ -225,7 +225,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
         // source port
         event = buildEvent();
         @SuppressWarnings("unchecked")
-        var source2 = (Map<String, Object>) event.get("source");
+        Map<String, Object> source2 = (Map<String, Object>) event.get("source");
         source2.put("port", 34855);
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
 
@@ -235,7 +235,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
         // dest port
         event = buildEvent();
         @SuppressWarnings("unchecked")
-        var dest2 = (Map<String, Object>) event.get("destination");
+        Map<String, Object> dest2 = (Map<String, Object>) event.get("destination");
         dest2.put("port", 80);
         testCommunityIdProcessor(event, "1:LQU9qZlK+B5F3KDmev6m5PMibrg=");
 
@@ -245,9 +245,9 @@ public class CommunityIdProcessorTests extends ESTestCase {
         // icmp type and code
         event = buildEvent();
         @SuppressWarnings("unchecked")
-        var network3 = (Map<String, Object>) event.get("network");
+        Map<String, Object> network3 = (Map<String, Object>) event.get("network");
         network3.put("transport", "icmp");
-        var icmp = new HashMap<String, Object>();
+        Map<String, Object> icmp = new HashMap<String, Object>();
         icmp.put("type", 3);
         icmp.put("code", 3);
         event.put("icmp", icmp);
@@ -262,7 +262,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
 
     public void testIgnoreMissing() throws Exception {
         @SuppressWarnings("unchecked")
-        var network = (Map<String, Object>) event.get("network");
+        Map<String, Object> network = (Map<String, Object>) event.get("network");
         network.remove("transport");
         testCommunityIdProcessor(event, 0, null, true);
     }
@@ -278,7 +278,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
     private void testCommunityIdProcessor(Map<String, Object> source, int seed, String expectedHash, boolean ignoreMissing)
         throws Exception {
 
-        var processor = new CommunityIdProcessor(
+        CommunityIdProcessor processor = new CommunityIdProcessor(
             null,
             null,
             DEFAULT_SOURCE_IP,
@@ -295,7 +295,7 @@ public class CommunityIdProcessorTests extends ESTestCase {
             ignoreMissing
         );
 
-        IngestDocument input = new IngestDocument(source, Map.of());
+        IngestDocument input = new IngestDocument(source, org.elasticsearch.common.collect.Map.of());
         IngestDocument output = processor.execute(input);
 
         String hash = output.getFieldValue(DEFAULT_TARGET, String.class, ignoreMissing);

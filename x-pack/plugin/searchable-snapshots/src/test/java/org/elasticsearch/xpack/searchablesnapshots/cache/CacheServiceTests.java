@@ -242,6 +242,13 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(Files.exists(randomCacheFile.getFile()));
         randomCacheFile.acquire(blockingListener);
 
+        final List<CacheFile> randomEvictedCacheFiles = randomSubsetOf(randomCacheFiles);
+        for (CacheFile randomEvictedCacheFile : randomEvictedCacheFiles) {
+            if (randomEvictedCacheFile != randomCacheFile) {
+                cacheService.removeFromCache(randomEvictedCacheFile.getCacheKey());
+            }
+        }
+
         for (int i = 0; i < between(1, 3); i++) {
             cacheService.markShardAsEvictedInCache(shard.getSnapshotUUID(), shard.getSnapshotIndexName(), shard.getShardId());
         }
@@ -255,7 +262,14 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
 
         assertBusy(() -> assertThat(cacheService.pendingShardsEvictions(), aMapWithSize(0)));
 
-        cacheFilesAssociatedWithShard.forEach(cacheFile -> assertFalse(Files.exists(cacheFile.getFile())));
+        for (CacheFile cacheFile : randomCacheFiles) {
+            final boolean evicted = cacheFilesAssociatedWithShard.contains(cacheFile) || randomEvictedCacheFiles.contains(cacheFile);
+            assertThat(
+                "Cache file [" + cacheFile + "] should " + (evicted ? "be deleted" : "exist"),
+                Files.notExists(cacheFile.getFile()),
+                equalTo(evicted)
+            );
+        }
         cacheService.close();
 
         if (randomBoolean()) {

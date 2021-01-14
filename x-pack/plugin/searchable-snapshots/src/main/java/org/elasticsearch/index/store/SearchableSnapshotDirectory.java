@@ -461,7 +461,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 completionListener.onResponse(null);
                 continue;
             }
-
             recoveryState.getIndex().addFileDetail(file.physicalName(), file.length(), false);
             try {
                 final IndexInput input = openInput(file.physicalName(), CachedBlobContainerIndexInput.CACHE_WARMING_CONTEXT);
@@ -511,16 +510,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final int workers = Math.min(threadPool.info(CACHE_PREWARMING_THREAD_POOL_NAME).getMax(), queue.size());
         for (int i = 0; i < workers; ++i) {
             prewarmNext(executor, queue);
-        }
-    }
-
-    private boolean isSnapshotFileFullyCached(BlobStoreIndexShardSnapshot.FileInfo file) {
-        try {
-            final CacheKey cacheKey = createCacheKey(file.physicalName());
-            final CacheFile cacheFile = getCacheFile(cacheKey, file.length());
-            return cacheFile.getCachedLength() == file.length();
-        } catch (Exception e) {
-            return false;
         }
     }
 

@@ -503,8 +503,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         private ValuesAfterV8(BytesReference bytesRef) {
             this.valueRef = bytesRef;
             try (StreamInput in = valueRef.streamInput()) {
-                assert in.readByte() == (byte) 7;
-                size = in.readVInt();
+                size = consumerHeadersAndGetListSize(in);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -524,8 +523,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                 {
                     try {
                         in = valueRef.streamInput();
-                        assert in.readByte() == (byte) 7;
-                        assert in.readVInt() == size;
+                        consumerHeadersAndGetListSize(in);
                     } catch (IOException e) {
                         throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
                     }
@@ -568,6 +566,12 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         @Override
         public int hashCode() {
             return Objects.hash(valueRef);
+        }
+
+        private int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
+            byte genericSign = in.readByte();
+            assert genericSign == 7;
+            return in.readVInt();
         }
     }
 

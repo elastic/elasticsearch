@@ -43,11 +43,6 @@ public class RollupTask extends CancellableTask {
     }
 
     @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
-    }
-
-    @Override
     public void onCancelled() {
         // TODO(talevy): make things cancellable
     }

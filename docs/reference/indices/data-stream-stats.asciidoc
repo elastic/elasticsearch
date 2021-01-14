@@ -72,6 +72,10 @@ To target all data streams in a cluster, omit this parameter or use `*`.
 [[data-stream-stats-api-query-params]]
 ==== {api-query-parms-title}
 
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
+
 `human`::
 (Optional, Boolean)
 If `true`, the response includes statistics in human-readable <<byte-units,byte

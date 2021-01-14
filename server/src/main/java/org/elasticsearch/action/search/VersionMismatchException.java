@@ -17,20 +17,21 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.action.search;
 
-import java.util.Arrays;
-import java.util.List;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.io.stream.StreamInput;
 
-import static java.util.stream.Collectors.toList;
+import java.io.IOException;
 
-public class MappingLookupUtils {
-    public static MappingLookup fromTypes(MappedFieldType... types) {
-        return fromTypes(Arrays.asList(types), List.of());
+public class VersionMismatchException extends ElasticsearchException {
+
+    public VersionMismatchException(String msg, Object... args) {
+        super(msg, args);
     }
 
-    public static MappingLookup fromTypes(List<MappedFieldType> concreteFields, List<RuntimeFieldType> runtimeFields) {
-        List<FieldMapper> mappers = concreteFields.stream().map(MockFieldMapper::new).collect(toList());
-        return new MappingLookup("_doc", mappers, List.of(), List.of(), runtimeFields, 0, souceToParse -> null, true);
+    public VersionMismatchException(StreamInput in) throws IOException {
+        super(in);
     }
+
 }

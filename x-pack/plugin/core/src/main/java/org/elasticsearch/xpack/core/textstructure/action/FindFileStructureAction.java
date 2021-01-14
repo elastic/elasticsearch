@@ -31,7 +31,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class FindFileStructureAction extends ActionType<FindFileStructureAction.Response> {
 
     public static final FindFileStructureAction INSTANCE = new FindFileStructureAction();
-    public static final String NAME = "cluster:monitor/xpack/ml/findfilestructure";
+    public static final String NAME = "cluster:monitor/text_structure/findstructure";
 
     private FindFileStructureAction() {
         super(NAME, Response::new);

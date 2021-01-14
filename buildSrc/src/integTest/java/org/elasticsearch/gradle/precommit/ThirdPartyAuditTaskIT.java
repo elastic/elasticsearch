@@ -74,7 +74,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
 
         assertTaskFailed(result, ":absurd");
         assertOutputContains(result.getOutput(), "Classes with violations:", "  * TestingIO", "> Audit of third party dependencies failed");
-        assertOutputDoesNotContain(result.getOutput(), "Missing classes:");
+        assertOutputMissing(result.getOutput(), "Missing classes:");
         assertNoDeprecationWarning(result);
     }
 
@@ -96,7 +96,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "  * org.apache.logging.log4j.LogManager",
             "> Audit of third party dependencies failed"
         );
-        assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
+        assertOutputMissing(result.getOutput(), "Classes with violations:");
         assertNoDeprecationWarning(result);
     }
 
@@ -118,7 +118,7 @@ public class ThirdPartyAuditTaskIT extends GradleIntegrationTestCase {
             "   Jar Hell with the JDK:",
             "    * java.lang.String"
         );
-        assertOutputDoesNotContain(result.getOutput(), "Classes with violations:");
+        assertOutputMissing(result.getOutput(), "Classes with violations:");
         assertNoDeprecationWarning(result);
     }
 

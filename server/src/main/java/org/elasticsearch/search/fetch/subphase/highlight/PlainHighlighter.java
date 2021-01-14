@@ -18,6 +18,15 @@
  */
 package org.elasticsearch.search.fetch.subphase.highlight;
 
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD;
+import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
@@ -40,14 +49,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.elasticsearch.search.fetch.subphase.highlight.UnifiedHighlighter.convertFieldValue;
 
 public class PlainHighlighter implements Highlighter {
     private static final String CACHE_KEY = "highlight-plain";
@@ -116,12 +117,16 @@ public class PlainHighlighter implements Highlighter {
             int textLength = text.length();
             if ((limitToMaxAnalyzedOffset == false) && (textLength > maxAnalyzedOffset)) {
                 throw new IllegalArgumentException(
-                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() +
-                        "] doc of [" + context.getIndexName() + "] index " +
-                        "has exceeded [" + maxAnalyzedOffset + "] - maximum allowed to be analyzed for highlighting. " +
-                        "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() +
-                        "] index level setting. " + "For large texts, indexing with offsets or term vectors, and highlighting " +
-                        "with unified or fvh highlighter is recommended!");
+                    "The length of [" + fieldContext.fieldName + "] field of [" + hitContext.hit().getId() + "]"
+                        + "doc of [" + context.getIndexName() + "] index " + "has exceeded [" + maxAnalyzedOffset  + "]"
+                        + " - maximum allowed to be analyzed for highlighting. "
+                        + "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "]"
+                        + "index level setting. Alternatively, set the query parameter ["
+                        + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()  + "] to [true] to highlight the field up to the ["
+                        + maxAnalyzedOffset + "]. "
+                        + "For large texts, indexing with offsets or term vectors, and highlighting "
+                        + "with unified or fvh highlighter is recommended!"
+                );
             }
 
             try (TokenStream tokenStream = analyzer.tokenStream(fieldType.name(), text)) {

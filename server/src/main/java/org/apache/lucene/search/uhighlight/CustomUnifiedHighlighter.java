@@ -44,6 +44,8 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighlighterBuilder.LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD;
+
 /**
  * Subclass of the {@link UnifiedHighlighter} that works for a single field in a single document.
  * Uses a custom {@link PassageFormatter}. Accepts field content as a constructor
@@ -128,20 +130,15 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         int fieldValueLength = fieldValue.length();
         if (((limitToMaxAnalyzedOffset == false) && (offsetSource == OffsetSource.ANALYSIS) && (fieldValueLength > maxAnalyzedOffset))) {
             throw new IllegalArgumentException(
-                "The length of ["
-                    + field
-                    + "] field of ["
-                    + docId
-                    + "] doc of ["
-                    + index
-                    + "] index "
-                    + "has exceeded ["
-                    + maxAnalyzedOffset
-                    + "] - maximum allowed to be analyzed for highlighting. "
-                    + "This maximum can be set by changing the ["
-                    + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey()
-                    + "] index level setting. "
-                    + "For large texts, indexing with offsets or term vectors is recommended!"
+                "The length of [" + field + "] field of [" + docId + "]"
+                    + "doc of [" + index + "] index " + "has exceeded [" + maxAnalyzedOffset  + "]"
+                    + " - maximum allowed to be analyzed for highlighting. "
+                    + "This maximum can be set by changing the [" + IndexSettings.MAX_ANALYZED_OFFSET_SETTING.getKey() + "]"
+                    + "index level setting. Alternatively, set the query parameter ["
+                    + LIMIT_TO_MAX_ANALYZED_OFFSET_FIELD.toString()  + "] to [true] to highlight the field up to the ["
+                    + maxAnalyzedOffset + "]. "
+                    + "For large texts, indexing with offsets or term vectors, and highlighting "
+                    + "with unified or fvh highlighter is recommended!"
             );
         }
         Snippet[] result = (Snippet[]) fieldHighlighter.highlightFieldForDoc(reader, docId, fieldValue);

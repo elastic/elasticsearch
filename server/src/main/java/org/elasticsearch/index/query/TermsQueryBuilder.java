@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -578,7 +577,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * If we do not keep this, it could be expensive when receiving a request from
      * lower version.
      * We have to read the value list by {@link StreamInput#readGenericValue},
-     * serialize it into {@link BytesRef}, and then deserialize it again when
+     * serialize it into {@link BytesReference}, and then deserialize it again when
      * {@link #doToQuery} called}.
      * <p>
      *

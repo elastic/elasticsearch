@@ -33,6 +33,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -480,7 +481,8 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
+    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+        throws IOException {
         if (DOC_FIELD_NAME.equals(fieldName)) {
             throw new IllegalArgumentException("sorting by _doc is not supported");
         }
@@ -503,11 +505,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
-            return numericFieldData.newBucketedSort(resolvedType, context.bigArrays(), missing, localSortMode(), nested, order,
+            return numericFieldData.newBucketedSort(resolvedType, bigArrays, missing, localSortMode(), nested, order,
                     fieldType.docValueFormat(null, null), bucketSize, extra);
         }
         try {
-            return fieldData.newBucketedSort(context.bigArrays(), missing, localSortMode(), nested, order,
+            return fieldData.newBucketedSort(bigArrays, missing, localSortMode(), nested, order,
                     fieldType.docValueFormat(null, null), bucketSize, extra);
         } catch (IllegalArgumentException e) {
             throw new IllegalArgumentException("error building sort for field [" + fieldName + "] of type ["

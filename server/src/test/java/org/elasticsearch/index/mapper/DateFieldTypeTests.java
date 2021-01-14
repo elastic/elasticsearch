@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.time.DateMathParser;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -167,7 +166,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null,
+                null, null, null, null, null, null,
                 xContentRegistry(), writableRegistry(), null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         MappedFieldType ft = new DateFieldType("field");
         String date = "2015-10-12T14:10:55";
@@ -189,7 +188,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         QueryShardContext context = new QueryShardContext(0, 0,
                 new IndexSettings(IndexMetadata.builder("foo").settings(indexSettings).build(), indexSettings),
-                BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+                null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
                 null, null, () -> nowInMillis, null, null, () -> true, null, emptyMap());
         MappedFieldType ft = new DateFieldType("field");
         String date1 = "2015-10-12T14:10:55";
@@ -233,7 +232,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
 
         QueryShardContext context = new QueryShardContext(0, 0, indexSettings,
-            BigArrays.NON_RECYCLING_INSTANCE, null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
+            null, null, null, null, null, null, xContentRegistry(), writableRegistry(),
             null, null, () -> 0L, null, null, () -> true, null, emptyMap());
 
         MappedFieldType ft = new DateFieldType("field");

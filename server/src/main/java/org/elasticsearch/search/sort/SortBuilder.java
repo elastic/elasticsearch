@@ -28,6 +28,7 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -70,8 +71,12 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
-    public abstract BucketedSort buildBucketedSort(QueryShardContext context,
-            int bucketSize, BucketedSort.ExtraData extra) throws IOException;
+    public abstract BucketedSort buildBucketedSort(
+        QueryShardContext context,
+        BigArrays bigArrays,
+        int bucketSize,
+        BucketedSort.ExtraData extra
+    ) throws IOException;
 
     /**
      * Set the order of sorting.

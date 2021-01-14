@@ -956,6 +956,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         if (source.aggregations() != null && includeAggregations) {
             AggregationContext aggContext = new ProductionAggregationContext(
                 context.getQueryShardContext(),
+                bigArrays,
                 source.aggregations().bytesToPreallocate(),
                 /*
                  * The query on the search context right now doesn't include

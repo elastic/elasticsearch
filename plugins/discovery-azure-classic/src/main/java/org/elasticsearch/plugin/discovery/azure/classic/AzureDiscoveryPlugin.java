@@ -49,7 +49,7 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        deprecationLogger.deprecate(DeprecationCategory.OTHER, "azure_discovery_plugin", "azure classic discovery plugin is deprecated.");
+        deprecationLogger.deprecate(DeprecationCategory.PLUGINS, "azure_discovery_plugin", "azure classic discovery plugin is deprecated.");
         logger.trace("starting azure classic discovery plugin...");
     }
 

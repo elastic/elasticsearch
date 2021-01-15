@@ -136,7 +136,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /** Get the current interval in milliseconds that is set on this builder. */
     @Deprecated
     public long interval() {
-        DEPRECATION_LOGGER.deprecate(DeprecationCategory.OTHER, "date-interval-getter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
             return TimeValue.parseTimeValue(dateHistogramInterval.toString(), "interval").getMillis();
         }

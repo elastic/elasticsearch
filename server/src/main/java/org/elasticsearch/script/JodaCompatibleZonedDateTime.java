@@ -76,7 +76,7 @@ public class JodaCompatibleZonedDateTime
     }
 
     private static void logDeprecatedMethod(String oldMethod, String newMethod) {
-        logDeprecated(DeprecationCategory.OTHER, oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
+        logDeprecated(DeprecationCategory.PARSING, oldMethod, "Use of the joda time method [{}] is deprecated. Use [{}] instead.",
             oldMethod, newMethod);
     }
 
@@ -520,7 +520,7 @@ public class JodaCompatibleZonedDateTime
 
     @Deprecated
     public int getDayOfWeek() {
-        logDeprecated(DeprecationCategory.OTHER, "getDayOfWeek()",
+        logDeprecated(DeprecationCategory.PARSING, "getDayOfWeek()",
             "The return type of [getDayOfWeek()] will change to an enum in 7.0. Use getDayOfWeekEnum().getValue().");
         return dt.getDayOfWeek().getValue();
     }

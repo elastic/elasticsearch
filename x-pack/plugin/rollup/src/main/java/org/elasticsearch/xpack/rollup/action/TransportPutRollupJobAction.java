@@ -114,7 +114,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         String timeZone = request.getConfig().getGroupConfig().getDateHistogram().getTimeZone();
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
-            deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_timezone",
+            deprecationLogger.deprecate(DeprecationCategory.PARSING, "deprecated_timezone",
                 "Creating Rollup job [" + request.getConfig().getId() + "] with timezone ["
                     + timeZone + "], but [" + timeZone + "] has been deprecated by the IANA.  Use [" + modernTZ +"] instead.");
         }

@@ -151,23 +151,23 @@ Classification configuration for inference.
 .Properties of classification inference
 [%collapsible%open]
 ======
-`num_top_classes`:::::
+`num_top_classes`::::
 (integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
 
-`num_top_feature_importance_values`:::::
+`num_top_feature_importance_values`::::
 (integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
 
-`prediction_field_type`:::::
+`prediction_field_type`::::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
 
-`results_field`:::::
+`results_field`::::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 
-`top_classes_results_field`:::::
+`top_classes_results_field`::::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 ======
@@ -178,11 +178,11 @@ Regression configuration for inference.
 .Properties of regression inference
 [%collapsible%open]
 ======
-`num_top_feature_importance_values`:::::
+`num_top_feature_importance_values`::::
 (integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
-`results_field`:::::
+`results_field`::::
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 ======

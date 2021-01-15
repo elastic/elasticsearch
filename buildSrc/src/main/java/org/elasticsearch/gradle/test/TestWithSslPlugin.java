@@ -71,6 +71,7 @@ public class TestWithSslPlugin implements Plugin<Project> {
             File clientKeyStore = new File(keyMaterialDir, "test-client.jks");
             File clientCertificate = new File(keyMaterialDir, "test-client.crt");
             File clientKey = new File(keyMaterialDir, "test-client.key");
+            @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> clusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
                 .getExtensions()
                 .getByName(TestClustersPlugin.EXTENSION_NAME);

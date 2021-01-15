@@ -56,7 +56,7 @@ public class MultiTests extends PreProcessingTests<Multi> {
                 TargetMeanEncodingTests.createRandom(isCustom, randomFrom(nGram.outputFields())),
                 OneHotEncodingTests.createRandom(isCustom, randomFrom(nGram.outputFields()))
             )).limit(randomIntBetween(1, 10)).forEach(preProcessorList::add);
-            processors = preProcessorList.toArray(PreProcessor[]::new);
+            processors = preProcessorList.toArray(new PreProcessor[0]);
         } else {
             processors = randomArray(
                 2,

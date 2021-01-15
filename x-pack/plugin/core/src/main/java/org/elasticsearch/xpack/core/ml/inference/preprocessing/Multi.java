@@ -98,13 +98,13 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
             }
         }
         Map<String, String> outputFields = new LinkedHashMap<>();
-        for (var outputField : originatingOutputFields.entrySet()) {
+        for (Map.Entry<String, String> outputField : originatingOutputFields.entrySet()) {
             if (consumedOutputFields.contains(outputField.getKey()) == false) {
                 outputFields.put(outputField.getKey(), outputField.getValue());
             }
         }
         this.outputFields = outputFields;
-        this.inputFields = inputFields.toArray(String[]::new);
+        this.inputFields = inputFields.toArray(new String[0]);
         if (this.custom == false && this.inputFields.length > 1) {
             throw new IllegalArgumentException(
                 String.format(
@@ -120,7 +120,7 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     }
 
     public Multi(StreamInput in) throws IOException {
-        this.processors = in.readNamedWriteableList(PreProcessor.class).toArray(PreProcessor[]::new);
+        this.processors = in.readNamedWriteableList(PreProcessor.class).toArray(new PreProcessor[0]);
         this.custom = in.readBoolean();
         this.outputFields = in.readOrderedMap(StreamInput::readString, StreamInput::readString);
         this.inputFields = in.readStringArray();
@@ -250,7 +250,7 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
             if (processors.size() < 2) {
                 throw new IllegalArgumentException("processors must be an array of objects with at least length 2");
             }
-            return new Multi(processors.toArray(PreProcessor[]::new), custom);
+            return new Multi(processors.toArray(new PreProcessor[0]), custom);
         }
     }
 

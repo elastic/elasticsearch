@@ -163,6 +163,9 @@ public class CacheFile {
         return tracker.getCompletedRanges();
     }
 
+    /**
+     * Number of bytes that were present on the persistent when this cache file was created
+     */
     public long getInitialLength() {
         return tracker.getInitialLength();
     }

@@ -38,7 +38,8 @@ public class SparseFileTracker {
     private final long length;
 
     /**
-     * Represents the number of bytes that were present at disk when this file metainformation was loaded into memory
+     * Number of bytes that were initially present in the case where the sparse file tracker was initialized with some completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
      */
     private final long initialLength;
 

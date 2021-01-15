@@ -196,11 +196,11 @@ public class AdjacencyMatrixAggregationBuilder extends AbstractAggregationBuilde
     }
 
     @Override
-    protected AdjacencyMatrixAggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AdjacencyMatrixAggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         boolean modified = false;
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         for (KeyedFilter kf : filters) {
-            QueryBuilder rewritten = Rewriteable.rewrite(kf.filter(), queryShardContext);
+            QueryBuilder rewritten = Rewriteable.rewrite(kf.filter(), queryRewriteContext);
             modified = modified || rewritten != kf.filter();
             rewrittenFilters.add(new KeyedFilter(kf.key(), rewritten));
         }

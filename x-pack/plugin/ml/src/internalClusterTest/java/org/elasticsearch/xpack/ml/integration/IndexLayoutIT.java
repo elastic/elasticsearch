@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
 import java.util.Collections;
 
-import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +79,7 @@ public class IndexLayoutIT extends BaseMlIntegTestCase {
 
     public void testForceCloseDoesNotCreateState() throws Exception {
         client().admin().indices().prepareCreate("data")
-            .addMapping(SINGLE_MAPPING_NAME,  "time", "type=date")
+            .addMapping("type", "time", "type=date")
             .get();
         String jobId = "index-layout-force-close-job";
 

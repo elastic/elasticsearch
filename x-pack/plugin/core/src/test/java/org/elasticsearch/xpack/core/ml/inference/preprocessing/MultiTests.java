@@ -5,14 +5,18 @@
  */
 package org.elasticsearch.xpack.core.ml.inference.preprocessing;
 
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
+import java.util.stream.Stream;
 
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -42,8 +46,19 @@ public class MultiTests extends PreProcessingTests<Multi> {
     }
 
     public static Multi createRandom(Boolean isCustom) {
-        return new Multi(
-            randomArray(
+        final PreProcessor[] processors;
+        if (isCustom == null || isCustom == false) {
+            NGram nGram = NGramTests.createRandom(isCustom);
+            List<PreProcessor> preProcessorList = new ArrayList<>();
+            preProcessorList.add(nGram);
+            Stream.generate(() -> randomFrom(
+                FrequencyEncodingTests.createRandom(isCustom, randomFrom(nGram.outputFields())),
+                TargetMeanEncodingTests.createRandom(isCustom, randomFrom(nGram.outputFields())),
+                OneHotEncodingTests.createRandom(isCustom, randomFrom(nGram.outputFields()))
+            )).limit(randomIntBetween(1, 10)).forEach(preProcessorList::add);
+            processors = preProcessorList.toArray(PreProcessor[]::new);
+        } else {
+            processors = randomArray(
                 2,
                 10,
                 PreProcessor[]::new,
@@ -53,14 +68,36 @@ public class MultiTests extends PreProcessingTests<Multi> {
                     OneHotEncodingTests.createRandom(isCustom),
                     NGramTests.createRandom(isCustom)
                 )
-            ),
-            isCustom
-        );
+            );
+        }
+        return new Multi(processors, isCustom);
     }
 
     @Override
     protected Writeable.Reader<Multi> instanceReader() {
         return Multi::new;
+    }
+
+    public void testReverseLookup() {
+        String field = "text";
+        NGram nGram = new NGram(field, Collections.singletonList(1), 0, 2, null, "f");
+        OneHotEncoding oneHotEncoding = new OneHotEncoding("f.10",
+            MapBuilder.<String, String>newMapBuilder()
+                .put("a", "has_a")
+                .put("b", "has_b")
+                .map(),
+            true);
+        Multi multi = new Multi(new PreProcessor[]{nGram, oneHotEncoding}, true);
+        assertThat(multi.reverseLookup(), allOf(hasEntry("has_a", field), hasEntry("has_b", field), hasEntry("f.11", field)));
+
+        OneHotEncoding oneHotEncodingOutside = new OneHotEncoding("some_other",
+            MapBuilder.<String, String>newMapBuilder()
+                .put("a", "has_3_a")
+                .put("b", "has_3_b")
+                .map(),
+            true);
+        multi = new Multi(new PreProcessor[]{nGram, oneHotEncoding, oneHotEncodingOutside}, true);
+        expectThrows(IllegalArgumentException.class, multi::reverseLookup);
     }
 
     public void testProcessWithFieldPresent() {

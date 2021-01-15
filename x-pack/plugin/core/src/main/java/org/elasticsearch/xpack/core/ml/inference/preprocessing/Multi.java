@@ -12,9 +12,12 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.ParseField;
@@ -69,7 +72,7 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
     private final Map<String, String> outputFields;
     private final String[] inputFields;
 
-    Multi(PreProcessor[] processors, Boolean custom) {
+    public Multi(PreProcessor[] processors, Boolean custom) {
         this.processors = ExceptionsHelper.requireNonNull(processors, PROCESSORS);
         if (this.processors.length < 2) {
             throw new IllegalArgumentException("processors must be an array of objects with at least length 2");
@@ -102,6 +105,18 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         }
         this.outputFields = outputFields;
         this.inputFields = inputFields.toArray(String[]::new);
+        if (this.custom == false && this.inputFields.length > 1) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "[custom] cannot be false as [%s] is unable to accurately determine" +
+                        " field reverse encoding for input fields [%s] and output fields %s",
+                    NAME.getPreferredName(),
+                    Strings.arrayToCommaDelimitedString(this.inputFields),
+                    this.outputFields.keySet()
+                )
+            );
+        }
     }
 
     public Multi(StreamInput in) throws IOException {
@@ -143,8 +158,18 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
 
     @Override
     public Map<String, String> reverseLookup() {
-        // TODO
-        throw new UnsupportedOperationException();
+        if (inputFields.length > 1) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "[%s] is unable to accurately determine field reverse encoding for input fields [%s] and output fields %s",
+                    NAME.getPreferredName(),
+                    Strings.arrayToCommaDelimitedString(inputFields),
+                    outputFields.keySet()
+                )
+            );
+        }
+        return outputFields.keySet().stream().collect(Collectors.toMap(Function.identity(), _unused -> inputFields[0]));
     }
 
     @Override
@@ -195,9 +220,7 @@ public class Multi implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(custom);
-        result = 31 * result + Arrays.hashCode(processors);
-        return result;
+        return Objects.hash(custom, Arrays.hashCode(processors));
     }
 
     static class Builder {

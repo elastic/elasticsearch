@@ -19,6 +19,9 @@
 package org.elasticsearch.client.ml.inference.preprocessing;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -57,14 +60,29 @@ public class MultiTests extends AbstractXContentTestCase<Multi> {
     }
 
     public static Multi createRandom() {
-        return new Multi(
+        final List<PreProcessor> processors;
+        Boolean isCustom = randomBoolean() ? null : randomBoolean();
+        if (isCustom == null || isCustom == false) {
+            NGram nGram = new NGram(randomAlphaOfLength(10), Arrays.asList(1, 2), 0, 10, isCustom, "f");
+            List<PreProcessor> preProcessorList = new ArrayList<>();
+            preProcessorList.add(nGram);
             Stream.generate(() -> randomFrom(
+                FrequencyEncodingTests.createRandom(randomFrom(nGram.outputFields())),
+                TargetMeanEncodingTests.createRandom(randomFrom(nGram.outputFields())),
+                OneHotEncodingTests.createRandom(randomFrom(nGram.outputFields()))
+            )).limit(randomIntBetween(1, 10)).forEach(preProcessorList::add);
+            processors = preProcessorList;
+        } else {
+            processors = Stream.generate(
+                () -> randomFrom(
                     FrequencyEncodingTests.createRandom(),
                     TargetMeanEncodingTests.createRandom(),
                     OneHotEncodingTests.createRandom(),
-                    NGramTests.createRandom())
-            ).limit(randomIntBetween(2, 10)).collect(Collectors.toList()),
-            randomBoolean() ? null : randomBoolean());
+                    NGramTests.createRandom()
+                )
+            ).limit(randomIntBetween(1, 10)).collect(Collectors.toList());
+        }
+        return new Multi(processors, isCustom);
     }
 
 }

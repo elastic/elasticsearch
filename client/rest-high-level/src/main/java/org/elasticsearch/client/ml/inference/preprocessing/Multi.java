@@ -94,13 +94,16 @@ public class Multi implements PreProcessor {
         return Objects.hash(custom, processors);
     }
 
-    static class Builder {
-        private List<PreProcessor> processors;
+    public static Builder builder(List<PreProcessor> processors) {
+        return new Builder(processors);
+    }
+
+    public static class Builder {
+        private final List<PreProcessor> processors;
         private Boolean custom;
 
-        public Builder setProcessors(List<PreProcessor> processors) {
+        public Builder(List<PreProcessor> processors) {
             this.processors = processors;
-            return this;
         }
 
         public Builder setCustom(boolean custom) {
@@ -108,7 +111,7 @@ public class Multi implements PreProcessor {
             return this;
         }
 
-        Multi build() {
+        public Multi build() {
             return new Multi(processors, custom);
         }
     }

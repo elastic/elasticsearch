@@ -639,7 +639,7 @@ public abstract class StreamInput extends InputStream {
         return readMap(keyReader, valueReader, LinkedHashMap::new);
     }
 
-    <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
+    private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
         throws IOException {
         int size = readArraySize();
         if (size == 0) {

@@ -22,7 +22,7 @@ does not log system actions to avoid cluttering the logs.
 | `{"type":"audit", "timestamp":"2020-12-30T22:30:06,947+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"transport", "event.action":"access_granted", "authentication.type":"REALM", "user.name":"user1", "user.realm":"default_native", "user.roles":["test_role"], "origin.type":"rest", "origin.address":"[::1]:52434", "request.id":"yKOgWn2CRQCKYgZRz3phJw", "action":"indices:data/write/bulk", "request.name":"BulkRequest"}`
 
 | `anonymous_access_denied`
-| Logged when a request is denied due to a missing authentication token.
+| Logged when a request is denied due to missing authentication credentials.
 | `{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"anonymous_access_denied", "origin.type":"rest", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
 
 | `authentication_failed`

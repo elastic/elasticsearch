@@ -163,6 +163,13 @@ public class CacheFile {
         return tracker.getCompletedRanges();
     }
 
+    /**
+     * Number of bytes that were present on the persistent when this cache file was created
+     */
+    public long getInitialLength() {
+        return tracker.getInitialLength();
+    }
+
     public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 

@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.dataframe.process;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
@@ -21,6 +22,7 @@ public class DataFrameAnalyticsManagerTests extends ESTestCase {
         DataFrameAnalyticsManager manager =
             new DataFrameAnalyticsManager(
                 mock(NodeClient.class),
+                mock(ClusterService.class),
                 mock(DataFrameAnalyticsConfigProvider.class),
                 mock(AnalyticsProcessManager.class),
                 mock(DataFrameAnalyticsAuditor.class),

@@ -99,7 +99,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     @Override
-    public final Query toQuery(QueryShardContext context) throws IOException {
+    public final Query toQuery(SearchExecutionContext context) throws IOException {
         Query query = doToQuery(context);
         if (query != null) {
             if (boost != DEFAULT_BOOST) {
@@ -116,7 +116,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return query;
     }
 
-    protected abstract Query doToQuery(QueryShardContext context) throws IOException;
+    protected abstract Query doToQuery(SearchExecutionContext context) throws IOException;
 
     /**
      * Sets the query name for the query.
@@ -229,10 +229,10 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     /**
      * Helper method to convert collection of {@link QueryBuilder} instances to lucene
      * {@link Query} instances. {@link QueryBuilder} that return {@code null} calling
-     * their {@link QueryBuilder#toQuery(QueryShardContext)} method are not added to the
+     * their {@link QueryBuilder#toQuery(SearchExecutionContext)} method are not added to the
      * resulting collection.
      */
-    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, QueryShardContext context) throws QueryShardException,
+    static Collection<Query> toQueries(Collection<QueryBuilder> queryBuilders, SearchExecutionContext context) throws QueryShardException,
             IOException {
         List<Query> queries = new ArrayList<>(queryBuilders.size());
         for (QueryBuilder queryBuilder : queryBuilders) {
@@ -267,8 +267,8 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     @Override
-    public final QueryBuilder rewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewritten = doRewrite(queryShardContext);
+    public final QueryBuilder rewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewritten = doRewrite(queryRewriteContext);
         if (rewritten == this) {
             return rewritten;
         }
@@ -281,7 +281,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
         return rewritten;
     }
 
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 

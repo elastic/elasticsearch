@@ -67,7 +67,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -487,7 +487,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
@@ -520,7 +520,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -566,7 +566,7 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             List.of(), metadataTransformer);
     }
 
@@ -766,12 +766,12 @@ public class MetadataCreateIndexService {
     public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
                                                                 List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
                                                                 AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                                                                QueryShardContext queryShardContext) {
+                                                                SearchExecutionContext searchExecutionContext) {
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);
             if (Strings.hasLength(alias.filter())) {
-                aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
+                aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name()).filter(alias.filter())
                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
@@ -804,7 +804,7 @@ public class MetadataCreateIndexService {
                 aliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);
                 if (aliasMetadata.filter() != null) {
                     aliasValidator.validateAliasFilter(aliasMetadata.alias(), aliasMetadata.filter().uncompressed(),
-                        queryShardContext, xContentRegistry);
+                        searchExecutionContext, xContentRegistry);
                 }
                 templatesAliases.put(aliasMetadata.alias(), aliasMetadata);
                 resolvedAliases.add((aliasMetadata));

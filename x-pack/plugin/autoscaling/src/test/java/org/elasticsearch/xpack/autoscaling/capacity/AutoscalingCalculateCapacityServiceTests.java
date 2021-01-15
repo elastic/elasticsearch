@@ -335,6 +335,21 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
     }
 
+    public void testValidateNotEmptyDeciders() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
+        String policyName = randomAlphaOfLength(8);
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            policyName,
+            new TreeSet<>(randomBoolean() ? Set.of() : Set.of("master")),
+            new TreeMap<>()
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            equalTo("no default nor user configured deciders for policy [" + policyName + "] with roles [" + policy.roles() + "]")
+        );
+    }
+
     public void testValidateSettingName() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService()));
         Set<String> legalNames = Set.of(

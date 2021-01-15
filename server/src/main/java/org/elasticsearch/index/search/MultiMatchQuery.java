@@ -33,7 +33,7 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +49,7 @@ public class MultiMatchQuery extends MatchQuery {
 
     private Float groupTieBreaker = null;
 
-    public MultiMatchQuery(QueryShardContext context) {
+    public MultiMatchQuery(SearchExecutionContext context) {
         super(context);
     }
 
@@ -233,13 +233,13 @@ public class MultiMatchQuery extends MatchQuery {
         }
     }
 
-    static Query blendTerm(QueryShardContext context, BytesRef value, float tieBreaker,
+    static Query blendTerm(SearchExecutionContext context, BytesRef value, float tieBreaker,
                            boolean lenient, List<FieldAndBoost> blendedFields) {
 
         return blendTerms(context, new BytesRef[] {value}, tieBreaker, lenient, blendedFields);
     }
 
-    static Query blendTerms(QueryShardContext context, BytesRef[] values, float tieBreaker,
+    static Query blendTerms(SearchExecutionContext context, BytesRef[] values, float tieBreaker,
                             boolean lenient, List<FieldAndBoost> blendedFields) {
 
         List<Query> queries = new ArrayList<>();

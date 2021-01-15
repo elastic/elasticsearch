@@ -76,6 +76,8 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+
         builder.startObject("write");
         builder.field("count", writeCount);
         builder.field("total_bytes", writeBytes);
@@ -89,6 +91,8 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         builder.field("wait_nanos", readWaitNanos);
         builder.field("throttled_nanos", readThrottledNanos);
         builder.field("elapsed_nanos", readElapsedNanos);
+        builder.endObject();
+
         builder.endObject();
         return builder;
     }

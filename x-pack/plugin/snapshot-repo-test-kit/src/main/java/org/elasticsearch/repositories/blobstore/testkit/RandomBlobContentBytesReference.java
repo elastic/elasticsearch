@@ -69,6 +69,9 @@ class RandomBlobContentBytesReference extends AbstractBytesReference {
             @Override
             public BytesRef next() {
                 final int block = nextBlock++;
+                if (block > lastBlock) {
+                    return null;
+                }
 
                 randomBlobContent.ensureNotCancelled(block * buffer.length + "/" + length);
                 final int end;

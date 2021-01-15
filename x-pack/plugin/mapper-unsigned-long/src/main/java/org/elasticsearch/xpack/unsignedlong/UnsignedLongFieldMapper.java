@@ -175,7 +175,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
-            for (Object value: values) {
+            for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
                     lvalues[upTo++] = unsignedToSortableSignedLong(longValue);

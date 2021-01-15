@@ -291,7 +291,7 @@ POST _transform/_preview
 
 . If you do not want to keep a {transform}, you can delete it in
 {kib} or use the <<delete-transform,delete {transform} API>>. By default, when
-you delete a  {transform}, its destination index and {kib} index patterns remain.
+you delete a {transform}, its destination index and {kib} index patterns remain.
 
 Now that you've created simple {transforms} for {kib} sample data, consider
 possible use cases for your own data. For more ideas, see

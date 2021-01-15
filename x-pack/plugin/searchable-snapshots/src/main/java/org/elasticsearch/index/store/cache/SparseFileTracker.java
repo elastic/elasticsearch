@@ -113,6 +113,11 @@ public class SparseFileTracker {
         return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
     }
 
+    /**
+     * Returns the number of bytes that were initially present in the case where the sparse file tracker was initialized with some
+     * completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
     public long getInitialLength() {
         return initialLength;
     }

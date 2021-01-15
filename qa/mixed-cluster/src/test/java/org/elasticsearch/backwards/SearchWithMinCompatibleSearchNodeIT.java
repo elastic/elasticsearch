@@ -66,7 +66,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         bwcVersion = bwcNodes.get(0).getVersion();
         newVersion = newNodes.get(0).getVersion();
 
-        if (client().performRequest(new Request("HEAD", "/" + index)).getStatusLine().getStatusCode() == 404) {
+        if (indexExists(index) == false) {
             createIndex(index, Settings.builder()
                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), numShards)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas).build());

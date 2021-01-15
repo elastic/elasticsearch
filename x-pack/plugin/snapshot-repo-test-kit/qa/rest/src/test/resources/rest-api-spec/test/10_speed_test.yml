@@ -56,7 +56,7 @@ setup:
   - is_false: details
   - gte: { listing_nanos: 0}
   - gte: { delete_nanos:  0}
-  - eq: { summary.write.count: 10}
+  - match: { summary.write.count: 10}
   - gte: { summary.write.total_bytes: 0}
   - gte: { summary.write.throttled_nanos: 0}
   - gte: { summary.write.elapsed_nanos: 0}
@@ -89,7 +89,7 @@ setup:
   - is_true: details
   - gte: { listing_nanos: 0}
   - gte: { delete_nanos:  0}
-  - eq: { summary.write.count: 10}
+  - match: { summary.write.count: 10}
   - gte: { summary.write.total_bytes: 0}
   - gte: { summary.write.throttled_nanos: 0}
   - gte: { summary.write.elapsed_nanos: 0}

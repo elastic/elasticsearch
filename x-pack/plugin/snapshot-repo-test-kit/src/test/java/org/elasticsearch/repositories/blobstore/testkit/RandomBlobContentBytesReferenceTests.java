@@ -20,10 +20,10 @@ public class RandomBlobContentBytesReferenceTests extends ESTestCase {
     public void testStreamInput() throws IOException {
         final AtomicBoolean readComplete = new AtomicBoolean();
         final RandomBlobContent randomBlobContent = new RandomBlobContent(
-                "repo",
-                randomLong(),
-                () -> false,
-                () -> assertTrue("multiple notifications", readComplete.compareAndSet(false, true))
+            "repo",
+            randomLong(),
+            () -> false,
+            () -> assertTrue("multiple notifications", readComplete.compareAndSet(false, true))
         );
 
         final int length = randomSize();

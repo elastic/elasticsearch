@@ -20,14 +20,14 @@ POST /my-index-000001/_rollup/my-rollup-index
     },
     "terms": {
       "fields": [
-        "http.request.method",
-        "user.id"
+        "my-keyword-field",
+        "my-other-keyword-field"
       ]
     }
   },
   "metrics": [
     {
-      "field": "http.response.bytes",
+      "field": "my-numeric-field",
       "metrics": [
         "min",
         "max",
@@ -38,6 +38,9 @@ POST /my-index-000001/_rollup/my-rollup-index
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/my-keyword-field/http.request.method/]
+// TEST[s/my-other-keyword-field/user.id/]
+// TEST[s/my-numeric-field/http.response.bytes/]
 
 
 [[rollup-api-request]]

@@ -7,6 +7,7 @@ dependencies {
   testImplementation project(path: xpackModule('snapshot-repo-test-kit'), configuration: 'testArtifacts')
 }
 
+// TODO we want 3rd-party tests for other repository types too
 final File repoDir = file("$buildDir/testclusters/repo")
 
 tasks.named("integTest").configure {

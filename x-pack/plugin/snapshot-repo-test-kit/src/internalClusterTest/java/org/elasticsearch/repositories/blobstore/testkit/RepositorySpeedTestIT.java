@@ -51,6 +51,9 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class RepositorySpeedTestIT extends AbstractSnapshotIntegTestCase {
 
+    // These tests are incomplete and do not currently verify that the speed test picks up on any particular repository-side failures
+    // TODO complete these tests
+
     @Before
     public void suppressConsistencyChecks() {
         disableRepoConsistencyCheck("repository is not used for snapshots");

@@ -438,6 +438,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         retry = false;
                         deleteContainerAndSendResponse();
                     } else {
+                        // TODO do we need this retry mechanism any more? S3 used not to have consistent listings but it might be ok now.
                         logger.debug(
                             "expected blobs [{}] missing in [{}:{}], trying again; retry count = {}",
                             request.repositoryName,

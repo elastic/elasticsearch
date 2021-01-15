@@ -4,6 +4,11 @@
 ++++
 <titleabbrev>Repository speed test</titleabbrev>
 ++++
+// TODO TBD I originally styled this as an "extended verification API" but feel
+// that verification is too strong a word. We certainly report errors if it
+// finds any, but no errors doesn't mean the repository is 100% correct, nor
+// does it meet any performance threshold. A speed test implies weaker claims
+// so I expect it would be less misleading.
 
 Measures the performance characteristics of a snapshot repository.
 

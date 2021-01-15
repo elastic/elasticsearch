@@ -1390,7 +1390,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
         // if now in millis is used (or in the future, a more generic "isDeterministic" flag
         // then we can't cache based on "now" key within the search request, as it is not deterministic
-        if (context.getQueryShardContext().isCacheable() == false) {
+        if (context.getSearchExecutionContext().isCacheable() == false) {
             return false;
         }
         return true;
@@ -1412,7 +1412,7 @@ public class IndicesService extends AbstractLifecycleComponent
         BytesReference cacheKey = request.cacheKey();
         BytesReference bytesReference = cacheShardLevelResult(
             context.indexShard(),
-            context.getQueryShardContext().mappingCacheKey(),
+            context.getSearchExecutionContext().mappingCacheKey(),
             directoryReader,
             cacheKey,
             out -> {
@@ -1438,7 +1438,7 @@ public class IndicesService extends AbstractLifecycleComponent
             // cache. One other option is to not cache requests with a timeout at all...
             indicesRequestCache.invalidate(
                 new IndexShardCacheEntity(context.indexShard()),
-                context.getQueryShardContext().mappingCacheKey(),
+                context.getSearchExecutionContext().mappingCacheKey(),
                 directoryReader,
                 cacheKey
             );

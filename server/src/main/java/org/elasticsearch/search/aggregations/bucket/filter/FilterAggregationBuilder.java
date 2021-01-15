@@ -89,8 +89,8 @@ public class FilterAggregationBuilder extends AbstractAggregationBuilder<FilterA
     }
 
     @Override
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder result = Rewriteable.rewrite(filter, queryShardContext);
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder result = Rewriteable.rewrite(filter, queryRewriteContext);
         if (result != filter) {
             return new FilterAggregationBuilder(getName(), result);
         }

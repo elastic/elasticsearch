@@ -27,7 +27,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -162,8 +162,8 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder newOrganicQuery = organicQuery.rewrite(queryRewriteContext);
         if (newOrganicQuery != organicQuery) {
             PinnedQueryBuilder result = new PinnedQueryBuilder(newOrganicQuery, ids.toArray(String[]::new));
             result.boost(this.boost);
@@ -173,7 +173,7 @@ public class PinnedQueryBuilder extends AbstractQueryBuilder<PinnedQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType idField = context.getFieldType(IdFieldMapper.NAME);
         if (idField == null) {
             return new MatchNoDocsQuery("No mappings");

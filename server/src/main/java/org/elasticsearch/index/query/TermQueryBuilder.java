@@ -173,7 +173,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
 
     @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
-        QueryShardContext context = queryRewriteContext.convertToShardContext();
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
             MappedFieldType fieldType = context.getFieldType(this.fieldName);
             if (fieldType == null) {
@@ -202,7 +202,7 @@ public class TermQueryBuilder extends BaseTermQueryBuilder<TermQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType mapper = context.getFieldType(this.fieldName);
         if (mapper == null) {
             throw new IllegalStateException("Rewrite first");

@@ -13,6 +13,7 @@ Delete autoscaling policy.
 [[autoscaling-delete-autoscaling-policy-request]]
 ==== {api-request-title}
 
+//////////////////////////
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
@@ -25,6 +26,7 @@ PUT /_autoscaling/policy/my_autoscaling_policy
 }
 --------------------------------------------------
 // TESTSETUP
+//////////////////////////
 
 [source,console]
 --------------------------------------------------

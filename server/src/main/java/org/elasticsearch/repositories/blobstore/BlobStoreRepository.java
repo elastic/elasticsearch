@@ -39,6 +39,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
@@ -295,7 +296,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>The {@link #uncleanStart} flag is set to {@code true}</li>
      * </ul>
      */
-    private volatile boolean bestEffortConsistency;
+    private volatile boolean bestEffortConsistency = true;
 
     /**
      * IO buffer size hint for reading and writing to the underlying blob store.
@@ -1358,8 +1359,66 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             return;
         }
-        // Slow path if we were not able to safely read the repository data from cache
-        threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
+        if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
+            initializeRepoGenerationTracking(listener);
+        } else {
+            threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
+        }
+    }
+
+    private PlainListenableActionFuture<RepositoryData> repoDataInitialized;
+
+    private void initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
+        synchronized (this) {
+            if (repoDataInitialized == null) {
+                repoDataInitialized = PlainListenableActionFuture.newListenableFuture();
+                repoDataInitialized.addListener(listener);
+                Consumer<Exception> onFailure = e -> {
+                    final ActionListener<RepositoryData> existingListener;
+                    synchronized (BlobStoreRepository.this) {
+                        existingListener = repoDataInitialized;
+                        repoDataInitialized = null;
+                    }
+                    existingListener.onFailure(e);
+                };
+                threadPool.generic().execute(() -> doGetRepositoryData(
+                        ActionListener.wrap(repoData -> clusterService.submitStateUpdateTask(
+                                "set safe repository generation [" + metadata.name() + "][" + repoData + "]",
+                                new ClusterStateUpdateTask() {
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        RepositoryMetadata metadata = getRepoMetadata(currentState);
+                                        assert metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN :
+                                                "Found unexpected initialized repo metadata [" + metadata + "]";
+                                        return ClusterState.builder(currentState)
+                                                .metadata(Metadata.builder(currentState.getMetadata()).putCustom(
+                                                        RepositoriesMetadata.TYPE,
+                                                        currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
+                                                                .withUpdatedGeneration(metadata.name(),
+                                                                        repoData.getGenId(), repoData.getGenId()))).build();
+                                    }
+
+                                    @Override
+                                    public void onFailure(String source, Exception e) {
+                                        onFailure.accept(e);
+                                    }
+
+                                    @Override
+                                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                                        threadPool.generic().execute(() -> {
+                                            final ActionListener<RepositoryData> existingListener;
+                                            synchronized (BlobStoreRepository.this) {
+                                                existingListener = repoDataInitialized;
+                                                repoDataInitialized = null;
+                                            }
+                                            existingListener.onResponse(repoData);
+                                        });
+                                    }
+                                }), onFailure)));
+            } else {
+                repoDataInitialized.addListener(listener);
+            }
+        }
     }
 
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {

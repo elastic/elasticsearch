@@ -15,7 +15,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.concurrent.atomic.LongAdder;
 
-public class SpeedTestStatistics implements Writeable, ToXContentFragment {
+public class SpeedTestSummary implements Writeable, ToXContentFragment {
 
     private final long writeCount;
     private final long writeBytes;
@@ -27,8 +27,17 @@ public class SpeedTestStatistics implements Writeable, ToXContentFragment {
     private final long readThrottledNanos;
     private final long readElapsedNanos;
 
-    public SpeedTestStatistics(long writeCount, long writeBytes, long writeThrottledNanos, long writeElapsedNanos,
-                               long readCount, long readBytes, long readWaitNanos, long readThrottledNanos, long readElapsedNanos) {
+    public SpeedTestSummary(
+        long writeCount,
+        long writeBytes,
+        long writeThrottledNanos,
+        long writeElapsedNanos,
+        long readCount,
+        long readBytes,
+        long readWaitNanos,
+        long readThrottledNanos,
+        long readElapsedNanos
+    ) {
         this.writeCount = writeCount;
         this.writeBytes = writeBytes;
         this.writeThrottledNanos = writeThrottledNanos;
@@ -40,7 +49,7 @@ public class SpeedTestStatistics implements Writeable, ToXContentFragment {
         this.readElapsedNanos = readElapsedNanos;
     }
 
-    public SpeedTestStatistics(StreamInput in) throws IOException {
+    public SpeedTestSummary(StreamInput in) throws IOException {
         writeCount = in.readVLong();
         writeBytes = in.readVLong();
         writeThrottledNanos = in.readVLong();
@@ -97,17 +106,18 @@ public class SpeedTestStatistics implements Writeable, ToXContentFragment {
         private final LongAdder readThrottledNanos = new LongAdder();
         private final LongAdder readElapsedNanos = new LongAdder();
 
-        public SpeedTestStatistics build() {
-            return new SpeedTestStatistics(
-                    writeCount.longValue(),
-                    writeBytes.longValue(),
-                    writeThrottledNanos.longValue(),
-                    writeElapsedNanos.longValue(),
-                    readCount.longValue(),
-                    readBytes.longValue(),
-                    readWaitNanos.longValue(),
-                    readThrottledNanos.longValue(),
-                    readElapsedNanos.longValue());
+        public SpeedTestSummary build() {
+            return new SpeedTestSummary(
+                writeCount.longValue(),
+                writeBytes.longValue(),
+                writeThrottledNanos.longValue(),
+                writeElapsedNanos.longValue(),
+                readCount.longValue(),
+                readBytes.longValue(),
+                readWaitNanos.longValue(),
+                readThrottledNanos.longValue(),
+                readElapsedNanos.longValue()
+            );
         }
 
         public void add(BlobSpeedTestAction.Response response) {

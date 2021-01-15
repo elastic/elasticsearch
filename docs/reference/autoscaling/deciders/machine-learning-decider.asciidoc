@@ -8,8 +8,22 @@ The {ml} decider (`ml`) calculates the memory required to run
 
 The {ml} decider is enabled for policies governing `ml` nodes.
 
+NOTE: For {ml} jobs to open when the cluster is not appropriately
+scaled, `xpack.ml.max_lazy_ml_nodes` should be set to the largest
+number of possible {ml} jobs (see <<advanced-ml-settings>>). In
+{ess} this is already handled.
+
 [[autoscaling-machine-learning-decider-settings]]
 ==== Configuration settings
+
+Both `num_anomaly_jobs_in_queue` and `num_analytics_jobs_in_queue`
+are designed to be used to delay a scale-up event. They indicate how many jobs
+of that type can be unassigned from a node due to the cluster being
+too small. Both settings are only considered for jobs that could
+eventually be fully opened given the current scale. If a job is too
+large for any node size or if a job couldn't ever be assigned without
+user intervention (for example, a user calling `_stop` against a real-time {anomaly-job}
+), the numbers are ignored for that particular job.
 
 `num_anomaly_jobs_in_queue`::
 (Optional, integer)
@@ -21,7 +35,9 @@ Number of queued analytics jobs to allow. Defaults to `0`.
 
 `down_scale_delay`::
 (Optional, <<time-units,time value>>)
-Delay before scaling down. Defaults to 1 hour.
+Delay before scaling down. Defaults to 1 hour. If a scale down is possible
+for the entire time window, then a scale down is requested. If the cluster
+requires a scale up during the window, the window is reset.
 
 [[autoscaling-machine-learning-decider-examples]]
 ==== {api-examples-title}

@@ -31,7 +31,7 @@ public class RestRepositorySpeedTestAction extends BaseRestHandler {
     }
 
     @Override
-    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+    public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) {
         RepositorySpeedTestAction.Request verifyRepositoryRequest = new RepositorySpeedTestAction.Request(request.param("repository"));
 
         verifyRepositoryRequest.blobCount(request.paramAsInt("blob_count", verifyRepositoryRequest.getBlobCount()));
@@ -40,6 +40,7 @@ public class RestRepositorySpeedTestAction extends BaseRestHandler {
         verifyRepositoryRequest.maxBlobSize(request.paramAsSize("max_blob_size", verifyRepositoryRequest.getMaxBlobSize()));
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.getTimeout()));
         verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));
+        verifyRepositoryRequest.detailed(request.paramAsBoolean("detailed", verifyRepositoryRequest.getDetailed()));
 
         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());
         return channel -> cancelClient.execute(

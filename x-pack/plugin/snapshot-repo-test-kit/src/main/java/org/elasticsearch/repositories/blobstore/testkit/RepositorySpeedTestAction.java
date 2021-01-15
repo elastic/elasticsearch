@@ -166,6 +166,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final GroupedActionListener<Void> workersListener;
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
         private final List<BlobSpeedTestAction.Response> responses;
+        private final SpeedTestStatistics statistics = new SpeedTestStatistics();
 
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private OptionalLong listingStartTimeNanos = OptionalLong.empty();
@@ -288,9 +289,9 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         random.nextLong(),
                         nodes,
                         smallBlob && (random.nextInt(50) == 0), // TODO magic 50
-                        repository.supportURLRepo() && smallBlob && random.nextInt(50) == 0
+                        repository.supportURLRepo() && smallBlob && random.nextInt(50) == 0 // TODO magic 50
                     )
-                ); // TODO magic 50
+                );
                 queue.add(verifyBlobTask);
             }
 
@@ -321,8 +322,10 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         public void handleResponse(BlobSpeedTestAction.Response response) {
                             logger.trace("finished [{}]", thisTask);
                             expectedBlobs.add(thisTask.request.getBlobName()); // each task cleans up its own mess on failure
-                            synchronized (responses) {
-                                responses.add(response);
+                            if (request.detailed) {
+                                synchronized (responses) {
+                                    responses.add(response);
+                                }
                             }
                             processNextTask();
                         }
@@ -501,8 +504,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private int concurrency = 10;
         private long seed = 0L;
         private TimeValue timeout = TimeValue.timeValueSeconds(30);
-
         private ByteSizeValue maxBlobSize = ByteSizeValue.ofMb(10);
+        private boolean detailed = false;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -516,6 +519,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             concurrency = in.readVInt();
             timeout = in.readTimeValue();
             maxBlobSize = new ByteSizeValue(in);
+            detailed = in.readBoolean();
         }
 
         @Override
@@ -532,16 +536,12 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             out.writeVInt(concurrency);
             out.writeTimeValue(timeout);
             maxBlobSize.writeTo(out);
+            out.writeBoolean(detailed);
         }
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
         }
 
         public void blobCount(int blobCount) {
@@ -573,6 +573,10 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             this.maxBlobSize = maxBlobSize;
         }
 
+        public void detailed(boolean detailed) {
+            this.detailed = detailed;
+        }
+
         public int getBlobCount() {
             return blobCount;
         }
@@ -597,6 +601,10 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             return maxBlobSize;
         }
 
+        public boolean getDetailed() {
+            return detailed;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -616,6 +624,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                 + timeout
                 + ", maxBlobSize="
                 + maxBlobSize
+                + ", detailed="
+                + detailed
                 + "]";
         }
 
@@ -701,11 +711,13 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             builder.field("seed", seed);
             builder.field("blob_path", blobPath);
 
-            builder.startArray("blobs");
-            for (BlobSpeedTestAction.Response blobResponse : blobResponses) {
-                blobResponse.toXContent(builder, params);
+            if (blobResponses.size() > 0) {
+                builder.startArray("details");
+                for (BlobSpeedTestAction.Response blobResponse : blobResponses) {
+                    blobResponse.toXContent(builder, params);
+                }
+                builder.endArray();
             }
-            builder.endArray();
 
             builder.field("listing_nanos", listingTimeNanos);
             builder.field("delete_nanos", deleteTimeNanos);

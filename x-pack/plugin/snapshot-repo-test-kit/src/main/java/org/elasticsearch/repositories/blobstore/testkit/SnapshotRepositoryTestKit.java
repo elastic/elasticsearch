@@ -18,7 +18,6 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.rest.action.admin.cluster.RestRepositorySpeedTestAction;
 
 import java.util.List;
 import java.util.function.Supplier;

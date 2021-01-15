@@ -38,7 +38,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
@@ -81,15 +81,15 @@ import static org.hamcrest.core.IsInstanceOf.instanceOf;
 import static org.hamcrest.number.OrderingComparison.greaterThan;
 
 public class RollupIndexerIndexingTests extends AggregatorTestCase {
-    private QueryShardContext queryShardContext;
+    private SearchExecutionContext searchExecutionContext;
     private IndexSettings settings;
 
     @Before
     private void setup() {
         settings = createIndexSettings();
-        queryShardContext = new QueryShardContext(0, 0, settings,
+        searchExecutionContext = new SearchExecutionContext(0, 0, settings,
             null, null, null, null, null, null,
-                null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
+            null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
     }
 
     public void testSimpleDateHisto() throws Exception {
@@ -642,7 +642,7 @@ public class RollupIndexerIndexingTests extends AggregatorTestCase {
             RangeQueryBuilder range = (RangeQueryBuilder) request.source().query();
             final ZoneId timeZone = range.timeZone() != null ? ZoneId.of(range.timeZone()) : null;
             Query query = timestampField.rangeQuery(range.from(), range.to(), range.includeLower(), range.includeUpper(),
-                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), queryShardContext);
+                    null, timeZone, DateFormatter.forPattern(range.format()).toDateMathParser(), searchExecutionContext);
 
             // extract composite agg
             assertThat(request.source().aggregations().getAggregatorFactories().size(), equalTo(1));

@@ -21,7 +21,7 @@ package org.elasticsearch.search.fetch;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
@@ -53,7 +53,7 @@ public class FetchContext {
      */
     public FetchContext(SearchContext searchContext) {
         this.searchContext = searchContext;
-        this.searchLookup = searchContext.getQueryShardContext().lookup();
+        this.searchLookup = searchContext.getSearchExecutionContext().lookup();
     }
 
     /**
@@ -136,7 +136,7 @@ public class FetchContext {
             String name = searchContext.collapse().getFieldName();
             if (dvContext == null) {
                 return new FetchDocValuesContext(
-                    searchContext.getQueryShardContext(),
+                    searchContext.getSearchExecutionContext(),
                     Collections.singletonList(new FieldAndFormat(name, null))
                 );
             } else if (searchContext.docValuesContext().fields().stream().map(ff -> ff.field).anyMatch(name::equals) == false) {
@@ -158,7 +158,7 @@ public class FetchContext {
      * backwards offsets in term vectors
      */
     public boolean containsBrokenAnalysis(String field) {
-        return getQueryShardContext().containsBrokenAnalysis(field);
+        return getSearchExecutionContext().containsBrokenAnalysis(field);
     }
 
     /**
@@ -203,8 +203,8 @@ public class FetchContext {
         return searchContext.getSearchExt(name);
     }
 
-    public QueryShardContext getQueryShardContext() {
-        return searchContext.getQueryShardContext();
+    public SearchExecutionContext getSearchExecutionContext() {
+        return searchContext.getSearchExecutionContext();
     }
 
     /**

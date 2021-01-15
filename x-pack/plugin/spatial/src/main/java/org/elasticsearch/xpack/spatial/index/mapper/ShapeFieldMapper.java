@@ -19,7 +19,7 @@ import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.util.Arrays;
@@ -100,7 +100,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry,
         }
 
         @Override
-        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        public Query shapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             return queryProcessor.shapeQuery(shape, fieldName, relation, context);
         }
 

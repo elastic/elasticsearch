@@ -27,7 +27,7 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.SearchShardTarget;
@@ -418,8 +418,8 @@ public abstract class FilteredSearchContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
 
     @Override
-    public QueryShardContext getQueryShardContext() {
-        return in.getQueryShardContext();
+    public SearchExecutionContext getSearchExecutionContext() {
+        return in.getSearchExecutionContext();
     }
 
     @Override

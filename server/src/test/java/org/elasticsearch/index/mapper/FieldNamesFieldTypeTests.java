@@ -25,7 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -46,10 +46,10 @@ public class FieldNamesFieldTypeTests extends ESTestCase {
                 new IndexMetadata.Builder("foo").settings(settings).numberOfShards(1).numberOfReplicas(0).build(), settings);
         List<FieldMapper> mappers = Stream.of(fieldNamesFieldType, fieldType).map(MockFieldMapper::new).collect(Collectors.toList());
         MappingLookup mappingLookup = new MappingLookup(Mapping.EMPTY, mappers, emptyList(), emptyList(), null, null, null);
-        QueryShardContext queryShardContext = new QueryShardContext(0, 0,
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(0, 0,
                 indexSettings, null, null, null, mappingLookup,
                 null, null, null, null, null, null, () -> 0L, null, null, () -> true, null, emptyMap());
-                Query termQuery = fieldNamesFieldType.termQuery("field_name", queryShardContext);
+                Query termQuery = fieldNamesFieldType.termQuery("field_name", searchExecutionContext);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.CONTENT_TYPE, "field_name")), termQuery);
         assertWarnings("terms query on the _field_names field is deprecated and will be removed, use exists query instead");
 

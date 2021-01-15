@@ -254,7 +254,7 @@ The events with the `event.type` attribute equal to `security_config_change` hav
 `change_enable_user`, `change_disable_user`, `put_privileges`, `create_apikey`, `delete_user`,
 `delete_role`, `delete_role_mapping`, `invalidate_apikeys`, or `delete_privileges`.
 These events also have *one* of the following extra attributes (in addition to the common
-ones). The attributes' value is a nested JSON object:
+ones). The attribute's value is a nested JSON object:
 
 `put`                 ::    The object representation of the security config that
                             is being created, or the overwrite of an existing config.

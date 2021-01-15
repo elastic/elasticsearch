@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -103,7 +102,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final ThreadPool threadPool;
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
-    private final NodeMappingRefreshAction nodeMappingRefreshAction;
 
     private static final ActionListener<Void> SHARD_STATE_ACTION_LISTENER = ActionListener.wrap(() -> {});
 
@@ -115,7 +113,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
 
     private final FailedShardHandler failedShardHandler = new FailedShardHandler();
 
-    private final boolean sendRefreshMapping;
     private final List<IndexEventListener> buildInIndexListener;
     private final PrimaryReplicaSyncer primaryReplicaSyncer;
     private final Consumer<ShardId> globalCheckpointSyncer;
@@ -129,7 +126,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ThreadPool threadPool,
             final PeerRecoveryTargetService recoveryTargetService,
             final ShardStateAction shardStateAction,
-            final NodeMappingRefreshAction nodeMappingRefreshAction,
             final RepositoriesService repositoriesService,
             final SearchService searchService,
             final SyncedFlushService syncedFlushService,
@@ -145,7 +141,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 threadPool,
                 recoveryTargetService,
                 shardStateAction,
-                nodeMappingRefreshAction,
                 repositoriesService,
                 searchService,
                 syncedFlushService,
@@ -164,7 +159,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             final ThreadPool threadPool,
             final PeerRecoveryTargetService recoveryTargetService,
             final ShardStateAction shardStateAction,
-            final NodeMappingRefreshAction nodeMappingRefreshAction,
             final RepositoriesService repositoriesService,
             final SearchService searchService,
             final SyncedFlushService syncedFlushService,
@@ -186,12 +180,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         this.threadPool = threadPool;
         this.recoveryTargetService = recoveryTargetService;
         this.shardStateAction = shardStateAction;
-        this.nodeMappingRefreshAction = nodeMappingRefreshAction;
         this.repositoriesService = repositoriesService;
         this.primaryReplicaSyncer = primaryReplicaSyncer;
         this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.retentionLeaseSyncer = Objects.requireNonNull(retentionLeaseSyncer);
-        this.sendRefreshMapping = settings.getAsBoolean("indices.cluster.send_refresh_mapping", true);
     }
 
     @Override
@@ -485,12 +477,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
             AllocatedIndex<? extends Shard> indexService = null;
             try {
                 indexService = indicesService.createIndex(indexMetadata, buildInIndexListener, true);
-                if (indexService.updateMapping(null, indexMetadata) && sendRefreshMapping) {
-                    nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
-                        new NodeMappingRefreshAction.NodeMappingRefreshRequest(indexMetadata.getIndex().getName(),
-                            indexMetadata.getIndexUUID(), state.nodes().getLocalNodeId())
-                    );
-                }
+                indexService.updateMapping(null, indexMetadata);
             } catch (Exception e) {
                 final String failShardReason;
                 if (indexService == null) {
@@ -528,12 +515,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                     }
 
                     reason = "mapping update failed";
-                    if (indexService.updateMapping(currentIndexMetadata, newIndexMetadata) && sendRefreshMapping) {
-                        nodeMappingRefreshAction.nodeMappingRefresh(state.nodes().getMasterNode(),
-                            new NodeMappingRefreshAction.NodeMappingRefreshRequest(newIndexMetadata.getIndex().getName(),
-                                newIndexMetadata.getIndexUUID(), state.nodes().getLocalNodeId())
-                        );
-                    }
+                    indexService.updateMapping(currentIndexMetadata, newIndexMetadata);
                 } catch (Exception e) {
                     indicesService.removeIndex(indexService.index(), FAILURE, "removing index (" + reason + ")");
 
@@ -842,9 +824,9 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
         void updateMetadata(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata);
 
         /**
-         * Checks if index requires refresh from master.
+         * Update the mapping applying the ones received from the master
          */
-        boolean updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
+        void updateMapping(IndexMetadata currentIndexMetadata, IndexMetadata newIndexMetadata) throws IOException;
 
         /**
          * Returns shard with given id.

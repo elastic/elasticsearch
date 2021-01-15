@@ -507,7 +507,6 @@ public class IndicesClusterStateServiceRandomUpdatesTests extends AbstractIndice
                 threadPool,
                 recoveryTargetService,
                 shardStateAction,
-                null,
                 repositoriesService,
                 null,
                 null,

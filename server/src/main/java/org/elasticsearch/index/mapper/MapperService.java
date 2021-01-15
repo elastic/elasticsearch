@@ -214,13 +214,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     /**
      * Update mapping by only merging the metadata that is different between received and stored entries
      */
-    public boolean updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
+    public void updateMapping(final IndexMetadata currentIndexMetadata, final IndexMetadata newIndexMetadata) throws IOException {
         assert newIndexMetadata.getIndex().equals(index()) : "index mismatch: expected " + index()
             + " but was " + newIndexMetadata.getIndex();
 
         if (currentIndexMetadata != null && currentIndexMetadata.getMappingVersion() == newIndexMetadata.getMappingVersion()) {
             assertMappingVersion(currentIndexMetadata, newIndexMetadata, Collections.emptyMap());
-            return false;
+            return;
         }
 
         // go over and add the relevant mappings (or update them)
@@ -239,8 +239,6 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             logger.warn(() -> new ParameterizedMessage("[{}] failed to apply mappings", index()), e);
             throw e;
         }
-
-        boolean requireRefresh = false;
 
         assertMappingVersion(currentIndexMetadata, newIndexMetadata, updatedEntries);
 
@@ -265,17 +263,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     index(), op, mappingType);
             }
 
-            // refresh mapping can happen when the parsing/merging of the mapping from the metadata doesn't result in the same
-            // mapping, in this case, we send to the master to refresh its own version of the mappings (to conform with the
-            // merge version of it, which it does when refreshing the mappings), and warn log it.
-            if (documentMapper(mappingType).mappingSource().equals(incomingMappingSource) == false) {
-                logger.debug("[{}] parsed mapping [{}], and got different sources\noriginal:\n{}\nparsed:\n{}",
-                    index(), mappingType, incomingMappingSource, documentMapper(mappingType).mappingSource());
-
-                requireRefresh = true;
-            }
+            assert documentMapper(mappingType).mappingSource().equals(incomingMappingSource);
         }
-        return requireRefresh;
     }
 
     private void assertMappingVersion(

@@ -20,6 +20,7 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
@@ -163,6 +164,11 @@ public class XContentTypeTests extends ESTestCase {
 
         ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "utf-8"));
         assertThat(xContentTypeJson.getParameters(), is(anEmptyMap()));
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
+
+        Map<String, String> parameters = new HashMap<>(Map.of("charset", "utf-8"));
+        parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, parameters);
+        parameters.clear();
         assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
     }
 }

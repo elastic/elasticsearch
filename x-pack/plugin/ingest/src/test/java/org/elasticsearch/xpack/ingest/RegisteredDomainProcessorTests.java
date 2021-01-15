@@ -39,10 +39,7 @@ public class RegisteredDomainProcessorTests extends ESTestCase {
             () -> testRegisteredDomainProcessor(buildEvent("foo.bar.baz"), null, null, null, false)
         );
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
-        e = expectThrows(
-            IllegalArgumentException.class,
-            () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, false)
-        );
+        e = expectThrows(IllegalArgumentException.class, () -> testRegisteredDomainProcessor(buildEvent("$"), null, null, null, false));
         assertThat(e.getMessage(), containsString("unable to set domain information for document"));
     }
 

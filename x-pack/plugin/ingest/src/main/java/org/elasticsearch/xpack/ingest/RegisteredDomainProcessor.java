@@ -163,7 +163,11 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field");
             String targetETLDField = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "target_etld_field");
             String targetSubdomainField = ConfigurationUtils.readOptionalStringProperty(
-                TYPE, processorTag, config,"target_subdomain_field");
+                TYPE,
+                processorTag,
+                config,
+                "target_subdomain_field"
+            );
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
 
             return new RegisteredDomainProcessor(

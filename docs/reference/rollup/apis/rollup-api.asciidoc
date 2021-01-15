@@ -11,7 +11,7 @@ index. For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
 ----
-POST /my-index-000001/_rollup/my-rollup-index
+POST /my-index-000001/_rollup/rollup-my-index-000001
 {
   "groups": {
     "date_histogram": {
@@ -66,7 +66,7 @@ New index that stores the rollup results. Cannot be an existing index,
 a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
 +
 The request creates this index with
-<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
+<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the source
 `<index>` is a backing index for a data stream, this index is a backing index
 for the same stream.
 

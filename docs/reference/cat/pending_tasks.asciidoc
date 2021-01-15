@@ -37,7 +37,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/pending_tasks?v
+GET /_cat/pending_tasks?v=true
 --------------------------------------------------
 
 The API returns the following response:

@@ -45,7 +45,7 @@ public class WatcherTemplateTests extends ESTestCase {
     }
 
     public void testEscaping() throws Exception {
-        XContentType contentType = randomFrom(XContentType.values());
+        XContentType contentType = randomFrom(XContentType.values()).canonical();
         if (rarely()) {
             contentType = null;
         }

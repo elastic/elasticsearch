@@ -62,7 +62,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -265,7 +265,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query wildcardQuery(String wildcardPattern, RewriteMethod method, boolean caseInsensitive, SearchExecutionContext context) {
 
             String ngramIndexPattern = addLineEndChars(wildcardPattern);
             // Break search term into tokens
@@ -346,7 +346,7 @@ public class WildcardFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-            RewriteMethod method, QueryShardContext context) {
+            RewriteMethod method, SearchExecutionContext context) {
             if (value.length() == 0) {
                 return new MatchNoDocsQuery();
             }
@@ -697,7 +697,7 @@ public class WildcardFieldMapper extends FieldMapper {
             ShapeRelation relation,
             ZoneId timeZone,
             DateMathParser parser,
-            QueryShardContext context
+            SearchExecutionContext context
         ) {
             BytesRef lower = lowerTerm == null ? null : BytesRefs.toBytesRef(lowerTerm);
             BytesRef upper = upperTerm == null ? null : BytesRefs.toBytesRef(upperTerm);
@@ -766,7 +766,7 @@ public class WildcardFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            QueryShardContext context
+            SearchExecutionContext context
         ) {
             String searchTerm = BytesRefs.toString(value);
             try {
@@ -860,7 +860,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
             return wildcardQuery(escapeWildcardSyntax(searchTerm),  MultiTermQuery.CONSTANT_SCORE_REWRITE, false, context);
         }
@@ -881,18 +881,19 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             String searchTerm = BytesRefs.toString(value);
             return wildcardQuery(escapeWildcardSyntax(searchTerm), MultiTermQuery.CONSTANT_SCORE_REWRITE, true, context);
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive,
+                                 SearchExecutionContext context) {
             return wildcardQuery(escapeWildcardSyntax(value) + "*", method, caseInsensitive, context);
         }
 
         @Override
-        public Query termsQuery(Collection<?> values, QueryShardContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
             for (Object value : values) {
                 bq.add(termQuery(value, context), Occur.SHOULD);
@@ -907,7 +908,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
          @Override
-         public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
              if (format != null) {
                  throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
              }

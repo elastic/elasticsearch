@@ -73,7 +73,7 @@ public class RestTestTransformer {
                 if ("teardown".equals(testName)) {
                     teardownSection = test;
                 }
-                transformByObjectKeyName(test, objectKeyFinders);
+                traverseTest(test, objectKeyFinders);
             }
         }
 
@@ -107,19 +107,19 @@ public class RestTestTransformer {
     }
 
     /**
-     * Recursive method to find any matching object key names.
+     * Recursive method to traverse the test.
      *
      * @param currentNode      The current node that is being evaluated.
-     * @param objectKeyFinders A Map of the key to find to the
+     * @param objectKeyFinders A Map of object keys to find and their associated transformation
      */
-    private void transformByObjectKeyName(JsonNode currentNode, Map<String, RestTestTransformByObjectKey> objectKeyFinders) {
+    private void traverseTest(JsonNode currentNode, Map<String, RestTestTransformByObjectKey> objectKeyFinders) {
         if (currentNode.isArray()) {
-            currentNode.elements().forEachRemaining(node -> { transformByObjectKeyName(node, objectKeyFinders); });
+            currentNode.elements().forEachRemaining(node -> { traverseTest(node, objectKeyFinders); });
         } else if (currentNode.isObject()) {
             currentNode.fields().forEachRemaining(entry -> {
                 RestTestTransformByObjectKey transform = objectKeyFinders.get(entry.getKey());
                 if (transform == null) {
-                    transformByObjectKeyName(entry.getValue(), objectKeyFinders);
+                    traverseTest(entry.getValue(), objectKeyFinders);
                 } else {
                     transform.transformTest((ObjectNode) currentNode);
                 }

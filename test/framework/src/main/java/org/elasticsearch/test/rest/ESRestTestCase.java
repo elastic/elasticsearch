@@ -1252,7 +1252,15 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected static boolean indexExists(String index) throws IOException {
-        Response response = client().performRequest(new Request("HEAD", "/" + index));
+        final Request getRequest = new Request("HEAD", "/" + index);
+        getRequest.setOptions(expectVersionSpecificWarnings(v -> {
+            final String typesWarning = "[types removal] The parameter include_type_name should be explicitly specified in get indices " +
+                "requests to prepare for 7.0. In 7.0 include_type_name will default to 'false', which means responses will omit the type " +
+                "name in mapping definitions.";
+            v.current(typesWarning);
+            v.compatible(typesWarning);
+        }));
+        Response response = client().performRequest(getRequest);
         return RestStatus.OK.getStatus() == response.getStatusLine().getStatusCode();
     }
 

@@ -52,7 +52,8 @@ public class VectorGeoShapeWithDocValuesQueryProcessor {
         WITHIN_UNSUPPORTED_GEOMETRIES.add(MultiLine.class);
     }
 
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context, boolean hasDocValues) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation,
+                               SearchExecutionContext context, boolean hasDocValues) {
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
             throw new QueryShardException(context,

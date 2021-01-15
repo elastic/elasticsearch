@@ -19,7 +19,7 @@
 
 package org.elasticsearch.example.customsuggester;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.Map;
@@ -28,7 +28,7 @@ public class CustomSuggestionContext extends SuggestionSearchContext.SuggestionC
 
     public Map<String, Object> options;
 
-    public CustomSuggestionContext(QueryShardContext context, Map<String, Object> options) {
+    public CustomSuggestionContext(SearchExecutionContext context, Map<String, Object> options) {
         super(new CustomSuggester(), context);
         this.options = options;
     }

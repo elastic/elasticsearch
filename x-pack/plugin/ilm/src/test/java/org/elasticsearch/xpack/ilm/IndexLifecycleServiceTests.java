@@ -13,6 +13,7 @@ import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -59,6 +60,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
+import static java.time.Clock.systemUTC;
+import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKey;
 import static org.elasticsearch.xpack.core.ilm.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
@@ -447,6 +450,27 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             logger.error("failure while waiting for step execution", e);
             fail("both steps should have been executed, even with an exception");
         }
+    }
+
+    public void testClusterChangedWaitsForTheStateToBeRecovered() {
+        IndexLifecycleService ilmService = new IndexLifecycleService(Settings.EMPTY, mock(Client.class), clusterService, threadPool,
+            systemUTC(), () -> now, null, null) {
+
+            @Override
+            void onMaster(ClusterState clusterState) {
+                fail("IndexLifecycleService ignored the global [state not recovered / initialized] cluster block");
+            }
+
+            @Override
+            void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
+                fail("IndexLifecycleService ignored the global [state not recovered / initialized] cluster block");
+            }
+        };
+
+        ClusterState currentState = ClusterState.builder(ClusterName.DEFAULT)
+            .blocks(ClusterBlocks.builder().addGlobalBlock(STATE_NOT_RECOVERED_BLOCK).build())
+            .build();
+        ilmService.clusterChanged(new ClusterChangedEvent("_source", currentState, ClusterState.EMPTY_STATE));
     }
 
     public void testTriggeredDifferentJob() {

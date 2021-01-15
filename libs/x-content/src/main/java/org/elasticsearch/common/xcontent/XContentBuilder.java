@@ -77,7 +77,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      */
     public static XContentBuilder builder(XContentType xContentType, Set<String> includes, Set<String> excludes) throws IOException {
         return new XContentBuilder(xContentType.xContent(), new ByteArrayOutputStream(), includes, excludes,
-            ParsedMediaType.parseMediaType(xContentType.mediaType()));
+            xContentType.toParsedMediaType());
     }
 
     private static final Map<Class<?>, Writer> WRITERS;
@@ -175,9 +175,8 @@ public final class XContentBuilder implements Closeable, Flushable {
      * to call {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContent xContent, OutputStream bos) throws IOException {
-        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), ParsedMediaType.parseMediaType(xContent.type().mediaType()));
+        this(xContent, bos, Collections.emptySet(), Collections.emptySet(), xContent.type().toParsedMediaType());
     }
-
     /**
      * Constructs a new builder using the provided XContent, an OutputStream and
      * some filters. If filters are specified, only those values matching a
@@ -185,7 +184,7 @@ public final class XContentBuilder implements Closeable, Flushable {
      * {@link #close()} when the builder is done with.
      */
     public XContentBuilder(XContentType xContentType, OutputStream bos, Set<String> includes) throws IOException {
-        this(xContentType.xContent(), bos, includes, Collections.emptySet(), ParsedMediaType.parseMediaType(xContentType.mediaType()));
+        this(xContentType.xContent(), bos, includes, Collections.emptySet(), xContentType.toParsedMediaType());
     }
 
     /**
@@ -208,9 +207,7 @@ public final class XContentBuilder implements Closeable, Flushable {
     }
 
     public String getResponseContentTypeString() {
-        Map<String, String> parameters = responseContentType != null ?
-            responseContentType.getParameters() : Collections.emptyMap();
-        return responseContentType.responseContentTypeHeader(parameters);
+        return responseContentType.responseContentTypeHeader();
     }
 
     public XContentType contentType() {

@@ -41,7 +41,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -155,14 +155,14 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             long scaledValue = Math.round(scale(value));
             return NumberFieldMapper.NumberType.LONG.termQuery(name(), scaledValue);
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(List<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             List<Long> scaledValues = new ArrayList<>(values.size());
             for (Object value : values) {
@@ -173,7 +173,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm,
+                                boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             Long lo = null;
             if (lowerTerm != null) {
@@ -207,7 +209,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

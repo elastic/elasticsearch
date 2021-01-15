@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.common.geo;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -31,7 +32,7 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.util.ArrayList;
@@ -62,7 +63,10 @@ public class GeoShapeUtils {
     }
 
     public static org.apache.lucene.geo.Point toLucenePoint(Point point) {
-        return new org.apache.lucene.geo.Point(point.getLat(), point.getLon());
+        // Quantize the points to match points in index.
+        final double lon = GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(point.getLon()));
+        final double lat = GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(point.getLat()));
+        return new org.apache.lucene.geo.Point(lat, lon);
     }
 
     public static org.apache.lucene.geo.Line toLuceneLine(Line line) {
@@ -75,7 +79,7 @@ public class GeoShapeUtils {
 
     public static LatLonGeometry[] toLuceneGeometry(
         String name,
-        QueryShardContext context,
+        SearchExecutionContext context,
         Geometry geometry,
         List<Class<? extends Geometry>> unsupportedGeometries
     ) {

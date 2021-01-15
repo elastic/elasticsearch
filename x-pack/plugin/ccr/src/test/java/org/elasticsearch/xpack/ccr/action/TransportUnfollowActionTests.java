@@ -20,6 +20,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrSettings;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.Collections;
 import java.util.HashMap;

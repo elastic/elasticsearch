@@ -23,7 +23,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 
 import java.util.Collection;
@@ -65,23 +65,23 @@ public final class QueryParserHelper {
         return fieldsAndWeights;
     }
 
-    public static Map<String, Float> resolveMappingFields(QueryShardContext context,
+    public static Map<String, Float> resolveMappingFields(SearchExecutionContext context,
                                                           Map<String, Float> fieldsAndWeights) {
         return resolveMappingFields(context, fieldsAndWeights, null);
     }
 
     /**
      * Resolve all the field names and patterns present in the provided map with the
-     * {@link QueryShardContext} and returns a new map containing all the expanded fields with their original boost.
+     * {@link SearchExecutionContext} and returns a new map containing all the expanded fields with their original boost.
      * @param context The context of the query.
      * @param fieldsAndWeights The map of fields and weights to expand.
      * @param fieldSuffix The suffix name to add to the expanded field names if a mapping exists for that name.
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingFields(QueryShardContext context,
-                                                          Map<String, Float> fieldsAndWeights,
-                                                          String fieldSuffix) {
+    static Map<String, Float> resolveMappingFields(SearchExecutionContext context,
+                                                   Map<String, Float> fieldsAndWeights,
+                                                   String fieldSuffix) {
         Map<String, Float> resolvedFields = new HashMap<>();
         for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
             boolean allField = Regex.isMatchAllPattern(fieldEntry.getKey());
@@ -102,7 +102,7 @@ public final class QueryParserHelper {
     }
 
     /**
-     * Resolves the provided pattern or field name from the {@link QueryShardContext} and return a map of
+     * Resolves the provided pattern or field name from the {@link SearchExecutionContext} and return a map of
      * the expanded fields with their original boost.
      * @param context The context of the query
      * @param fieldOrPattern The field name or the pattern to resolve
@@ -114,8 +114,8 @@ public final class QueryParserHelper {
      *                    The original name of the field is kept if adding the suffix to the field name does not point to a valid field
      *                    in the mapping.
      */
-    static Map<String, Float> resolveMappingField(QueryShardContext context, String fieldOrPattern, float weight,
-                                                         boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
+    static Map<String, Float> resolveMappingField(SearchExecutionContext context, String fieldOrPattern, float weight,
+                                                  boolean acceptAllTypes, boolean acceptMetadataField, String fieldSuffix) {
         Set<String> allFields = context.simpleMatchToIndexNames(fieldOrPattern);
         Map<String, Float> fields = new HashMap<>();
 
@@ -152,7 +152,7 @@ public final class QueryParserHelper {
         return fields;
     }
 
-    static void checkForTooManyFields(int numberOfFields, QueryShardContext context, @Nullable String inputPattern) {
+    static void checkForTooManyFields(int numberOfFields, SearchExecutionContext context, @Nullable String inputPattern) {
         Integer limit = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(context.getIndexSettings().getSettings());
         if (numberOfFields > limit) {
             StringBuilder errorMsg = new StringBuilder("field expansion ");

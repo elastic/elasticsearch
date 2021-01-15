@@ -388,6 +388,7 @@
   - skip:
       version: " - 7.3.99"
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
+      features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -399,6 +400,8 @@
   - do:
       indices.close:
         index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       cat.aliases:
@@ -419,7 +422,7 @@
 "Alias against closed index (pre 7.4.0)":
   - skip:
       version: "7.4.0 - "
-      features: node_selector
+      features: ["node_selector", "allowed_warnings"]
       reason:  "is_write_index is shown in cat.aliases starting version 7.4.0"
 
   - do:
@@ -432,6 +435,8 @@
   - do:
       indices.close:
         index: test_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       node_selector:

@@ -1,13 +1,13 @@
 [[cat]]
-== cat APIs
+== Compact and aligned text (CAT) APIs
 
 ["float",id="intro"]
 === Introduction
 
 JSON is great... for computers. Even if it's pretty-printed, trying
 to find relationships in the data is tedious. Human eyes, especially
-when looking at a terminal, need compact and aligned text. The cat APIs
-aim to meet this need.
+when looking at a terminal, need compact and aligned text. The compact and
+aligned text (CAT) APIs aim to meet this need.
 
 [IMPORTANT]
 ====
@@ -256,9 +256,9 @@ include::cat/recovery.asciidoc[]
 
 include::cat/repositories.asciidoc[]
 
-include::cat/shards.asciidoc[]
-
 include::cat/segments.asciidoc[]
+
+include::cat/shards.asciidoc[]
 
 include::cat/snapshots.asciidoc[]
 

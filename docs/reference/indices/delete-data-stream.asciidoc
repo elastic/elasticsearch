@@ -48,3 +48,11 @@ DELETE /_index_template/template
 (Required, string)
 Comma-separated list of data streams to delete.
 Wildcard (`*`) expressions are supported.
+
+[role="child_attributes"]
+[[delete-data-stream-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.

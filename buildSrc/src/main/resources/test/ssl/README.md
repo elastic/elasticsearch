@@ -18,3 +18,11 @@ The certificates are generated using catch-all SAN in the following procedure:
    `keytool -export -alias test-client -keystore test-client.jks -storepass keypass -file test-client.crt`
 6. Import the client certificate in the node's keystore:
    `keytool -import -alias test-client -keystore test-node.jks -storepass keypass -file test-client.crt -noprompt`
+7. Convert the node's keystore to PKCS#12 temporarily so that we can export the private key ( as keytool doesn't allow this)
+   `keytool -importkeystore -srckeystore test-node.jks -srcstorepass keypass -destkeystore test-node.p12 -deststoretype PKCS12 -deststorepass keypass`
+8. Export the node's private key
+   `openssl pkcs12 -in test-node.p12 -passin pass:keypass -nocerts -passout pass:test-node-key-password -out test-node.key`
+9. Convert the client's keystore to PKCS#12 temporarily so that we can export the private key (as keytool doesn't allow this)
+   `keytool -importkeystore -srckeystore test-client.jks -srcstorepass keypass -destkeystore test-client.p12 -deststoretype PKCS12 -deststorepass keypass`
+10. Export the client's private key
+   `openssl pkcs12 -in test-client.p12 -passin pass:keypass -nocerts -passout pass:test-client-key-password -out test-client.key`

@@ -10,7 +10,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -510,7 +509,7 @@ public class HttpRequest implements ToXContentObject {
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              XContentBuilder filteredBuilder = new XContentBuilder(xContentType.xContent(), bos,
                  Collections.emptySet(), Collections.singleton(excludeField),
-                 ParsedMediaType.parseMediaType(xContentType.mediaType()))) {
+                 xContentType.toParsedMediaType())) {
             request.toXContent(filteredBuilder, params);
             filteredBuilder.flush();
             return new ByteArrayInputStream(bos.toByteArray());

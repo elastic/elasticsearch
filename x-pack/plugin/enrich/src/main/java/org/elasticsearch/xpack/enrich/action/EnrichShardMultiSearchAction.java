@@ -50,7 +50,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -240,7 +240,7 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
                  * any.
                  */
                 Map<String, Object> runtimeFields = emptyMap();
-                final QueryShardContext context = indexService.newQueryShardContext(
+                final SearchExecutionContext context = indexService.newSearchExecutionContext(
                     shardId.id(),
                     0,
                     searcher,

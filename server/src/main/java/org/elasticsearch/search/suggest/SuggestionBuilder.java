@@ -31,7 +31,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
 import java.io.IOException;
@@ -291,13 +291,13 @@ public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implemen
         return suggestionBuilder;
     }
 
-    protected abstract SuggestionContext build(QueryShardContext context) throws IOException;
+    protected abstract SuggestionContext build(SearchExecutionContext context) throws IOException;
 
     /**
      * Transfers the text, prefix, regex, analyzer, field, size and shard size settings from the
      * original {@link SuggestionBuilder} to the target {@link SuggestionContext}
      */
-    protected void populateCommonFields(QueryShardContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
+    protected void populateCommonFields(SearchExecutionContext context, SuggestionSearchContext.SuggestionContext suggestionContext) {
 
         Objects.requireNonNull(field, "field must not be null");
         if (context.isFieldMapped(field) == false) {

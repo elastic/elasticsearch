@@ -29,7 +29,6 @@ import java.util.List;
 import static org.elasticsearch.xpack.core.ml.job.config.JobTests.buildJobBuilder;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -88,45 +87,11 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
         assertTrue(command.contains(AutodetectBuilder.AUTODETECT_PATH));
-        assertTrue(command.contains(AutodetectBuilder.BUCKET_SPAN_ARG + "120"));
-        assertTrue(command.contains(AutodetectBuilder.LATENCY_ARG + "360"));
-        assertTrue(command.contains(AutodetectBuilder.SUMMARY_COUNT_FIELD_ARG + "summaryField"));
-        assertTrue(command.contains(AutodetectBuilder.MULTIVARIATE_BY_FIELDS_ARG));
-        assertThat(command.contains(AutodetectBuilder.STOP_CATEGORIZATION_ON_WARN_ARG), is(isPerPartitionCategorization));
 
         assertTrue(command.contains(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG));
         assertTrue(command.contains(AutodetectBuilder.maxAnomalyRecordsArg(settings)));
 
-        assertTrue(command.contains(AutodetectBuilder.TIME_FIELD_ARG + "tf"));
-        assertTrue(command.contains(AutodetectBuilder.JOB_ID_ARG + "unit-test-job"));
-
-        int expectedPersistInterval = 10800 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
-        assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
-        int expectedMaxQuantileInterval = 21600 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
-        assertTrue(command.contains(AutodetectBuilder.MAX_QUANTILE_INTERVAL_ARG + expectedMaxQuantileInterval));
-
-        assertEquals(isPerPartitionCategorization ? 12 : 11, command.size());
-    }
-
-    public void testBuildAutodetectCommand_defaultTimeField() {
-        Job.Builder job = buildJobBuilder("unit-test-job");
-
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-
-        assertTrue(command.contains(AutodetectBuilder.TIME_FIELD_ARG + "time"));
-    }
-
-    public void testBuildAutodetectCommand_givenPersistModelState() {
-
-        Job.Builder job = buildJobBuilder("unit-test-job");
-
-        int expectedPersistInterval = 10800 + AutodetectBuilder.calculateStaggeringInterval(job.getId());
-
-        settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build();
-        env = TestEnvironment.newEnvironment(settings);
-
-        List<String> command = autodetectBuilder(job.build()).buildAutodetectCommand();
-        assertTrue(command.contains(AutodetectBuilder.PERSIST_INTERVAL_ARG + expectedPersistInterval));
+        assertEquals(3, command.size());
     }
 
     private AutodetectBuilder autodetectBuilder(Job job) {
@@ -138,7 +103,7 @@ public class AutodetectBuilderTests extends ESTestCase {
 
         autodetectBuilder(job.build()).build();
 
-        assertThat(filesToDelete, hasSize(3));
+        assertThat(filesToDelete, hasSize(1));
 
         verify(nativeController).startProcess(commandCaptor.capture());
         verifyNoMoreInteractions(nativeController);

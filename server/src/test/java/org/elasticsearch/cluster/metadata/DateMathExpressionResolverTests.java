@@ -43,7 +43,8 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     private final DateMathExpressionResolver expressionResolver = new DateMathExpressionResolver();
     private final Context context = new Context(
-            ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand()
+        ClusterState.builder(new ClusterName("_name")).build(), IndicesOptions.strictExpand(),
+        false
     );
 
     public void testNormal() throws Exception {
@@ -114,15 +115,15 @@ public class DateMathExpressionResolverTests extends ESTestCase {
 
     public void testExpression_MixedArray() throws Exception {
         List<String> result = expressionResolver.resolve(context, Arrays.asList(
-                "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{YYYY.MM}}>"
+                "name1", "<.marvel-{now/d}>", "name2", "<.logstash-{now/M{uuuu.MM}}>"
         ));
         assertThat(result.size(), equalTo(4));
         assertThat(result.get(0), equalTo("name1"));
         assertThat(result.get(1),
-            equalTo(".marvel-" + DateTimeFormat.forPattern("YYYY.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
+            equalTo(".marvel-" + DateTimeFormat.forPattern("yyyy.MM.dd").print(new DateTime(context.getStartTime(), UTC))));
         assertThat(result.get(2), equalTo("name2"));
         assertThat(result.get(3), equalTo(".logstash-" +
-            DateTimeFormat.forPattern("YYYY.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
+            DateTimeFormat.forPattern("yyyy.MM").print(new DateTime(context.getStartTime(), UTC).withDayOfMonth(1))));
     }
 
     public void testExpression_CustomTimeZoneInIndexName() throws Exception {
@@ -146,7 +147,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             // rounding to today 00:00
             now = DateTime.now(UTC).withHourOfDay(0).withMinuteOfHour(0).withSecondOfMinute(0);
         }
-        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis());
+        Context context = new Context(this.context.getState(), this.context.getOptions(), now.getMillis(), false);
         List<String> results = expressionResolver.resolve(context, Arrays.asList("<.marvel-{now/d{yyyy.MM.dd|" + timeZone.getID() + "}}>"));
         assertThat(results.size(), equalTo(1));
         logger.info("timezone: [{}], now [{}], name: [{}]", timeZone, now, results.get(0));

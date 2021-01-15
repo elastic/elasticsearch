@@ -72,7 +72,13 @@ setup:
 ---
 "Test get job stats after uploading data prompting the creation of some stats":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: job-stats-test
         body: >
@@ -110,7 +116,13 @@ setup:
 ---
 "Test get job stats for closed job":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: job-stats-test
         body: >
@@ -267,7 +279,8 @@ setup:
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
+      indices.refresh:
+        index: ".ml-anomalies*"
 
   # This is testing that the documents with v5.4 IDs are fetched.
   # Ideally we would use the v5.4 type but we can't put a mapping
@@ -340,7 +353,13 @@ setup:
 ---
 "Test no exception on get job stats with missing index":
 
+  - skip:
+      features:
+        - "warnings"
+
   - do:
+      warnings:
+        - 'Posting data directly to anomaly detection jobs is deprecated, in a future major version it will be compulsory to use a datafeed'
       ml.post_data:
         job_id: job-stats-test
         body: >

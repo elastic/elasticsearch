@@ -12,8 +12,8 @@ _search shard routing_ or _routing_.
 === Adaptive replica selection
 
 By default, {es} uses _adaptive replica selection_ to route search requests.
-This method selects an eligible node using <<allocation-awareness,allocation
-awareness>> and the following criteria:
+This method selects an eligible node using <<shard-allocation-awareness,shard
+allocation awareness>> and the following criteria:
 
 * Response time of prior requests between the coordinating node
 and the eligible node

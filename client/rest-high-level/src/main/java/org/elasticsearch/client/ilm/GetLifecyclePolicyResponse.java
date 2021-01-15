@@ -60,7 +60,7 @@ public class GetLifecyclePolicyResponse implements ToXContentObject {
         if (parser.currentToken() == null) {
             parser.nextToken();
         }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
         while (!parser.isClosed()) {

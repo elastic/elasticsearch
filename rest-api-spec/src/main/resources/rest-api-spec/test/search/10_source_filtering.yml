@@ -14,7 +14,7 @@ setup:
       index:
         index:  test_1
         id:     1
-        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936 }
+        body:   { "include": { "field1": "v1", "field2": "v2" }, "count": 1, "bigint": 72057594037927936, d: 3.14 }
   - do:
       indices.refresh: {}
 
@@ -175,3 +175,16 @@ setup:
             - field: "count"
               format: "#.0"
   - match: { hits.hits.0.fields.count: ["1.0"] }
+
+---
+"docvalue_fields - double":
+
+  - do:
+      search:
+        body:
+          docvalue_fields: [ "d" ]
+  # Doc values produce floating point errors.
+  # When this test is run during runtime-field's tests we *don't* get floating point errors. Thus the funny assertion here that matches both.
+  - lt: { hits.hits.0.fields.d.0: 3.141 }
+  - gte: { hits.hits.0.fields.d.0: 3.14 }
+

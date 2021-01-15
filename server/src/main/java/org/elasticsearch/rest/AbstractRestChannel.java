@@ -22,6 +22,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.xcontent.ParsedMediaType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.Collections;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.Predicate;
 
@@ -45,6 +47,7 @@ public abstract class AbstractRestChannel implements RestChannel {
     private final String filterPath;
     private final boolean pretty;
     private final boolean human;
+    private final String acceptHeader;
 
     private BytesStreamOutput bytesOut;
 
@@ -58,7 +61,8 @@ public abstract class AbstractRestChannel implements RestChannel {
     protected AbstractRestChannel(RestRequest request, boolean detailedErrorsEnabled) {
         this.request = request;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
-        this.format = request.param("format", request.header("Accept"));
+        this.format = request.param("format");
+        this.acceptHeader = request.header("Accept");
         this.filterPath = request.param("filter_path", null);
         this.pretty = request.paramAsBoolean("pretty", false);
         this.human = request.paramAsBoolean("human", false);
@@ -95,8 +99,14 @@ public abstract class AbstractRestChannel implements RestChannel {
     @Override
     public XContentBuilder newBuilder(@Nullable XContentType requestContentType, @Nullable XContentType responseContentType,
             boolean useFiltering) throws IOException {
+
         if (responseContentType == null) {
-            responseContentType = XContentType.fromMediaTypeOrFormat(format);
+            if (Strings.hasText(format)) {
+                responseContentType = XContentType.fromFormat(format);
+            }
+            if (responseContentType == null && Strings.hasText(acceptHeader)) {
+                responseContentType = XContentType.fromMediaType(acceptHeader);
+            }
         }
         // try to determine the response content type from the media type or the format query string parameter, with the format parameter
         // taking precedence over the Accept header
@@ -120,8 +130,14 @@ public abstract class AbstractRestChannel implements RestChannel {
         }
 
         OutputStream unclosableOutputStream = Streams.flushOnCloseStream(bytesOutput());
+
+        Map<String, String> parameters = request.getParsedAccept() != null ?
+            request.getParsedAccept().getParameters() : Collections.emptyMap();
+        ParsedMediaType responseMediaType = ParsedMediaType.parseMediaType(responseContentType, parameters);
+
         XContentBuilder builder =
-            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream, includes, excludes);
+            new XContentBuilder(XContentFactory.xContent(responseContentType), unclosableOutputStream,
+                includes, excludes, responseMediaType);
         if (pretty) {
             builder.prettyPrint().lfAtEnd();
         }

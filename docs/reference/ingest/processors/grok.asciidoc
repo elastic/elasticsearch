@@ -305,6 +305,33 @@ The above request will return a response body containing a key-value representat
 --------------------------------------------------
 // NOTCONSOLE
 
+By default, the API returns patterns in the order they are read from disk. This
+sort order preserves groupings of related patterns. For example, all patterns
+related to parsing Linux syslog lines stay grouped together.
+
+You can use the optional boolean `s` query parameter to sort returned patterns
+by key name instead.
+
+[source,console]
+--------------------------------------------------
+GET _ingest/processor/grok?s
+--------------------------------------------------
+
+The API returns the following response.
+
+[source,js]
+--------------------------------------------------
+{
+  "patterns" : {
+    "BACULA_CAPACITY" : "%{INT}{1,3}(,%{INT}{3})*",
+    "BACULA_DEVICE" : "%{USER}",
+    "BACULA_DEVICEPATH" : "%{UNIXPATH}",
+    ...
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+
 This can be useful to reference as the built-in patterns change across versions.
 
 [[grok-watchdog]]

@@ -6,8 +6,6 @@
 <titleabbrev>Pipe reference</titleabbrev>
 ++++
 
-experimental::[]
-
 {es} supports the following <<eql-pipes,EQL pipes>>.
 
 [discrete]

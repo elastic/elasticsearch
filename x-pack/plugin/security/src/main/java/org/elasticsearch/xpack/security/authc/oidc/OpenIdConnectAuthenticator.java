@@ -22,6 +22,8 @@ import com.nimbusds.oauth2.sdk.AuthorizationCodeGrant;
 import com.nimbusds.oauth2.sdk.ErrorObject;
 import com.nimbusds.oauth2.sdk.ResponseType;
 import com.nimbusds.oauth2.sdk.TokenErrorResponse;
+import com.nimbusds.oauth2.sdk.auth.ClientAuthenticationMethod;
+import com.nimbusds.oauth2.sdk.auth.ClientSecretJWT;
 import com.nimbusds.oauth2.sdk.auth.Secret;
 import com.nimbusds.oauth2.sdk.id.State;
 import com.nimbusds.oauth2.sdk.token.AccessToken;
@@ -85,6 +87,7 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
+import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 
@@ -463,19 +466,36 @@ public class OpenIdConnectAuthenticator {
         try {
             final AuthorizationCodeGrant codeGrant = new AuthorizationCodeGrant(code, rpConfig.getRedirectUri());
             final HttpPost httpPost = new HttpPost(opConfig.getTokenEndpoint());
+            httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
             final List<NameValuePair> params = new ArrayList<>();
             for (Map.Entry<String, List<String>> entry : codeGrant.toParameters().entrySet()) {
                 // All parameters of AuthorizationCodeGrant are singleton lists
                 params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
             }
+            if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_BASIC)) {
+                UsernamePasswordCredentials creds =
+                    new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
+                        URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8));
+                httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
+            } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_POST)) {
+                params.add(new BasicNameValuePair("client_id", rpConfig.getClientId().getValue()));
+                params.add(new BasicNameValuePair("client_secret", rpConfig.getClientSecret().toString()));
+            } else if (rpConfig.getClientAuthenticationMethod().equals(ClientAuthenticationMethod.CLIENT_SECRET_JWT)) {
+                ClientSecretJWT clientSecretJWT = new ClientSecretJWT(rpConfig.getClientId(), opConfig.getTokenEndpoint(),
+                    rpConfig.getClientAuthenticationJwtAlgorithm(), new Secret(rpConfig.getClientSecret().toString()));
+                for (Map.Entry<String, List<String>> entry : clientSecretJWT.toParameters().entrySet()) {
+                    // Both client_assertion and client_assertion_type are singleton lists
+                    params.add(new BasicNameValuePair(entry.getKey(), entry.getValue().get(0)));
+                }
+            } else {
+                tokensListener.onFailure(new ElasticsearchSecurityException("Failed to exchange code for Id Token using Token Endpoint." +
+                    "Expected client authentication method to be one of " + OpenIdConnectRealmSettings.CLIENT_AUTH_METHODS
+                    + " but was [" + rpConfig.getClientAuthenticationMethod() + "]"));
+            }
             httpPost.setEntity(new UrlEncodedFormEntity(params));
-            httpPost.setHeader("Content-type", "application/x-www-form-urlencoded");
-            UsernamePasswordCredentials creds =
-                new UsernamePasswordCredentials(URLEncoder.encode(rpConfig.getClientId().getValue(), StandardCharsets.UTF_8),
-                    URLEncoder.encode(rpConfig.getClientSecret().toString(), StandardCharsets.UTF_8));
-            httpPost.addHeader(new BasicScheme().authenticate(creds, httpPost, null));
             SpecialPermission.check();
             AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
+
                 httpClient.execute(httpPost, new FutureCallback<HttpResponse>() {
                     @Override
                     public void completed(HttpResponse result) {
@@ -496,7 +516,7 @@ public class OpenIdConnectAuthenticator {
                 });
                 return null;
             });
-        } catch (AuthenticationException | UnsupportedEncodingException e) {
+        } catch (AuthenticationException | UnsupportedEncodingException | JOSEException e) {
             tokensListener.onFailure(
                 new ElasticsearchSecurityException("Failed to exchange code for Id Token using the Token Endpoint.", e));
         }

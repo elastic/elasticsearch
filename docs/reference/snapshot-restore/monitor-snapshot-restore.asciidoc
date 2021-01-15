@@ -149,8 +149,8 @@ detailed insight into the current state of the recovery process by using <<indic
 [discrete]
 [[get-snapshot-stop-snapshot]]
 === Stop snapshot and restore operations
-The snapshot and restore framework allows running only one snapshot or one restore operation at a time. If a currently
-running snapshot was started by mistake, or takes unusually long, it can be stopped using the <<delete-snapshot-api,delete snapshot API>>.
+To stop a currently running snapshot that was started by mistake or is taking unusually long, use
+the <<delete-snapshot-api,delete snapshot API>>.
 This operation checks whether the deleted snapshot is currently running. If it is, the delete snapshot operation stops
 that snapshot before deleting the snapshot data from the repository.
 

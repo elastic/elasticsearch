@@ -43,6 +43,8 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertM
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiPolygon;
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertPolygon;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 /**
  * Tests for {@link ShapeBuilder}
  */
@@ -246,7 +248,7 @@ public class ShapeBuilderTests extends ESTestCase {
                     .coordinate(-40.0, -50.0)
                     .coordinate(40.0, -50.0).close());
         Exception e = expectThrows(InvalidShapeException.class, () -> newPolygon.buildS4J());
-        assertThat(e.getMessage(), containsString("Self-intersection at or near point (0.0"));
+        assertThat(e.getMessage(), containsString("Cannot determine orientation: signed area equal to 0"));
     }
 
     /** note: only supported by S4J at the moment */
@@ -564,6 +566,27 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(buildGeometry(builder.close()), false);
     }
 
+    public void testShapeWithHoleTouchingAtDateline() throws Exception {
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(-180, 90)
+            .coordinate(-180, -90)
+            .coordinate(180, -90)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+        );
+        builder.hole(new LineStringBuilder(new CoordinatesBuilder()
+            .coordinate(180.0, -16.14)
+            .coordinate(178.53, -16.64)
+            .coordinate(178.49, -16.82)
+            .coordinate(178.73, -17.02)
+            .coordinate(178.86, -16.86)
+            .coordinate(180.0, -16.14)
+        ));
+
+        assertPolygon(builder.close().buildS4J(), true);
+        assertPolygon(buildGeometry(builder.close()), false);
+    }
+
     public void testShapeWithTangentialHole() {
         // test a shape with one tangential (shared) vertex (should pass)
         PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
@@ -701,7 +724,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(buildGeometry(builder.close()), false);
      }
 
-    public void testInvalidShapeWithConsecutiveDuplicatePoints() {
+    public void testShapeWithConsecutiveDuplicatePoints() {
         PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
                 .coordinate(180, 0)
                 .coordinate(176, 4)
@@ -710,10 +733,56 @@ public class ShapeBuilderTests extends ESTestCase {
                 .coordinate(180, 0)
                 );
 
-        Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
-        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
-        e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
-        assertThat(e.getMessage(), containsString("duplicate consecutive coordinates at: ("));
+        // duplicated points are removed
+        PolygonBuilder expected = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, 0)
+            .coordinate(176, 4)
+            .coordinate(-176, 4)
+            .coordinate(180, 0)
+        );
+
+        assertEquals(buildGeometry(expected.close()), buildGeometry(builder.close()));
+        assertEquals(expected.close().buildS4J(), builder.close().buildS4J());
+    }
+
+    public void testShapeWithCoplanarVerticalPoints() throws Exception {
+        PolygonBuilder builder = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -36)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+            .coordinate(-180, 79)
+            .coordinate(16, 58)
+            .coordinate(8, 13)
+            .coordinate(-180, 74)
+            .coordinate(-180, -85)
+            .coordinate(-180, -90)
+            .coordinate(180,  -90)
+            .coordinate(180, -85)
+            .coordinate(26, 6)
+            .coordinate(33, 62)
+            .coordinate(180, -36)
+        );
+
+        //coplanar points on vertical edge are removed.
+        PolygonBuilder expected = new PolygonBuilder(new CoordinatesBuilder()
+            .coordinate(180, -36)
+            .coordinate(180, 90)
+            .coordinate(-180, 90)
+            .coordinate(-180, 79)
+            .coordinate(16, 58)
+            .coordinate(8, 13)
+            .coordinate(-180, 74)
+            .coordinate(-180, -90)
+            .coordinate(180,  -90)
+            .coordinate(180, -85)
+            .coordinate(26, 6)
+            .coordinate(33, 62)
+            .coordinate(180, -36)
+        );
+
+        assertEquals(buildGeometry(expected.close()), buildGeometry(builder.close()));
+        assertEquals(expected.close().buildS4J(), builder.close().buildS4J());
+
     }
 
     public void testPolygon3D() {
@@ -775,8 +844,10 @@ public class ShapeBuilderTests extends ESTestCase {
         );
         Exception e = expectThrows(InvalidShapeException.class, () -> builder.close().buildS4J());
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
         e = expectThrows(InvalidShapeException.class, () -> buildGeometry(builder.close()));
         assertThat(e.getMessage(), containsString("Self-intersection at or near point ["));
+        assertThat(e.getMessage(), not(containsString("NaN")));
     }
 
     public Object buildGeometry(ShapeBuilder<?, ?, ?> builder) {

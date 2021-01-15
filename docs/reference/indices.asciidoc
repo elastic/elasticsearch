@@ -55,7 +55,7 @@ Index templates automatically apply settings, mappings, and aliases to new indic
 They are most often used to configure rolling indices for time series data to 
 ensure that each new index has the same configuration as the previous one. 
 The index template associated with a data stream configures its backing indices. 
-For more information, see <<indices-templates, Index Templates>>.
+For more information, see <<index-templates, Index Templates>>.
 
 * <<indices-put-template>>
 * <<indices-get-template>>
@@ -63,7 +63,6 @@ For more information, see <<indices-templates, Index Templates>>.
 * <<indices-component-template>>
 * <<getting-component-templates>>
 * <<indices-delete-component-template>>
-* <<indices-template-exists>>
 * <<indices-simulate-index>>
 * <<indices-simulate-template>>
 
@@ -112,6 +111,8 @@ include::indices/delete-component-template.asciidoc[]
 
 include::indices/delete-index-template.asciidoc[]
 
+include::indices/delete-index-template-v1.asciidoc[]
+
 include::indices/flush.asciidoc[]
 
 include::indices/forcemerge.asciidoc[]
@@ -146,7 +147,7 @@ include::indices/shard-stores.asciidoc[]
 
 include::indices/stats.asciidoc[]
 
-include::indices/template-exists.asciidoc[]
+include::indices/index-template-exists-v1.asciidoc[]
 
 include::indices/open-close.asciidoc[]
 

@@ -20,7 +20,6 @@
 package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -28,11 +27,11 @@ import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.WithOrdinals;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -48,7 +47,7 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
                                         ValuesSourceConfig config,
                                         Query childFilter,
                                         Query parentFilter,
-                                        QueryShardContext context,
+                                        AggregationContext context,
                                         AggregatorFactory parent,
                                         AggregatorFactories.Builder subFactoriesBuilder,
                                         Map<String, Object> metadata) throws IOException {
@@ -59,8 +58,8 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext, Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new NonCollectingAggregator(name, searchContext, parent, metadata) {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return new InternalChildren(name, 0, buildEmptySubAggregations(), metadata());
@@ -69,18 +68,16 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext, Aggregator parent,
-                                          CardinalityUpperBound cardinality,
-                                          Map<String, Object> metadata) throws IOException {
-
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
             throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
                 "is not supported for aggregation " + this.name());
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
-        long maxOrd = valuesSource.globalMaxOrd(searchContext.searcher());
-        return new ParentToChildrenAggregator(name, factories, searchContext, parent, childFilter,
+        long maxOrd = valuesSource.globalMaxOrd(context.searcher());
+        return new ParentToChildrenAggregator(name, factories, context, parent, childFilter,
             parentFilter, valuesSource, maxOrd, cardinality, metadata);
     }
 

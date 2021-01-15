@@ -14,6 +14,7 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public final class OpenPointInTimeResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
@@ -21,7 +22,7 @@ public final class OpenPointInTimeResponse extends ActionResponse implements ToX
     private final String searchContextId;
 
     public OpenPointInTimeResponse(String searchContextId) {
-        this.searchContextId = searchContextId;
+        this.searchContextId = Objects.requireNonNull(searchContextId);
     }
 
     public OpenPointInTimeResponse(StreamInput in) throws IOException {

@@ -3,7 +3,7 @@
 [[transform-painless-examples]]
 = Painless examples for {transforms}
 ++++
-<titleabbrev>Painless examples for {transforms}</titleabbrev>
+<titleabbrev>Painless examples</titleabbrev>
 ++++
 
 These examples demonstrate how to use Painless in {transforms}. You can learn 
@@ -12,21 +12,29 @@ more about the Painless scripting language in the
 
 * <<painless-top-hits>>
 * <<painless-time-features>>
-* <<painless-group-by>>
+// * <<painless-group-by>>
 * <<painless-bucket-script>>
 * <<painless-count-http>>
 * <<painless-compare>>
 * <<painless-web-session>>
 
-NOTE: While the context of the following examples is the {transform} use case, 
+[NOTE] 
+--
+* While the context of the following examples is the {transform} use case, 
 the Painless scripts in the snippets below can be used in other {es} search 
 aggregations, too.
+* All the following examples use scripts, {transforms} cannot deduce mappings of 
+output fields when the fields are created by a script. {transforms-cap} don't 
+create any mappings in the destination index for these fields, which means they 
+get dynamically mapped. Create the destination index prior to starting the 
+{transform} in case you want explicit mappings.
+--
 
 [[painless-top-hits]]
 == Getting top hits by using scripted metric aggregation
 
 This snippet shows how to find the latest document, in other words the document 
-with the earliest timestamp. From a technical perspective, it helps to achieve 
+with the latest timestamp. From a technical perspective, it helps to achieve 
 the function of a <<search-aggregations-metrics-top-hits-aggregation>> by using 
 scripted metric aggregation in a {transform}, which provides a metric output.
 
@@ -82,7 +90,7 @@ You can retrieve the last value in a similar way:
     "scripted_metric": {
       "init_script": "state.timestamp_latest = 0L; state.last_value = ''",
       "map_script": """
-        def current_date = doc['date'].getValue().toInstant().toEpochMilli(); 
+        def current_date = doc['@timestamp'].getValue().toInstant().toEpochMilli(); 
         if (current_date > state.timestamp_latest) 
         {state.timestamp_latest = current_date;
         state.last_value = params['_source']['value'];}
@@ -145,6 +153,7 @@ type field.
 <7> Sets `date` based on the timestamp of the document.
 <8> Returns the month value from `date`.
 
+////
 [[painless-group-by]]
 == Using Painless in `group_by`
 
@@ -280,6 +289,8 @@ them. The table below shows how normalization modifies the output of the
 | "Mozilla/5.0 (X11; Linux i686) AppleWebKit/534.24 (KHTML, like Gecko) Chrome/11.0.696.50 Safari/534.24" | "safari"
 | "Mozilla/5.0 (X11; Linux x86_64; rv:6.0a1) Gecko/20110421 Firefox/6.0a1" | "firefox"
 |===
+////
+
 
 [[painless-bucket-script]]
 == Getting duration by using bucket script
@@ -341,9 +352,13 @@ date which results in the duration of the session.
 == Counting HTTP responses by using scripted metric aggregation
 
 You can count the different HTTP response types in a web log data set by using 
-scripted metric aggregation as part of the {transform}. The example below 
-assumes that the HTTP response codes are stored as keywords in the `response` 
-field of the documents.
+scripted metric aggregation as part of the {transform}. You can achieve a 
+similar function with filter aggregations, check the 
+{ref}/transform-examples.html#example-clientips[Finding suspicious client IPs] 
+example for details.
+
+The example below assumes that the HTTP response codes are stored as keywords in 
+the `response` field of the documents.
 
 [source,js]
 --------------------------------------------------
@@ -429,7 +444,6 @@ POST _transform/_preview
     "aggregations" : {
       "compare" : { <4>
         "scripted_metric" : {
-          "init_script" : "",
           "map_script" : "state.doc = new HashMap(params['_source'])", <5>
           "combine_script" : "return state", <6>
           "reduce_script" : """ <7>

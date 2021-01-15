@@ -37,7 +37,7 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanWithinQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(query, instanceOf(SpanWithinQuery.class));
     }
 

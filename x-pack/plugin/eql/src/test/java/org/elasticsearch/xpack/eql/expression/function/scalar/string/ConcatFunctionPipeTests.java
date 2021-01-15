@@ -50,8 +50,8 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
             newExpression,
             b1.values());
 
-        assertEquals(newB, b1.transformPropertiesOnly(v -> Objects.equals(v, b1.expression()) ? newExpression : v, Expression.class));
-        
+        assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
+
         ConcatFunctionPipe b2 = randomInstance();
         Source newLoc = randomValueOtherThan(b2.source(), () -> randomSource());
         newB = new ConcatFunctionPipe(
@@ -59,17 +59,17 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
             b2.expression(),
             b2.values());
 
-        assertEquals(newB, b2.transformPropertiesOnly(v -> Objects.equals(v, b2.source()) ? newLoc : v, Source.class));
+        assertEquals(newB, b2.transformPropertiesOnly(Source.class, v -> Objects.equals(v, b2.source()) ? newLoc : v));
     }
 
     @Override
     public void testReplaceChildren() {
         ConcatFunctionPipe b = randomInstance();
         List<Pipe> newValues = mutateOneValue(b.values());
-        
+
         ConcatFunctionPipe newB = new ConcatFunctionPipe(b.source(), b.expression(), b.values());
         ConcatFunctionPipe transformed = newB.replaceChildren(newValues);
-        
+
         assertEquals(transformed.values(), newValues);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());
@@ -86,11 +86,11 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
     protected ConcatFunctionPipe copy(ConcatFunctionPipe instance) {
         return new ConcatFunctionPipe(instance.source(), instance.expression(), instance.values());
     }
-    
+
     private List<Pipe> mutateOneValue(List<Pipe> oldValues) {
         int size = oldValues.size();
         ArrayList<Pipe> newValues = new ArrayList<>(size);
-        
+
         int index = randomIntBetween(0, size - 1);
         for (int i = 0; i < size; i++) {
             Pipe p = oldValues.get(i);

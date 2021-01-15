@@ -43,7 +43,7 @@ public class TextTemplate implements ToXContent {
         if (type == ScriptType.INLINE) {
             options = new HashMap<>();
             if (contentType != null) {
-                options.put(Script.CONTENT_TYPE_OPTION, contentType.mediaType());
+                options.put(Script.CONTENT_TYPE_OPTION, contentType.canonical().mediaType());
             }
         }
         if (params == null) {
@@ -89,7 +89,7 @@ public class TextTemplate implements ToXContent {
             return null;
         }
 
-        return XContentType.fromMediaTypeOrFormat(mediaType);
+        return XContentType.fromMediaType(mediaType);
     }
 
     public ScriptType getType() {

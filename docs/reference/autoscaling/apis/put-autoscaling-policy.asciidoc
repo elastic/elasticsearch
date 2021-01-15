@@ -1,10 +1,12 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-put-autoscaling-policy]]
 === Put autoscaling policy API
 ++++
 <titleabbrev>Put autoscaling policy</titleabbrev>
 ++++
+
+include::../autoscaling-designed-for-note.asciidoc[]
 
 Put autoscaling policy.
 
@@ -15,10 +17,9 @@ Put autoscaling policy.
 --------------------------------------------------
 PUT /_autoscaling/policy/<name>
 {
-  "policy": {
-    "deciders": {
-      "always": {
-      }
+  "roles": [],
+  "deciders": {
+    "fixed": {
     }
   }
 }
@@ -46,21 +47,22 @@ DELETE /_autoscaling/policy/name
 ==== {api-description-title}
 
 This API puts an autoscaling policy with the provided name.
+See <<autoscaling-deciders,Autoscaling Deciders>> for available deciders.
 
 [[autoscaling-put-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
 This example puts an autoscaling policy named `my_autoscaling_policy` using the
-always autoscaling decider.
+fixed autoscaling decider, applying to the set of nodes having (only) the
+"data_hot" role.
 
 [source,console]
 --------------------------------------------------
 PUT /_autoscaling/policy/my_autoscaling_policy
 {
-  "policy": {
-    "deciders": {
-      "always": {
-      }
+  "roles" : [ "data_hot" ],
+  "deciders": {
+    "fixed": {
     }
   }
 }

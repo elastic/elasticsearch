@@ -25,9 +25,13 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class InternalStats extends InternalNumericMetricsAggregation.MultiValue implements Stats {
     enum Metrics {
@@ -38,6 +42,10 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             return Metrics.valueOf(name);
         }
     }
+
+    static final Set<String> METRIC_NAMES = Collections.unmodifiableSet(
+        Stream.of(Metrics.values()).map(Metrics::name).collect(Collectors.toSet())
+    );
 
     protected final long count;
     protected final double min;
@@ -141,6 +149,11 @@ public class InternalStats extends InternalNumericMetricsAggregation.MultiValue 
             default:
                 throw new IllegalArgumentException("Unknown value [" + name + "] in common stats aggregation");
         }
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return METRIC_NAMES;
     }
 
     @Override

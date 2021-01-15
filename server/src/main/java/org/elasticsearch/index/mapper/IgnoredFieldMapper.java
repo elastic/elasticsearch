@@ -24,9 +24,8 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
-import java.io.IOException;
 import java.util.Collections;
 
 /**
@@ -59,7 +58,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         public static final IgnoredFieldType INSTANCE = new IgnoredFieldType();
 
         private IgnoredFieldType() {
-            super(NAME, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
+            super(NAME, true, true, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
         @Override
@@ -68,7 +67,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             // This query is not performance sensitive, it only helps assess
             // quality of the data, so we may use a slow query. It shouldn't
             // be too slow in practice since the number of unique terms in this
@@ -76,6 +75,10 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
             return new TermRangeQuery(name(), null, null, true, true);
         }
 
+        @Override
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
     }
 
     private IgnoredFieldMapper() {
@@ -83,21 +86,7 @@ public final class IgnoredFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) throws IOException {
-    }
-
-    @Override
-    public void postParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // done in post-parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
+    public void postParse(ParseContext context) {
         for (String field : context.getIgnoredFields()) {
             context.doc().add(new Field(NAME, field, Defaults.FIELD_TYPE));
         }

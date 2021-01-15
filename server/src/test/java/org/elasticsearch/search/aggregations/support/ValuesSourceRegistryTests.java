@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregatorSupplier;
 import org.elasticsearch.test.ESTestCase;
@@ -34,31 +33,31 @@ import static org.mockito.Mockito.when;
 public class ValuesSourceRegistryTests extends ESTestCase {
 
     public void testAggregatorNotFoundException() {
-        final QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        final AggregationScript.Factory mockAggScriptFactory = mock(AggregationScript.Factory.class);
+        AggregationContext context = mock(AggregationContext.class);
+        AggregationScript.Factory mockAggScriptFactory = mock(AggregationScript.Factory.class);
         when(mockAggScriptFactory.newFactory(Mockito.any(), Mockito.any())).thenReturn(mock(AggregationScript.LeafFactory.class));
-        when(queryShardContext.compile(Mockito.any(), Mockito.any())).thenReturn(mockAggScriptFactory);
+        when(context.compile(Mockito.any(), Mockito.any())).thenReturn(mockAggScriptFactory);
 
         ValuesSourceConfig fieldOnly = ValuesSourceConfig.resolve(
-            queryShardContext,
+            context,
             null,
             "field",
             null,
             null,
             null,
             null,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
 
         ValuesSourceConfig scriptOnly = ValuesSourceConfig.resolve(
-            queryShardContext,
+            context,
             null,
             null,
             mockScript("fakeScript"),
             null,
             null,
             null,
-            CoreValuesSourceType.BYTES
+            CoreValuesSourceType.KEYWORD
         );
         ValuesSourceRegistry.RegistryKey key = new ValuesSourceRegistry.RegistryKey("bogus", HistogramAggregatorSupplier.class);
         ValuesSourceRegistry registry = new ValuesSourceRegistry(

@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.functionscore.GaussDecayFunctionBuilder;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -45,6 +45,7 @@ import org.elasticsearch.search.aggregations.pipeline.AbstractPipelineAggregatio
 import org.elasticsearch.search.aggregations.pipeline.DerivativePipelineAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.InternalDerivative;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
@@ -368,7 +369,7 @@ public class SearchModuleTests extends ESTestCase {
 
         @Override
         protected ValuesSourceType defaultValueSourceType() {
-            return CoreValuesSourceType.BYTES;
+            return CoreValuesSourceType.KEYWORD;
         }
 
         @Override
@@ -402,7 +403,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected ValuesSourceAggregatorFactory innerBuild(QueryShardContext queryShardContext,
+        protected ValuesSourceAggregatorFactory innerBuild(AggregationContext context,
                                                            ValuesSourceConfig config,
                                                            AggregatorFactory parent,
                                                            Builder subFactoriesBuilder) throws IOException {
@@ -499,7 +500,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        public RescoreContext innerBuildContext(int windowSize, QueryShardContext context) throws IOException {
+        public RescoreContext innerBuildContext(int windowSize, SearchExecutionContext context) throws IOException {
             return null;
         }
     }
@@ -543,7 +544,7 @@ public class SearchModuleTests extends ESTestCase {
         }
 
         @Override
-        protected SuggestionSearchContext.SuggestionContext build(QueryShardContext context) throws IOException {
+        protected SuggestionSearchContext.SuggestionContext build(SearchExecutionContext context) throws IOException {
             return null;
         }
 

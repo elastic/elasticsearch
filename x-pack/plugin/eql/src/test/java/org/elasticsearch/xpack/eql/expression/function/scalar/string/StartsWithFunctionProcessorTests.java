@@ -13,18 +13,18 @@ import org.elasticsearch.xpack.ql.tree.Source;
 
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.eql.EqlTestUtils.randomConfigurationWithCaseSensitive;
+import static org.elasticsearch.xpack.eql.EqlTestUtils.randomConfiguration;
 
 public class StartsWithFunctionProcessorTests extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWithProcessorTests{
 
     @Override
     protected Supplier<Boolean> isCaseSensitiveGenerator() {
-        return () -> randomBoolean();
+        return () -> Boolean.TRUE;
     }
 
     @Override
     protected Supplier<Configuration> configurationGenerator() {
-        return () -> randomConfigurationWithCaseSensitive(isCaseSensitive);
+        return () -> randomConfiguration();
     }
 
     @Override

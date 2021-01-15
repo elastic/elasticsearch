@@ -73,11 +73,8 @@ import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
-import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -92,6 +89,7 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.forEachFileRecursively;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -441,14 +439,9 @@ public class RelocationIT extends ESIntegTestCase {
                 if (Files.exists(shardLoc)) {
                     assertBusy(() -> {
                         try {
-                            Files.walkFileTree(shardLoc, new SimpleFileVisitor<Path>() {
-                                @Override
-                                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                                    assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
-                                            not(startsWith("recovery.")));
-                                    return FileVisitResult.CONTINUE;
-                                }
-                            });
+                            forEachFileRecursively(shardLoc,
+                                (file, attrs) -> assertThat("found a temporary recovery file: " + file, file.getFileName().toString(),
+                                    not(startsWith("recovery."))));
                         } catch (IOException e) {
                             throw new AssertionError("failed to walk file tree starting at [" + shardLoc + "]", e);
                         }

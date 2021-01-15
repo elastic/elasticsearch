@@ -221,7 +221,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
@@ -238,8 +238,8 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     /**
      * Visible only for testing purposes.
      */
-    List<Query> createTermQueries(QueryShardContext context) {
-        final MappedFieldType fieldType = context.fieldMapper(fieldName);
+    List<Query> createTermQueries(SearchExecutionContext context) {
+        final MappedFieldType fieldType = context.getFieldType(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
             if (fieldType != null) {
@@ -251,10 +251,10 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         return queries;
     }
 
-    private LongValuesSource createValuesSource(QueryShardContext context) {
+    private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
-            MappedFieldType msmFieldType = context.fieldMapper(minimumShouldMatchField);
+            MappedFieldType msmFieldType = context.getFieldType(minimumShouldMatchField);
             if (msmFieldType == null) {
                 throw new QueryShardException(context, "failed to find minimum_should_match field [" + minimumShouldMatchField + "]");
             }
@@ -346,10 +346,12 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     // doc values, because that is what is being used in NumberFieldMapper.
     static class FieldValuesSource extends LongValuesSource {
 
-        private final IndexNumericFieldData field;
+        private final String fieldName;
+        private final IndexNumericFieldData fieldData;
 
-        FieldValuesSource(IndexNumericFieldData field) {
-            this.field = field;
+        FieldValuesSource(IndexNumericFieldData fieldData) {
+            this.fieldData = fieldData;
+            this.fieldName = fieldData.getFieldName();
         }
 
         @Override
@@ -357,22 +359,22 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             FieldValuesSource that = (FieldValuesSource) o;
-            return Objects.equals(field, that.field);
+            return Objects.equals(fieldName, that.fieldName);
         }
 
         @Override
         public String toString() {
-            return "long(" + field + ")";
+            return "long(" + fieldName + ")";
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(field);
+            return Objects.hash(fieldName);
         }
 
         @Override
         public LongValues getValues(LeafReaderContext ctx, DoubleValues scores) throws IOException {
-            SortedNumericDocValues values = field.load(ctx).getLongValues();
+            SortedNumericDocValues values = fieldData.load(ctx).getLongValues();
             return new LongValues() {
 
                 long current = -1;

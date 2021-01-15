@@ -46,13 +46,14 @@ public class StatsPersister {
                 docIdSupplier.apply(jobId),
                 true,
                 () -> true,
-                errorMsg -> auditor.error(jobId,
-                    "failed to persist result with id [" + docIdSupplier.apply(jobId) + "]; " + errorMsg)
+                retryMessage ->
+                    LOGGER.debug("[{}] failed to persist result with id [{}]; {}", jobId, docIdSupplier.apply(jobId), retryMessage)
             );
         } catch (IOException ioe) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed serializing stats result", jobId), ioe);
         } catch (Exception e) {
             LOGGER.error(() -> new ParameterizedMessage("[{}] Failed indexing stats result", jobId), e);
+            auditor.error(jobId, "Failed indexing stats result with id [" + docIdSupplier.apply(jobId) + "]; " + e.getMessage());
         }
     }
 }

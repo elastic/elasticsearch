@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xpack.core.ml.MlConfigIndex;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -41,9 +42,11 @@ public class UnusedStatsRemover implements MlDataRemover {
     private static final Logger LOGGER = LogManager.getLogger(UnusedStatsRemover.class);
 
     private final OriginSettingClient client;
+    private final TaskId parentTaskId;
 
-    public UnusedStatsRemover(OriginSettingClient client) {
+    public UnusedStatsRemover(OriginSettingClient client, TaskId parentTaskId) {
         this.client = Objects.requireNonNull(client);
+        this.parentTaskId = Objects.requireNonNull(parentTaskId);
     }
 
     @Override
@@ -96,7 +99,9 @@ public class UnusedStatsRemover implements MlDataRemover {
             .setIndicesOptions(IndicesOptions.lenientExpandOpen())
             .setAbortOnVersionConflict(false)
             .setRequestsPerSecond(requestsPerSec)
+            .setTimeout(DEFAULT_MAX_DURATION)
             .setQuery(dbq);
+        deleteByQueryRequest.setParentTask(parentTaskId);
 
         client.execute(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, ActionListener.wrap(
             response -> {

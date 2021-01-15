@@ -362,6 +362,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index-1")
                 .settings(Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("index.lifecycle.name", "my_policy")
                     .put("index.lifecycle.rollover_alias", "my_alias")
                     .build());
@@ -370,6 +371,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateIndexRequest createOtherIndexRequest = new CreateIndexRequest("other_index")
                 .settings(Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .build());
             client.indices().create(createOtherIndexRequest, RequestOptions.DEFAULT);
 
@@ -624,6 +626,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
             CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
                 .settings(Settings.builder()
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                     .put("index.lifecycle.name", "my_policy")
                     .build());
             client.indices().create(createIndexRequest, RequestOptions.DEFAULT);
@@ -689,6 +692,7 @@ public class ILMDocumentationIT extends ESRestHighLevelClientTestCase {
         CreateIndexRequest createIndexRequest = new CreateIndexRequest("my_index")
             .settings(Settings.builder()
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put("index.lifecycle.name", "my_policy")
                 .build());
         client.indices().create(createIndexRequest, RequestOptions.DEFAULT);

@@ -70,7 +70,7 @@ public class SetupSection {
     private final SkipSection skipSection;
     private final List<ExecutableSection> executableSections;
 
-    SetupSection(SkipSection skipSection, List<ExecutableSection> executableSections) {
+    public SetupSection(SkipSection skipSection, List<ExecutableSection> executableSections) {
         this.skipSection = Objects.requireNonNull(skipSection, "skip section cannot be null");
         this.executableSections = Collections.unmodifiableList(executableSections);
     }

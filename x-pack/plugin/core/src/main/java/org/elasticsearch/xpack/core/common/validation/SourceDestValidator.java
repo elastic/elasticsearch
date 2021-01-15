@@ -19,6 +19,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.InvalidIndexNameException;
+import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.license.RemoteClusterLicenseChecker;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
@@ -59,10 +60,12 @@ public final class SourceDestValidator {
     public static final String REMOTE_CLUSTER_LICENSE_INACTIVE = "License check failed for remote cluster "
         + "alias [{0}], license is not active";
     public static final String REMOTE_SOURCE_INDICES_NOT_SUPPORTED = "remote source indices are not supported";
+    public static final String PIPELINE_MISSING = "Pipeline with id [{0}] could not be found";
 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final RemoteClusterService remoteClusterService;
     private final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
+    private final IngestService ingestService;
     private final String nodeName;
     private final String license;
 
@@ -74,8 +77,10 @@ public final class SourceDestValidator {
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final RemoteClusterService remoteClusterService;
         private final RemoteClusterLicenseChecker remoteClusterLicenseChecker;
+        private final IngestService ingestService;
         private final String[] source;
-        private final String dest;
+        private final String destIndex;
+        private final String destPipeline;
         private final String nodeName;
         private final String license;
 
@@ -89,8 +94,10 @@ public final class SourceDestValidator {
             final IndexNameExpressionResolver indexNameExpressionResolver,
             final RemoteClusterService remoteClusterService,
             final RemoteClusterLicenseChecker remoteClusterLicenseChecker,
+            final IngestService ingestService,
             final String[] source,
-            final String dest,
+            final String destIndex,
+            final String destPipeline,
             final String nodeName,
             final String license
         ) {
@@ -98,8 +105,10 @@ public final class SourceDestValidator {
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.remoteClusterService = remoteClusterService;
             this.remoteClusterLicenseChecker = remoteClusterLicenseChecker;
+            this.ingestService = ingestService;
             this.source = source;
-            this.dest = dest;
+            this.destIndex = destIndex;
+            this.destPipeline = destPipeline;
             this.nodeName = nodeName;
             this.license = license;
         }
@@ -120,6 +129,10 @@ public final class SourceDestValidator {
             return indexNameExpressionResolver;
         }
 
+        public IngestService getIngestService() {
+            return ingestService;
+        }
+
         public boolean isRemoteSearchEnabled() {
             return remoteClusterLicenseChecker != null;
         }
@@ -128,8 +141,8 @@ public final class SourceDestValidator {
             return source;
         }
 
-        public String getDest() {
-            return dest;
+        public String getDestIndex() {
+            return destIndex;
         }
 
         public String getNodeName() {
@@ -162,11 +175,11 @@ public final class SourceDestValidator {
                     Index singleWriteIndex = indexNameExpressionResolver.concreteWriteIndex(
                         state,
                         IndicesOptions.lenientExpandOpen(),
-                        dest,
+                        destIndex,
                         true,
                         false);
 
-                    resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : dest;
+                    resolvedDest = singleWriteIndex != null ? singleWriteIndex.getName() : destIndex;
                 } catch (IllegalArgumentException e) {
                     // stop here as we can not return a single dest index
                     addValidationError(e.getMessage());
@@ -230,6 +243,7 @@ public final class SourceDestValidator {
     public static final SourceDestValidation DESTINATION_IN_SOURCE_VALIDATION = new DestinationInSourceValidation();
     public static final SourceDestValidation DESTINATION_SINGLE_INDEX_VALIDATION = new DestinationSingleIndexValidation();
     public static final SourceDestValidation REMOTE_SOURCE_NOT_SUPPORTED_VALIDATION = new RemoteSourceNotSupportedValidation();
+    public static final SourceDestValidation DESTINATION_PIPELINE_MISSING_VALIDATION = new DestinationPipelineMissingValidation();
 
     /**
      * Create a new Source Dest Validator
@@ -244,29 +258,33 @@ public final class SourceDestValidator {
         IndexNameExpressionResolver indexNameExpressionResolver,
         RemoteClusterService remoteClusterService,
         RemoteClusterLicenseChecker remoteClusterLicenseChecker,
+        IngestService ingestService,
         String nodeName,
         String license
     ) {
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.remoteClusterService = remoteClusterService;
         this.remoteClusterLicenseChecker = remoteClusterLicenseChecker;
+        this.ingestService = ingestService;
         this.nodeName = nodeName;
         this.license = license;
     }
 
     /**
-     * Run validation against source and dest.
+     * Run validation against source and destIndex.
      *
      * @param clusterState The current ClusterState
      * @param source an array of source indexes
-     * @param dest destination index
+     * @param destIndex destination index
+     * @param destPipeline destination pipeline
      * @param validations list of of validations to run
      * @param listener result listener
      */
     public void validate(
         final ClusterState clusterState,
         final String[] source,
-        final String dest,
+        final String destIndex,
+        @Nullable final String destPipeline,
         final List<SourceDestValidation> validations,
         final ActionListener<Boolean> listener
     ) {
@@ -275,8 +293,10 @@ public final class SourceDestValidator {
             indexNameExpressionResolver,
             remoteClusterService,
             remoteClusterLicenseChecker,
+            ingestService,
             source,
-            dest,
+            destIndex,
+            destPipeline,
             nodeName,
             license
         );
@@ -300,7 +320,7 @@ public final class SourceDestValidator {
     }
 
     /**
-     * Validate dest request.
+     * Validate request.
      *
      * This runs a couple of simple validations at request time, to be executed from a {@link ActionRequest}}
      * implementation.
@@ -308,17 +328,17 @@ public final class SourceDestValidator {
      * Note: Source can not be validated at request time as it might contain expressions.
      *
      * @param validationException an ActionRequestValidationException for collection validation problem, can be null
-     * @param dest destination index, null if validation shall be skipped
+     * @param destIndex destination index, null if validation shall be skipped
      */
     public static ActionRequestValidationException validateRequest(
         @Nullable ActionRequestValidationException validationException,
-        @Nullable String dest
+        @Nullable String destIndex
     ) {
         try {
-            if (dest != null) {
-                validateIndexOrAliasName(dest, InvalidIndexNameException::new);
-                if (dest.toLowerCase(Locale.ROOT).equals(dest) == false) {
-                    validationException = addValidationError(getMessage(DEST_LOWERCASE, dest), validationException);
+            if (destIndex != null) {
+                validateIndexOrAliasName(destIndex, InvalidIndexNameException::new);
+                if (destIndex.toLowerCase(Locale.ROOT).equals(destIndex) == false) {
+                    validationException = addValidationError(getMessage(DEST_LOWERCASE, destIndex), validationException);
                 }
             }
         } catch (InvalidIndexNameException ex) {
@@ -402,7 +422,7 @@ public final class SourceDestValidator {
 
         @Override
         public void validate(Context context, ActionListener<Context> listener) {
-            final String destIndex = context.getDest();
+            final String destIndex = context.getDestIndex();
             boolean foundSourceInDest = false;
 
             for (String src : context.getSource()) {
@@ -451,6 +471,19 @@ public final class SourceDestValidator {
         public void validate(Context context, ActionListener<Context> listener) {
             if (context.resolveRemoteSource().isEmpty() == false) {
                 context.addValidationError(REMOTE_SOURCE_INDICES_NOT_SUPPORTED);
+            }
+            listener.onResponse(context);
+        }
+    }
+
+    static class DestinationPipelineMissingValidation implements SourceDestValidation {
+
+        @Override
+        public void validate(Context context, ActionListener<Context> listener) {
+            if (context.destPipeline != null) {
+                if (context.ingestService.getPipeline(context.destPipeline) == null) {
+                    context.addValidationError(PIPELINE_MISSING, context.destPipeline);
+                }
             }
             listener.onResponse(context);
         }

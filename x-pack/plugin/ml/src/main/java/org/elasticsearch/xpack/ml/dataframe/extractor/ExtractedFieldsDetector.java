@@ -58,8 +58,8 @@ public class ExtractedFieldsDetector {
      * Fields to ignore. These are mostly internal meta fields.
      */
     private static final List<String> IGNORE_FIELDS = Arrays.asList("_id", "_field_names", "_index", "_parent", "_routing", "_seq_no",
-        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.ID_COPY,
-        "_data_stream_timestamp");
+        "_source", "_type", "_uid", "_version", "_feature", "_ignored", "_nested_path", DestinationIndex.INCREMENTAL_ID,
+        "_data_stream_timestamp", "_doc_count");
 
     private final DataFrameAnalyticsConfig config;
     private final int docValueFieldsLimit;
@@ -368,6 +368,7 @@ public class ExtractedFieldsDetector {
                                                   List<ProcessedField> processedFields) {
         ExtractedFields extractedFields = ExtractedFields.build(fields,
             Collections.emptySet(),
+            Collections.emptySet(),
             fieldCapabilitiesResponse,
             cardinalitiesForFieldsWithConstraints,
             processedFields);
@@ -376,8 +377,10 @@ public class ExtractedFieldsDetector {
         if (preferSource) {
             extractedFields = fetchFromSourceIfSupported(extractedFields);
             if (extractedFields.getDocValueFields().size() > docValueFieldsLimit) {
-                throw ExceptionsHelper.badRequestException("[{}] fields must be retrieved from doc_values but the limit is [{}]; " +
-                        "please adjust the index level setting [{}]", extractedFields.getDocValueFields().size(), docValueFieldsLimit,
+                throw ExceptionsHelper.badRequestException(
+                    "[{}] fields must be retrieved from doc_values and this is greater than the configured limit. " +
+                        "Please adjust the index level setting [{}]",
+                    extractedFields.getDocValueFields().size(),
                     IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey());
             }
         }

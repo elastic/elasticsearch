@@ -9,7 +9,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.MlEvaluationNamedXContentProvider;
-import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.PerClassResult;
 import org.elasticsearch.xpack.core.ml.dataframe.evaluation.classification.Recall.Result;
 
 import java.util.ArrayList;
@@ -22,10 +21,10 @@ public class RecallResultTests extends AbstractWireSerializingTestCase<Result> {
     public static Result createRandom() {
         int numClasses = randomIntBetween(2, 100);
         List<String> classNames = Stream.generate(() -> randomAlphaOfLength(10)).limit(numClasses).collect(Collectors.toList());
-        List<PerClassResult> classes = new ArrayList<>(numClasses);
+        List<PerClassSingleValue> classes = new ArrayList<>(numClasses);
         for (int i = 0; i < numClasses; i++) {
             double recall = randomDoubleBetween(0.0, 1.0, true);
-            classes.add(new PerClassResult(classNames.get(i), recall));
+            classes.add(new PerClassSingleValue(classNames.get(i), recall));
         }
         double avgRecall = randomDoubleBetween(0.0, 1.0, true);
         return new Result(classes, avgRecall);

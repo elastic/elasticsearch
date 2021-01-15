@@ -136,7 +136,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(indexMetadata.getIndex()), 1L))
+                        List.of(indexMetadata.getIndex())))
                     .put(indexMetadata, true)
             )
             .build();

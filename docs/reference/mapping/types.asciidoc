@@ -23,12 +23,11 @@ type: `boolean`.
 
 <<binary,`binary`>>::   Binary value encoded as a Base64 string.
 <<boolean,`boolean`>>:: `true` and `false` values.
-Keyword::               The keyword family, including <<keyword, `keyword`>>,
-                        <<constant-keyword,`constant_keyword`>>, and
-                        <<wildcard, `wildcard`>>.
+<<keyword, Keywords>>:: The keyword family, including `keyword`, `constant_keyword`,
+                        and `wildcard`.
 <<number,Numbers>>::    Numeric types, such as `long` and `double`, used to
                         express amounts.
-Dates::                 Date types, including <<date,`date`>> and 
+Dates::                 Date types, including <<date,`date`>> and
                         <<date_nanos,`date_nanos`>>.
 <<alias,`alias`>>::     Defines an alias for an existing field.
 
@@ -52,6 +51,8 @@ Dates::                 Date types, including <<date,`date`>> and
 <<range,Range>>::   Range types, such as `long_range`, `double_range`,
                     `date_range`, and `ip_range`.
 <<ip,`ip`>>::       IPv4 and IPv6 addresses.
+<<version,`version`>>::  Software versions. Supports https://semver.org/[Semantic Versioning]
+precedence rules.
 {plugins}/mapper-murmur3.html[`murmur3`]:: Compute and stores hashes of
 values.
 
@@ -60,7 +61,8 @@ values.
 [[aggregated-data-types]]
 ==== Aggregate data types
 
-<<histogram,`histogram`>>:: Pre-aggregated numerical values.
+<<aggregate-metric-double,`aggregate_metric_double`>>:: Pre-aggregated metric values.
+<<histogram,`histogram`>>:: Pre-aggregated numerical values in the form of a histogram.
 
 
 [discrete]
@@ -112,8 +114,8 @@ zero or more values by default, however, all values in the array must be of the
 same field type. See <<array>>.
 
 [discrete]
+[[types-multi-fields]]
 === Multi-fields
-
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for
@@ -124,6 +126,8 @@ the <<analysis-standard-analyzer,`standard` analyzer>>, the
 
 This is the purpose of _multi-fields_. Most field types support multi-fields
 via the <<multi-fields>> parameter.
+
+include::types/aggregate-metric-double.asciidoc[]
 
 include::types/alias.asciidoc[]
 
@@ -139,13 +143,13 @@ include::types/date_nanos.asciidoc[]
 
 include::types/dense-vector.asciidoc[]
 
-include::types/histogram.asciidoc[]
-
 include::types/flattened.asciidoc[]
 
 include::types/geo-point.asciidoc[]
 
 include::types/geo-shape.asciidoc[]
+
+include::types/histogram.asciidoc[]
 
 include::types/ip.asciidoc[]
 
@@ -171,12 +175,12 @@ include::types/rank-features.asciidoc[]
 
 include::types/search-as-you-type.asciidoc[]
 
+include::types/shape.asciidoc[]
+
 include::types/text.asciidoc[]
 
 include::types/token-count.asciidoc[]
 
-include::types/shape.asciidoc[]
+include::types/unsigned_long.asciidoc[]
 
-include::types/constant-keyword.asciidoc[]
-
-include::types/wildcard.asciidoc[]
+include::types/version.asciidoc[]

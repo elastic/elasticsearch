@@ -15,6 +15,7 @@ import org.elasticsearch.search.aggregations.PipelineAggregationBuilder;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * {@link EvaluationMetric} class represents a metric to evaluate.
@@ -27,15 +28,17 @@ public interface EvaluationMetric extends ToXContentObject, NamedWriteable {
     String getName();
 
     /**
+     * Returns the set of fields that this metric requires in order to be calculated.
+     */
+    Set<String> getRequiredFields();
+
+    /**
      * Builds the aggregation that collect required data to compute the metric
      * @param parameters settings that may be needed by aggregations
-     * @param actualField the field that stores the actual value
-     * @param predictedField the field that stores the predicted value (class name or probability)
+     * @param fields fields that may be needed by aggregations
      * @return the aggregations required to compute the metric
      */
-    Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters,
-                                                                           String actualField,
-                                                                           String predictedField);
+    Tuple<List<AggregationBuilder>, List<PipelineAggregationBuilder>> aggs(EvaluationParameters parameters, EvaluationFields fields);
 
     /**
      * Processes given aggregations as a step towards computing result

@@ -8,12 +8,17 @@ The `geoip` processor adds information about the geographical location of IP add
 This processor adds this information by default under the `geoip` field. The `geoip` processor can resolve both IPv4 and
 IPv6 addresses.
 
-The `ingest-geoip` module ships by default with the GeoLite2 City, GeoLite2 Country and GeoLite2 ASN geoip2 databases from Maxmind made available
+The `ingest-geoip` module ships by default with the GeoLite2 City, GeoLite2 Country and GeoLite2 ASN GeoIP2 databases from Maxmind made available
 under the CCA-ShareAlike 4.0 license. For more details see, http://dev.maxmind.com/geoip/geoip2/geolite2/
 
-The `geoip` processor can run with other GeoIP2 databases from Maxmind. The files must be copied into the `ingest-geoip` config directory,
-and the `database_file` option should be used to specify the filename of the custom database. Custom database files must be stored
-uncompressed. The `ingest-geoip` config directory is located at `$ES_CONFIG/ingest-geoip`.
+The `geoip` processor can run with other city, country and ASN GeoIP2 databases
+from Maxmind. The database files must be copied into the `ingest-geoip` config
+directory located at `$ES_CONFIG/ingest-geoip`. Custom database files must be
+stored uncompressed and the extension must be `-City.mmdb`, `-Country.mmdb`, or
+`-ASN.mmdb` to indicate the type of the database. These database files can not
+have the same filename as any of the built-in database names. The
+`database_file` processor option is used to specify the filename of the custom
+database to use for the processor.
 
 [[using-ingest-geoip]]
 ==== Using the `geoip` Processor in a Pipeline
@@ -25,8 +30,8 @@ uncompressed. The `ingest-geoip` config directory is located at `$ES_CONFIG/inge
 | Name                   | Required  | Default                                                                            | Description
 | `field`                | yes       | -                                                                                  | The field to get the ip address from for the geographical lookup.
 | `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
-| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest-geoip module ships with the GeoLite2-City.mmdb, GeoLite2-Country.mmdb and GeoLite2-ASN.mmdb files.
-| `properties`           | no        | [`continent_name`, `country_iso_code`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
+| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to a database the module ships with (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb) or a custom database in the `ingest-geoip` config directory.
+| `properties`           | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the geoip lookup.
 | `ignore_missing`       | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
 | `first_only`           | no        | `true`                                                                             | If `true` only first found geoip data will be returned, even if `field` contains array
 |======
@@ -40,8 +45,9 @@ and `location`. The fields actually added depend on what has been found and whic
 `country_iso_code`, `country_name` and `continent_name`. The fields actually added depend on what has been found and which properties
 were configured in `properties`.
 * If the GeoLite2 ASN database is used, then the following fields may be added under the `target_field`: `ip`,
-`asn`, and `organization_name`. The fields actually added depend on what has been found and which properties were configured
+`asn`, `organization_name` and `network`. The fields actually added depend on what has been found and which properties were configured
 in `properties`.
+
 
 Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
@@ -80,6 +86,7 @@ Which returns:
     "ip": "8.8.8.8",
     "geoip": {
       "continent_name": "North America",
+      "country_name": "United States",
       "country_iso_code": "US",
       "location": { "lat": 37.751, "lon": -97.822 }
     }
@@ -89,7 +96,7 @@ Which returns:
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term":1/"_primary_term" : $body._primary_term/]
 
 Here is an example that uses the default country database and adds the
-geographical information to the `geo` field based on the `ip` field`. Note that
+geographical information to the `geo` field based on the `ip` field. Note that
 this database is included in the module. So this:
 
 [source,console]
@@ -129,6 +136,7 @@ returns this:
     "ip": "8.8.8.8",
     "geo": {
       "continent_name": "North America",
+      "country_name": "United States",
       "country_iso_code": "US",
     }
   }
@@ -275,6 +283,7 @@ GET /my_ip_locations/_search
         "_source" : {
           "geoip" : {
             "continent_name" : "North America",
+            "country_name" : "United States",
             "country_iso_code" : "US",
             "location" : {
               "lon" : -97.822,

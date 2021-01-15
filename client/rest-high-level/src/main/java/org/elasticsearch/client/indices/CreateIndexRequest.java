@@ -127,13 +127,7 @@ public class CreateIndexRequest extends TimedRequest implements Validatable, ToX
      * The settings to create the index with (either json/yaml/properties format)
      */
     public CreateIndexRequest settings(Map<String, ?> source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
-            builder.map(source);
-            settings(Strings.toString(builder), XContentType.JSON);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
+        this.settings = Settings.builder().loadFromMap(source).build();
         return this;
     }
 

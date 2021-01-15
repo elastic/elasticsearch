@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -27,11 +26,11 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.NonCollectingAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.SamplerAggregator.ExecutionMode;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +46,7 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
                 String name,
                 int shardSize,
                 AggregatorFactories factories,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata,
                 ValuesSourceConfig valuesSourceConfig,
@@ -66,12 +65,12 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
 
         builder.register(
             DiversifiedAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.BYTES,
+            CoreValuesSourceType.KEYWORD,
             (
                 String name,
                 int shardSize,
                 AggregatorFactories factories,
-                SearchContext context,
+                AggregationContext context,
                 Aggregator parent,
                 Map<String, Object> metadata,
                 ValuesSourceConfig valuesSourceConfig,
@@ -94,37 +93,36 @@ public class DiversifiedAggregatorFactory extends ValuesSourceAggregatorFactory 
             true);
     }
 
+    private final DiversifiedAggregatorSupplier aggregatorSupplier;
     private final int shardSize;
     private final int maxDocsPerValue;
     private final String executionHint;
 
     DiversifiedAggregatorFactory(String name, ValuesSourceConfig config, int shardSize, int maxDocsPerValue,
-                                 String executionHint, QueryShardContext queryShardContext, AggregatorFactory parent,
-                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                 String executionHint, AggregationContext context, AggregatorFactory parent,
+                                 AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata,
+                                 DiversifiedAggregatorSupplier aggregatorSupplier) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.shardSize = shardSize;
         this.maxDocsPerValue = maxDocsPerValue;
         this.executionHint = executionHint;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator doCreateInternal(SearchContext searchContext,
-                                          Aggregator parent,
+    protected Aggregator doCreateInternal(Aggregator parent,
                                           CardinalityUpperBound cardinality,
                                           Map<String, Object> metadata) throws IOException {
 
-        return queryShardContext.getValuesSourceRegistry()
-            .getAggregator(DiversifiedAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, shardSize, factories, searchContext, parent, metadata, config, maxDocsPerValue, executionHint);
+        return aggregatorSupplier.build(name, shardSize, factories, context,
+                                        parent, metadata, config, maxDocsPerValue, executionHint);
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
         final UnmappedSampler aggregation = new UnmappedSampler(name, metadata);
 
-        return new NonCollectingAggregator(name, searchContext, parent, factories, metadata) {
+        return new NonCollectingAggregator(name, context, parent, factories, metadata) {
             @Override
             public InternalAggregation buildEmptyAggregation() {
                 return aggregation;

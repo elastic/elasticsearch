@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-significantterms-aggregation]]
-=== Significant Terms Aggregation
+=== Significant terms aggregation
+++++
+<titleabbrev>Significant terms</titleabbrev>
+++++
 
 An aggregation that returns interesting or unusual occurrences of terms in a set.
 
@@ -318,6 +321,7 @@ as such may be:
 Like most design decisions, this is the basis of a trade-off in which we have chosen to provide fast performance at the cost of some (typically small) inaccuracies.
 However, the `size` and `shard size` settings covered in the next section provide tools to help control the accuracy levels.
 
+[[significantterms-aggregation-parameters]]
 ==== Parameters
 
 ===== JLH score
@@ -549,7 +553,7 @@ A description of the different collection modes can be found in the
 There are different mechanisms by which terms aggregations can be executed:
 
  - by using field values directly in order to aggregate data per-bucket (`map`)
- - by using global ordinals of the field and allocating one bucket per global ordinal (`global_ordinals`)
+ - by using <<eager-global-ordinals,global ordinals>> of the field and allocating one bucket per global ordinal (`global_ordinals`)
 
 Elasticsearch tries to have sensible defaults so this is something that generally doesn't need to be configured.
 

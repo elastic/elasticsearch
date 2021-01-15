@@ -169,7 +169,7 @@ public class WaitForActiveShardsTests extends AbstractStepTestCase<WaitForActive
             .metadata(
                 Metadata.builder()
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()), 2L))
+                        List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())))
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
             )

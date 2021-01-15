@@ -25,7 +25,6 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.Term;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -47,14 +46,12 @@ import org.elasticsearch.index.engine.TranslogLeafReader;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
-import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -170,8 +167,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
                                long ifSeqNo, long ifPrimaryTerm, FetchSourceContext fetchSourceContext) {
         fetchSourceContext = normalizeFetchSourceContent(fetchSourceContext, gFields);
 
-        Term uidTerm = new Term(IdFieldMapper.NAME, Uid.encodeId(id));
-        Engine.GetResult get = indexShard.get(new Engine.Get(realtime, realtime, id, uidTerm)
+        Engine.GetResult get = indexShard.get(new Engine.Get(realtime, realtime, id)
             .version(version).versionType(versionType).setIfSeqNo(ifSeqNo).setIfPrimaryTerm(ifPrimaryTerm));
         assert get.isFromTranslog() == false || realtime : "should only read from translog if realtime enabled";
         if (get.exists() == false) {
@@ -200,7 +196,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             for (String field : storedFields) {
                 Mapper fieldMapper = docMapper.mappers().getMapper(field);
                 if (fieldMapper == null) {
-                    if (docMapper.objectMappers().get(field) != null) {
+                    if (docMapper.mappers().objectMappers().get(field) != null) {
                         // Only fail if we know it is a object field, missing paths / fields shouldn't fail.
                         throw new IllegalArgumentException("field [" + field + "] isn't a leaf field");
                     }
@@ -274,7 +270,7 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
             // put stored fields into result objects
             if (!fieldVisitor.fields().isEmpty()) {
-                fieldVisitor.postProcess(mapperService);
+                fieldVisitor.postProcess(mapperService::fieldType);
                 documentFields = new HashMap<>();
                 metadataFields = new HashMap<>();
                 for (Map.Entry<String, List<Object>> entry : fieldVisitor.fields().entrySet()) {

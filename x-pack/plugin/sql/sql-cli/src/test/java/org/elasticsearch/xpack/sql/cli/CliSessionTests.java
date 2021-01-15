@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.sql.cli;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.ClientException;
@@ -25,7 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class CliSessionTests extends ESTestCase {
+public class CliSessionTests extends SqlCliTestCase {
 
     public void testProperConnection() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);

@@ -27,7 +27,7 @@ public class InnerAggregate extends AggregateFunction {
     }
 
     public InnerAggregate(Source source, AggregateFunction inner, CompoundAggregate outer, Expression innerKey) {
-        super(source, outer.field(), outer.arguments());
+        super(source, outer.field(), outer.parameters());
         this.inner = inner;
         this.outer = outer;
         Check.isTrue(inner instanceof EnclosedAgg, "Inner function is not marked as Enclosed");

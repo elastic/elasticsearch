@@ -18,7 +18,7 @@ import static java.util.Collections.singletonMap;
 public class ConstantKeywordMapperPlugin extends Plugin implements MapperPlugin {
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return singletonMap(ConstantKeywordFieldMapper.CONTENT_TYPE, new ConstantKeywordFieldMapper.TypeParser());
+        return singletonMap(ConstantKeywordFieldMapper.CONTENT_TYPE, ConstantKeywordFieldMapper.PARSER);
     }
 
 }

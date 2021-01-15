@@ -26,7 +26,7 @@ import java.util.function.Consumer;
  * registers an observer and waits to try again when a snapshot is no longer running.
  */
 public abstract class AsyncRetryDuringSnapshotActionStep extends AsyncActionStep {
-    private final Logger logger = LogManager.getLogger(AsyncRetryDuringSnapshotActionStep.class);
+    private static final Logger logger = LogManager.getLogger(AsyncRetryDuringSnapshotActionStep.class);
 
     public AsyncRetryDuringSnapshotActionStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);

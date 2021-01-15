@@ -19,19 +19,17 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -43,6 +41,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final R[] ranges;
     private final boolean keyed;
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
+    private final RangeAggregatorSupplier aggregatorSupplier;
 
     public static void registerAggregators(
         ValuesSourceRegistry.Builder builder,
@@ -51,7 +50,7 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
         builder.register(
             registryKey,
             List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::new,
+            RangeAggregator::build,
                 true);
     }
 
@@ -61,43 +60,39 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
                                           R[] ranges,
                                           boolean keyed,
                                           InternalRange.Factory<?, ?> rangeFactory,
-                                          QueryShardContext queryShardContext,
+                                          AggregationContext context,
                                           AggregatorFactory parent,
                                           AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                          Map<String, Object> metadata,
+                                          RangeAggregatorSupplier aggregatorSupplier) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
         this.rangeFactory = rangeFactory;
         this.registryKey = registryKey;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                            Aggregator parent,
-                                            Map<String, Object> metadata) throws IOException {
-        return new Unmapped<>(name, ranges, keyed, config.format(), searchContext, parent, rangeFactory, metadata);
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return new Unmapped<>(name, factories, ranges, keyed, config.format(), context, parent, rangeFactory, metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
     ) throws IOException {
-
-        return queryShardContext.getValuesSourceRegistry()
-            .getAggregator(registryKey, config)
+        return aggregatorSupplier
             .build(
                 name,
                 factories,
-                (Numeric) config.getValuesSource(),
-                config.format(),
+                config,
                 rangeFactory,
                 ranges,
                 keyed,
-                searchContext,
+                context,
                 parent,
                 cardinality,
                 metadata

@@ -115,7 +115,7 @@ public class SnapshotRetentionServiceTests extends ESTestCase {
         }
 
         FakeRetentionTask(Consumer<SchedulerEngine.Event> onTrigger) {
-            super(mock(Client.class), null, System::nanoTime, mock(SnapshotHistoryStore.class), mock(ThreadPool.class));
+            super(mock(Client.class), null, System::nanoTime, mock(SnapshotHistoryStore.class));
             this.onTrigger = onTrigger;
         }
 

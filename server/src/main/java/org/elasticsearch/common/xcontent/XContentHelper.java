@@ -20,12 +20,14 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 
 import java.io.BufferedInputStream;
@@ -51,7 +53,7 @@ public class XContentHelper {
                                               BytesReference bytes) throws IOException {
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalStreamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
@@ -70,7 +72,7 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(bytes);
         if (compressor != null) {
-            InputStream compressedInput = compressor.threadLocalStreamInput(bytes.streamInput());
+            InputStream compressedInput = compressor.threadLocalInputStream(bytes.streamInput());
             if (compressedInput.markSupported() == false) {
                 compressedInput = new BufferedInputStream(compressedInput);
             }
@@ -106,7 +108,7 @@ public class XContentHelper {
             InputStream input;
             Compressor compressor = CompressorFactory.compressor(bytes);
             if (compressor != null) {
-                InputStream compressedStreamInput = compressor.threadLocalStreamInput(bytes.streamInput());
+                InputStream compressedStreamInput = compressor.threadLocalInputStream(bytes.streamInput());
                 if (compressedStreamInput.markSupported() == false) {
                     compressedStreamInput = new BufferedInputStream(compressedStreamInput);
                 }
@@ -207,7 +209,7 @@ public class XContentHelper {
     public static String convertToJson(BytesReference bytes, boolean reformatJson, boolean prettyPrint, XContentType xContentType)
         throws IOException {
         Objects.requireNonNull(xContentType);
-        if (xContentType == XContentType.JSON && !reformatJson) {
+        if (xContentType.canonical() == XContentType.JSON && !reformatJson) {
             return bytes.utf8ToString();
         }
 
@@ -354,7 +356,7 @@ public class XContentHelper {
                                      ToXContent.Params params) throws IOException {
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.threadLocalStreamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput);
             }
         } else {
@@ -373,7 +375,7 @@ public class XContentHelper {
         Objects.requireNonNull(xContentType);
         Compressor compressor = CompressorFactory.compressor(source);
         if (compressor != null) {
-            try (InputStream compressedStreamInput = compressor.threadLocalStreamInput(source.streamInput())) {
+            try (InputStream compressedStreamInput = compressor.threadLocalInputStream(source.streamInput())) {
                 builder.rawField(field, compressedStreamInput, xContentType);
             }
         } else {
@@ -452,5 +454,20 @@ public class XContentHelper {
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
         return BytesReference.bytes(builder);
+    }
+
+    /**
+     * Serialises new XContentType VND_ values in a bwc manner
+     * TODO remove in ES v9
+     * @param out stream output of the destination node
+     * @param xContentType an instance to serialize
+     */
+    public static void writeTo(StreamOutput out, XContentType xContentType) throws IOException {
+        if (out.getVersion().before(Version.V_8_0_0)) {
+            // when sending an enumeration to <v8 node it does not have new VND_ XContentType instances
+            out.writeVInt(xContentType.canonical().ordinal());
+        } else {
+            out.writeVInt(xContentType.ordinal());
+        }
     }
 }

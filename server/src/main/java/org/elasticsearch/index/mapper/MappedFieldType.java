@@ -29,7 +29,9 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.MultiTermQuery;
+import org.apache.lucene.search.NormsFieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.search.TermQuery;
@@ -45,9 +47,10 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.DistanceFeatureQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.fetch.subphase.FetchFieldsPhase;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -66,16 +69,16 @@ public abstract class MappedFieldType {
     private final String name;
     private final boolean docValues;
     private final boolean isIndexed;
+    private final boolean isStored;
     private final TextSearchInfo textSearchInfo;
     private final Map<String, String> meta;
-    private float boost;
-    private NamedAnalyzer indexAnalyzer;
     private boolean eagerGlobalOrdinals;
 
-    public MappedFieldType(String name, boolean isIndexed, boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
-        setBoost(1.0f);
+    public MappedFieldType(String name, boolean isIndexed, boolean isStored,
+                           boolean hasDocValues, TextSearchInfo textSearchInfo, Map<String, String> meta) {
         this.name = Objects.requireNonNull(name);
         this.isIndexed = isIndexed;
+        this.isStored = isStored;
         this.docValues = hasDocValues;
         this.textSearchInfo = Objects.requireNonNull(textSearchInfo);
         this.meta = meta;
@@ -94,6 +97,15 @@ public abstract class MappedFieldType {
         throw new IllegalArgumentException("Fielddata is not supported on field [" + name() + "] of type [" + typeName() + "]");
     }
 
+    /**
+     * Create a helper class to fetch field values during the {@link FetchFieldsPhase}.
+     *
+     * New field types must implement this method in order to support the search 'fields' option. Except
+     * for metadata fields, field types should not throw {@link UnsupportedOperationException} since this
+     * could cause a search retrieving multiple fields (like "fields": ["*"]) to fail.
+     */
+    public abstract ValueFetcher valueFetcher(SearchExecutionContext context, @Nullable String format);
+
     /** Returns the name of this type, as would be specified in mapping properties */
     public abstract String typeName();
 
@@ -106,24 +118,17 @@ public abstract class MappedFieldType {
         return name;
     }
 
-    public float boost() {
-        return boost;
-    }
-
-    public void setBoost(float boost) {
-        this.boost = boost;
-    }
-
     public boolean hasDocValues() {
         return docValues;
     }
 
-    public NamedAnalyzer indexAnalyzer() {
-        return indexAnalyzer;
-    }
-
-    public void setIndexAnalyzer(NamedAnalyzer analyzer) {
-        this.indexAnalyzer = analyzer;
+    /**
+     * Returns the collapse type of the field
+     * CollapseType.NONE means the field can'be used for collapsing.
+     * @return collapse type of the field
+     */
+    public CollapseType collapseType() {
+        return CollapseType.NONE;
     }
 
     /** Given a value that comes from the stored fields API, convert it to the
@@ -138,6 +143,13 @@ public abstract class MappedFieldType {
      */
     public boolean isSearchable() {
         return isIndexed;
+    }
+
+    /**
+     * Returns true if the field is stored separately.
+     */
+    public boolean isStored() {
+        return isStored;
     }
 
     /**
@@ -166,8 +178,7 @@ public abstract class MappedFieldType {
     }
 
     /** Generates a query that will only match documents that contain the given value.
-     *  The default implementation returns a {@link TermQuery} over the value bytes,
-     *  boosted by {@link #boost()}.
+     *  The default implementation returns a {@link TermQuery} over the value bytes
      *  @throws IllegalArgumentException if {@code value} cannot be converted to the expected data type or if the field is not searchable
      *      due to the way it is configured (eg. not indexed)
      *  @throws ElasticsearchParseException if {@code value} cannot be converted to the expected data type
@@ -175,12 +186,19 @@ public abstract class MappedFieldType {
      *  @throws QueryShardException if the field is not searchable regardless of options
      */
     // TODO: Standardize exception types
-    public abstract Query termQuery(Object value, @Nullable QueryShardContext context);
+    public abstract Query termQuery(Object value, @Nullable SearchExecutionContext context);
+
+
+    // Case insensitive form of term query (not supported by all fields so must be overridden to enable)
+    public Query termQueryCaseInsensitive(Object value, @Nullable SearchExecutionContext context) {
+        throw new QueryShardException(context, "[" + name + "] field which is of type [" + typeName() +
+            "], does not support case insensitive term queries");
+    }
 
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
-    public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
+    public Query termsQuery(List<?> values, @Nullable SearchExecutionContext context) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : values) {
             builder.add(termQuery(value, context), Occur.SHOULD);
@@ -196,35 +214,56 @@ public abstract class MappedFieldType {
         Object lowerTerm, Object upperTerm,
         boolean includeLower, boolean includeUpper,
         ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-        QueryShardContext context) {
+        SearchExecutionContext context) {
         throw new IllegalArgumentException("Field [" + name + "] of type [" + typeName() + "] does not support range queries");
     }
 
     public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions, boolean transpositions,
-                            QueryShardContext context) {
+                            SearchExecutionContext context) {
         throw new IllegalArgumentException("Can only use fuzzy queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+    // Case sensitive form of prefix query
+    public final Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
+        return prefixQuery(value, method, false, context);
+    }
+
+    public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, boolean caseInsensitve,
+        SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use prefix queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
+    // Case sensitive form of wildcard query
+    public final Query wildcardQuery(String value,
+        @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context
+    ) {
+        return wildcardQuery(value, method, false, context);
+    }
+
     public Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
-                               QueryShardContext context) {
+                               boolean caseInsensitve, SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use wildcard queries on keyword, text and wildcard fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
     public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-        @Nullable MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+        @Nullable MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
         throw new QueryShardException(context, "Can only use regexp queries on keyword and text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public abstract Query existsQuery(QueryShardContext context);
+    public Query existsQuery(SearchExecutionContext context) {
+        if (hasDocValues()) {
+            return new DocValuesFieldExistsQuery(name());
+        } else if (getTextSearchInfo().hasNorms()) {
+            return new NormsFieldExistsQuery(name());
+        } else {
+            return new TermQuery(new Term(FieldNamesFieldMapper.NAME, name()));
+        }
+    }
 
     public Query phraseQuery(TokenStream stream, int slop, boolean enablePositionIncrements) throws IOException {
         throw new IllegalArgumentException("Can only use phrase queries on text fields - not on [" + name
@@ -241,12 +280,12 @@ public abstract class MappedFieldType {
             + "] which is of type [" + typeName() + "]");
     }
 
-    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, QueryShardContext context) {
+    public SpanQuery spanPrefixQuery(String value, SpanMultiTermQueryWrapper.SpanRewriteMethod method, SearchExecutionContext context) {
         throw new IllegalArgumentException("Can only use span prefix queries on text fields - not on [" + name
             + "] which is of type [" + typeName() + "]");
     }
 
-    public Query distanceFeatureQuery(Object origin, String pivot, float boost, QueryShardContext context) {
+    public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
         throw new IllegalArgumentException("Illegal data type of [" + typeName() + "]!"+
             "[" + DistanceFeatureQueryBuilder.NAME + "] query can only be run on a date, date_nanos or geo_point field type!");
     }
@@ -267,7 +306,7 @@ public abstract class MappedFieldType {
     public enum Relation {
         WITHIN,
         INTERSECTS,
-        DISJOINT;
+        DISJOINT
     }
 
     /** Return whether all values of the given {@link IndexReader} are within the range,
@@ -331,10 +370,6 @@ public abstract class MappedFieldType {
         while (termQuery instanceof BoostQuery) {
             termQuery = ((BoostQuery) termQuery).getQuery();
         }
-        if (termQuery instanceof TypeFieldMapper.TypesQuery) {
-            assert ((TypeFieldMapper.TypesQuery) termQuery).getTerms().length == 1;
-            return new Term(TypeFieldMapper.NAME, ((TypeFieldMapper.TypesQuery) termQuery).getTerms()[0]);
-        }
         if (termQuery instanceof TermInSetQuery) {
             TermInSetQuery tisQuery = (TermInSetQuery) termQuery;
             PrefixCodedTerms terms = tisQuery.getTermData();
@@ -362,11 +397,19 @@ public abstract class MappedFieldType {
      * Returns information on how any text in this field is indexed
      *
      * Fields that do not support any text-based queries should return
-     * {@link TextSearchInfo#NONE}.  Some fields (eg numeric) may support
+     * {@link TextSearchInfo#NONE}.  Some fields (eg keyword) may support
      * only simple match queries, and can return
-     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}
+     * {@link TextSearchInfo#SIMPLE_MATCH_ONLY}; other fields may support
+     * simple match queries without using the terms index, and can return
+     * {@link TextSearchInfo#SIMPLE_MATCH_WITHOUT_TERMS}
      */
     public TextSearchInfo getTextSearchInfo() {
         return textSearchInfo;
+    }
+
+    public enum CollapseType {
+        NONE, // this field is not collapsable
+        KEYWORD,
+        NUMERIC
     }
 }

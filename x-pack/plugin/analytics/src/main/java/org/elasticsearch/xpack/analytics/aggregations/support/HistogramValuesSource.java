@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.support;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.Rounding.Prepared;
@@ -25,7 +24,7 @@ public class HistogramValuesSource {
         public abstract HistogramValues getHistogramValues(LeafReaderContext context) throws IOException;
 
         @Override
-        public Function<Rounding, Prepared> roundingPreparer(IndexReader reader) throws IOException {
+        public Function<Rounding, Prepared> roundingPreparer() throws IOException {
             throw new AggregationExecutionException("can't round a [histogram]");
         }
 

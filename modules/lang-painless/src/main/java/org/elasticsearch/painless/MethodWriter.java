@@ -515,16 +515,21 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeLambdaCall(FunctionRef functionRef) {
+        Object[] args = new Object[7 + functionRef.delegateInjections.length];
+        args[0] = Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString());
+        args[1] = functionRef.delegateClassName;
+        args[2] = functionRef.delegateInvokeType;
+        args[3] = functionRef.delegateMethodName;
+        args[4] = Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString());
+        args[5] = functionRef.isDelegateInterface ? 1 : 0;
+        args[6] = functionRef.isDelegateAugmented ? 1 : 0;
+        System.arraycopy(functionRef.delegateInjections, 0, args, 7, functionRef.delegateInjections.length);
+
         invokeDynamic(
                 functionRef.interfaceMethodName,
                 functionRef.factoryMethodType.toMethodDescriptorString(),
                 LAMBDA_BOOTSTRAP_HANDLE,
-                Type.getMethodType(functionRef.interfaceMethodType.toMethodDescriptorString()),
-                functionRef.delegateClassName,
-                functionRef.delegateInvokeType,
-                functionRef.delegateMethodName,
-                Type.getMethodType(functionRef.delegateMethodType.toMethodDescriptorString()),
-                functionRef.isDelegateInterface ? 1 : 0
+                args
         );
     }
 }

@@ -16,7 +16,9 @@ import org.elasticsearch.xpack.core.ml.dataframe.stats.common.MemoryUsageTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.outlierdetection.OutlierDetectionStatsTests;
 import org.elasticsearch.xpack.core.ml.dataframe.stats.regression.RegressionStatsTests;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.FeatureImportanceBaselineTests;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.TotalFeatureImportanceTests;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.metadata.HyperparametersTests;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.core.ml.utils.ToXContentParams;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
@@ -68,6 +70,10 @@ public class AnalyticsResultTests extends AbstractXContentTestCase<AnalyticsResu
         }
         if (randomBoolean()) {
             builder.setModelMetadata(new ModelMetadata(Stream.generate(TotalFeatureImportanceTests::randomInstance)
+                .limit(randomIntBetween(1, 10))
+                .collect(Collectors.toList()),
+                FeatureImportanceBaselineTests.randomInstance(),
+                Stream.generate(HyperparametersTests::randomInstance)
                 .limit(randomIntBetween(1, 10))
                 .collect(Collectors.toList())));
         }

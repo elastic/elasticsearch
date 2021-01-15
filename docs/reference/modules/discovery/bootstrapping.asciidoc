@@ -15,7 +15,7 @@ The initial set of master-eligible nodes is defined in the
 set to a list containing one of the following items for each master-eligible
 node:
 
-- The <<node.name,node name>> of the node.
+- The <<node-name,node name>> of the node.
 - The node's hostname if `node.name` is not set, because `node.name` defaults
   to the node's hostname. You must use either the fully-qualified hostname or
   the bare hostname <<modules-discovery-bootstrap-cluster-fqdns,depending on
@@ -44,7 +44,7 @@ WARNING: You must set `cluster.initial_master_nodes` to the same list of nodes
 on each node on which it is set in order to be sure that only a single cluster
 forms during bootstrapping and therefore to avoid the risk of data loss.
 
-For a cluster with 3 master-eligible nodes (with <<node.name,node names>>
+For a cluster with 3 master-eligible nodes (with <<node-name,node names>>
 `master-a`, `master-b` and `master-c`) the configuration will look as follows:
 
 [source,yaml]
@@ -97,7 +97,7 @@ match exactly.
 [discrete]
 ==== Choosing a cluster name
 
-The <<cluster.name,`cluster.name`>> setting enables you to create multiple
+The <<cluster-name,`cluster.name`>> setting enables you to create multiple
 clusters which are separated from each other. Nodes verify that they agree on
 their cluster name when they first connect to each other, and Elasticsearch
 will only form a cluster from nodes that all have the same cluster name. The

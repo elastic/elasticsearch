@@ -34,7 +34,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
@@ -51,6 +51,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -257,15 +258,15 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
 
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {
             long[] currentTime = new long[] {System.currentTimeMillis()};
-            QueryShardContext queryShardContext =
-                indexService.newQueryShardContext(0, searcher, () -> currentTime[0], null);
+            SearchExecutionContext searchExecutionContext =
+                indexService.newSearchExecutionContext(0, 0, searcher, () -> currentTime[0], null, emptyMap());
 
             BytesReference source = BytesReference.bytes(jsonBuilder().startObject()
                 .field("field1", "value")
                 .field("field2", currentTime[0])
                 .endObject());
             QueryBuilder queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
-            Query query = queryBuilder.toQuery(queryShardContext);
+            Query query = queryBuilder.toQuery(searchExecutionContext);
             assertThat(searcher.count(query), equalTo(3));
 
             currentTime[0] = currentTime[0] + 10800000; // + 3 hours
@@ -274,7 +275,7 @@ public class PercolatorQuerySearchTests extends ESSingleNodeTestCase {
                 .field("field2", currentTime[0])
                 .endObject());
             queryBuilder = new PercolateQueryBuilder("query", source, XContentType.JSON);
-            query = queryBuilder.toQuery(queryShardContext);
+            query = queryBuilder.toQuery(searchExecutionContext);
             assertThat(searcher.count(query), equalTo(3));
         }
     }

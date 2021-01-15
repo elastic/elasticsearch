@@ -113,7 +113,7 @@ public interface SearchOperationListener {
      * @param readerContext The reader context used by this request.
      * @param transportRequest the request that is going to use the search context
      */
-    default void validateSearchContext(ReaderContext readerContext, TransportRequest transportRequest) {}
+    default void validateReaderContext(ReaderContext readerContext, TransportRequest transportRequest) {}
 
     /**
      * A Composite listener that multiplexes calls to each of the listeners methods.
@@ -238,11 +238,11 @@ public interface SearchOperationListener {
         }
 
         @Override
-        public void validateSearchContext(ReaderContext readerContext, TransportRequest request) {
+        public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
             Exception exception = null;
             for (SearchOperationListener listener : listeners) {
                 try {
-                    listener.validateSearchContext(readerContext, request);
+                    listener.validateReaderContext(readerContext, request);
                 } catch (Exception e) {
                     exception = ExceptionsHelper.useOrSuppress(exception, e);
                 }

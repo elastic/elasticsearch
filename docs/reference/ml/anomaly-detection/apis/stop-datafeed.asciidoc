@@ -47,14 +47,14 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=datafeed-id-wildcard]
 == {api-query-parms-title}
 
 `allow_no_match`::
-(Optional, boolean)
+(Optional, Boolean)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-datafeeds]
 
 [[ml-stop-datafeed-request-body]]
 == {api-request-body-title}
 
 `force`::
-  (Optional, boolean) If true, the {dfeed} is stopped forcefully.
+  (Optional, Boolean) If true, the {dfeed} is stopped forcefully.
 
 `timeout`::
   (Optional, time) Controls the amount of time to wait until a {dfeed} stops.

@@ -20,11 +20,14 @@
 package org.elasticsearch.packaging.test;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Installation;
 import org.elasticsearch.packaging.util.Platforms;
+import org.elasticsearch.packaging.util.ProcessInfo;
 import org.elasticsearch.packaging.util.ServerUtils;
+import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
 import org.junit.After;
 import org.junit.Before;
@@ -33,9 +36,11 @@ import org.junit.BeforeClass;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -45,6 +50,7 @@ import static org.elasticsearch.packaging.util.Docker.copyFromContainer;
 import static org.elasticsearch.packaging.util.Docker.existsInContainer;
 import static org.elasticsearch.packaging.util.Docker.getContainerLogs;
 import static org.elasticsearch.packaging.util.Docker.getImageLabels;
+import static org.elasticsearch.packaging.util.Docker.getImageName;
 import static org.elasticsearch.packaging.util.Docker.getJson;
 import static org.elasticsearch.packaging.util.Docker.mkDirWithPrivilegeEscalation;
 import static org.elasticsearch.packaging.util.Docker.removeContainer;
@@ -53,6 +59,7 @@ import static org.elasticsearch.packaging.util.Docker.runContainer;
 import static org.elasticsearch.packaging.util.Docker.runContainerExpectingFailure;
 import static org.elasticsearch.packaging.util.Docker.verifyContainerInstallation;
 import static org.elasticsearch.packaging.util.Docker.waitForElasticsearch;
+import static org.elasticsearch.packaging.util.DockerRun.builder;
 import static org.elasticsearch.packaging.util.FileMatcher.p600;
 import static org.elasticsearch.packaging.util.FileMatcher.p644;
 import static org.elasticsearch.packaging.util.FileMatcher.p660;
@@ -60,16 +67,17 @@ import static org.elasticsearch.packaging.util.FileMatcher.p775;
 import static org.elasticsearch.packaging.util.FileUtils.append;
 import static org.elasticsearch.packaging.util.FileUtils.rm;
 import static org.hamcrest.Matchers.arrayContaining;
-import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 import static org.junit.Assume.assumeTrue;
 
@@ -176,7 +184,7 @@ public class DockerTests extends PackagingTestCase {
 
         // Restart the container
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/usr/share/elasticsearch/config"));
-        runContainer(distribution(), volumes, Map.of("ES_JAVA_OPTS", "-XX:-UseCompressedOops"));
+        runContainer(distribution(), builder().volumes(volumes).envVars(Map.of("ES_JAVA_OPTS", "-XX:-UseCompressedOops")));
 
         waitForElasticsearch(installation);
 
@@ -204,7 +212,7 @@ public class DockerTests extends PackagingTestCase {
             // Restart the container
             final Map<Path, Path> volumes = Map.of(tempEsDataDir.toAbsolutePath(), installation.data);
 
-            runContainer(distribution(), volumes, null);
+            runContainer(distribution(), builder().volumes(volumes));
 
             waitForElasticsearch(installation);
 
@@ -214,12 +222,19 @@ public class DockerTests extends PackagingTestCase {
             assertThat(nodes.at("/_nodes/successful").intValue(), equalTo(1));
             assertThat(nodes.at("/_nodes/failed").intValue(), equalTo(0));
 
+            // Ensure container is stopped before we remove tempEsDataDir, so nothing
+            // is using the directory.
+            removeContainer();
+
             rmDirWithPrivilegeEscalation(tempEsDataDir);
         });
     }
 
     /**
      * Check that it is possible to run Elasticsearch under a different user and group to the default.
+     * Note that while the default configuration files are world-readable, when we execute Elasticsearch
+     * it will attempt to create a keystore under the `config` directory. This will fail unless
+     * we also bind-mount the config dir.
      */
     public void test072RunEsAsDifferentUserAndGroup() throws Exception {
         assumeFalse(Platforms.WINDOWS);
@@ -248,7 +263,18 @@ public class DockerTests extends PackagingTestCase {
         volumes.put(tempEsLogsDir.toAbsolutePath(), installation.logs);
 
         // Restart the container
-        runContainer(distribution(), volumes, null, 501, 501);
+        runContainer(distribution(), builder().volumes(volumes).uid(501, 501));
+
+        waitForElasticsearch(installation);
+    }
+
+    /**
+     * Check that it is possible to run Elasticsearch under a different user and group to the default,
+     * without bind-mounting any directories, provided the container user is added to the `root` group.
+     */
+    public void test073RunEsAsDifferentUserAndGroupWithoutBindMounting() throws Exception {
+        // Restart the container
+        runContainer(distribution(), builder().uid(501, 501).extraArgs("--group-add 0"));
 
         waitForElasticsearch(installation);
     }
@@ -283,7 +309,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
         // Restart the container
-        runContainer(distribution(), volumes, envVars);
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
 
         // If we configured security correctly, then this call will only work if we specify the correct credentials.
         try {
@@ -339,7 +365,7 @@ public class DockerTests extends PackagingTestCase {
 
         // Restart the container - this will check that Elasticsearch started correctly,
         // and didn't fail to follow the symlink and check the file permissions
-        runContainer(distribution(), volumes, envVars);
+        runContainer(distribution(), builder().volumes(volumes).envVars(envVars));
     }
 
     /**
@@ -360,7 +386,7 @@ public class DockerTests extends PackagingTestCase {
 
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
-        final Result dockerLogs = runContainerExpectingFailure(distribution, volumes, envVars);
+        final Result dockerLogs = runContainerExpectingFailure(distribution, builder().volumes(volumes).envVars(envVars));
 
         assertThat(
             dockerLogs.stderr,
@@ -385,7 +411,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
         // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
+        final Result dockerLogs = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
 
         assertThat(
             dockerLogs.stderr,
@@ -430,7 +456,7 @@ public class DockerTests extends PackagingTestCase {
         final Map<Path, Path> volumes = Map.of(tempDir, Path.of("/run/secrets"));
 
         // Restart the container
-        final Result dockerLogs = runContainerExpectingFailure(distribution(), volumes, envVars);
+        final Result dockerLogs = runContainerExpectingFailure(distribution(), builder().volumes(volumes).envVars(envVars));
 
         assertThat(
             dockerLogs.stderr,
@@ -448,18 +474,19 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67097")
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.
         assumeTrue(distribution.isDefault());
 
-        runContainer(distribution(), null, Map.of("http.host", "this.is.not.valid"));
+        runContainer(distribution(), builder().envVars(Map.of("http.host", "this.is.not.valid")));
 
         // This will fail if the env var above is passed as a -E argument
         final Result result = sh.runIgnoreExitCode("elasticsearch-setup-passwords auto");
 
         assertFalse("elasticsearch-setup-passwords command should have failed", result.isSuccess());
-        assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid: Name or service not known"));
+        assertThat(result.stdout, containsString("java.net.UnknownHostException: this.is.not.valid"));
     }
 
     /**
@@ -520,12 +547,17 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Check that there are no files with a GID other than 0.
      */
-    public void test101AllFilesAreGroupZero() throws Exception {
-        // We wait for Elasticsearch to finish starting up in order to avoid the situation where `find` traverses the filesystem
-        // and sees files in a directory listing, which have disappeared by the time `find` tries to examine them. This periodically
-        // happened with the keystore, for example.
-        waitForElasticsearch(installation);
-        final String findResults = sh.run("find . -not -gid 0").stdout;
+    public void test101AllFilesAreGroupZero() {
+        // Run a `find` command in a new container without Elasticsearch running, so
+        // that the results aren't subject to sporadic failures from files appearing /
+        // disappearing while `find` is traversing the filesystem.
+        //
+        // We also create a file under `data/` to ensure that files are created with the
+        // expected group.
+        final Shell localSh = new Shell();
+        final String findResults = localSh.run(
+            "docker run --rm --tty " + getImageName(distribution) + " bash -c ' touch data/test && find . \\! -group 0 ' "
+        ).stdout;
 
         assertThat("Found some files whose GID != 0", findResults, is(emptyString()));
     }
@@ -617,19 +649,59 @@ public class DockerTests extends PackagingTestCase {
     }
 
     /**
+     * Check that it is possible to write logs to disk
+     */
+    public void test121CanUseStackLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "file")));
+
+        waitForElasticsearch(installation);
+
+        final Result containerLogs = getContainerLogs();
+        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+
+        assertThat(
+            "Container logs should be formatted using the stack config",
+            stdout.get(stdout.size() - 1),
+            matchesPattern("^\\[\\d\\d\\d\\d-.*")
+        );
+        assertThat("[logs/docker-cluster.log] should exist but it doesn't", existsInContainer("logs/docker-cluster.log"), is(true));
+    }
+
+    /**
+     * Check that the default logging config can be explicitly selected.
+     */
+    public void test122CanUseDockerLoggingConfig() throws Exception {
+        runContainer(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "console")));
+
+        waitForElasticsearch(installation);
+
+        final Result containerLogs = getContainerLogs();
+        final List<String> stdout = containerLogs.stdout.lines().collect(Collectors.toList());
+
+        assertThat("Container logs should be formatted using the docker config", stdout.get(stdout.size() - 1), startsWith("{\""));
+        assertThat("[logs/docker-cluster.log] shouldn't exist but it does", existsInContainer("logs/docker-cluster.log"), is(false));
+    }
+
+    /**
+     * Check that an unknown logging config is rejected
+     */
+    public void test123CannotUseUnknownLoggingConfig() {
+        final Result result = runContainerExpectingFailure(distribution(), builder().envVars(Map.of("ES_LOG_STYLE", "unknown")));
+
+        assertThat(result.stderr, containsString("ERROR: ES_LOG_STYLE set to [unknown]. Expected [console] or [file]"));
+    }
+
+    /**
      * Check that the Java process running inside the container has the expected UID, GID and username.
      */
     public void test130JavaHasCorrectOwnership() {
-        final List<String> processes = sh.run("ps -o uid,gid,user -C java").stdout.lines().skip(1).collect(Collectors.toList());
+        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "java");
 
-        assertThat("Expected a single java process", processes, hasSize(1));
+        assertThat("Incorrect UID", info.uid, equalTo(1000));
+        assertThat("Incorrect username", info.username, equalTo("elasticsearch"));
 
-        final String[] fields = processes.get(0).trim().split("\\s+");
-
-        assertThat(fields, arrayWithSize(3));
-        assertThat("Incorrect UID", fields[0], equalTo("1000"));
-        assertThat("Incorrect GID", fields[1], equalTo("0"));
-        assertThat("Incorrect username", fields[2], equalTo("elasticsearch"));
+        assertThat("Incorrect GID", info.gid, equalTo(0));
+        assertThat("Incorrect group", info.group, equalTo("root"));
     }
 
     /**
@@ -637,17 +709,15 @@ public class DockerTests extends PackagingTestCase {
      * The PID is particularly important because PID 1 handles signal forwarding and child reaping.
      */
     public void test131InitProcessHasCorrectPID() {
-        final List<String> processes = sh.run("ps -o pid,uid,gid,user -p 1").stdout.lines().skip(1).collect(Collectors.toList());
+        final ProcessInfo info = ProcessInfo.getProcessInfo(sh, "tini");
 
-        assertThat("Expected a single process", processes, hasSize(1));
+        assertThat("Incorrect PID", info.pid, equalTo(1));
 
-        final String[] fields = processes.get(0).trim().split("\\s+");
+        assertThat("Incorrect UID", info.uid, equalTo(1000));
+        assertThat("Incorrect username", info.username, equalTo("elasticsearch"));
 
-        assertThat(fields, arrayWithSize(4));
-        assertThat("Incorrect PID", fields[0], equalTo("1"));
-        assertThat("Incorrect UID", fields[1], equalTo("1000"));
-        assertThat("Incorrect GID", fields[2], equalTo("0"));
-        assertThat("Incorrect username", fields[3], equalTo("elasticsearch"));
+        assertThat("Incorrect GID", info.gid, equalTo(0));
+        assertThat("Incorrect group", info.group, equalTo("root"));
     }
 
     /**
@@ -665,6 +735,45 @@ public class DockerTests extends PackagingTestCase {
 
         assertThat("Failed to find [cpu] in node OS cgroup stats", cgroupStats.get("cpu"), not(nullValue()));
         assertThat("Failed to find [cpuacct] in node OS cgroup stats", cgroupStats.get("cpuacct"), not(nullValue()));
+    }
+
+    /**
+     * Check that when available system memory is constrained by Docker, the machine-dependant heap sizing
+     * logic sets the correct heap size, based on the container limits.
+     */
+    public void test150MachineDependentHeap() throws Exception {
+        // Start by ensuring `jvm.options` doesn't define any heap options
+        final Path jvmOptionsPath = tempDir.resolve("jvm.options");
+        final Path containerJvmOptionsPath = installation.config("jvm.options");
+        copyFromContainer(containerJvmOptionsPath, jvmOptionsPath);
+
+        final List<String> jvmOptions = Files.readAllLines(jvmOptionsPath)
+            .stream()
+            .filter(line -> (line.startsWith("-Xms") || line.startsWith("-Xmx")) == false)
+            .collect(Collectors.toList());
+
+        Files.writeString(jvmOptionsPath, String.join("\n", jvmOptions));
+
+        // Now run the container, being explicit about the available memory
+        runContainer(distribution(), builder().memory("942m").volumes(Map.of(jvmOptionsPath, containerJvmOptionsPath)));
+        waitForElasticsearch(installation);
+
+        // Grab the container output and find the line where it print the JVM arguments. This will
+        // let us see what the automatic heap sizing calculated.
+        final Optional<String> jvmArgumentsLine = getContainerLogs().stdout.lines()
+            .filter(line -> line.contains("JVM arguments"))
+            .findFirst();
+        assertThat("Failed to find jvmArguments in container logs", jvmArgumentsLine.isPresent(), is(true));
+
+        final JsonNode jsonNode = new ObjectMapper().readTree(jvmArgumentsLine.get());
+
+        final String argsStr = jsonNode.get("message").textValue();
+        final List<String> xArgs = Arrays.stream(argsStr.substring(1, argsStr.length() - 1).split(",\\s*"))
+            .filter(arg -> arg.startsWith("-X"))
+            .collect(Collectors.toList());
+
+        // This is roughly 0.4 * 942
+        assertThat(xArgs, hasItems("-Xms376m", "-Xmx376m"));
     }
 
     /**

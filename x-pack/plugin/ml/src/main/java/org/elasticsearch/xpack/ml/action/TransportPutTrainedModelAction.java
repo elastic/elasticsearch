@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -60,7 +59,7 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
                                           IndexNameExpressionResolver indexNameExpressionResolver, Client client,
                                           TrainedModelProvider trainedModelProvider, NamedXContentRegistry xContentRegistry) {
         super(PutTrainedModelAction.NAME, transportService, clusterService, threadPool, actionFilters, Request::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, Response::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
         this.trainedModelProvider = trainedModelProvider;
         this.xContentRegistry = xContentRegistry;
@@ -68,29 +67,10 @@ public class TransportPutTrainedModelAction extends TransportMasterNodeAction<Re
     }
 
     @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected Response read(StreamInput in) throws IOException {
-        return new Response(in);
-    }
-
-    @Override
     protected void masterOperation(Task task,
                                    PutTrainedModelAction.Request request,
                                    ClusterState state,
                                    ActionListener<Response> listener) {
-        // 7.8.0 introduced splitting the model definition across multiple documents.
-        // This means that new models will not be usable on nodes that cannot handle multiple definition documents
-        if (state.nodes().getMinNodeVersion().before(Version.V_7_8_0)) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Creating a new model requires that all nodes are at least version [{}]",
-                request.getTrainedModelConfig().getModelId(),
-                Version.V_7_8_0.toString()));
-            return;
-        }
         try {
             request.getTrainedModelConfig().ensureParsedDefinition(xContentRegistry);
             request.getTrainedModelConfig().getModelDefinition().getTrainedModel().validate();

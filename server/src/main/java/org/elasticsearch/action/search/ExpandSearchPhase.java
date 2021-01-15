@@ -89,7 +89,8 @@ final class ExpandSearchPhase extends SearchPhase {
                     CollapseBuilder innerCollapseBuilder = innerHitBuilder.getInnerCollapseBuilder();
                     SearchSourceBuilder sourceBuilder = buildExpandSearchSourceBuilder(innerHitBuilder, innerCollapseBuilder)
                         .query(groupQuery)
-                        .postFilter(searchRequest.source().postFilter());
+                        .postFilter(searchRequest.source().postFilter())
+                        .runtimeMappings(searchRequest.source().runtimeMappings());
                     SearchRequest groupRequest = new SearchRequest(searchRequest);
                     groupRequest.source(sourceBuilder);
                     multiRequest.add(groupRequest);
@@ -135,6 +136,9 @@ final class ExpandSearchPhase extends SearchPhase {
                 groupSource.fetchSource(options.getFetchSourceContext().includes(),
                     options.getFetchSourceContext().excludes());
             }
+        }
+        if (options.getFetchFields() != null) {
+            options.getFetchFields().forEach(ff -> groupSource.fetchField(ff));
         }
         if (options.getDocValueFields() != null) {
             options.getDocValueFields().forEach(ff -> groupSource.docValueField(ff.field, ff.format));

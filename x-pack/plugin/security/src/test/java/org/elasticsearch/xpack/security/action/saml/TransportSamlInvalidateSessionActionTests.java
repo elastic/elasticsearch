@@ -34,7 +34,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -265,7 +264,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         final String userTokenId2 = UUIDs.randomBase64UUID();
         final String refreshToken2 = UUIDs.randomBase64UUID();
         storeToken(logoutRequest.getNameId(), randomAlphaOfLength(10));
-        final Tuple<String, String> tokenToInvalidate1 = storeToken(userTokenId1, refreshToken1, logoutRequest.getNameId(),
+        final TokenService.CreateTokenResult tokenToInvalidate1 = storeToken(userTokenId1, refreshToken1, logoutRequest.getNameId(),
             logoutRequest.getSession());
         storeToken(userTokenId2, refreshToken2, logoutRequest.getNameId(), logoutRequest.getSession());
         storeToken(new SamlNameId(NameID.PERSISTENT, randomAlphaOfLength(16), null, null, null), logoutRequest.getSession());
@@ -329,7 +328,10 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(filter1.get(1), instanceOf(TermQueryBuilder.class));
         assertThat(((TermQueryBuilder) filter1.get(1)).fieldName(), equalTo("refresh_token.token"));
         assertThat(((TermQueryBuilder) filter1.get(1)).value(),
-            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.v2()).v2())));
+            equalTo(TokenService.hashTokenString(TokenService.unpackVersionAndPayload(tokenToInvalidate1.getRefreshToken()).v2())));
+
+        assertThat(tokenToInvalidate1.getAuthentication(), equalTo(new Authentication(new User("bob"),
+            new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null)));
 
         assertThat(bulkRequests.size(), equalTo(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
@@ -372,16 +374,16 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         };
     }
 
-    private Tuple<String, String> storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
+    private TokenService.CreateTokenResult storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
         Authentication authentication = new Authentication(new User("bob"),
                 new RealmRef("native", NativeRealmSettings.TYPE, "node01"), null);
         final Map<String, Object> metadata = samlRealm.createTokenMetadata(nameId, session);
-        final PlainActionFuture<Tuple<String, String>> future = new PlainActionFuture<>();
+        final PlainActionFuture<TokenService.CreateTokenResult> future = new PlainActionFuture<>();
         tokenService.createOAuth2Tokens(userTokenId, refreshToken, authentication, authentication, metadata, future);
         return future.actionGet();
     }
 
-    private Tuple<String, String> storeToken(SamlNameId nameId, String session) {
+    private TokenService.CreateTokenResult storeToken(SamlNameId nameId, String session) {
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         return storeToken(userTokenId, refreshToken, nameId, session);

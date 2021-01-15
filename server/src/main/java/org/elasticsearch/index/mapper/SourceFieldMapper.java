@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 
 import java.io.IOException;
@@ -66,7 +66,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             FIELD_TYPE.setOmitNorms(true);
             FIELD_TYPE.freeze();
         }
-
     }
 
     private static SourceFieldMapper toType(FieldMapper in) {
@@ -91,7 +90,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public SourceFieldMapper build(BuilderContext context) {
+        public SourceFieldMapper build() {
             return new SourceFieldMapper(enabled.getValue(),
                 includes.getValue().toArray(String[]::new),
                 excludes.getValue().toArray(String[]::new));
@@ -102,10 +101,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     static final class SourceFieldType extends MappedFieldType {
 
-        public static final SourceFieldType INSTANCE = new SourceFieldType();
-
-        private SourceFieldType() {
-            super(NAME, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+        private SourceFieldType(boolean enabled) {
+            super(NAME, false, enabled, false, TextSearchInfo.NONE, Collections.emptyMap());
         }
 
         @Override
@@ -114,18 +111,22 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+            throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
+        }
+
+        @Override
+        public Query existsQuery(SearchExecutionContext context) {
             throw new QueryShardException(context, "The _source field is not searchable");
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             throw new QueryShardException(context, "The _source field is not searchable");
         }
     }
 
     private final boolean enabled;
-
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
     private final boolean complete;
 
@@ -137,7 +138,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     private SourceFieldMapper(boolean enabled, String[] includes, String[] excludes) {
-        super(SourceFieldType.INSTANCE); // Only stored.
+        super(new SourceFieldType(enabled));
         this.enabled = enabled;
         this.includes = includes;
         this.excludes = excludes;
@@ -156,16 +157,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public void preParse(ParseContext context) throws IOException {
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) throws IOException {
-        // nothing to do here, we will call it in pre parse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
         final BytesReference adaptedSource = applyFilters(originalSource, contentType);
@@ -211,7 +202,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 }

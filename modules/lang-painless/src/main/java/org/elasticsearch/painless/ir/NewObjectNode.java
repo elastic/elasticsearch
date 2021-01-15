@@ -19,38 +19,12 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.lookup.PainlessConstructor;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Type;
-import org.objectweb.asm.commons.Method;
 
 public class NewObjectNode extends ArgumentsNode {
 
-    /* ---- begin node data ---- */
-
-    private PainlessConstructor constructor;
-    private boolean read;
-
-    public void setConstructor(PainlessConstructor constructor) {
-        this.constructor = constructor;
-    }
-
-    public PainlessConstructor getConstructor() {
-        return constructor;
-    }
-
-    public void setRead(boolean read) {
-        this.read = read;
-    }
-
-    public boolean getRead() {
-        return read;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -66,21 +40,8 @@ public class NewObjectNode extends ArgumentsNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        methodWriter.newInstance(MethodWriter.getType(getExpressionType()));
-
-        if (read) {
-            methodWriter.dup();
-        }
-
-        for (ExpressionNode argumentNode : getArgumentNodes()) {
-            argumentNode.write(classWriter, methodWriter, writeScope);
-        }
-
-        methodWriter.invokeConstructor(
-                    Type.getType(constructor.javaConstructor.getDeclaringClass()), Method.getMethod(constructor.javaConstructor));
+    public NewObjectNode(Location location) {
+        super(location);
     }
+
 }

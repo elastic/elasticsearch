@@ -30,7 +30,7 @@ public interface IndexSettingProvider {
      * Returns explicitly set default index {@link Settings} for the given index. This should not
      * return null.
      */
-    default Settings getAdditionalIndexSettings(String indexName, Settings templateAndRequestSettings) {
+    default Settings getAdditionalIndexSettings(String indexName, boolean isDataStreamIndex, Settings templateAndRequestSettings) {
         return Settings.EMPTY;
     }
 }

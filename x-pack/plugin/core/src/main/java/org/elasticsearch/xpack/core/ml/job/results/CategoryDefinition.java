@@ -40,6 +40,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ParseField GROK_PATTERN = new ParseField("grok_pattern");
     public static final ParseField NUM_MATCHES = new ParseField("num_matches");
     public static final ParseField PREFERRED_TO_CATEGORIES = new ParseField("preferred_to_categories");
+    public static final ParseField MLCATEGORY = new ParseField("mlcategory");
 
     // Used for QueryPage
     public static final ParseField RESULTS_FIELD = new ParseField("categories");
@@ -62,6 +63,8 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         parser.declareString(CategoryDefinition::setGrokPattern, GROK_PATTERN);
         parser.declareLongArray(CategoryDefinition::setPreferredToCategories, PREFERRED_TO_CATEGORIES);
         parser.declareLong(CategoryDefinition::setNumMatches, NUM_MATCHES);
+        parser.declareString((cd, rt) -> { /*Ignore as it is always category_definition*/ }, Result.RESULT_TYPE);
+        parser.declareString((cd, mc) -> { /*Ignore as it is always equal to category_id*/ }, MLCATEGORY);
         return parser;
     }
 
@@ -246,6 +249,10 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         if (partitionFieldName != null && partitionFieldValue != null && ReservedFieldNames.isValidFieldName(partitionFieldName)) {
             builder.field(partitionFieldName, partitionFieldValue);
         }
+        // Even though category_definitions now have a result type, queries need for category definition values
+        // still need to be done by looking for the category_id field. At least until 9.x
+        builder.field(Result.RESULT_TYPE.getPreferredName(), TYPE.getPreferredName());
+        builder.field(MLCATEGORY.getPreferredName(), String.valueOf(categoryId));
 
         builder.endObject();
         return builder;

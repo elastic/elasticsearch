@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.analytics.rate;
 
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -19,7 +19,8 @@ public interface RateAggregatorSupplier {
         String name,
         ValuesSourceConfig valuesSourceConfig,
         Rounding.DateTimeUnit rateUnit,
-        SearchContext context,
+        RateMode rateMode,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata
     ) throws IOException;

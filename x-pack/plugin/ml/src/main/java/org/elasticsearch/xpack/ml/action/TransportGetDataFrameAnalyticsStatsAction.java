@@ -105,7 +105,7 @@ public class TransportGetDataFrameAnalyticsStatsAction
                                  ActionListener<QueryPage<Stats>> listener) {
         logger.debug("Get stats for running task [{}]", task.getParams().getId());
 
-        ActionListener<Void> reindexingProgressListener = ActionListener.wrap(
+        ActionListener<Void> updateProgressListener = ActionListener.wrap(
             aVoid -> {
                 Stats stats = buildStats(
                     task.getParams().getId(),
@@ -119,7 +119,8 @@ public class TransportGetDataFrameAnalyticsStatsAction
             }, listener::onFailure
         );
 
-        task.updateReindexTaskProgress(reindexingProgressListener);
+        // We must update the progress of the reindexing task as it might be stale
+        task.updateTaskProgress(updateProgressListener);
     }
 
     @Override

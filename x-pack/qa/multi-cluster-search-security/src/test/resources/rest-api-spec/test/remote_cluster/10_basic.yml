@@ -11,7 +11,7 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "x_cluster_role" ]
             }
   - do:
@@ -23,7 +23,7 @@ setup:
               "indices": [
                 {
                   "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
-                  "field_caps_index_3"],
+                  "field_caps_index_3", "point_in_time_index"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
@@ -34,7 +34,7 @@ setup:
         username: "remote"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ "remote_ccs" ]
             }
   - do:
@@ -46,7 +46,7 @@ setup:
               "indices": [
                 {
                   "names": ["single_doc_index", "secure_alias", "test_index", "aliased_test_index", "field_caps_index_1",
-                  "field_caps_index_3"],
+                  "field_caps_index_3", "point_in_time_index"],
                   "privileges": ["read", "read_cross_cluster"]
                 }
               ]
@@ -106,6 +106,8 @@ setup:
   - do:
       indices.close:
         index: closed_index
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
         indices.create:
@@ -220,7 +222,7 @@ setup:
 
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: test_index
@@ -237,7 +239,7 @@ setup:
   - match: { aggregations.cluster.buckets.0.doc_count: 6 }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: aliased_test_index
@@ -248,7 +250,7 @@ setup:
   - match: { hits.hits.0._index: "test_index" }
 
   - do:
-      headers: { Authorization: "Basic am9lOnMza3JpdA==" }
+      headers: { Authorization: "Basic am9lOnMza3JpdC1wYXNzd29yZA==" }
       search:
         rest_total_hits_as_int: true
         index: secure_alias
@@ -268,7 +270,34 @@ setup:
         username: "joe"
         body:  >
             {
-              "password": "s3krit",
+              "password": "s3krit-password",
               "roles" : [ ]
             }
   - match: { created: false }
+
+  - do:
+      indices.create:
+        index: point_in_time_index
+        body:
+          settings:
+            index:
+              number_of_shards: 2
+              number_of_replicas: 0
+          mappings:
+            properties:
+              created_at:
+                type: date
+                format: "yyyy-MM-dd"
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r1", "created_at" : "2020-01-01"}'
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r2", "created_at" : "2020-01-02"}'
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r3", "created_at" : "2020-01-03"}'
+          - '{"index": {"_index": "point_in_time_index"}}'
+          - '{"f": "r4", "created_at" : "2020-01-04"}'
+

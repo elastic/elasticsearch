@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_mappings_changes]]
-=== Mapping changes
+==== Mapping changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide
@@ -63,6 +63,22 @@ The `enabled` setting for `_field_names` should be removed from templates and ma
 Disabling _field_names is not necessary because it no longer carries a large index overhead.
 ====
 
+[[mapping-boosts]]
+.The `boost` parameter on field mappings has been removed
+[%collapsible]
+====
+*Details* +
+Index-time boosts have been deprecated since the 5x line, but it was still possible
+to declare field-specific boosts in the mappings.  This is now removed completely.
+Indexes built in 7x that contain mapping boosts will emit warnings, and the boosts
+will have no effect in 8.0.  New indexes will not permit boosts to be set in their
+mappings at all.
+
+*Impact* +
+The `boost` setting should be removed from templates and mappings.  Use boosts
+directly on queries instead.
+====
+
 //tag::notable-breaking-changes[]
 .Java-time date formats replace joda-time formats
 [%collapsible]
@@ -79,3 +95,21 @@ For a detailed migration guide, see the {ref}/migrate-to-java-time.html[Java
 time migration guide].
 ====
 // end::notable-breaking-changes[]
+
+[[geo-shape-strategy]]
+.The `strategy` parameter on `geo_shape` mappings now rejects unknown strategies
+[%collapsible]
+====
+*Details* +
+The only permissible values for the `strategy` parameter on `geo_shape` mappings
+are `term` and `recursive`. In 7.x if a non-permissible value was used as a
+parameter here, the mapping would silently fall back to using `recursive`.  The
+mapping will now be rejected instead.
+
+*Impact* +
+This will have no impact on existing mappings created with non-permissible
+strategy values, as they will already be serializing themselves as if they
+had been configured as `recursive`.  New indexes will need to use one of the
+permissible strategies, or preferably not define a strategy at all and use
+the far more efficient BKD index.
+====

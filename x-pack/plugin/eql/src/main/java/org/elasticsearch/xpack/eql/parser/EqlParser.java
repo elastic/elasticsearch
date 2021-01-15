@@ -138,10 +138,10 @@ public class EqlParser {
         public void exitProcessCheck(EqlBaseParser.ProcessCheckContext context) {
             Token token = context.relationship;
             throw new ParsingException(
-                "Process relationships are not supported",
-                null,
-                token.getLine(),
-                token.getCharPositionInLine());
+                    "Process relationships are not supported",
+                    null,
+                    token.getLine(),
+                    token.getCharPositionInLine());
         }
 
         @Override

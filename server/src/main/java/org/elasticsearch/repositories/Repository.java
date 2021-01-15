@@ -263,6 +263,18 @@ public interface Repository extends LifecycleComponent {
                                       Consumer<Exception> onFailure);
 
     /**
+     * Clones a shard snapshot.
+     *
+     * @param source          source snapshot
+     * @param target          target snapshot
+     * @param shardId         shard id
+     * @param shardGeneration shard generation in repo
+     * @param listener        listener to complete with new shard generation once clone has completed
+     */
+    void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, @Nullable String shardGeneration,
+                            ActionListener<String> listener);
+
+    /**
      * Hook that allows a repository to filter the user supplied snapshot metadata in {@link SnapshotsInProgress.Entry#userMetadata()}
      * during snapshot initialization.
      */

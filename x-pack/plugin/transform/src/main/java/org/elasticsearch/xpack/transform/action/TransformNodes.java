@@ -17,8 +17,7 @@ import java.util.Set;
 
 public final class TransformNodes {
 
-    private TransformNodes() {
-    }
+    private TransformNodes() {}
 
     /**
      * Get the list of nodes transforms are executing on
@@ -31,14 +30,15 @@ public final class TransformNodes {
 
         Set<String> executorNodes = new HashSet<>();
 
-        PersistentTasksCustomMetadata tasksMetadata =
-                PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
+        PersistentTasksCustomMetadata tasksMetadata = PersistentTasksCustomMetadata.getPersistentTasksCustomMetadata(clusterState);
 
         if (tasksMetadata != null) {
             Set<String> transformIdsSet = new HashSet<>(transformIds);
 
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks =
-                    tasksMetadata.findTasks(TransformField.TASK_NAME, t -> transformIdsSet.contains(t.getId()));
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = tasksMetadata.findTasks(
+                TransformField.TASK_NAME,
+                t -> transformIdsSet.contains(t.getId()) && t.isAssigned()
+            );
 
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
                 executorNodes.add(task.getExecutorNode());

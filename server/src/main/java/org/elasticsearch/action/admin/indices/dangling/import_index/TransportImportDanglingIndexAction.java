@@ -88,7 +88,7 @@ public class TransportImportDanglingIndexAction extends HandledTransportAction<I
                 danglingIndexAllocator.allocateDangled(List.of(indexMetaDataToImport), new ActionListener<>() {
                     @Override
                     public void onResponse(LocalAllocateDangledIndices.AllocateDangledResponse allocateDangledResponse) {
-                        importListener.onResponse(new AcknowledgedResponse(true));
+                        importListener.onResponse(AcknowledgedResponse.TRUE);
                     }
 
                     @Override

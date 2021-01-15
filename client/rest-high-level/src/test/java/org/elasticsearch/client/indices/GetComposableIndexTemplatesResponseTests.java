@@ -88,6 +88,6 @@ public class GetComposableIndexTemplatesResponseTests extends ESTestCase {
         if (randomBoolean()) {
             dataStreamTemplate = new ComposableIndexTemplate.DataStreamTemplate();
         }
-        return new ComposableIndexTemplate(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate);
+        return new ComposableIndexTemplate(patterns, randomTemplate(), composedOf, priority, version, meta, dataStreamTemplate, null);
     }
 }

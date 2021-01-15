@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 
+import static org.elasticsearch.ingest.IngestDocument.PIPELINE_CYCLE_ERROR_MESSAGE;
+
 /**
  * Processor to be used within Simulate API to keep track of processors executed in pipeline.
  */
@@ -73,20 +75,18 @@ public final class TrackingResultProcessor implements Processor {
                     pipelineProcessor.getPipelineToCallName(ingestDocument) + ']');
             }
             ingestDocumentCopy.executePipeline(pipelineToCall, (result, e) -> {
-                // do nothing, let the tracking processors throw the exception while recording the path up to the failure
-                if (e instanceof ElasticsearchException) {
-                    ElasticsearchException elasticsearchException = (ElasticsearchException) e;
-                    //else do nothing, let the tracking processors throw the exception while recording the path up to the failure
-                    if (elasticsearchException.getCause() instanceof IllegalStateException) {
-                        if (ignoreFailure) {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e, conditionalWithResult));
-                        } else {
-                            processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
-                                pipelineProcessor.getDescription(), e, conditionalWithResult));
-                        }
-                        handler.accept(null, elasticsearchException);
+                // special handling for pipeline cycle errors
+                if (e instanceof ElasticsearchException &&
+                    e.getCause() instanceof IllegalStateException &&
+                    e.getCause().getMessage().startsWith(PIPELINE_CYCLE_ERROR_MESSAGE)) {
+                    if (ignoreFailure) {
+                        processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
+                            pipelineProcessor.getDescription(), new IngestDocument(ingestDocument), e, conditionalWithResult));
+                    } else {
+                        processorResultList.add(new SimulateProcessorResult(pipelineProcessor.getType(), pipelineProcessor.getTag(),
+                            pipelineProcessor.getDescription(), e, conditionalWithResult));
                     }
+                    handler.accept(null, e);
                 } else {
                     //now that we know that there are no cycles between pipelines, decorate the processors for this pipeline and execute it
                     CompoundProcessor verbosePipelineProcessor = decorate(pipeline.getCompoundProcessor(), null, processorResultList);

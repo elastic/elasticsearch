@@ -45,10 +45,12 @@ import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyRequest;
 import org.elasticsearch.client.ilm.RemoveIndexLifecyclePolicyResponse;
 import org.elasticsearch.client.ilm.RetryLifecyclePolicyRequest;
 import org.elasticsearch.client.ilm.RolloverAction;
+import org.elasticsearch.client.ilm.SearchableSnapshotAction;
 import org.elasticsearch.client.ilm.ShrinkAction;
 import org.elasticsearch.client.ilm.StartILMRequest;
 import org.elasticsearch.client.ilm.StopILMRequest;
 import org.elasticsearch.client.ilm.UnfollowAction;
+import org.elasticsearch.client.ilm.WaitForSnapshotAction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.hamcrest.Matchers;
@@ -60,6 +62,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.client.ilm.LifecyclePolicyTests.createRandomPolicy;
@@ -160,9 +163,12 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
         Map<String, LifecycleAction> coldActions = new HashMap<>();
         coldActions.put(UnfollowAction.NAME, new UnfollowAction());
         coldActions.put(AllocateAction.NAME, new AllocateAction(0, null, null, null));
+        coldActions.put(SearchableSnapshotAction.NAME, new SearchableSnapshotAction("repo"));
         lifecyclePhases.put("cold", new Phase("cold", TimeValue.timeValueSeconds(2000), coldActions));
 
-        Map<String, LifecycleAction> deleteActions = Collections.singletonMap(DeleteAction.NAME, new DeleteAction());
+        Map<String, LifecycleAction> deleteActions = new HashMap<>();
+        deleteActions.put(WaitForSnapshotAction.NAME, new WaitForSnapshotAction("policy"));
+        deleteActions.put(DeleteAction.NAME, new DeleteAction());
         lifecyclePhases.put("delete", new Phase("delete", TimeValue.timeValueSeconds(3000), deleteActions));
 
         LifecyclePolicy policy = new LifecyclePolicy(randomAlphaOfLength(10), lifecyclePhases);
@@ -214,7 +220,7 @@ public class IndexLifecycleIT extends ESRestHighLevelClientTestCase {
             assertFalse(squashResponse.managedByILM());
             assertEquals("squash", squashResponse.getIndex());
 
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testDeleteLifecycle() throws IOException {

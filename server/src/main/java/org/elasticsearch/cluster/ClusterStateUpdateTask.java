@@ -33,12 +33,24 @@ public abstract class ClusterStateUpdateTask
 
     private final Priority priority;
 
+    @Nullable
+    private final TimeValue timeout;
+
     public ClusterStateUpdateTask() {
         this(Priority.NORMAL);
     }
 
     public ClusterStateUpdateTask(Priority priority) {
+        this(priority, null);
+    }
+
+    public ClusterStateUpdateTask(TimeValue timeout) {
+        this(Priority.NORMAL, timeout);
+    }
+
+    public ClusterStateUpdateTask(Priority priority, TimeValue timeout) {
         this.priority = priority;
+        this.timeout = timeout;
     }
 
     @Override
@@ -60,7 +72,11 @@ public abstract class ClusterStateUpdateTask
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
-     * A callback called when execute fails.
+     * A callback for when task execution fails.
+     *
+     * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
+     * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
+     * using a more specific logger and at a less dramatic log level.
      */
     public abstract void onFailure(String source, Exception e);
 
@@ -75,12 +91,12 @@ public abstract class ClusterStateUpdateTask
      * {@link ClusterStateTaskListener#onFailure(String, Exception)}. May return null to indicate no timeout is needed (default).
      */
     @Nullable
-    public TimeValue timeout() {
-        return null;
+    public final TimeValue timeout() {
+        return timeout;
     }
 
     @Override
-    public Priority priority() {
+    public final Priority priority() {
         return priority;
     }
 

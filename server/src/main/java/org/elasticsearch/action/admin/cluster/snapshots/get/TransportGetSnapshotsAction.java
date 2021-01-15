@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -55,7 +54,6 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -81,18 +79,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                        ThreadPool threadPool, RepositoriesService repositoriesService, ActionFilters actionFilters,
                                        IndexNameExpressionResolver indexNameExpressionResolver) {
         super(GetSnapshotsAction.NAME, transportService, clusterService, threadPool, actionFilters,
-            GetSnapshotsRequest::new, indexNameExpressionResolver);
+            GetSnapshotsRequest::new, indexNameExpressionResolver, GetSnapshotsResponse::new, ThreadPool.Names.SAME);
         this.repositoriesService = repositoriesService;
-    }
-
-    @Override
-    protected String executor() {
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected GetSnapshotsResponse read(StreamInput in) throws IOException {
-        return new GetSnapshotsResponse(in);
     }
 
     @Override
@@ -118,21 +106,21 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
         final GroupedActionListener<GetSnapshotsResponse.Response> groupedActionListener =
                 new GroupedActionListener<>(
-                        ActionListener.map(listener, responses -> {
+                        listener.map(responses -> {
                             assert repos.size() == responses.size();
                             return new GetSnapshotsResponse(responses);
                         }), repos.size());
 
         for (final RepositoryMetadata repo : repos) {
             final String repoName = repo.name();
-            getSingleRepoSnapshotInfo(snapshotsInProgress, repoName, snapshots, ignoreUnavailable, verbose, ActionListener.map(
+            getSingleRepoSnapshotInfo(snapshotsInProgress, repoName, snapshots, ignoreUnavailable, verbose,
                     ActionListener.delegateResponse(groupedActionListener, (groupedListener, e) -> {
                         if (e instanceof ElasticsearchException) {
                             groupedListener.onResponse(GetSnapshotsResponse.Response.error(repoName, (ElasticsearchException) e));
                         } else {
                             groupedListener.onFailure(e);
                         }
-                    }), snInfos -> GetSnapshotsResponse.Response.snapshots(repoName, snInfos)));
+                    }).map(snInfos -> GetSnapshotsResponse.Response.snapshots(repoName, snInfos)));
         }
     }
 

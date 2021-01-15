@@ -20,7 +20,6 @@
 package org.elasticsearch.action.admin.indices.alias;
 
 import org.elasticsearch.ElasticsearchGenerationException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.AliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -73,11 +72,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public IndicesAliasesRequest(StreamInput in) throws IOException {
         super(in);
         allAliasActions = in.readList(AliasActions::new);
-        if (in.getVersion().onOrAfter(Version.V_7_3_0)) {
-            origin = in.readOptionalString();
-        } else {
-            origin = null;
-        }
+        origin = in.readOptionalString();
     }
 
     public IndicesAliasesRequest() {
@@ -182,6 +177,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
         }
 
         private static final ObjectParser<AliasActions, Void> ADD_PARSER = parser(ADD.getPreferredName(), AliasActions::add);
+        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
+        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
+            AliasActions::removeIndex);
         static {
             ADD_PARSER.declareObject(AliasActions::filter, (parser, m) -> {
                 try {
@@ -196,11 +194,8 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             ADD_PARSER.declareField(AliasActions::searchRouting, XContentParser::text, SEARCH_ROUTING, ValueType.INT);
             ADD_PARSER.declareField(AliasActions::writeIndex, XContentParser::booleanValue, IS_WRITE_INDEX, ValueType.BOOLEAN);
             ADD_PARSER.declareField(AliasActions::isHidden, XContentParser::booleanValue, IS_HIDDEN, ValueType.BOOLEAN);
-            ADD_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
+            REMOVE_PARSER.declareField(AliasActions::mustExist, XContentParser::booleanValue, MUST_EXIST, ValueType.BOOLEAN);
         }
-        private static final ObjectParser<AliasActions, Void> REMOVE_PARSER = parser(REMOVE.getPreferredName(), AliasActions::remove);
-        private static final ObjectParser<AliasActions, Void> REMOVE_INDEX_PARSER = parser(REMOVE_INDEX.getPreferredName(),
-                AliasActions::removeIndex);
 
         /**
          * Parser for any one {@link AliasAction}.
@@ -254,15 +249,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             searchRouting = in.readOptionalString();
             indexRouting = in.readOptionalString();
             writeIndex = in.readOptionalBoolean();
-            if (in.getVersion().onOrAfter(Version.V_7_7_0)) {
-                isHidden = in.readOptionalBoolean();
-            }
+            isHidden = in.readOptionalBoolean();
             originalAliases = in.readStringArray();
-            if (in.getVersion().onOrAfter(Version.V_7_9_0)) {
-                mustExist = in.readOptionalBoolean();
-            } else {
-                mustExist = null;
-            }
+            mustExist = in.readOptionalBoolean();
         }
 
         @Override
@@ -275,13 +264,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             out.writeOptionalString(searchRouting);
             out.writeOptionalString(indexRouting);
             out.writeOptionalBoolean(writeIndex);
-            if (out.getVersion().onOrAfter(Version.V_7_7_0)) {
-                out.writeOptionalBoolean(isHidden);
-            }
+            out.writeOptionalBoolean(isHidden);
             out.writeStringArray(originalAliases);
-            if (out.getVersion().onOrAfter(Version.V_7_9_0)) {
-                out.writeOptionalBoolean(mustExist);
-            }
+            out.writeOptionalBoolean(mustExist);
         }
 
         /**
@@ -539,6 +524,9 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
             if (null != isHidden) {
                 builder.field(IS_HIDDEN.getPreferredName(), isHidden);
             }
+            if (null != mustExist) {
+                builder.field(MUST_EXIST.getPreferredName(), mustExist);
+            }
             builder.endObject();
             builder.endObject();
             return builder;
@@ -559,6 +547,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     + ",indexRouting=" + indexRouting
                     + ",searchRouting=" + searchRouting
                     + ",writeIndex=" + writeIndex
+                    + ",mustExist=" + mustExist
                     + "]";
         }
 
@@ -577,12 +566,13 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
                     && Objects.equals(indexRouting, other.indexRouting)
                     && Objects.equals(searchRouting, other.searchRouting)
                     && Objects.equals(writeIndex, other.writeIndex)
-                    && Objects.equals(isHidden, other.isHidden);
+                    && Objects.equals(isHidden, other.isHidden)
+                    && Objects.equals(mustExist, other.mustExist);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden);
+            return Objects.hash(type, indices, aliases, filter, routing, indexRouting, searchRouting, writeIndex, isHidden, mustExist);
         }
     }
 
@@ -625,12 +615,7 @@ public class IndicesAliasesRequest extends AcknowledgedRequest<IndicesAliasesReq
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeList(allAliasActions);
-        // noinspection StatementWithEmptyBody
-        if (out.getVersion().onOrAfter(Version.V_7_3_0)) {
-            out.writeOptionalString(origin);
-        } else {
-            // nothing to do here, here for symmetry with IndicesAliasesRequest#readFrom
-        }
+        out.writeOptionalString(origin);
     }
 
     public IndicesOptions indicesOptions() {

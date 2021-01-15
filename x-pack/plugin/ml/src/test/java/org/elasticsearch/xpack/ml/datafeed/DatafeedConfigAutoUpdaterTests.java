@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -49,7 +50,7 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
 
     private DatafeedConfigProvider provider;
     private List<DatafeedConfig.Builder> datafeeds = new ArrayList<>();
-    private IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver();
+    private IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY));
 
     @Before
     public void setup() {
@@ -174,10 +175,11 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         DatafeedConfigAutoUpdater updater = new DatafeedConfigAutoUpdater(provider, indexNameExpressionResolver);
-        assertThat(updater.isAbleToRun(csBuilder.build()), is(true));
+        final ClusterState clusterState = csBuilder.build();
+        assertThat(updater.isAbleToRun(clusterState), is(true));
 
-        metadata = new Metadata.Builder(csBuilder.build().metadata());
-        routingTable = new RoutingTable.Builder(csBuilder.build().routingTable());
+        metadata = new Metadata.Builder(clusterState.metadata());
+        routingTable = new RoutingTable.Builder(clusterState.routingTable());
         if (randomBoolean()) {
             routingTable.remove(MlConfigIndex.indexName());
         } else {
@@ -190,12 +192,13 @@ public class DatafeedConfigAutoUpdaterTests extends ESTestCase {
                 .addIndexShard(new IndexShardRoutingTable.Builder(shardId).addShard(shardRouting).build()));
         }
 
+        csBuilder = ClusterState.builder(clusterState);
         csBuilder.routingTable(routingTable.build());
         csBuilder.metadata(metadata);
-        assertThat(updater.isAbleToRun(csBuilder.build()), is(false));
+        final ClusterState csUpdated = csBuilder.build();
+        assertThat(updater.isAbleToRun(csUpdated), is(false));
 
-        csBuilder.metadata(Metadata.EMPTY_METADATA);
-        assertThat(updater.isAbleToRun(csBuilder.build()), is(true));
+        assertThat(updater.isAbleToRun(ClusterState.builder(csUpdated).metadata(Metadata.EMPTY_METADATA).build()), is(true));
     }
 
     private void withDatafeed(String datafeedId, boolean aggsRewritten) {

@@ -79,7 +79,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     5L,
                     4L,
                     Collections.singletonMap("my_meta", Collections.singletonMap("potato", "chicken")),
-                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate()))
+                    randomBoolean() ? null : new ComposableIndexTemplate.DataStreamTemplate(),
+                    null))
                 .put(IndexMetadata.builder("test12")
                         .settings(settings(Version.CURRENT)
                                 .put("setting1", "value1")
@@ -296,7 +297,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "          \"0\" : [ ]\n" +
             "        },\n" +
             "        \"rollover_info\" : { },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -453,7 +457,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +
@@ -555,7 +562,10 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             "            \"time\" : 1\n" +
             "          }\n" +
             "        },\n" +
-            "        \"system\" : false\n" +
+            "        \"system\" : false,\n" +
+            "        \"timestamp_range\" : {\n" +
+            "          \"shards\" : [ ]\n" +
+            "        }\n" +
             "      }\n" +
             "    },\n" +
             "    \"index-graveyard\" : {\n" +

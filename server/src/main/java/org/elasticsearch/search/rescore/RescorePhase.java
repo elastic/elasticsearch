@@ -23,7 +23,6 @@ import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
-import org.elasticsearch.search.SearchPhase;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -31,12 +30,8 @@ import java.io.IOException;
 /**
  * Rescore phase of a search request, used to run potentially expensive scoring models against the top matching documents.
  */
-public class RescorePhase implements SearchPhase {
-    @Override
-    public void preProcess(SearchContext context) {
-    }
+public class RescorePhase {
 
-    @Override
     public void execute(SearchContext context) {
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {

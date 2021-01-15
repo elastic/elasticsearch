@@ -942,3 +942,130 @@ setup:
   - match: { profile.shards.0.aggregations.0.breakdown.collect_count: 4 }
   - match: { profile.shards.0.aggregations.0.debug.result_strategy: long_terms }
   - match: { profile.shards.0.aggregations.0.debug.total_buckets: 2 }
+
+---
+"min_doc_count":
+  - skip:
+      version: " - 7.99.99"
+      reason: broken in 7.9.1, not yet backported
+
+  - do:
+      bulk:
+        index: test_1
+        refresh: true
+        body: |
+          { "index": {} }
+          { "str": "sheep", "number": 1 }
+          { "index": {} }
+          { "str": "sheep", "number": 3 }
+          { "index": {} }
+          { "str": "cow", "number": 1 }
+          { "index": {} }
+          { "str": "pig", "number": 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                min_doc_count: 2
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 1 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                min_doc_count: 1
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 2 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1 }
+
+  - do:
+      search:
+        index: test_1
+        body:
+          size: 0
+          query:
+            simple_query_string:
+              fields: [str]
+              query: sheep cow
+              minimum_should_match: 1
+          aggs:
+            str_terms:
+              terms:
+                field: str
+                min_doc_count: 0
+              aggs:
+                max_number:
+                  max:
+                    field: number
+  - length: { aggregations.str_terms.buckets: 3 }
+  - match: { aggregations.str_terms.buckets.0.key: sheep }
+  - match: { aggregations.str_terms.buckets.0.doc_count: 2 }
+  - match: { aggregations.str_terms.buckets.0.max_number.value: 3 }
+  - match: { aggregations.str_terms.buckets.1.key: cow }
+  - match: { aggregations.str_terms.buckets.1.doc_count: 1 }
+  - match: { aggregations.str_terms.buckets.1.max_number.value: 1.0 }
+  - match: { aggregations.str_terms.buckets.2.key: pig }
+  - match: { aggregations.str_terms.buckets.2.doc_count: 0 }
+  - match: { aggregations.str_terms.buckets.2.max_number.value: null }

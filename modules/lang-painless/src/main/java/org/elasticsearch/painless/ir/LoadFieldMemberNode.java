@@ -19,12 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-
-import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
 
 /**
  * Represents reading a value from a member field from
@@ -32,28 +28,7 @@ import static org.elasticsearch.painless.WriterConstants.CLASS_TYPE;
  */
 public class LoadFieldMemberNode extends ExpressionNode {
 
-    /* ---- begin node data ---- */
-
-    protected String name;
-    protected boolean isStatic;
-
-    public void setName(String name) {
-        this.name = name;
-    }
-
-    public String getName() {
-        return name;
-    }
-
-    public void setStatic(boolean isStatic) {
-        this.isStatic = isStatic;
-    }
-
-    public boolean isStatic() {
-        return isStatic;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -67,15 +42,8 @@ public class LoadFieldMemberNode extends ExpressionNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    public void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        if (isStatic) {
-            methodWriter.getStatic(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
-        } else {
-            methodWriter.loadThis();
-            methodWriter.getField(CLASS_TYPE, name, MethodWriter.getType(getExpressionType()));
-        }
+    public LoadFieldMemberNode(Location location) {
+        super(location);
     }
+
 }

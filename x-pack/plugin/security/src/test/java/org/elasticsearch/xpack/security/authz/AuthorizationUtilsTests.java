@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -59,7 +60,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
         User user = new User(randomAlphaOfLength(6), new String[] {});
         Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
@@ -67,7 +68,7 @@ public class AuthorizationUtilsTests extends ESTestCase {
         User user = new User(randomAlphaOfLength(6), new String[] {});
         Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
-        threadContext.putTransient(AuthorizationService.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
+        threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 

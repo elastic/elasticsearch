@@ -40,9 +40,6 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optiona
  */
 public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry> {
 
-    @Deprecated
-    public static final int TYPE = 3;
-
     public PhraseSuggestion(String name, int size) {
         super(name, size);
     }
@@ -54,11 +51,6 @@ public class PhraseSuggestion extends Suggest.Suggestion<PhraseSuggestion.Entry>
     @Override
     public String getWriteableName() {
         return PhraseSuggestionBuilder.SUGGESTION_NAME;
-    }
-
-    @Override
-    public int getWriteableType() {
-        return TYPE;
     }
 
     @Override

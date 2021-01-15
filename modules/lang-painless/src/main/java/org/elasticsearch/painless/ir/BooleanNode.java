@@ -19,29 +19,12 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
-import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
-import org.objectweb.asm.Opcodes;
 
 public class BooleanNode extends BinaryNode {
 
-    /* ---- begin node data ---- */
-
-    private Operation operation;
-
-    public void setOperation(Operation operation) {
-        this.operation = operation;
-    }
-
-    public Operation getOperation() {
-        return operation;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {
@@ -56,43 +39,8 @@ public class BooleanNode extends BinaryNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeDebugInfo(location);
-
-        if (operation == Operation.AND) {
-            Label fals = new Label();
-            Label end = new Label();
-
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else if (operation == Operation.OR) {
-            Label tru = new Label();
-            Label fals = new Label();
-            Label end = new Label();
-
-            getLeftNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFNE, tru);
-            getRightNode().write(classWriter, methodWriter, writeScope);
-            methodWriter.ifZCmp(Opcodes.IFEQ, fals);
-
-            methodWriter.mark(tru);
-            methodWriter.push(true);
-            methodWriter.goTo(end);
-            methodWriter.mark(fals);
-            methodWriter.push(false);
-            methodWriter.mark(end);
-        } else {
-            throw new IllegalStateException("unexpected boolean operation [" + operation + "] " +
-                    "for type [" + getExpressionCanonicalTypeName() + "]");
-        }
+    public BooleanNode(Location location) {
+        super(location);
     }
+
 }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.node.info;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,22 +46,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     public NodesInfoRequest(StreamInput in) throws IOException {
         super(in);
         requestedMetrics.clear();
-        if (in.getVersion().before(Version.V_7_7_0)){
-            // prior to version 8.x, a NodesInfoRequest was serialized as a list
-            // of booleans in a fixed order
-            optionallyAddMetric(in.readBoolean(), Metric.SETTINGS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.OS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.PROCESS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.JVM.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.THREAD_POOL.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.TRANSPORT.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.HTTP.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.PLUGINS.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.INGEST.metricName());
-            optionallyAddMetric(in.readBoolean(), Metric.INDICES.metricName());
-        } else {
-            requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
-        }
+        requestedMetrics.addAll(Arrays.asList(in.readStringArray()));
     }
 
     /**
@@ -149,22 +133,7 @@ public class NodesInfoRequest extends BaseNodesRequest<NodesInfoRequest> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getVersion().before(Version.V_7_7_0)){
-            // prior to version 8.x, a NodesInfoRequest was serialized as a list
-            // of booleans in a fixed order
-            out.writeBoolean(Metric.SETTINGS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.OS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.PROCESS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.JVM.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.THREAD_POOL.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.TRANSPORT.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.HTTP.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.PLUGINS.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.INGEST.containedIn(requestedMetrics));
-            out.writeBoolean(Metric.INDICES.containedIn(requestedMetrics));
-        } else {
-            out.writeStringArray(requestedMetrics.toArray(String[]::new));
-        }
+        out.writeStringArray(requestedMetrics.toArray(String[]::new));
     }
 
     /**

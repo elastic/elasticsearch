@@ -48,6 +48,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -85,9 +86,7 @@ public final class ExternalTestCluster extends TestCluster {
         this.clusterName = clusterName;
         Settings.Builder clientSettingsBuilder = Settings.builder()
             .put(additionalSettings)
-            .put("node.master", false)
-            .put("node.data", false)
-            .put("node.ingest", false)
+            .putList("node.roles", Collections.emptyList())
             .put("node.name", EXTERNAL_CLUSTER_PREFIX + counter.getAndIncrement())
             .put("cluster.name", clusterName)
             .put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange())

@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.mapper.ParametrizedFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 
 import java.io.IOException;
@@ -53,7 +52,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public SizeFieldMapper build(BuilderContext context) {
+        public SizeFieldMapper build() {
             return new SizeFieldMapper(enabled.getValue(), new NumberFieldType(NAME, NumberType.INTEGER));
         }
     }
@@ -80,22 +79,8 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void preParse(ParseContext context) {
-    }
-
-    @Override
     public void postParse(ParseContext context) throws IOException {
         // we post parse it so we get the size stored, possibly compressed (source will be preParse)
-        super.parse(context);
-    }
-
-    @Override
-    public void parse(ParseContext context) {
-        // nothing to do here, we call the parent in postParse
-    }
-
-    @Override
-    protected void parseCreateField(ParseContext context) {
         if (enabled.value() == false) {
             return;
         }
@@ -104,7 +89,7 @@ public class SizeFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public ParametrizedFieldMapper.Builder getMergeBuilder() {
+    public FieldMapper.Builder getMergeBuilder() {
         return new Builder().init(this);
     }
 }

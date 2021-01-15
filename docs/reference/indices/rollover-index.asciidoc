@@ -115,7 +115,7 @@ is required.
 ==== {api-query-parms-title}
 
 `dry_run`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`,
 the request checks whether the index matches provided conditions
 but does not perform a rollover.
@@ -271,8 +271,8 @@ The API returns the following response:
 {
   "acknowledged": true,
   "shards_acknowledged": true,
-  "old_index": ".ds-my-data-stream-000001", <1>
-  "new_index": ".ds-my-data-stream-000002", <2>
+  "old_index": ".ds-my-data-stream-2099.03.07-000001", <1>
+  "new_index": ".ds-my-data-stream-2099.03.08-000002", <2>
   "rolled_over": true, <3>
   "dry_run": false, <4>
   "conditions": { <5>
@@ -282,6 +282,8 @@ The API returns the following response:
   }
 }
 --------------------------------------------------
+// TESTRESPONSE[s/.ds-my-data-stream-2099.03.07-000001/$body.old_index/]
+// TESTRESPONSE[s/.ds-my-data-stream-2099.03.08-000002/$body.new_index/]
 
 <1> The previous write index for the data stream.
 <2> The new write index for the data stream.
@@ -302,7 +304,7 @@ DELETE /_index_template/template
 ===== Specify settings for the target index
 
 The settings, mappings, and aliases for the new index are taken from any
-matching <<indices-templates,index templates>>. If the rollover target is an index
+matching <<index-templates,index templates>>. If the rollover target is an index
 alias, you can specify `settings`, `mappings`, and `aliases` in the body of the request
 just like the <<indices-create-index,create index>> API. Values specified in the request
 override any values set in matching index templates. For example, the following
@@ -371,7 +373,7 @@ which is incremented every time the index is rolled over. For instance:
 [source,console]
 --------------------------------------------------
 # PUT /<logs-{now/d}-1> with URI encoding:
-PUT /%3Clogs-%7Bnow%2Fd%7D-1%3E <1>
+PUT /%3Clogs_%7Bnow%2Fd%7D-1%3E <1>
 {
   "aliases": {
     "logs_write": {}
@@ -396,8 +398,8 @@ POST /logs_write/_rollover <2>
 --------------------------------------------------
 // TEST[s/now/2016.10.31%7C%7C/]
 
-<1> Creates an index named with today's date (e.g.) `logs-2016.10.31-1`
-<2> Rolls over to a new index with today's date, e.g. `logs-2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
+<1> Creates an index named with today's date (e.g.) `logs_2016.10.31-1`
+<2> Rolls over to a new index with today's date, e.g. `logs_2016.10.31-000002` if run immediately, or `logs-2016.11.01-000002` if run after 24 hours
 
 //////////////////////////
 
@@ -410,12 +412,12 @@ GET _alias
 [source,console-result]
 --------------------------------------------------
 {
-  "logs-2016.10.31-000002": {
+  "logs_2016.10.31-000002": {
     "aliases": {
       "logs_write": {}
     }
   },
-  "logs-2016.10.31-1": {
+  "logs_2016.10.31-1": {
     "aliases": {}
   }
 }

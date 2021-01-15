@@ -334,6 +334,9 @@
       "max_num_threads" : {
         "type" : "integer"
       },
+      "model_memory_limit": {
+        "type" : "keyword"
+      },
       "model_plot_config" : {
         "properties" : {
           "enabled" : {
@@ -371,6 +374,10 @@
       },
       "results_retention_days" : {
         "type" : "long"
+      },
+      "runtime_mappings" : {
+        "type" : "object",
+        "enabled" : false
       },
       "script_fields" : {
         "type" : "object",

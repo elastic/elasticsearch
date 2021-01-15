@@ -69,6 +69,7 @@ public final class TransformInternalIndex {
     public static final String TEXT = "text";
     public static final String FIELDS = "fields";
     public static final String RAW = "raw";
+    public static final String IGNORE_ABOVE = "ignore_above";
 
     // data types
     public static final String FLOAT = "float";
@@ -127,6 +128,7 @@ public final class TransformInternalIndex {
                 .startObject(FIELDS)
                     .startObject(RAW)
                         .field(TYPE, KEYWORD)
+                        .field(IGNORE_ABOVE, 1024)
                     .endObject()
                 .endObject()
             .endObject()
@@ -280,7 +282,7 @@ public final class TransformInternalIndex {
                         .field(TYPE, KEYWORD)
                     .endObject()
                     .startObject(SourceConfig.QUERY.getPreferredName())
-                        .field(ENABLED, "false")
+                        .field(ENABLED, false)
                     .endObject()
                 .endObject()
             .endObject()

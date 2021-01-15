@@ -18,6 +18,7 @@ import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
 import org.elasticsearch.common.unit.TimeValue;
@@ -33,10 +34,12 @@ import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.action.bulk.BulkShardOperationsResponse;
 import org.elasticsearch.xpack.core.ccr.ShardFollowNodeTaskStatus;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -529,12 +532,18 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
                 scheduler.accept(TimeValue.timeValueMillis(delay), task);
             }
         } else {
-            setFatalException(e);
+            onFatalFailure(e);
         }
     }
 
-    void setFatalException(Exception e) {
-        fatalException = ExceptionsHelper.convertToElastic(e);
+    final void onFatalFailure(Exception e) {
+        synchronized (this) {
+            this.fatalException = ExceptionsHelper.convertToElastic(e);
+            if (this.renewable != null) {
+                this.renewable.cancel();
+                this.renewable = null;
+            }
+        }
         LOGGER.warn("shard follow task encounter non-retryable error", e);
     }
 
@@ -567,7 +576,9 @@ public abstract class ShardFollowNodeTask extends AllocatedPersistentTask {
             actual instanceof ConnectTransportException ||
             actual instanceof NodeClosedException ||
             actual instanceof NoSuchRemoteClusterException ||
-            actual instanceof EsRejectedExecutionException;
+            actual instanceof NoSeedNodeLeftException ||
+            actual instanceof EsRejectedExecutionException ||
+            actual instanceof CircuitBreakingException;
     }
 
     // These methods are protected for testing purposes:

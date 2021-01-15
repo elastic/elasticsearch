@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
@@ -32,15 +33,16 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.io.OutputStream;
 
 public class TransportDecompressorTests extends ESTestCase {
 
     public void testSimpleCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output));
             byte randomByte = randomByte();
-            deflateStream.write(randomByte);
-            deflateStream.close();
+            try (OutputStream deflateStream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output))) {
+                deflateStream.write(randomByte);
+            }
 
             BytesReference bytes = output.bytes();
 
@@ -57,11 +59,12 @@ public class TransportDecompressorTests extends ESTestCase {
 
     public void testMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output));
-            for (int i = 0; i < 10000; ++i) {
-                deflateStream.writeInt(i);
+            try (StreamOutput deflateStream = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(
+                    Streams.flushOnCloseStream(output)))) {
+                for (int i = 0; i < 10000; ++i) {
+                    deflateStream.writeInt(i);
+                }
             }
-            deflateStream.close();
 
             BytesReference bytes = output.bytes();
 
@@ -85,11 +88,12 @@ public class TransportDecompressorTests extends ESTestCase {
 
     public void testIncrementalMultiPageCompression() throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            StreamOutput deflateStream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(output));
-            for (int i = 0; i < 10000; ++i) {
-                deflateStream.writeInt(i);
+            try (StreamOutput deflateStream = new OutputStreamStreamOutput(
+                    CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(output)))) {
+                for (int i = 0; i < 10000; ++i) {
+                    deflateStream.writeInt(i);
+                }
             }
-            deflateStream.close();
 
             BytesReference bytes = output.bytes();
 

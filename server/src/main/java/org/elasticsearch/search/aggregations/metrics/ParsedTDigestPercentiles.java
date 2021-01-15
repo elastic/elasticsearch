@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 public class ParsedTDigestPercentiles extends ParsedPercentiles implements Percentiles {
 
@@ -39,6 +40,16 @@ public class ParsedTDigestPercentiles extends ParsedPercentiles implements Perce
     @Override
     public String percentileAsString(double percent) {
         return getPercentileAsString(percent);
+    }
+
+    @Override
+    public double value(String name) {
+        return percentile(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
     }
 
     private static final ObjectParser<ParsedTDigestPercentiles, Void> PARSER =

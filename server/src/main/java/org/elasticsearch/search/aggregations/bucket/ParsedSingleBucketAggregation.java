@@ -69,7 +69,7 @@ public abstract class ParsedSingleBucketAggregation extends ParsedAggregation im
         if (token == XContentParser.Token.FIELD_NAME) {
             token = parser.nextToken();
         }
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
 
         List<Aggregation> aggregations = new ArrayList<>();
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {

@@ -41,16 +41,14 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
-import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper.AbstractGeometryFieldType.QueryProcessor;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.util.ArrayList;
 
-public class VectorGeoPointShapeQueryProcessor implements QueryProcessor {
+public class VectorGeoPointShapeQueryProcessor {
 
-    @Override
-    public Query process(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         validateIsGeoPointFieldType(fieldName, context);
         // geo points only support intersects
         if (relation != ShapeRelation.INTERSECTS) {
@@ -61,8 +59,8 @@ public class VectorGeoPointShapeQueryProcessor implements QueryProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private void validateIsGeoPointFieldType(String fieldName, QueryShardContext context) {
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
+    private void validateIsGeoPointFieldType(String fieldName, SearchExecutionContext context) {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false) {
             throw new QueryShardException(context, "Expected " + GeoPointFieldMapper.CONTENT_TYPE
                 + " field type for Field [" + fieldName + "] but found " + fieldType.typeName());
@@ -70,20 +68,20 @@ public class VectorGeoPointShapeQueryProcessor implements QueryProcessor {
     }
 
     protected Query getVectorQueryFromShape(
-        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
         return queryShape.visit(shapeVisitor);
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
-        QueryShardContext context;
+        SearchExecutionContext context;
         MappedFieldType fieldType;
         String fieldName;
         ShapeRelation relation;
 
-        ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
+        ShapeVisitor(SearchExecutionContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
-            this.fieldType = context.fieldMapper(fieldName);
+            this.fieldType = context.getFieldType(fieldName);
             this.fieldName = fieldName;
             this.relation = relation;
         }

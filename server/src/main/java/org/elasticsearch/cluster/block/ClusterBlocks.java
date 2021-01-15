@@ -283,23 +283,23 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         out.writeCollection(blocks);
     }
 
-    public ClusterBlocks(StreamInput in) throws IOException {
-        this.global = readBlockSet(in);
-        this.indicesBlocks = in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
-        levelHolders = generateLevelHolders(global, indicesBlocks);
+    public static ClusterBlocks readFrom(StreamInput in) throws IOException {
+        final Set<ClusterBlock> global = readBlockSet(in);
+        ImmutableOpenMap<String, Set<ClusterBlock>> indicesBlocks =
+                in.readImmutableMap(i -> i.readString().intern(), ClusterBlocks::readBlockSet);
+        if (global.isEmpty() && indicesBlocks.isEmpty()) {
+            return EMPTY_CLUSTER_BLOCK;
+        }
+        return new ClusterBlocks(global, indicesBlocks);
     }
 
     private static Set<ClusterBlock> readBlockSet(StreamInput in) throws IOException {
-        int totalBlocks = in.readVInt();
-        Set<ClusterBlock> blocks = new HashSet<>(totalBlocks);
-        for (int i = 0; i < totalBlocks;i++) {
-            blocks.add(new ClusterBlock(in));
-        }
-        return unmodifiableSet(blocks);
+        final Set<ClusterBlock> blocks = in.readSet(ClusterBlock::new);
+        return blocks.isEmpty() ? blocks : unmodifiableSet(blocks);
     }
 
     public static Diff<ClusterBlocks> readDiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(ClusterBlocks::new, in);
+        return AbstractDiffable.readDiffFrom(ClusterBlocks::readFrom, in);
     }
 
     static class ImmutableLevelHolder {
@@ -434,6 +434,9 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         }
 
         public ClusterBlocks build() {
+            if (indices.isEmpty() && global.isEmpty()) {
+                return EMPTY_CLUSTER_BLOCK;
+            }
             // We copy the block sets here in case of the builder is modified after build is called
             ImmutableOpenMap.Builder<String, Set<ClusterBlock>> indicesBuilder = ImmutableOpenMap.builder(indices.size());
             for (Map.Entry<String, Set<ClusterBlock>> entry : indices.entrySet()) {

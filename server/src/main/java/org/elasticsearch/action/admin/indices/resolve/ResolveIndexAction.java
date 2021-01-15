@@ -577,7 +577,6 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case DATA_STREAM:
                         IndexAbstraction.DataStream dataStream = (IndexAbstraction.DataStream) ia;
                         String[] backingIndices = dataStream.getIndices().stream().map(i -> i.getIndex().getName()).toArray(String[]::new);
-                        Arrays.sort(backingIndices);
                         dataStreams.add(new ResolvedDataStream(
                             dataStream.getName(),
                             backingIndices,

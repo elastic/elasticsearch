@@ -18,13 +18,18 @@ API, unless otherwise specified.
 Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path
 parameter also support _multi-target syntax_.
 
-In multi-target syntax, you can use a comma-separated list to execute a request across multiple resources, such as
-data streams, indices, or index aliases: `test1,test2,test3`. You can also use
-{wikipedia}/Glob_(programming)[glob-like] wildcard (`*`)
-expressions to target any
-resources that match the pattern: `test*` or `*test` or `te*t` or `*test*.
+In multi-target syntax, you can use a comma-separated list to run a request on
+multiple resources, such as data streams, indices, or index aliases:
+`test1,test2,test3`. You can also use {wikipedia}/Glob_(programming)[glob-like]
+wildcard (`*`) expressions to target resources that match a pattern: `test*` or
+`*test` or `te*t` or `*test*`.
 
 You can exclude targets using the `-` character: `test*,-test3`.
+
+IMPORTANT: Index aliases are resolved after wildcard expressions. This can
+result in a request that targets an excluded alias. For example, if `test3` is
+an index alias, the pattern `test*,-test3` still targets the indices for
+`test3`. To avoid this, exclude the concrete indices for the alias instead.
 
 Multi-target APIs that can target indices support the following query
 string parameters:
@@ -45,6 +50,33 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ignore_throttled]
 NOTE: Single index APIs, such as the <<docs>> and
 <<indices-aliases,single-index `alias` APIs>>, do not support multi-target
 syntax.
+
+[[hidden-indices]]
+==== Hidden data streams and indices
+
+For most APIs, wildcard expressions do not match hidden data streams and indices
+by default. To match hidden data streams and indices using a wildcard
+expression, you must specify the `expand_wildcards` query parameter.
+
+You can create hidden data streams by setting
+<<data-stream-hidden,`data_stream.hidden`>> to `true` in the stream's matching
+index template. You can hide indices using the <<index-hidden,`index.hidden`>>
+index setting.
+
+The backing indices for data streams are hidden automatically. Some features,
+such as {ml}, store information in hidden indices.
+
+Global index templates that match all indices are not applied to hidden indices.
+
+[[system-indices]]
+==== System indices
+
+{es} modules and plugins can store configuration and state information in internal _system indices_. 
+You should not directly access or modify system indices 
+as they contain data essential to the operation of the system.
+
+IMPORTANT: Direct access to system indices is deprecated and 
+will no longer be allowed in the next major version.
 
 [[date-math-index-names]]
 === Date math support in index names
@@ -391,7 +423,7 @@ Returns:
       "index.creation_date": "1474389951325",
       "index.uuid": "n6gzFZTgS664GUfx0Xrpjw",
       "index.version.created": ...,
-      "index.routing.allocation.include._tier" : "data_hot",
+      "index.routing.allocation.include._tier_preference" : "data_content",
       "index.provided_name" : "my-index-000001"
     }
   }
@@ -428,7 +460,7 @@ Returns:
         "routing": {
           "allocation": {
             "include": {
-              "_tier": "data_hot"
+              "_tier_preference": "data_content"
             }
           }
         },
@@ -445,6 +477,7 @@ Returns:
 By default `flat_settings` is set to `false`.
 
 [discrete]
+[[api-conventions-parameters]]
 ==== Parameters
 
 Rest parameters (when using HTTP, map to HTTP URL parameters) follow the
@@ -678,4 +711,4 @@ URL, set `rest.action.multi.allow_explicit_index` to `false` in `elasticsearch.y
 
 
 This causes  {es} to
-reject requests that explicitly specfiy a data stream or index in the request body.
+reject requests that explicitly specify a data stream or index in the request body.

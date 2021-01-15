@@ -10,7 +10,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
-import org.elasticsearch.xpack.spatial.index.fielddata.MultiGeoShapeValues;
+import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
 public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
     private final double boundsTop;
@@ -56,7 +56,7 @@ public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
     }
 
     @Override
-    public GeoRelation relateTile(MultiGeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
+    public GeoRelation relateTile(GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
         Rectangle rectangle = GeoTileUtils.toBoundingBox(xTile, yTile, precision);
         if (cellIntersectsGeoBoundingBox(rectangle)) {
             return geoValue.relate(rectangle);
@@ -65,7 +65,7 @@ public class BoundedGeoTileGridTiler extends GeoTileGridTiler {
     }
 
     @Override
-    protected int setValue(GeoShapeCellValues docValues, MultiGeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
+    protected int setValue(GeoShapeCellValues docValues, GeoShapeValues.GeoShapeValue geoValue, int xTile, int yTile, int precision) {
         if (cellIntersectsGeoBoundingBox(GeoTileUtils.toBoundingBox(xTile, yTile, precision))) {
             docValues.resizeCell(1);
             docValues.add(0, GeoTileUtils.longEncodeTiles(precision, xTile, yTile));

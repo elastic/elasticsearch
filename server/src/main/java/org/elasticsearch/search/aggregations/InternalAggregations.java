@@ -161,7 +161,12 @@ public final class InternalAggregations extends Aggregations implements Writeabl
             // If all aggs are unmapped, the agg that leads the reduction will just return itself
             aggregations.sort(INTERNAL_AGG_COMPARATOR);
             InternalAggregation first = aggregations.get(0); // the list can't be empty as it's created on demand
-            reducedAggregations.add(first.reduce(aggregations, context));
+            if (first.mustReduceOnSingleInternalAgg() || aggregations.size() > 1) {
+                reducedAggregations.add(first.reduce(aggregations, context));
+            } else {
+                // no need for reduce phase
+                reducedAggregations.add(first);
+            }
         }
 
         return from(reducedAggregations);

@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.url;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -43,6 +44,7 @@ public class URLRepositoryTests extends ESTestCase {
     private URLRepository createRepository(Settings baseSettings, RepositoryMetadata repositoryMetadata) {
         return new URLRepository(repositoryMetadata, TestEnvironment.newEnvironment(baseSettings),
             new NamedXContentRegistry(Collections.emptyList()), BlobStoreTestUtil.mockClusterService(),
+            MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(baseSettings, new ClusterSettings(baseSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))) {
             @Override
             protected void assertSnapshotOrGenericThread() {

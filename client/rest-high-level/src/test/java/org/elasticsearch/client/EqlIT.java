@@ -96,7 +96,6 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         assertFalse(response.isTimeout());
         assertNotNull(response.hits());
         assertNull(response.hits().sequences());
-        assertNull(response.hits().counts());
         assertNotNull(response.hits().events());
         assertThat(response.hits().events().size(), equalTo(count));
     }
@@ -141,7 +140,7 @@ public class EqlIT extends ESRestHighLevelClientTestCase {
         EqlClient eql = highLevelClient().eql();
 
         EqlSearchRequest request = new EqlSearchRequest("index",
-                "process where event_type_full = \"process_event\" and serial_event_id in (1,3,5)");
+                "process where event_type_full == \"process_event\" and serial_event_id in (1,3,5)");
 
         EqlSearchResponse response = execute(request, eql::search, eql::searchAsync);
         assertResponse(response, 3);

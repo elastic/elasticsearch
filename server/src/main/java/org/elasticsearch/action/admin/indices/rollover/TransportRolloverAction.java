@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -39,14 +41,12 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.shard.DocsStats;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -59,6 +59,7 @@ import java.util.stream.Collectors;
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
@@ -68,21 +69,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                    MetadataRolloverService rolloverService, Client client) {
         super(RolloverAction.NAME, transportService, clusterService, threadPool, actionFilters, RolloverRequest::new,
-            indexNameExpressionResolver);
+            indexNameExpressionResolver, RolloverResponse::new, ThreadPool.Names.SAME);
         this.rolloverService = rolloverService;
         this.client = client;
         this.activeShardsObserver = new ActiveShardsObserver(clusterService, threadPool);
-    }
-
-    @Override
-    protected String executor() {
-        // we go async right away
-        return ThreadPool.Names.SAME;
-    }
-
-    @Override
-    protected RolloverResponse read(StreamInput in) throws IOException {
-        return new RolloverResponse(in);
     }
 
     @Override
@@ -102,6 +92,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             rolloverService.rolloverClusterState(state,
                 rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
                 Collections.emptyList(), true, true);
+        logger.trace("rollover pre-result [{}]", preResult);
         Metadata metadata = state.metadata();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
@@ -132,9 +123,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
                                     rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
                                     rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
+                                logger.trace("rollover result [{}]", rolloverResult);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
-                                    throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
-                                        rolloverRequest.getRolloverTarget());
+                                    throw new ElasticsearchException("Concurrent modification of alias or data stream [{}] during " +
+                                        "rollover (expected [{}] but found [{}])",
+                                        rolloverRequest.getRolloverTarget(), sourceIndexName, rolloverResult.sourceIndexName);
                                 }
                                 return rolloverResult.clusterState;
                             }

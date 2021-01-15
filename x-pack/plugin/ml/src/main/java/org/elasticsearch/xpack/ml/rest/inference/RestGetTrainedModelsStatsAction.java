@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -26,9 +27,18 @@ public class RestGetTrainedModelsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public List<ReplacedRoute> replacedRoutes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
-            new Route(GET, MachineLearning.BASE_PATH + "inference/_stats"));
+            new ReplacedRoute(
+                GET, MachineLearning.BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats",
+                GET, MachineLearning.BASE_PATH + "inference/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/_stats"),
+            new ReplacedRoute(
+                GET, MachineLearning.BASE_PATH + "trained_models/_stats",
+                GET, MachineLearning.BASE_PATH + "inference/_stats"));
     }
 
     @Override

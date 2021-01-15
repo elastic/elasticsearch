@@ -11,7 +11,7 @@ setup:
       index:
           index:  test_1
           id:     1
-          body:   { foo: bar }
+          body:   { foo: bar, foo2: bar, foo3: bar }
 
   - do:
       indices.refresh: {}
@@ -94,9 +94,9 @@ setup:
           query:
             match_all: {}
           docvalue_fields:
-            - "one"
-            - "two"
-            - "three"
+            - "foo"
+            - "foo2"
+            - "foo3"
 
 ---
 "Script_fields size limit":
@@ -116,7 +116,6 @@ setup:
 
 ---
 "Regexp length limit":
-
   - do:
       catch: /The length of regex \[1110\] used in the Regexp Query request has exceeded the allowed maximum of \[1000\]\. This maximum can be set by changing the \[index.max_regex_length\] index level setting\./
       search:

@@ -322,6 +322,7 @@ its job.
 
 
 [discrete]
+[[node-tool-parameters]]
 === Parameters
 
 `repurpose`:: Delete excess data when a node's roles are changed.

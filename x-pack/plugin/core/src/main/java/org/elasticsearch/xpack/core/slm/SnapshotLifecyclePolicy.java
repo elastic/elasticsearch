@@ -18,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -131,6 +132,26 @@ public class SnapshotLifecyclePolicy extends AbstractDiffable<SnapshotLifecycleP
     public long calculateNextExecution() {
         final Cron schedule = new Cron(this.schedule);
         return schedule.getNextValidTimeAfter(System.currentTimeMillis());
+    }
+
+    /**
+     * Calculate the difference between the next two valid times after now for the schedule.
+     * <p>
+     * In ordinary cases, this can be treated as the interval between executions of the schedule (for schedules like 'twice an hour' or
+     * 'every five minutes').
+     *
+     * @return a {@link TimeValue} representing the difference between the next two valid times after now, or {@link TimeValue#MINUS_ONE}
+     *         if either of the next two times after now is unsupported according to @{@link Cron#getNextValidTimeAfter(long)}
+     */
+    public TimeValue calculateNextInterval() {
+        final Cron schedule = new Cron(this.schedule);
+        long next1 = schedule.getNextValidTimeAfter(System.currentTimeMillis());
+        long next2 = schedule.getNextValidTimeAfter(next1);
+        if (next1 > 0 && next2 > 0) {
+            return TimeValue.timeValueMillis(next2 - next1);
+        } else {
+            return TimeValue.MINUS_ONE;
+        }
     }
 
     public ActionRequestValidationException validate() {

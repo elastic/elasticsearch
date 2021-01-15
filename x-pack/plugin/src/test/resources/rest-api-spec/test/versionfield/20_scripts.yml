@@ -1,0 +1,54 @@
+# Integration tests for the version field
+#
+---
+setup:
+
+  - skip:
+      features: headers
+      version: " - 7.10.0"
+      reason: "version field is added to 7.10"
+
+  - do:
+        indices.create:
+          index: test_index
+          body:
+              mappings:
+                properties:
+                  version:
+                    type: version
+
+  - do:
+        bulk:
+          refresh: true
+          body:
+            - '{ "index" : { "_index" : "test_index", "_id" : "1" } }'
+            - '{"version": "1.1.12" }'
+            - '{ "index" : { "_index" : "test_index", "_id" : "2" } }'
+            - '{"version": "2.0.0-beta" }'
+            - '{ "index" : { "_index" : "test_index", "_id" : "3" } }'
+            - '{"version": "3.1.0" }'
+
+---
+"Filter script":
+  - do:
+        search:
+          index: test_index
+          body:
+            query: { "script" : { "script" : { "source": "doc['version'].value.length() > 5"} } }
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._source.version: "1.1.12" }
+  - match: { hits.hits.1._source.version: "2.0.0-beta" }
+
+---
+"Sort script":
+  - do:
+        search:
+          index: test_index
+          body:
+            sort: { "_script" : { "type" : "number", "script" : { "source": "doc['version'].value.length()" } } }
+
+  - match: { hits.total.value: 3 }
+  - match: { hits.hits.0._source.version: "3.1.0" }
+  - match: { hits.hits.1._source.version: "1.1.12" }
+  - match: { hits.hits.2._source.version: "2.0.0-beta" }

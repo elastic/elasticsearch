@@ -45,7 +45,7 @@ Each dictionary can be configured with one setting:
 
 [[analysis-hunspell-ignore-case-settings]]
 `ignore_case`::
-(Static, boolean)
+(Static, Boolean)
 If true, dictionary matching will be case insensitive. Defaults to `false`.
 
 This setting can be configured globally in `elasticsearch.yml` using
@@ -147,7 +147,7 @@ directory's path must be registered using the
 `indices.analysis.hunspell.dictionary.location`>> setting.
 
 `dedup`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, duplicate tokens are removed from the filter's output. Defaults to
 `true`.
 
@@ -177,7 +177,7 @@ If this parameter is not specified, the `lang` or `language` parameter is
 required.
 
 `longest_only`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, only the longest stemmed version of each token is
 included in the output. If `false`, all stemmed versions of the token are
 included. Defaults to `false`.
@@ -231,7 +231,7 @@ settings>>, you can configure the following global settings for the `hunspell`
 filter using `elasticsearch.yml`:
 
 `indices.analysis.hunspell.dictionary.lazy`::
-(Static, boolean)
+(Static, Boolean)
 If `true`, the loading of Hunspell dictionaries is deferred until a dictionary
 is used. If `false`, the dictionary directory is checked for dictionaries when
 the node starts, and any dictionaries are automatically loaded. Defaults to

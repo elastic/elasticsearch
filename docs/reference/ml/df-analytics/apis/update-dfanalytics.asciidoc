@@ -9,7 +9,7 @@
 
 Updates an existing {dfanalytics-job}.
 
-experimental[]
+beta::[]
 
 [[ml-update-dfanalytics-request]]
 == {api-request-title}
@@ -30,8 +30,8 @@ built-in roles and privileges:
 For more information, see <<built-in-roles>>, <<security-privileges>>, and
 {ml-docs-setup-privileges}.
 
-NOTE: The {dfanalytics-job} remembers which roles the user who created it had at
-the time of creation. When you start the job, it performs the analysis using
+NOTE: The {dfanalytics-job} remembers which roles the user who updated it had at
+the time of the update. When you start the job, it performs the analysis using
 those same roles. If you provide
 <<http-clients-secondary-authorization,secondary authorization headers>>, 
 those credentials are used instead.
@@ -55,7 +55,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics-def
 == {api-request-body-title}
 
 `allow_lazy_start`::
-(Optional, boolean) 
+(Optional, Boolean) 
 Specifies whether this job can start when there is insufficient {ml} node 
 capacity for it to be immediately assigned to a node. The default is `false`; if
 a {ml} node with capacity to run the job cannot immediately be found, the API

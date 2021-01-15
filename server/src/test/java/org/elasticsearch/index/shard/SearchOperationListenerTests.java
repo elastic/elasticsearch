@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -116,7 +117,7 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
 
             @Override
-            public void validateSearchContext(ReaderContext readerContext, TransportRequest request) {
+            public void validateReaderContext(ReaderContext readerContext, TransportRequest request) {
                 assertNotNull(readerContext);
                 validateSearchContext.incrementAndGet();
             }
@@ -139,7 +140,7 @@ public class SearchOperationListenerTests extends ESTestCase {
         Collections.shuffle(indexingOperationListeners, random());
         SearchOperationListener.CompositeListener compositeListener =
             new SearchOperationListener.CompositeListener(indexingOperationListeners, logger);
-        SearchContext ctx = new TestSearchContext(null);
+        SearchContext ctx = new TestSearchContext((SearchExecutionContext) null);
         compositeListener.onQueryPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
         assertEquals(0, preQuery.get());
@@ -271,10 +272,10 @@ public class SearchOperationListenerTests extends ESTestCase {
         assertEquals(0, validateSearchContext.get());
 
         if (throwingListeners == 0) {
-            compositeListener.validateSearchContext(mock(ReaderContext.class), Empty.INSTANCE);
+            compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE);
         } else {
             RuntimeException expected = expectThrows(RuntimeException.class,
-                () -> compositeListener.validateSearchContext(mock(ReaderContext.class), Empty.INSTANCE));
+                () -> compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE));
             assertNull(expected.getMessage());
             assertEquals(throwingListeners - 1, expected.getSuppressed().length);
             if (throwingListeners > 1) {

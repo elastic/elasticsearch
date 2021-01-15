@@ -19,11 +19,8 @@
 
 package org.elasticsearch.painless.ir;
 
-import org.elasticsearch.painless.ClassWriter;
-import org.elasticsearch.painless.MethodWriter;
+import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
-import org.elasticsearch.painless.symbol.WriteScope;
-import org.objectweb.asm.Label;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -47,7 +44,7 @@ public class TryNode extends StatementNode {
         catchNodes.add(catchNode);
     }
 
-    public List<CatchNode> getCatchsNodes() {
+    public List<CatchNode> getCatchNodes() {
         return catchNodes;
     }
 
@@ -69,35 +66,8 @@ public class TryNode extends StatementNode {
 
     /* ---- end visitor ---- */
 
-    @Override
-    protected void write(ClassWriter classWriter, MethodWriter methodWriter, WriteScope writeScope) {
-        methodWriter.writeStatementOffset(location);
-
-        Label begin = new Label();
-        Label end = new Label();
-        Label exception = new Label();
-
-        methodWriter.mark(begin);
-
-        blockNode.continueLabel = continueLabel;
-        blockNode.breakLabel = breakLabel;
-        blockNode.write(classWriter, methodWriter, writeScope.newScope());
-
-        if (blockNode.doAllEscape() == false) {
-            methodWriter.goTo(exception);
-        }
-
-        methodWriter.mark(end);
-
-        for (CatchNode catchNode : catchNodes) {
-            catchNode.begin = begin;
-            catchNode.end = end;
-            catchNode.exception = catchNodes.size() > 1 ? exception : null;
-            catchNode.write(classWriter, methodWriter, writeScope.newScope());
-        }
-
-        if (blockNode.doAllEscape() == false || catchNodes.size() > 1) {
-            methodWriter.mark(exception);
-        }
+    public TryNode(Location location) {
+        super(location);
     }
+
 }

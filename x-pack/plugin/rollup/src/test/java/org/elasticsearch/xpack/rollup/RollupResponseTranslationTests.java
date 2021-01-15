@@ -1211,7 +1211,6 @@ public class RollupResponseTranslationTests extends AggregatorTestCase {
         try {
             aggregator.preCollection();
             indexSearcher.search(query, aggregator);
-            aggregator.postCollection();
             return aggregator.buildTopLevel();
         } finally {
             indexReader.close();

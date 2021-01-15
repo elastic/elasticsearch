@@ -115,7 +115,7 @@ public class SuggestionEntryTests extends ESTestCase {
             }
             Entry<Option> parsed;
             try (XContentParser parser = createParser(xContentType.xContent(), mutated)) {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
                 parsed = ENTRY_PARSERS.get(entry.getClass()).apply(parser);
                 assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
                 assertNull(parser.nextToken());

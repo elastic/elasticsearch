@@ -40,7 +40,7 @@ public class OutlierDetectionTests extends AbstractXContentTestCase<OutlierDetec
     public static OutlierDetection createRandom() {
         List<EvaluationMetric> metrics = new ArrayList<>();
         if (randomBoolean()) {
-            metrics.add(new AucRocMetric(randomBoolean()));
+            metrics.add(AucRocMetricTests.createRandom());
         }
         if (randomBoolean()) {
             metrics.add(new PrecisionMetric(Arrays.asList(randomArray(1,

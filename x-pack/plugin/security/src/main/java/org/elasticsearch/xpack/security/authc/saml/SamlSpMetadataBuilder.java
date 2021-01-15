@@ -240,7 +240,9 @@ public class SamlSpMetadataBuilder {
         if (organization != null) {
             descriptor.setOrganization(buildOrganization());
         }
-        contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
+        if(contacts.size() > 0) {
+            contacts.forEach(c -> descriptor.getContactPersons().add(buildContact(c)));
+        }
 
         return descriptor;
     }

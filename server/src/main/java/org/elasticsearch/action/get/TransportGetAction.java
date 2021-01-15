@@ -116,7 +116,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
     @Override
     protected String getExecutor(GetRequest request, ShardId shardId) {
         final ClusterState clusterState = clusterService.state();
-        if (clusterState.metadata().index(shardId.getIndex()).isSystem()) {
+        if (clusterState.metadata().getIndexSafe(shardId.getIndex()).isSystem()) {
             return ThreadPool.Names.SYSTEM_READ;
         } else if (indicesService.indexServiceSafe(shardId.getIndex()).getIndexSettings().isSearchThrottled()) {
             return ThreadPool.Names.SEARCH_THROTTLED;

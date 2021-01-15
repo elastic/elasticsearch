@@ -46,6 +46,23 @@ public class AtomicArray<E> {
     }
 
     /**
+     * Returns the size of the expected results, excluding potential null values.
+     * @return the number of non-null elements
+     */
+    public int nonNullLength() {
+        if (nonNullList != null) {
+            return nonNullList.size();
+        }
+        int count = 0;
+        for (int i = 0; i < array.length(); i++) {
+            if (array.get(i) != null) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * Sets the element at position {@code i} to the given value.
      *
      * @param i     the index

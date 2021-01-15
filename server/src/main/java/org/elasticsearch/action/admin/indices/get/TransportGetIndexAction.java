@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
@@ -39,7 +38,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
@@ -59,15 +57,10 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                                    IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService,
                                    IndexScopedSettings indexScopedSettings) {
         super(GetIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, GetIndexRequest::new,
-                indexNameExpressionResolver);
+                indexNameExpressionResolver, GetIndexResponse::new);
         this.indicesService = indicesService;
         this.settingsFilter = settingsFilter;
         this.indexScopedSettings = indexScopedSettings;
-    }
-
-    @Override
-    protected GetIndexResponse read(StreamInput in) throws IOException {
-        return new GetIndexResponse(in);
     }
 
     @Override
@@ -88,13 +81,8 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
             switch (feature) {
             case MAPPINGS:
                     if (!doneMappings) {
-                        try {
-                            mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
-                            doneMappings = true;
-                        } catch (IOException e) {
-                            listener.onFailure(e);
-                            return;
-                        }
+                        mappingsResult = state.metadata().findMappings(concreteIndices, indicesService.getFieldFilter());
+                        doneMappings = true;
                     }
                     break;
             case ALIASES:
@@ -129,8 +117,6 @@ public class TransportGetIndexAction extends TransportClusterInfoAction<GetIndex
                     throw new IllegalStateException("feature [" + feature + "] is not valid");
             }
         }
-        listener.onResponse(
-            new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams)
-        );
+        listener.onResponse(new GetIndexResponse(concreteIndices, mappingsResult, aliasesResult, settings, defaultSettings, dataStreams));
     }
 }

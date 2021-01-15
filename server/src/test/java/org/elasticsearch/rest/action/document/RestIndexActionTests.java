@@ -19,8 +19,8 @@
 
 package org.elasticsearch.rest.action.document;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterName;
@@ -36,13 +36,11 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.junit.Before;
-import org.mockito.ArgumentCaptor;
 
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Matchers.any;
-import static org.mockito.Mockito.verify;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RestIndexActionTests extends RestActionTestCase {
 
@@ -76,6 +74,13 @@ public class RestIndexActionTests extends RestActionTestCase {
     }
 
     private void checkAutoIdOpType(Version minClusterVersion, DocWriteRequest.OpType expectedOpType) {
+        SetOnce<Boolean> executeCalled = new SetOnce<>();
+        verifyingClient.setExecuteVerifier((actionType, request) -> {
+            assertThat(request, instanceOf(IndexRequest.class));
+            assertThat(((IndexRequest) request).opType(), equalTo(expectedOpType));
+            executeCalled.set(true);
+            return null;
+        });
         RestRequest autoIdRequest = new FakeRestRequest.Builder(xContentRegistry())
             .withMethod(RestRequest.Method.POST)
             .withPath("/some_index/_doc")
@@ -86,9 +91,6 @@ public class RestIndexActionTests extends RestActionTestCase {
                 .add(new DiscoveryNode("test", buildNewFakeTransportAddress(), minClusterVersion))
                 .build()).build());
         dispatchRequest(autoIdRequest);
-        ArgumentCaptor<IndexRequest> argumentCaptor = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(nodeClient).index(argumentCaptor.capture(), any(ActionListener.class));
-        IndexRequest indexRequest = argumentCaptor.getValue();
-        assertEquals(expectedOpType, indexRequest.opType());
+        assertThat(executeCalled.get(), equalTo(true));
     }
 }

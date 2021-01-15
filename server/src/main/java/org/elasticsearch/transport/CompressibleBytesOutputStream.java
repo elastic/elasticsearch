@@ -27,6 +27,7 @@ import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.zip.DeflaterOutputStream;
 
 /**
@@ -44,7 +45,7 @@ import java.util.zip.DeflaterOutputStream;
  */
 final class CompressibleBytesOutputStream extends StreamOutput {
 
-    private final StreamOutput stream;
+    private final OutputStream stream;
     private final BytesStream bytesStreamOutput;
     private final boolean shouldCompress;
 
@@ -52,7 +53,7 @@ final class CompressibleBytesOutputStream extends StreamOutput {
         this.bytesStreamOutput = bytesStreamOutput;
         this.shouldCompress = shouldCompress;
         if (shouldCompress) {
-            this.stream = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.flushOnCloseStream(bytesStreamOutput));
+            this.stream = CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStreamOutput));
         } else {
             this.stream = bytesStreamOutput;
         }
@@ -82,7 +83,7 @@ final class CompressibleBytesOutputStream extends StreamOutput {
 
     @Override
     public void writeBytes(byte[] b, int offset, int length) throws IOException {
-        stream.writeBytes(b, offset, length);
+        stream.write(b, offset, length);
     }
 
     @Override

@@ -197,11 +197,6 @@ public class BulkByScrollTask extends CancellableTask {
         }
     }
 
-    @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
-    }
-
     /**
      * This class acts as a builder for {@link Status}. Once the {@link Status} object is built by calling
      * {@link #buildStatus()} it is immutable. Used by an instance of {@link ObjectParser} when parsing from
@@ -616,16 +611,16 @@ public class BulkByScrollTask extends CancellableTask {
             } else {
                 token = parser.nextToken();
             }
-            ensureExpectedToken(Token.START_OBJECT, token, parser::getTokenLocation);
+            ensureExpectedToken(Token.START_OBJECT, token, parser);
             token = parser.nextToken();
-            ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(Token.FIELD_NAME, token, parser);
             return innerFromXContent(parser);
         }
 
         public static Status innerFromXContent(XContentParser parser) throws IOException {
             Token token = parser.currentToken();
             String fieldName = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser::getTokenLocation);
+            ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
             StatusBuilder builder = new StatusBuilder();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
@@ -959,12 +954,12 @@ public class BulkByScrollTask extends CancellableTask {
             if (token == Token.VALUE_NULL) {
                 return null;
             } else {
-                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser::getTokenLocation);
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, token, parser);
                 token = parser.nextToken();
                 // This loop is present only to ignore unknown tokens. It breaks as soon as we find a field
                 // that is allowed.
                 while (token != Token.END_OBJECT) {
-                    ensureExpectedToken(Token.FIELD_NAME, token, parser::getTokenLocation);
+                    ensureExpectedToken(Token.FIELD_NAME, token, parser);
                     String fieldName = parser.currentName();
                     // weird way to ignore unknown tokens
                     if (Status.FIELDS_SET.contains(fieldName)) {

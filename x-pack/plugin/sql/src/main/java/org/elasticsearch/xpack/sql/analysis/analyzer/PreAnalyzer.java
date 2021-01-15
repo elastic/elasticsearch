@@ -39,12 +39,12 @@ public class PreAnalyzer {
 
     private PreAnalysis doPreAnalyze(LogicalPlan plan) {
         List<TableInfo> indices = new ArrayList<>();
-        
-        plan.forEachUp(p -> indices.add(new TableInfo(p.table(), p.frozen())), UnresolvedRelation.class);
-        
+
+        plan.forEachUp(UnresolvedRelation.class, p -> indices.add(new TableInfo(p.table(), p.frozen())));
+
         // mark plan as preAnalyzed (if it were marked, there would be no analysis)
         plan.forEachUp(LogicalPlan::setPreAnalyzed);
-        
+
         return new PreAnalysis(indices);
     }
 }

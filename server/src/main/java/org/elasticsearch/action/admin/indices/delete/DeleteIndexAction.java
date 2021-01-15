@@ -28,7 +28,7 @@ public class DeleteIndexAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "indices:admin/delete";
 
     private DeleteIndexAction() {
-        super(NAME, AcknowledgedResponse::new);
+        super(NAME, AcknowledgedResponse::readFrom);
     }
 
 }

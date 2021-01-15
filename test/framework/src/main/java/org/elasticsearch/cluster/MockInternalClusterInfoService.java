@@ -47,18 +47,19 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
+    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService,
+                                          ThreadPool threadPool, NodeClient client) {
         super(settings, clusterService, threadPool, client);
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction) {
         this.diskUsageFunction = diskUsageFunction;
-        refresh();
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     public void setShardSizeFunctionAndRefresh(Function<ShardRouting, Long> shardSizeFunction) {
         this.shardSizeFunction = shardSizeFunction;
-        refresh();
+        ClusterInfoServiceUtils.refresh(this);
     }
 
     @Override

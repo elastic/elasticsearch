@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
+import org.elasticsearch.action.admin.cluster.snapshots.clone.CloneSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotRequest;
@@ -346,6 +347,30 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
 
         DeleteSnapshotRequest request = new DeleteSnapshotRequest(repository, snapshot);
         AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::delete, highLevelClient().snapshot()::deleteAsync);
+
+        assertTrue(response.isAcknowledged());
+    }
+
+    public void testCloneSnapshot() throws IOException {
+        String repository = "test_repository";
+        String snapshot = "source_snapshot";
+        String targetSnapshot = "target_snapshot";
+        final String testIndex =  "test_idx";
+
+        createIndex(testIndex, Settings.EMPTY);
+        assertTrue("index [" + testIndex + "] should have been created", indexExists(testIndex));
+
+        AcknowledgedResponse putRepositoryResponse = createTestRepository(repository, FsRepository.TYPE, "{\"location\": \".\"}");
+        assertTrue(putRepositoryResponse.isAcknowledged());
+
+        CreateSnapshotRequest createSnapshotRequest = new CreateSnapshotRequest(repository, snapshot);
+        createSnapshotRequest.waitForCompletion(true);
+
+        CreateSnapshotResponse createSnapshotResponse = createTestSnapshot(createSnapshotRequest);
+        assertEquals(RestStatus.OK, createSnapshotResponse.status());
+
+        CloneSnapshotRequest request = new CloneSnapshotRequest(repository, snapshot, targetSnapshot, new String[]{testIndex});
+        AcknowledgedResponse response = execute(request, highLevelClient().snapshot()::clone, highLevelClient().snapshot()::cloneAsync);
 
         assertTrue(response.isAcknowledged());
     }

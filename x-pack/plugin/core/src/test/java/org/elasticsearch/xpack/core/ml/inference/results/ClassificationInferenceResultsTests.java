@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -29,10 +28,6 @@ import static org.hamcrest.Matchers.hasSize;
 public class ClassificationInferenceResultsTests extends AbstractWireSerializingTestCase<ClassificationInferenceResults> {
 
     public static ClassificationInferenceResults createRandomResults() {
-        Supplier<FeatureImportance> featureImportanceCtor = randomBoolean() ?
-            FeatureImportanceTests::randomClassification :
-            FeatureImportanceTests::randomRegression;
-
         ClassificationConfig config = ClassificationConfigTests.randomClassificationConfig();
         Double value = randomDouble();
         if (config.getPredictionFieldType() == PredictionFieldType.BOOLEAN) {
@@ -47,7 +42,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
                     .limit(randomIntBetween(0, 10))
                     .collect(Collectors.toList()),
             randomBoolean() ? null :
-                Stream.generate(featureImportanceCtor)
+                Stream.generate(ClassificationFeatureImportanceTests::createRandomInstance)
                     .limit(randomIntBetween(1, 10))
                     .collect(Collectors.toList()),
             config,
@@ -123,11 +118,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
     }
 
     public void testWriteResultsWithImportance() {
-        Supplier<FeatureImportance> featureImportanceCtor = randomBoolean() ?
-            FeatureImportanceTests::randomClassification :
-            FeatureImportanceTests::randomRegression;
-
-        List<FeatureImportance> importanceList = Stream.generate(featureImportanceCtor)
+        List<ClassificationFeatureImportance> importanceList = Stream.generate(ClassificationFeatureImportanceTests::createRandomInstance)
             .limit(5)
             .collect(Collectors.toList());
         ClassificationInferenceResults result = new ClassificationInferenceResults(0.0,
@@ -146,18 +137,17 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
             "result_field.feature_importance",
             List.class);
         assertThat(writtenImportance, hasSize(3));
-        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getImportance()), Math.abs(l.getImportance())));
+        importanceList.sort((l, r) -> Double.compare(Math.abs(r.getTotalImportance()), Math.abs(l.getTotalImportance())));
         for (int i = 0; i < 3; i++) {
             Map<String, Object> objectMap = writtenImportance.get(i);
-            FeatureImportance importance = importanceList.get(i);
+            ClassificationFeatureImportance importance = importanceList.get(i);
             assertThat(objectMap.get("feature_name"), equalTo(importance.getFeatureName()));
-            assertThat(objectMap.get("importance"), equalTo(importance.getImportance()));
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> classImportances = (List<Map<String, Object>>)objectMap.get("classes");
             if (importance.getClassImportance() != null) {
                 for (int j = 0; j < importance.getClassImportance().size(); j++) {
                     Map<String, Object> classMap = classImportances.get(j);
-                    FeatureImportance.ClassImportance classImportance = importance.getClassImportance().get(j);
+                    ClassificationFeatureImportance.ClassImportance classImportance = importance.getClassImportance().get(j);
                     assertThat(classMap.get("class_name"), equalTo(classImportance.getClassName()));
                     assertThat(classMap.get("importance"), equalTo(classImportance.getImportance()));
                 }
@@ -212,7 +202,7 @@ public class ClassificationInferenceResultsTests extends AbstractWireSerializing
         expected = "{\"predicted_value\":\"label1\",\"prediction_probability\":1.0,\"prediction_score\":1.0}";
         assertEquals(expected, stringRep);
 
-        FeatureImportance fi = new FeatureImportance("foo", 1.0, Collections.emptyList());
+        ClassificationFeatureImportance fi = new ClassificationFeatureImportance("foo", Collections.emptyList());
         TopClassEntry tp = new TopClassEntry("class", 1.0, 1.0);
         result = new ClassificationInferenceResults(1.0, "label1", Collections.singletonList(tp),
             Collections.singletonList(fi), config,

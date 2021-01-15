@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.process;
 
 import com.carrotsearch.randomizedtesting.annotations.Timeout;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -104,6 +105,13 @@ public class IndexingStateProcessorTests extends ESTestCase {
         assertEquals(threeStates[2], capturedBytes.get(2).utf8ToString());
         verify(resultsPersisterService, times(3)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
         verify(resultsPersisterService, times(3)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(resultsPersisterService, times(3)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
+        for (BulkRequest bulkRequest : bulkRequestArgumentCaptor.getAllValues()) {
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                assertThat(request.isRequireAlias(), equalTo(".ml-state-write".equals(expectedIndexOrAlias)));
+            }
+        }
     }
 
     public void testStateRead_StateDocumentCreated() throws IOException {
@@ -184,5 +192,12 @@ public class IndexingStateProcessorTests extends ESTestCase {
         verify(stateProcessor, times(NUM_LARGE_DOCS)).persist(eq(".ml-state-write"), any());
         verify(resultsPersisterService, times(NUM_LARGE_DOCS)).searchWithRetry(any(SearchRequest.class), any(), any(), any());
         verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(any(BulkRequest.class), any(), any(), any());
+        ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
+        verify(resultsPersisterService, times(NUM_LARGE_DOCS)).bulkIndexWithRetry(bulkRequestArgumentCaptor.capture(), any(), any(), any());
+        for (BulkRequest bulkRequest : bulkRequestArgumentCaptor.getAllValues()) {
+            for (DocWriteRequest<?> request : bulkRequest.requests()) {
+                assertTrue(request.isRequireAlias());
+            }
+        }
     }
 }

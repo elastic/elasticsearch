@@ -28,6 +28,7 @@ IMPORTANT: The system key is a symmetric key, so the same key must be used on
 every node in the cluster.
 
 [discrete]
+[[syskeygen-parameters]]
 === Parameters
 
 `-E <KeyValuePair>`:: Configures a setting. For example, if you have a custom

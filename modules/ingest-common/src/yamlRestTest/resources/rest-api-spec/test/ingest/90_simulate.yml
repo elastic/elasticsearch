@@ -407,6 +407,62 @@ teardown:
   - is_true: docs.1.processor_results.1.doc._ingest.pipeline
 
 ---
+"Test verbose simulate with error in pipeline":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "does_not_exist",
+                  "target_field" : "_value"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "pipeline" : {
+                    "name" : "my_pipeline"
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar",
+                  "bar": "hello"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.processor_type: "pipeline" }
+  - match: { docs.0.processor_results.0.status: "success" }
+  - match: { docs.0.processor_results.1.processor_type: "rename" }
+  - match: { docs.0.processor_results.1.status: "error" }
+  - match: { docs.0.processor_results.1.error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.1.error.root_cause.0.reason: "field [does_not_exist] doesn't exist" }
+  - match: { docs.0.processor_results.1.error.type: "illegal_argument_exception" }
+  - match: { docs.0.processor_results.1.error.reason: "field [does_not_exist] doesn't exist" }
+
+---
 "Test verbose simulate with on_failure":
   - do:
       ingest.simulate:

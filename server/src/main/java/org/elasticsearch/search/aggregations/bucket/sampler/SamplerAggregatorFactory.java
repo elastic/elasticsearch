@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,18 +32,16 @@ public class SamplerAggregatorFactory extends AggregatorFactory {
 
     private final int shardSize;
 
-    SamplerAggregatorFactory(String name, int shardSize, QueryShardContext queryShardContext, AggregatorFactory parent,
+    SamplerAggregatorFactory(String name, int shardSize, AggregationContext context, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
-        super(name, queryShardContext, parent, subFactories, metadata);
+        super(name, context, parent, subFactories, metadata);
         this.shardSize = shardSize;
     }
 
     @Override
-    public Aggregator createInternal(SearchContext searchContext,
-                                        Aggregator parent,
-                                        CardinalityUpperBound cardinality,
-                                        Map<String, Object> metadata) throws IOException {
-        return new SamplerAggregator(name, shardSize, factories, searchContext, parent, metadata);
+    public Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return new SamplerAggregator(name, shardSize, factories, context, parent, metadata);
     }
 
 }

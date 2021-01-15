@@ -162,9 +162,17 @@ public class CopyBytesSocketChannel extends Netty4NioSocketChannel {
     private static void copyBytes(ByteBuffer[] source, int nioBufferCnt, ByteBuffer destination) {
         for (int i = 0; i < nioBufferCnt && destination.hasRemaining(); i++) {
             ByteBuffer buffer = source[i];
-            assert buffer.hasArray() : "Buffer must have heap array";
             int nBytesToCopy = Math.min(destination.remaining(), buffer.remaining());
-            destination.put(buffer.array(), buffer.arrayOffset() + buffer.position(), nBytesToCopy);
+            if (buffer.hasArray()) {
+                destination.put(buffer.array(), buffer.arrayOffset() + buffer.position(), nBytesToCopy);
+            } else {
+                int initialLimit = buffer.limit();
+                int initialPosition = buffer.position();
+                buffer.limit(buffer.position() + nBytesToCopy);
+                destination.put(buffer);
+                buffer.position(initialPosition);
+                buffer.limit(initialLimit);
+            }
         }
     }
 

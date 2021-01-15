@@ -19,7 +19,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -69,10 +68,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
             List<ProcessorStat> processorStatsPerPipeline = new ArrayList<>(processorsSize);
             for (int j = 0; j < processorsSize; j++) {
                 String processorName = in.readString();
-                String processorType = "_NOT_AVAILABLE";
-                if (in.getVersion().onOrAfter(Version.V_7_6_0)) {
-                    processorType = in.readString();
-                }
+                String processorType = in.readString();
                 Stats processorStat = new Stats(in);
                 processorStatsPerPipeline.add(new ProcessorStat(processorName, processorType, processorStat));
             }
@@ -94,9 +90,7 @@ public class IngestStats implements Writeable, ToXContentFragment {
                 out.writeVInt(processorStatsForPipeline.size());
                 for (ProcessorStat processorStat : processorStatsForPipeline) {
                     out.writeString(processorStat.getName());
-                    if (out.getVersion().onOrAfter(Version.V_7_6_0)) {
-                        out.writeString(processorStat.getType());
-                    }
+                    out.writeString(processorStat.getType());
                     processorStat.getStats().writeTo(out);
                 }
             }

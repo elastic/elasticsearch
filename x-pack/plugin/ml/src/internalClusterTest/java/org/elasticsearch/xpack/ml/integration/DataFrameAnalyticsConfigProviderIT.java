@@ -12,8 +12,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -54,7 +54,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
     @Before
     public void createComponents() throws Exception {
         configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), node().getNodeEnvironment().nodeId()));
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)));
         waitForMlTemplates();
     }
 
@@ -204,7 +204,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfigUpdate configUpdate =
                 new DataFrameAnalyticsConfigUpdate.Builder(configId)
-                    .setModelMemoryLimit(new ByteSizeValue(1024))
+                    .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
                     .build();
 
             blockingCall(
@@ -219,7 +219,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-1")
-                        .setModelMemoryLimit(new ByteSizeValue(1024))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
                         .build())));
         }
         {   // Noop update
@@ -240,7 +240,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-1")
-                        .setModelMemoryLimit(new ByteSizeValue(1024))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(1024))
                         .build())));
         }
         {   // Update that changes both description and model memory limit
@@ -250,7 +250,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             DataFrameAnalyticsConfigUpdate configUpdate =
                 new DataFrameAnalyticsConfigUpdate.Builder(configId)
                     .setDescription("description-2")
-                    .setModelMemoryLimit(new ByteSizeValue(2048))
+                    .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                     .build();
 
             blockingCall(
@@ -265,7 +265,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-2")
-                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                         .build())));
         }
         {  // Update that applies security headers
@@ -288,7 +288,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
                 is(equalTo(
                     new DataFrameAnalyticsConfig.Builder(initialConfig)
                         .setDescription("description-2")
-                        .setModelMemoryLimit(new ByteSizeValue(2048))
+                        .setModelMemoryLimit(ByteSizeValue.ofBytes(2048))
                         .setHeaders(securityHeaders)
                         .build())));
         }
@@ -331,7 +331,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
 
             DataFrameAnalyticsConfigUpdate configUpdate =
                 new DataFrameAnalyticsConfigUpdate.Builder(configId)
-                    .setModelMemoryLimit(new ByteSizeValue(2048, ByteSizeUnit.MB))
+                    .setModelMemoryLimit(ByteSizeValue.ofMb(2048))
                     .build();
 
             ClusterState clusterState = clusterStateWithRunningAnalyticsTask(configId, DataFrameAnalyticsState.ANALYZING);

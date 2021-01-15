@@ -51,11 +51,21 @@ public class RestTable {
 
     public static RestResponse buildResponse(Table table, RestChannel channel) throws Exception {
         RestRequest request = channel.request();
-        XContentType xContentType = XContentType.fromMediaTypeOrFormat(request.param("format", request.header("Accept")));
+        XContentType xContentType = getResponseContentType(request);
         if (xContentType != null) {
             return buildXContentBuilder(table, channel);
         }
         return buildTextPlainResponse(table, channel);
+    }
+
+    private static XContentType getResponseContentType(RestRequest request) {
+        if (request.hasParam("format")) {
+            return XContentType.fromFormat(request.param("format"));
+        }
+        if (request.getParsedAccept() != null) {
+            return request.getParsedAccept().toMediaType(XContentType.MEDIA_TYPE_REGISTRY);
+        }
+        return null;
     }
 
     public static RestResponse buildXContentBuilder(Table table, RestChannel channel) throws Exception {

@@ -4,6 +4,10 @@
 <titleabbrev>Scroll</titleabbrev>
 ++++
 
+IMPORTANT: We no longer recommend using the scroll API for deep pagination. If
+you need to preserve the index state while paging through more than 10,000 hits,
+use the <<search-after,`search_after`>> parameter with a point in time (PIT).
+
 Retrieves the next batch of results for a <<scroll-search-results,scrolling
 search>>.
 
@@ -106,7 +110,7 @@ IMPORTANT: Scroll IDs can be long. We recommend only specifying scroll IDs using
 the <<scroll-api-scroll-id-param,`scroll_id` request body parameter>>.
 
 `rest_total_hits_as_int`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the API response's `hit.total` property is returned as an integer.
 If `false`, the API response's `hit.total` property is returned as an object.
 Defaults to `false`.

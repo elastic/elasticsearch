@@ -26,29 +26,8 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.TSV;
-import static org.hamcrest.CoreMatchers.is;
 
 public class TextFormatTests extends ESTestCase {
-
-    public void testPlainTextDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/plain");
-        assertThat(text, is(TextFormat.PLAIN_TEXT));
-    }
-
-    public void testCsvDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/csv");
-        assertThat(text, is(CSV));
-    }
-
-    public void testTsvDetection() {
-        TextFormat text = TextFormat.fromMediaTypeOrFormat("text/tab-separated-values");
-        assertThat(text, is(TSV));
-    }
-
-    public void testInvalidFormat() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> TextFormat.fromMediaTypeOrFormat("text/garbage"));
-        assertEquals("invalid format [text/garbage]", e.getMessage());
-    }
 
     public void testCsvContentType() {
         assertEquals("text/csv; charset=utf-8; header=present", CSV.contentType(req()));

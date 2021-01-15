@@ -1,5 +1,8 @@
 [[search-aggregations-bucket-global-aggregation]]
-=== Global Aggregation
+=== Global aggregation
+++++
+<titleabbrev>Global</titleabbrev>
+++++
 
 Defines a single bucket of all the documents within the search execution
 context. This context is defined by the indices and the document types you're

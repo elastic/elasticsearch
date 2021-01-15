@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -60,7 +61,6 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
-import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
@@ -84,11 +84,12 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_FETCH_ASYNC_THREAD_POOL_NAME;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.CACHE_PREWARMING_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY;
 
 /**
@@ -192,9 +193,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
      *
      * @return true if the snapshot was loaded by executing this method, false otherwise
      */
-    public boolean loadSnapshot(RecoveryState recoveryState) {
+    public boolean loadSnapshot(RecoveryState recoveryState, ActionListener<Void> preWarmListener) {
         assert recoveryState != null;
         assert recoveryState instanceof SearchableSnapshotRecoveryState;
+        assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.SNAPSHOT
+            || recoveryState.getRecoverySource().getType() == RecoverySource.Type.PEER : recoveryState.getRecoverySource().getType();
         assert assertCurrentThreadMayLoadSnapshot();
         // noinspection ConstantConditions in case assertions are disabled
         if (recoveryState instanceof SearchableSnapshotRecoveryState == false) {
@@ -209,8 +212,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
+                    waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
-                    prewarmCache();
+                    prewarmCache(preWarmListener);
                 }
             }
         }
@@ -326,14 +330,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public final void close() {
         if (closed.compareAndSet(false, true)) {
             isOpen = false;
-            // Ideally we could let the cache evict/remove cached files by itself after the
-            // directory has been closed.
-            clearCache();
         }
     }
 
     public void clearCache() {
-        cacheService.removeFromCache(cacheKey -> cacheKey.belongsTo(snapshotId, indexId, shardId));
+        for (BlobStoreIndexShardSnapshot.FileInfo file : files()) {
+            cacheService.removeFromCache(createCacheKey(file.physicalName()));
+        }
     }
 
     protected IndexInputStats createIndexInputStats(final long fileLength) {
@@ -341,7 +344,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     public CacheKey createCacheKey(String fileName) {
-        return new CacheKey(snapshotId, indexId, shardId, fileName);
+        return new CacheKey(snapshotId.getUUID(), indexId.getName(), shardId, fileName);
     }
 
     public CacheFile getCacheFile(CacheKey cacheKey, long fileLength) throws Exception {
@@ -371,7 +374,14 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
-            return new CachedBlobContainerIndexInput(this, fileInfo, context, inputStats, cacheService.getRangeSize());
+            return new CachedBlobContainerIndexInput(
+                this,
+                fileInfo,
+                context,
+                inputStats,
+                cacheService.getRangeSize(),
+                cacheService.getRecoveryRangeSize()
+            );
         } else {
             return new DirectBlobContainerIndexInput(
                 blobContainer(),
@@ -397,6 +407,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         return ext != null && excludedFileTypes.contains(ext);
     }
 
+    public boolean isRecoveryFinalized() {
+        SearchableSnapshotRecoveryState recoveryState = this.recoveryState;
+        if (recoveryState == null) return false;
+        RecoveryState.Stage stage = recoveryState.getStage();
+        return stage == RecoveryState.Stage.DONE || stage == RecoveryState.Stage.FINALIZE;
+    }
+
     @Override
     public String toString() {
         return this.getClass().getSimpleName() + "@snapshotId=" + snapshotId + " lockFactory=" + lockFactory + " shard=" + shardId;
@@ -410,19 +427,29 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
     }
 
-    private void prewarmCache() {
+    /**
+     * Waits for the eviction of cache files associated with the current searchable snapshot shard to be processed in case a
+     * previous instance of that same shard has been marked as evicted on this node.
+     */
+    private void waitForPendingEvictions() {
+        assert Thread.holdsLock(this);
+        cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
+    }
+
+    private void prewarmCache(ActionListener<Void> listener) {
         if (prewarmCache == false) {
             recoveryState.setPreWarmComplete();
+            listener.onResponse(null);
             return;
         }
 
         final BlockingQueue<Tuple<ActionListener<Void>, CheckedRunnable<Exception>>> queue = new LinkedBlockingQueue<>();
         final Executor executor = prewarmExecutor();
 
-        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(
-            ActionListener.wrap(voids -> recoveryState.setPreWarmComplete(), e -> {}), // Ignore pre-warm errors
-            snapshot().totalFileCount()
-        );
+        final GroupedActionListener<Void> completionListener = new GroupedActionListener<>(ActionListener.wrap(voids -> {
+            recoveryState.setPreWarmComplete();
+            listener.onResponse(null);
+        }, listener::onFailure), snapshot().totalFileCount());
 
         for (BlobStoreIndexShardSnapshot.FileInfo file : snapshot().indexFiles()) {
             if (file.metadata().hashEqualsContents() || isExcludedFromCache(file.physicalName())) {
@@ -444,17 +471,21 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 fileCompletionListener.whenComplete(voids -> input.close(), e -> IOUtils.closeWhileHandlingException(input));
                 fileCompletionListener.whenComplete(voids -> completionListener.onResponse(null), completionListener::onFailure);
 
-                final GroupedActionListener<Void> listener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
+                final GroupedActionListener<Void> partsListener = new GroupedActionListener<>(fileCompletionListener, numberOfParts);
 
                 for (int p = 0; p < numberOfParts; p++) {
                     final int part = p;
-                    queue.add(Tuple.tuple(listener, () -> {
+                    queue.add(Tuple.tuple(partsListener, () -> {
                         ensureOpen();
 
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                         final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                        ((CachedBlobContainerIndexInput) input).prefetchPart(part);
-                        recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                        if (persistentCacheLength == file.length()) {
+                            recoveryState.markIndexFileAsReused(file.physicalName());
+                        } else {
+                            recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                        }
 
                         logger.trace(
                             () -> new ParameterizedMessage(
@@ -475,8 +506,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         logger.debug("{} warming shard cache for [{}] files", shardId, queue.size());
 
-        // Start as many workers as fit into the searchable snapshot pool at once at the most
-        final int workers = Math.min(threadPool.info(CACHE_FETCH_ASYNC_THREAD_POOL_NAME).getMax(), queue.size());
+        // Start as many workers as fit into the prewarming pool at once at the most
+        final int workers = Math.min(threadPool.info(CACHE_PREWARMING_THREAD_POOL_NAME).getMax(), queue.size());
         for (int i = 0; i < workers; ++i) {
             prewarmNext(executor, queue);
         }
@@ -506,6 +537,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
+            || SNAPSHOT_INDEX_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_INDEX_ID_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_ID_SETTING.exists(indexSettings.getSettings()) == false) {
@@ -537,7 +569,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
-        final IndexId indexId = new IndexId(indexSettings.getIndex().getName(), SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings()));
+        final IndexId indexId = new IndexId(
+            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
+            SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings())
+        );
         final SnapshotId snapshotId = new SnapshotId(
             SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
             SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
@@ -555,7 +590,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final Path cacheDir = CacheService.getShardCachePath(shardPath).resolve(snapshotId.getUUID());
         Files.createDirectories(cacheDir);
-        assert assertCacheIsEmpty(cacheDir);
 
         return new InMemoryNoOpCommitDirectory(
             new SearchableSnapshotDirectory(
@@ -574,17 +608,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 threadPool
             )
         );
-    }
-
-    private static boolean assertCacheIsEmpty(Path cacheDir) {
-        try (DirectoryStream<Path> cacheDirStream = Files.newDirectoryStream(cacheDir)) {
-            final Set<Path> cacheFiles = new HashSet<>();
-            cacheDirStream.forEach(cacheFiles::add);
-            assert cacheFiles.isEmpty() : "should start with empty cache, but found " + cacheFiles;
-        } catch (IOException e) {
-            assert false : e;
-        }
-        return true;
     }
 
     public static SearchableSnapshotDirectory unwrapDirectory(Directory dir) {

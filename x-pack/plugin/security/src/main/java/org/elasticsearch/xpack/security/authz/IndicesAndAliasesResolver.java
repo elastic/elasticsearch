@@ -30,6 +30,7 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.search.action.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
 
 import java.util.ArrayList;
@@ -274,7 +275,8 @@ class IndicesAndAliasesResolver {
 
     static boolean allowsRemoteIndices(IndicesRequest request) {
         return request instanceof SearchRequest || request instanceof FieldCapabilitiesRequest
-                || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request;
+                || request instanceof GraphExploreRequest || request instanceof ResolveIndexAction.Request
+                || request instanceof OpenPointInTimeRequest;
     }
 
     private List<String> loadAuthorizedAliases(List<String> authorizedIndices, Metadata metadata) {

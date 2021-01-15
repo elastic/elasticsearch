@@ -22,38 +22,39 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class DynamicTemplatesTests extends ESSingleNodeTestCase {
-    public void testMatchTypeOnly() throws Exception {
-        XContentBuilder builder = JsonXContent.contentBuilder();
-        builder.startObject().startObject("_doc").startArray("dynamic_templates").startObject().startObject("test")
-                .field("match_mapping_type", "string")
-                .startObject("mapping").field("index", false).endObject()
-                .endObject().endObject().endArray().endObject().endObject();
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(builder).get();
+public class DynamicTemplatesTests extends MapperServiceTestCase {
 
-        MapperService mapperService = index.mapperService();
+    public void testMatchTypeOnly() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("mapping").field("index", false).endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        }));
         DocumentMapper docMapper = mapperService.documentMapper();
-        builder = JsonXContent.contentBuilder();
-        builder.startObject().field("s", "hello").field("l", 1).endObject();
-        ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "1", BytesReference.bytes(builder),
-                XContentType.JSON));
-        client().admin().indices().preparePutMapping("test")
-            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
+        ParsedDocument parsedDoc = docMapper.parse(source(b -> {
+            b.field("s", "hello");
+            b.field("l", 1);
+        }));
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
 
         assertThat(mapperService.fieldType("s"), notNullValue());
         assertFalse(mapperService.fieldType("s").isSearchable());
@@ -62,17 +63,67 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertTrue(mapperService.fieldType("l").isSearchable());
     }
 
+    public void testMatchTypeRuntimeNoPlugin() throws Exception {
+        XContentBuilder topMapping = topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        b.field("match_mapping_type", "string");
+                        b.startObject("runtime").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping));
+        assertEquals("Failed to parse mapping: dynamic template [test] has invalid content [" +
+            "{\"match_mapping_type\":\"string\",\"runtime\":{}}], " +
+            "attempted to validate it with the following match_mapping_type: [string]", e.getMessage());
+        assertEquals("No runtime field found for type [keyword]", e.getRootCause().getMessage());
+    }
+
+    public void testMatchAllTypesRuntimeNoPlugin() throws Exception {
+        XContentBuilder topMapping = topMapping(b -> {
+            b.startArray("dynamic_templates");
+            {
+                b.startObject();
+                {
+                    b.startObject("test");
+                    {
+                        if (randomBoolean()) {
+                            b.field("match_mapping_type", "*");
+                        } else {
+                            b.field("match", "field");
+                        }
+                        b.startObject("runtime").endObject();
+                    }
+                    b.endObject();
+                }
+                b.endObject();
+            }
+            b.endArray();
+        });
+
+        MapperParsingException e = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping));
+        assertThat(e.getMessage(), containsString("Failed to parse mapping: dynamic template [test] has invalid content ["));
+        assertThat(e.getMessage(), containsString("attempted to validate it with the following match_mapping_type: " +
+            "[string, long, double, boolean, date]"));
+        assertEquals("No runtime field found for type [date]", e.getRootCause().getMessage());
+    }
+
     public void testSimple() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper();
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "1", new BytesArray(json),
-                XContentType.JSON));
-        client().admin().indices().preparePutMapping("test")
-            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
-        docMapper = index.mapperService().documentMapper();
+        MapperService mapperService = createMapperService(mapping);
+        String docJson = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -81,7 +132,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        Mapper fieldMapper = docMapper.mappers().getMapper("name");
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -90,7 +141,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
@@ -99,7 +150,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1.org");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
@@ -108,7 +159,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
@@ -117,21 +168,17 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2.org");
         assertNotNull(fieldMapper);
     }
 
     public void testSimpleWithXContentTraverse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-mapping.json");
-        IndexService index = createIndex("test");
-        client().admin().indices().preparePutMapping("test").setSource(mapping, XContentType.JSON).get();
-        DocumentMapper docMapper = index.mapperService().documentMapper();
-        byte[] json = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
-        ParsedDocument parsedDoc = docMapper.parse(new SourceToParse("test", "1", new BytesArray(json),
-                XContentType.JSON));
-        client().admin().indices().preparePutMapping("test")
-            .setSource(parsedDoc.dynamicMappingsUpdate().toString(), XContentType.JSON).get();
-        docMapper = index.mapperService().documentMapper();
+        MapperService mapperService = createMapperService(mapping);
+        String docJson = copyToStringFromClasspath("/org/elasticsearch/index/mapper/dynamictemplate/simple/test-data.json");
+        ParsedDocument parsedDoc = mapperService.documentMapper().parse(source(docJson));
+
+        merge(mapperService, dynamicMapping(parsedDoc.dynamicMappingsUpdate()));
         Document doc = parsedDoc.rootDoc();
 
         IndexableField f = doc.getField("name");
@@ -140,7 +187,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        Mapper fieldMapper = docMapper.mappers().getMapper("name");
+        Mapper fieldMapper = mapperService.documentMapper().mappers().getMapper("name");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1");
@@ -149,7 +196,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi1.org");
@@ -158,7 +205,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi1.org");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi1.org");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2");
@@ -167,7 +214,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(true));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2");
         assertNotNull(fieldMapper);
 
         f = doc.getField("multi2.org");
@@ -176,7 +223,7 @@ public class DynamicTemplatesTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
         assertThat(f.fieldType().tokenized(), equalTo(false));
 
-        fieldMapper = docMapper.mappers().getMapper("multi2.org");
+        fieldMapper = mapperService.documentMapper().mappers().getMapper("multi2.org");
         assertNotNull(fieldMapper);
     }
 }

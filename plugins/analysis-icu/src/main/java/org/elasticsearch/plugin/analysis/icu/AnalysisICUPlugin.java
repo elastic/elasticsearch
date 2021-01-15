@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.analysis.icu;
 
-import static java.util.Collections.singletonMap;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
@@ -46,6 +44,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.singletonMap;
 
 public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperPlugin {
     @Override
@@ -75,7 +75,7 @@ public class AnalysisICUPlugin extends Plugin implements AnalysisPlugin, MapperP
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Collections.singletonMap(ICUCollationKeywordFieldMapper.CONTENT_TYPE, new ICUCollationKeywordFieldMapper.TypeParser());
+        return Collections.singletonMap(ICUCollationKeywordFieldMapper.CONTENT_TYPE, ICUCollationKeywordFieldMapper.PARSER);
     }
 
     @Override

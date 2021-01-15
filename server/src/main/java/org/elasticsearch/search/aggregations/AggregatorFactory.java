@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -33,7 +32,7 @@ public abstract class AggregatorFactory {
     protected final AggregatorFactories factories;
     protected final Map<String, Object> metadata;
 
-    protected final QueryShardContext queryShardContext;
+    protected final AggregationContext context;
 
     /**
      * Constructs a new aggregator factory.
@@ -43,12 +42,12 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, QueryShardContext queryShardContext, AggregatorFactory parent,
+    public AggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
                              AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
         this.name = name;
-        this.queryShardContext = queryShardContext;
+        this.context = context;
         this.parent = parent;
-        this.factories = subFactoriesBuilder.build(queryShardContext, this);
+        this.factories = subFactoriesBuilder.build(context, this);
         this.metadata = metadata;
     }
 
@@ -59,10 +58,8 @@ public abstract class AggregatorFactory {
     public void doValidate() {
     }
 
-    protected abstract Aggregator createInternal(SearchContext searchContext,
-                                                    Aggregator parent,
-                                                    CardinalityUpperBound cardinality,
-                                                    Map<String, Object> metadata) throws IOException;
+    protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException;
 
     /**
      * Creates the aggregator.
@@ -73,8 +70,8 @@ public abstract class AggregatorFactory {
      *                    that the {@link Aggregator} created by this method
      *                    will be asked to collect.
      */
-    public final Aggregator create(SearchContext searchContext, Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
-        return createInternal(searchContext, parent, cardinality, this.metadata);
+    public final Aggregator create(Aggregator parent, CardinalityUpperBound cardinality) throws IOException {
+        return createInternal(parent, cardinality, this.metadata);
     }
 
     public AggregatorFactory getParent() {

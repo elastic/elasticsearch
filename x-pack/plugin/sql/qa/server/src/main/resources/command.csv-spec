@@ -66,6 +66,7 @@ DAY_OF_YEAR      |SCALAR
 DOM              |SCALAR
 DOW              |SCALAR         
 DOY              |SCALAR
+FORMAT           |SCALAR
 HOUR             |SCALAR
 HOUR_OF_DAY      |SCALAR         
 IDOW             |SCALAR

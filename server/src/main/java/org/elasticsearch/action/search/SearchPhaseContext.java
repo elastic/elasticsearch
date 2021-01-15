@@ -21,6 +21,7 @@ package org.elasticsearch.action.search;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
@@ -56,6 +57,12 @@ interface SearchPhaseContext extends Executor {
      * Returns the currently executing search request
      */
     SearchRequest getRequest();
+
+    /**
+     * Checks if the given context id is part of the point in time of this search (if exists).
+     * We should not release search contexts that belong to the point in time during or after searches.
+     */
+    boolean isPartOfPointInTime(ShardSearchContextId contextId);
 
     /**
      * Builds and sends the final search response back to the user.
@@ -107,6 +114,7 @@ interface SearchPhaseContext extends Executor {
     default void sendReleaseSearchContext(ShardSearchContextId contextId,
                                           Transport.Connection connection,
                                           OriginalIndices originalIndices) {
+        assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
             getSearchTransport().sendFreeContext(connection, contextId, originalIndices);
         }
@@ -114,8 +122,12 @@ interface SearchPhaseContext extends Executor {
 
     /**
      * Builds an request for the initial search phase.
+     *
+     * @param shardIt the target {@link SearchShardIterator}
+     * @param shardIndex the index of the shard that is used in the coordinator node to
+     *                   tiebreak results with identical sort values
      */
-    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt);
+    ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex);
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution
@@ -123,4 +135,9 @@ interface SearchPhaseContext extends Executor {
      * a response is returned to the user indicating that all shards have failed.
      */
     void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+
+    /**
+     * Registers a {@link Releasable} that will be closed when the search request finishes or fails.
+     */
+    void addReleasable(Releasable releasable);
 }

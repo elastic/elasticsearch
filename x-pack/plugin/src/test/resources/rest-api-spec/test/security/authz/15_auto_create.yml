@@ -59,7 +59,7 @@ teardown:
 
   - do: # superuser
       indices.refresh:
-        index: "_all"
+        index: "logs-*"
 
   - do: # superuser
       search:

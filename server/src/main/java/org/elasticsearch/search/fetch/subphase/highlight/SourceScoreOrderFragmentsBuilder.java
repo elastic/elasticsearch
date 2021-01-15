@@ -35,8 +35,10 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     private final MappedFieldType fieldType;
     private final SourceLookup sourceLookup;
+    private final boolean fixBrokenAnalysis;
 
     public SourceScoreOrderFragmentsBuilder(MappedFieldType fieldType,
+                                            boolean fixBrokenAnalysis,
                                             SourceLookup sourceLookup,
                                             String[] preTags,
                                             String[] postTags,
@@ -44,6 +46,7 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
         super(preTags, postTags, boundaryScanner);
         this.fieldType = fieldType;
         this.sourceLookup = sourceLookup;
+        this.fixBrokenAnalysis = fixBrokenAnalysis;
     }
 
     @Override
@@ -59,8 +62,10 @@ public class SourceScoreOrderFragmentsBuilder extends ScoreOrderFragmentsBuilder
 
     @Override
     protected String makeFragment( StringBuilder buffer, int[] index, Field[] values, WeightedFragInfo fragInfo,
-            String[] preTags, String[] postTags, Encoder encoder ){
-        WeightedFragInfo weightedFragInfo = FragmentBuilderHelper.fixWeightedFragInfo(fieldType, values, fragInfo);
-        return super.makeFragment(buffer, index, values, weightedFragInfo, preTags, postTags, encoder);
+            String[] preTags, String[] postTags, Encoder encoder) {
+        if (fixBrokenAnalysis) {
+            fragInfo = FragmentBuilderHelper.fixWeightedFragInfo(fragInfo);
+        }
+        return super.makeFragment(buffer, index, values, fragInfo, preTags, postTags, encoder);
     }
 }

@@ -9,12 +9,12 @@ package org.elasticsearch.xpack.spatial.index.fielddata;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 
 /**
- * {@link LeafFieldData} specialization for geo points and shapes.
+ * {@link LeafFieldData} specialization for geo shapes.
  */
 public interface LeafGeoShapeFieldData extends LeafFieldData {
     /**
      * Return geo shape values.
      */
-    MultiGeoShapeValues getGeoShapeValues();
+    GeoShapeValues getGeoShapeValues();
 
 }

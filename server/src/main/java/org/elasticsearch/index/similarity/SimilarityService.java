@@ -31,6 +31,7 @@ import org.apache.lucene.search.similarities.Similarity.SimScorer;
 import org.apache.lucene.search.similarity.LegacyBM25Similarity;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
@@ -38,12 +39,12 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -127,9 +128,8 @@ public final class SimilarityService extends AbstractIndexComponent {
         }
     }
 
-    public Similarity similarity(MapperService mapperService) {
-        // TODO we can maybe factor out MapperService here entirely by introducing an interface for the lookup?
-        return (mapperService != null) ? new PerFieldSimilarity(defaultSimilarity, mapperService) :
+    public Similarity similarity(@Nullable Function<String, MappedFieldType> fieldTypeLookup) {
+        return (fieldTypeLookup != null) ? new PerFieldSimilarity(defaultSimilarity, fieldTypeLookup) :
                 defaultSimilarity;
     }
 
@@ -150,17 +150,17 @@ public final class SimilarityService extends AbstractIndexComponent {
     static class PerFieldSimilarity extends PerFieldSimilarityWrapper {
 
         private final Similarity defaultSimilarity;
-        private final MapperService mapperService;
+        private final Function<String, MappedFieldType> fieldTypeLookup;
 
-        PerFieldSimilarity(Similarity defaultSimilarity, MapperService mapperService) {
+        PerFieldSimilarity(Similarity defaultSimilarity, Function<String, MappedFieldType> fieldTypeLookup) {
             super();
             this.defaultSimilarity = defaultSimilarity;
-            this.mapperService = mapperService;
+            this.fieldTypeLookup = Objects.requireNonNull(fieldTypeLookup, "fieldTypeLookup cannot be null");
         }
 
         @Override
         public Similarity get(String name) {
-            MappedFieldType fieldType = mapperService.fieldType(name);
+            MappedFieldType fieldType = fieldTypeLookup.apply(name);
             return (fieldType != null && fieldType.getTextSearchInfo().getSimilarity() != null)
                 ? fieldType.getTextSearchInfo().getSimilarity().get() : defaultSimilarity;
         }

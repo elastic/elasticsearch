@@ -1,7 +1,9 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-apis]]
 == Autoscaling APIs
+
+include::../autoscaling-designed-for-note.asciidoc[]
 
 You can use the following APIs to perform autoscaling operations.
 
@@ -9,13 +11,13 @@ You can use the following APIs to perform autoscaling operations.
 [[autoscaling-api-top-level]]
 === Top-Level
 
-* <<autoscaling-get-autoscaling-decision,Get autoscaling decision>>
+* <<autoscaling-get-autoscaling-capacity,Get autoscaling capacity>>
 * <<autoscaling-delete-autoscaling-policy,Delete autoscaling policy>>
 * <<autoscaling-get-autoscaling-policy,Get autoscaling policy>>
 * <<autoscaling-put-autoscaling-policy,Put autoscaling policy>>
 
 // top-level
-include::get-autoscaling-decision.asciidoc[]
+include::get-autoscaling-capacity.asciidoc[]
 include::delete-autoscaling-policy.asciidoc[]
 include::get-autoscaling-policy.asciidoc[]
 include::put-autoscaling-policy.asciidoc[]

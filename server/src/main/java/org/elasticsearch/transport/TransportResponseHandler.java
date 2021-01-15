@@ -19,7 +19,9 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 public interface TransportResponseHandler<T extends TransportResponse> extends Writeable.Reader<T> {
 
@@ -27,5 +29,17 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
 
     void handleException(TransportException exp);
 
-    String executor();
+    default String executor() {
+        return ThreadPool.Names.SAME;
+    }
+
+    /**
+     * Implementations of {@link TransportResponseHandler} that handles the empty response {@link TransportResponse.Empty}.
+     */
+    abstract class Empty implements TransportResponseHandler<TransportResponse.Empty> {
+        @Override
+        public final TransportResponse.Empty read(StreamInput in) {
+            return TransportResponse.Empty.INSTANCE;
+        }
+    }
 }

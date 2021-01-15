@@ -24,8 +24,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 
 import java.io.IOException;
@@ -35,11 +35,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public class InternalPercentilesBucket extends InternalNumericMetricsAggregation.MultiValue implements PercentilesBucket {
     private double[] percentiles;
     private double[] percents;
     private boolean keyed = true;
+
     private final transient Map<Double, Double> percentileLookups = new HashMap<>();
 
     InternalPercentilesBucket(String name, double[] percents, double[] percentiles, boolean keyed,
@@ -115,6 +117,11 @@ public class InternalPercentilesBucket extends InternalNumericMetricsAggregation
     @Override
     public double value(String name) {
         return percentile(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return Arrays.stream(percents).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
     }
 
     @Override

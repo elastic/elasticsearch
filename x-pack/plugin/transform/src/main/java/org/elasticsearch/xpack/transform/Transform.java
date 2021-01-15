@@ -277,7 +277,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
         TransformConfigManager configManager = new IndexBasedTransformConfigManager(client, xContentRegistry);
-        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName());
+        TransformAuditor auditor = new TransformAuditor(client, clusterService.getNodeName(), clusterService);
         TransformCheckpointService checkpointService = new TransformCheckpointService(settings, clusterService, configManager, auditor);
         SchedulerEngine scheduler = new SchedulerEngine(settings, Clock.systemUTC());
 

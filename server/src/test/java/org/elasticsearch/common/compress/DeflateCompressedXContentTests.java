@@ -22,11 +22,11 @@ package org.elasticsearch.common.compress;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -69,18 +69,18 @@ public class DeflateCompressedXContentTests extends ESTestCase {
     public void testDifferentCompressedRepresentation() throws Exception {
         byte[] b = "---\nf:abcdefghijabcdefghij".getBytes("UTF-8");
         BytesStreamOutput bout = new BytesStreamOutput();
-        StreamOutput out = compressor.threadLocalStreamOutput(bout);
-        out.writeBytes(b);
-        out.flush();
-        out.writeBytes(b);
-        out.close();
+        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+            out.write(b);
+            out.flush();
+            out.write(b);
+        }
         final BytesReference b1 = bout.bytes();
 
         bout = new BytesStreamOutput();
-        out = compressor.threadLocalStreamOutput(bout);
-        out.writeBytes(b);
-        out.writeBytes(b);
-        out.close();
+        try (OutputStream out = compressor.threadLocalOutputStream(bout)) {
+            out.write(b);
+            out.write(b);
+        }
         final BytesReference b2 = bout.bytes();
 
         // because of the intermediate flush, the two compressed representations

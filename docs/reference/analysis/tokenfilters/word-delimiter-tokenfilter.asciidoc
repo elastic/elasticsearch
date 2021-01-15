@@ -178,7 +178,7 @@ interfere with the filter's configurable parameters, such as `catenate_all` or
 `catenate_all`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter produces catenated tokens for chains of alphanumeric
 characters separated by non-alphabetic delimiters. For example:
 `super-duper-xl-500` -> [ `super`, **`superduperxl500`**, `duper`, `xl`, `500`
@@ -196,7 +196,7 @@ you plan to use these queries.
 `catenate_numbers`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter produces catenated tokens for chains of numeric characters
 separated by non-alphabetic delimiters. For example: `01-02-03` ->
 [ `01`, **`010203`**, `02`, `03` ]. Defaults to `false`.
@@ -213,7 +213,7 @@ you plan to use these queries.
 `catenate_words`::
 +
 --
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter produces catenated tokens for chains of alphabetical
 characters separated by non-alphabetic delimiters. For example: `super-duper-xl`
 -> [ `super`, **`superduperxl`**, `duper`, `xl` ]. Defaults to `false`.
@@ -228,19 +228,19 @@ you plan to use these queries.
 --
 
 `generate_number_parts`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter includes tokens consisting of only numeric characters in
 the output. If `false`, the filter excludes these tokens from the output.
 Defaults to `true`.
 
 `generate_word_parts`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter includes tokens consisting of only alphabetical characters
 in the output. If `false`, the filter excludes these tokens from the output.
 Defaults to `true`.
 
 `preserve_original`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter includes the original version of any split tokens in the
 output. This original version includes non-alphanumeric delimiters. For example:
 `super-duper-xl-500` -> [ **`super-duper-xl-500`**, `super`, `duper`, `xl`,
@@ -262,17 +262,17 @@ break.
 --
 
 `split_on_case_change`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter splits tokens at letter case transitions. For example:
 `camelCase` -> [ `camel`, `Case` ]. Defaults to `true`.
 
 `split_on_numerics`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter splits tokens at letter-number transitions. For example:
 `j2se` -> [ `j`, `2`, `se` ]. Defaults to `true`.
 
 `stem_english_possessive`::
-(Optional, boolean)
+(Optional, Boolean)
 If `true`, the filter removes the English possessive (`'s`) from the end of each
 token. For example: `O'Neil's` -> [ `O`, `Neil` ]. Defaults to `true`.
 

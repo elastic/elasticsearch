@@ -21,8 +21,8 @@ package org.elasticsearch.gradle.http;
 
 import org.elasticsearch.gradle.test.GradleUnitTestCase;
 
-import java.io.File;
 import java.net.URL;
+import java.nio.file.Paths;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
@@ -37,7 +37,7 @@ public class WaitForHttpResourceTests extends GradleUnitTestCase {
         final WaitForHttpResource http = new WaitForHttpResource(new URL("https://localhost/"));
         final URL ca = getClass().getResource("/ca.p12");
         assertThat(ca, notNullValue());
-        http.setTrustStoreFile(new File(ca.getPath()));
+        http.setTrustStoreFile(Paths.get(ca.toURI()).toFile());
         http.setTrustStorePassword("password");
         final KeyStore store = http.buildTrustStore();
         final Certificate certificate = store.getCertificate("ca");
@@ -50,7 +50,7 @@ public class WaitForHttpResourceTests extends GradleUnitTestCase {
         final WaitForHttpResource http = new WaitForHttpResource(new URL("https://localhost/"));
         final URL ca = getClass().getResource("/ca.pem");
         assertThat(ca, notNullValue());
-        http.setCertificateAuthorities(new File(ca.getPath()));
+        http.setCertificateAuthorities(Paths.get(ca.toURI()).toFile());
         final KeyStore store = http.buildTrustStore();
         final Certificate certificate = store.getCertificate("cert-0");
         assertThat(certificate, notNullValue());

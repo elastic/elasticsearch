@@ -130,6 +130,28 @@ public class GroupConfigTests extends AbstractSerializingTestCase<GroupConfig> {
         }
     }
 
+    public void testInvalidGroupSourceValidation() throws IOException {
+        XContentBuilder source = JsonXContent.contentBuilder()
+            .startObject()
+            .startObject(randomAlphaOfLengthBetween(1, 20))
+            .startObject("terms")
+            .endObject()
+            .endObject()
+            .endObject();
+
+        // lenient, passes but reports invalid
+        try (XContentParser parser = createParser(source)) {
+            GroupConfig groupConfig = GroupConfig.fromXContent(parser, true);
+            assertFalse(groupConfig.isValid());
+        }
+
+        // strict throws
+        try (XContentParser parser = createParser(source)) {
+            Exception e = expectThrows(IllegalArgumentException.class, () -> GroupConfig.fromXContent(parser, false));
+            assertTrue(e.getMessage().startsWith("Required one of fields [field, script], but none were specified."));
+        }
+    }
+
     private static Map<String, Object> getSource(SingleGroupSource groupSource) {
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = groupSource.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);

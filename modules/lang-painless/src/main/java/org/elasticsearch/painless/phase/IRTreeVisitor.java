@@ -20,7 +20,7 @@
 package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.ir.BinaryMathNode;
-import org.elasticsearch.painless.ir.BinaryNode;
+import org.elasticsearch.painless.ir.BinaryImplNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.BreakNode;
@@ -113,7 +113,7 @@ public interface IRTreeVisitor<Scope> {
     void visitContinue(ContinueNode irContinueNode, Scope scope);
     void visitBreak(BreakNode irBreakNode, Scope scope);
 
-    void visitBinary(BinaryNode irBinaryNode, Scope scope);
+    void visitBinaryImpl(BinaryImplNode irBinaryImplNode, Scope scope);
     void visitUnaryMath(UnaryMathNode irUnaryMathNode, Scope scope);
     void visitBinaryMath(BinaryMathNode irBinaryMathNode, Scope scope);
     void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, Scope scope);
@@ -131,7 +131,7 @@ public interface IRTreeVisitor<Scope> {
     void visitNull(NullNode irNullNode, Scope scope);
     void visitDefInterfaceReference(DefInterfaceReferenceNode irDefInterfaceReferenceNode, Scope scope);
     void visitTypedInterfaceReference(TypedInterfaceReferenceNode irTypedInterfaceReferenceNode, Scope scope);
-    void visitTypeCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope);
+    void visitTypedCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope);
     void visitStatic(StaticNode irStaticNode, Scope scope);
     void visitLoadVariable(LoadVariableNode irLoadVariableNode, Scope scope);
     void visitNullSafeSub(NullSafeSubNode irNullSafeSubNode, Scope scope);

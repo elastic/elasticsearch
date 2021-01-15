@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.stream.Collectors;
 
 public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentiles {
 
@@ -51,5 +52,15 @@ public class ParsedHDRPercentiles extends ParsedPercentiles implements Percentil
         ParsedHDRPercentiles aggregation = PARSER.parse(parser, null);
         aggregation.setName(name);
         return aggregation;
+    }
+
+    @Override
+    public double value(String name) {
+        return percentile(Double.parseDouble(name));
+    }
+
+    @Override
+    public Iterable<String> valueNames() {
+        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
     }
 }

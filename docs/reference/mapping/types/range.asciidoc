@@ -4,6 +4,15 @@
 <titleabbrev>Range</titleabbrev>
 ++++
 
+Range field types represent a continuous range of values between an upper and lower
+bound. For example, a range can represent _any date in October_ or _any
+integer from 0 to 9_. They are defined using the operators
+`gt` or `gte` for the lower bound, and `lt` or `lte` for the upper bound.
+They can be used for querying, and have
+limited support for aggregations. The only supported aggregations are
+{ref}/search-aggregations-bucket-histogram-aggregation.html[histogram],
+{ref}/search-aggregations-metrics-cardinality-aggregation.html[cardinality].
+
 The following range types are supported:
 
 [horizontal]
@@ -11,7 +20,11 @@ The following range types are supported:
 `float_range`::     A range of single-precision 32-bit IEEE 754 floating point values.
 `long_range`::      A range of signed 64-bit integers with a minimum value of +-2^63^+ and maximum of +2^63^-1+.
 `double_range`::    A range of double-precision 64-bit IEEE 754 floating point values.
-`date_range`::      A range of date values represented as unsigned 64-bit integer milliseconds elapsed since system epoch.
+`date_range`::      A range of <<date,`date`>> values. Date ranges support various date formats
+                    through the <<mapping-date-format,`format`>> mapping parameter. Regardless of
+                    the format used, date values are parsed into an unsigned 64-bit integer
+                    representing milliseconds since the Unix epoch in UTC. Values containing the
+                    `now` <<date-math,date math>> expression are not supported.
 `ip_range` ::       A range of ip values supporting either {wikipedia}/IPv4[IPv4] or
                     {wikipedia}/IPv6[IPv6] (or mixed) addresses.
 
@@ -41,10 +54,10 @@ PUT range_index/_doc/1?refresh
 {
   "expected_attendees" : { <2>
     "gte" : 10,
-    "lte" : 20
+    "lt" : 20
   },
-  "time_frame" : { <3>
-    "gte" : "2015-10-31 12:00:00", <4>
+  "time_frame" : {
+    "gte" : "2015-10-31 12:00:00", <3>
     "lte" : "2015-11-01"
   }
 }
@@ -52,11 +65,11 @@ PUT range_index/_doc/1?refresh
 // TESTSETUP
 
 <1> `date_range` types accept the same field parameters defined by the <<date, `date`>> type.
-<2> Example indexing a meeting with 10 to 20 attendees.
-<3> Date ranges accept the same format as described in <<ranges-on-dates, date range queries>>.
-<4> Example date range using date time stamp. This also accepts <<date-math, date math>> formatting. Note that "now" cannot be used at indexing time.
+<2> Example indexing a meeting with 10 to 20 attendees, not including 20.
+<3> Example date range using date time stamp.
 
 The following is an example of a <<query-dsl-term-query, term query>> on the `integer_range` field named "expected_attendees".
+12 is a value inside the range, so it will match.
 
 [source,console]
 --------------------------------------------------
@@ -98,7 +111,7 @@ The result produced by the above query.
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
-            "gte" : 10, "lte" : 20
+            "gte" : 10, "lt" : 20
           },
           "time_frame" : {
             "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"
@@ -159,7 +172,7 @@ This query produces a similar result:
         "_score" : 1.0,
         "_source" : {
           "expected_attendees" : {
-            "gte" : 10, "lte" : 20
+            "gte" : 10, "lt" : 20
           },
           "time_frame" : {
             "gte" : "2015-10-31 12:00:00", "lte" : "2015-11-01"

@@ -13,6 +13,9 @@ import org.elasticsearch.common.ParseField;
 public final class InferenceIndexConstants {
 
     /**
+     * When incrementing the index version please also update
+     * any use of the constant in x-pack/qa/
+     *
      * version: 7.8.0:
      *  - adds inference_config definition to trained model config
      *

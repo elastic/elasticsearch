@@ -19,16 +19,15 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.List;
@@ -36,6 +35,7 @@ import java.util.Map;
 
 class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final PercentilesAggregatorSupplier aggregatorSupplier;
     private final double[] percents;
     private final PercentilesConfig percentilesConfig;
     private final boolean keyed;
@@ -54,34 +54,32 @@ class PercentileRanksAggregatorFactory extends ValuesSourceAggregatorFactory {
                                      double[] percents,
                                      PercentilesConfig percentilesConfig,
                                      boolean keyed,
-                                     QueryShardContext queryShardContext,
+                                     AggregationContext context,
                                      AggregatorFactory parent,
                                      AggregatorFactories.Builder subFactoriesBuilder,
-                                     Map<String, Object> metadata) throws IOException {
-        super(name, config, queryShardContext, parent, subFactoriesBuilder, metadata);
+                                     Map<String, Object> metadata,
+                                     PercentilesAggregatorSupplier aggregatorSupplier) throws IOException {
+        super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.percents = percents;
         this.percentilesConfig = percentilesConfig;
         this.keyed = keyed;
+        this.aggregatorSupplier = aggregatorSupplier;
     }
 
     @Override
-    protected Aggregator createUnmapped(SearchContext searchContext,
-                                        Aggregator parent,
-                                        Map<String, Object> metadata) throws IOException {
-
-        return percentilesConfig.createPercentileRanksAggregator(name, null, searchContext, parent, percents, keyed,
+    protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
+        return percentilesConfig.createPercentileRanksAggregator(name, null, context, parent, percents, keyed,
                 config.format(), metadata);
     }
 
     @Override
     protected Aggregator doCreateInternal(
-        SearchContext searchContext,
         Aggregator parent,
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return queryShardContext.getValuesSourceRegistry()
-            .getAggregator(PercentileRanksAggregationBuilder.REGISTRY_KEY, config)
-            .build(name, config.getValuesSource(), searchContext, parent, percents, percentilesConfig, keyed, config.format(), metadata);
+        return aggregatorSupplier
+            .build(name, config.getValuesSource(), context, parent,
+                   percents, percentilesConfig, keyed, config.format(), metadata);
     }
 }

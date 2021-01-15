@@ -5,6 +5,8 @@ include::built-in-roles.asciidoc[]
 
 include::managing-roles.asciidoc[]
 
+include::stack-management.asciidoc[]
+
 include::privileges.asciidoc[]
 
 include::document-level-security.asciidoc[]

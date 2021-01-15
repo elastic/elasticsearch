@@ -21,7 +21,6 @@ import java.util.Set;
 import java.util.function.Predicate;
 
 import static java.util.Collections.emptyList;
-import static java.util.Collections.emptyMap;
 
 public final class Expressions {
 
@@ -65,7 +64,7 @@ public final class Expressions {
 
     public static AttributeMap<Expression> asAttributeMap(List<? extends NamedExpression> named) {
         if (named.isEmpty()) {
-            return new AttributeMap<>(emptyMap());
+            return AttributeMap.emptyAttributeMap();
         }
 
         AttributeMap<Expression> map = new AttributeMap<>();

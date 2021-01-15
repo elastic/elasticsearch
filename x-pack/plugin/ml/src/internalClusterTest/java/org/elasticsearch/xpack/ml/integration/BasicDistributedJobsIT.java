@@ -5,6 +5,21 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
+import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.test.NodeRoles.addRoles;
+import static org.elasticsearch.test.NodeRoles.onlyRole;
+import static org.elasticsearch.test.NodeRoles.removeRoles;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasEntry;
+
+import java.io.IOException;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.TimeUnit;
+
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
@@ -13,7 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -45,28 +59,13 @@ import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 
-import java.io.IOException;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
-import static org.elasticsearch.test.NodeRoles.addRoles;
-import static org.elasticsearch.test.NodeRoles.onlyRole;
-import static org.elasticsearch.test.NodeRoles.removeRoles;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasEntry;
-
 public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
 
     public void testFailOverBasics() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);
 
-        Job.Builder job = createJob("fail-over-basics-job", new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob("fail-over-basics-job", ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
@@ -194,6 +193,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         });
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63980")
     public void testDedicatedMlNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         // start 2 non ml node that will never get a job allocated. (but ml apis are accessible from this node)
@@ -209,7 +209,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureStableCluster(3);
 
         String jobId = "dedicated-ml-node-job";
-        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.MB));
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofMb(2));
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -287,7 +287,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         ensureYellow(); // at least the primary shards of the indices a job uses should be started
         int numJobs = numMlNodes * 10;
         for (int i = 0; i < numJobs; i++) {
-            Job.Builder job = createJob(Integer.toString(i), new ByteSizeValue(2, ByteSizeUnit.MB));
+            Job.Builder job = createJob(Integer.toString(i), ByteSizeValue.ofMb(2));
             PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
             client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 
@@ -420,13 +420,17 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
     }
 
     public void testCloseUnassignedLazyJobAndDatafeed() throws Exception {
+
+        // see: https://github.com/elastic/elasticsearch/issues/66885#issuecomment-758790179
+        assumeFalse("cannot run on debian 8 prior to java 15", willSufferDebian8MemoryProblem());
+
         internalCluster().ensureAtLeastNumDataNodes(3);
         ensureStableCluster(3);
 
         String jobId = "test-lazy-stop";
         String datafeedId = jobId + "-datafeed";
         // Assume the test machine won't have space to assign a 2TB job
-        Job.Builder job = createJob(jobId, new ByteSizeValue(2, ByteSizeUnit.TB), true);
+        Job.Builder job = createJob(jobId, ByteSizeValue.ofTb(2), true);
         PutJobAction.Request putJobRequest = new PutJobAction.Request(job);
         client().execute(PutJobAction.INSTANCE, putJobRequest).actionGet();
 

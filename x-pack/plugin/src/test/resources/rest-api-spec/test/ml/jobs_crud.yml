@@ -773,6 +773,9 @@
 
 ---
 "Test close jobs with expression that does not match and allow_no_match":
+  - skip:
+      features:
+        - "warnings"
   - do:
       ml.close_job:
         job_id: "missing-*"
@@ -780,13 +783,18 @@
   - match: { closed: true }
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       ml.close_job:
         job_id: "missing-*"
-        allow_no_match: true
+        allow_no_jobs: true
   - match: { closed: true }
 
 ---
 "Test close jobs with expression that does not match and not allow_no_match":
+  - skip:
+      features:
+        - "warnings"
   - do:
       catch: missing
       ml.close_job:
@@ -794,10 +802,12 @@
         allow_no_match: false
 
   - do:
+      warnings:
+        - 'Deprecated field [allow_no_jobs] used, expected [allow_no_match] instead'
       catch: missing
       ml.close_job:
         job_id: "missing-*"
-        allow_no_match: false
+        allow_no_jobs: false
 
 ---
 "Test force close job":

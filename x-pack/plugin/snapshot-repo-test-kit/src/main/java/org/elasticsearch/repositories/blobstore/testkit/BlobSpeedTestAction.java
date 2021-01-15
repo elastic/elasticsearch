@@ -281,7 +281,9 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             );
             final AtomicLong throttledNanos = new AtomicLong();
 
-            logger.trace("writing blob [atomic={}, failIfExists={}] for [{}]", atomic, failIfExists, request.getDescription());
+            if (logger.isTraceEnabled()) {
+                logger.trace("writing blob [atomic={}, failIfExists={}] for [{}]", atomic, failIfExists, request.getDescription());
+            }
             final long startNanos = System.nanoTime();
             ActionListener.completeWith(stepListener, () -> {
                 if (atomic || (request.targetLength <= Integer.MAX_VALUE && random.nextBoolean())) {
@@ -314,20 +316,26 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                 }
                 final long elapsedNanos = System.nanoTime() - startNanos;
                 final long checksum = content.getChecksum(checksumStart, checksumEnd);
-                logger.trace("finished writing blob for [{}], got checksum [{}]", request.getDescription(), checksum);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("finished writing blob for [{}], got checksum [{}]", request.getDescription(), checksum);
+                }
                 return new WriteDetails(request.targetLength, elapsedNanos, throttledNanos.get(), checksum);
             });
         }
 
         private void doReadBeforeWriteComplete() {
             if (earlyReadNodes.isEmpty() == false) {
-                logger.trace("sending read request to [{}] for [{}] before write complete", earlyReadNodes, request.getDescription());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("sending read request to [{}] for [{}] before write complete", earlyReadNodes, request.getDescription());
+                }
                 readOnNodes(earlyReadNodes, true);
             }
         }
 
         private void doReadAfterWrite() {
-            logger.trace("sending read request to [{}] for [{}] after write complete", readNodes, request.getDescription());
+            if (logger.isTraceEnabled()) {
+                logger.trace("sending read request to [{}] for [{}] after write complete", readNodes, request.getDescription());
+            }
             readOnNodes(readNodes, false);
         }
 
@@ -365,8 +373,6 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                                             + (beforeWriteComplete ? "before" : "after")
                                             + " write complete) failed on node ["
                                             + node
-                                            + "] as part of ["
-                                            + request.getDescription()
                                             + "]",
                                         e
                                     )
@@ -406,7 +412,9 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
         }
 
         private void cleanUpAndReturnFailure(Exception exception) {
-            logger.trace(new ParameterizedMessage("speed test failed [{}] cleaning up", request.getDescription()), exception);
+            if (logger.isTraceEnabled()) {
+                logger.trace(new ParameterizedMessage("speed test failed [{}] cleaning up", request.getDescription()), exception);
+            }
             try {
                 blobContainer.deleteBlobsIgnoringIfNotExists(List.of(request.blobName));
             } catch (IOException ioException) {
@@ -421,16 +429,19 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                     exception
                 );
             }
-            listener.onFailure(exception);
+            listener.onFailure(
+                new RepositoryVerificationException(
+                    request.getRepositoryName(),
+                    "failure processing [" + request.getDescription() + "]",
+                    exception
+                )
+            );
         }
 
         private void onReadsComplete(Collection<NodeResponse> responses, WriteDetails write1Details, @Nullable WriteDetails write2Details) {
             if (task.isCancelled()) {
                 cleanUpAndReturnFailure(
-                    new RepositoryVerificationException(
-                        request.getRepositoryName(),
-                        "cancelled [" + request.getDescription() + "] during checksum verification"
-                    )
+                    new RepositoryVerificationException(request.getRepositoryName(), "cancelled during checksum verification")
                 );
                 return;
             }
@@ -458,11 +469,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                     } else {
                         nodeFailure = new RepositoryVerificationException(
                             request.getRepositoryName(),
-                            "node ["
-                                + nodeResponse.node
-                                + "] reported blob not found after it was written ["
-                                + request.getDescription()
-                                + "]"
+                            "node [" + nodeResponse.node + "] reported blob not found after it was written"
                         );
                     }
                 } else {
@@ -484,8 +491,6 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
                                 + expectedChecksumDescription
                                 + "] but read ["
                                 + response
-                                + "] as part of ["
-                                + request.getDescription()
                                 + "]"
                         );
                     }

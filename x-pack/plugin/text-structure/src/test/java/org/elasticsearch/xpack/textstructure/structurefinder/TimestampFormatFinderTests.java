@@ -23,7 +23,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
 
-public class TimestampFormatFinderTests extends FileStructureTestCase {
+public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     private static final String EXCEPTION_TRACE_SAMPLE =
         "[2018-02-28T14:49:40,517][DEBUG][o.e.a.b.TransportShardBulkAction] [an_index][2] failed to execute bulk item "

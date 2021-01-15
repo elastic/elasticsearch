@@ -316,6 +316,17 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         emptyResults.add(new SearchShard(target.getClusterAlias(), target.getShardId()));
                     }
                 } else {
+                    if (hasAggs) {
+                        long aggsSize = ramBytesUsedQueryResult(result);
+                        try {
+                            addEstimateAndMaybeBreak(aggsSize);
+                        } catch (Exception exc) {
+                            onMergeFailure(exc);
+                            next.run();
+                            return;
+                        }
+                        aggsCurrentBufferSize += aggsSize;
+                    }
                     // add one if a partial merge is pending
                     int size = buffer.size() + (hasPartialReduce ? 1 : 0);
                     if (size >= batchReduceSize) {
@@ -328,11 +339,6 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                         emptyResults.clear();
                         queue.add(task);
                         tryExecuteNext();
-                    }
-                    if (hasAggs) {
-                        long aggsSize = ramBytesUsedQueryResult(result);
-                        addWithoutBreaking(aggsSize);
-                        aggsCurrentBufferSize += aggsSize;
                     }
                     buffer.add(result);
                 }

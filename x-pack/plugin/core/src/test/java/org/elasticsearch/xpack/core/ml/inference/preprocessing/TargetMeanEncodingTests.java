@@ -34,18 +34,21 @@ public class TargetMeanEncodingTests extends PreProcessingTests<TargetMeanEncodi
         return createRandom();
     }
 
-
     public static TargetMeanEncoding createRandom() {
         return createRandom(randomBoolean() ? randomBoolean() : null);
     }
 
     public static TargetMeanEncoding createRandom(Boolean isCustom) {
+        return createRandom(isCustom, randomAlphaOfLength(10));
+    }
+
+    public static TargetMeanEncoding createRandom(Boolean isCustom, String inputField) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, Double> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomDoubleBetween(0.0, 1.0, false));
         }
-        return new TargetMeanEncoding(randomAlphaOfLength(10),
+        return new TargetMeanEncoding(inputField,
             randomAlphaOfLength(10),
             valueMap,
             randomDoubleBetween(0.0, 1.0, false),

@@ -21,7 +21,7 @@ import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.IpFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -99,7 +99,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new IpScriptFieldExistsQuery(script, leafFactory(context), name());
     }
@@ -112,7 +112,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         checkAllowExpensiveQueries(context);
         return IpFieldMapper.IpFieldType.rangeQuery(
@@ -131,7 +131,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         if (value instanceof InetAddress) {
             return inetAddressQuery((InetAddress) value, context);
@@ -144,12 +144,12 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         return inetAddressQuery(address, context);
     }
 
-    private Query inetAddressQuery(InetAddress address, QueryShardContext context) {
+    private Query inetAddressQuery(InetAddress address, SearchExecutionContext context) {
         return new IpScriptFieldTermQuery(script, leafFactory(context), name(), new BytesRef(InetAddressPoint.encode(address)));
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(List<?> values, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;
@@ -180,7 +180,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
         return bool.build();
     }
 
-    private Query cidrQuery(String term, QueryShardContext context) {
+    private Query cidrQuery(String term, SearchExecutionContext context) {
         Tuple<InetAddress, Integer> cidr = InetAddresses.parseCidr(term);
         InetAddress addr = cidr.v1();
         int prefixLength = cidr.v2();

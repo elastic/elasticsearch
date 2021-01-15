@@ -32,10 +32,10 @@ import java.util.Collections;
 import static org.elasticsearch.test.VersionUtils.randomIndexCompatibleVersion;
 import static org.hamcrest.Matchers.equalTo;
 
-public class MetadataIndexUpgradeServiceTests extends ESTestCase {
+public class IndexMetadataVerifierTests extends ESTestCase {
 
     public void testArchiveBrokenIndexSettings() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo", Settings.EMPTY);
         IndexMetadata indexMetadata = service.archiveBrokenIndexSettings(src);
         assertSame(indexMetadata, src);
@@ -60,24 +60,24 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         assertSame(indexMetadata, src);
     }
 
-    public void testUpgradeCustomSimilarity() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+    public void testCustomSimilarity() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
         IndexMetadata src = newIndexMeta("foo",
             Settings.builder()
                 .put("index.similarity.my_similarity.type", "DFR")
                 .put("index.similarity.my_similarity.after_effect", "l")
                 .build());
-        service.upgradeIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(src, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
-    public void testFailUpgrade() {
-        MetadataIndexUpgradeService service = getMetadataIndexUpgradeService();
+    public void testIncompatibleVersion() {
+        IndexMetadataVerifier service = getIndexMetadataVerifier();
         Version minCompat = Version.CURRENT.minimumIndexCompatibilityVersion();
         Version indexCreated = Version.fromString((minCompat.major - 1) + "." + randomInt(5) + "." + randomInt(5));
         final IndexMetadata metadata = newIndexMeta("foo", Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
             .build());
-        String message = expectThrows(IllegalStateException.class, () -> service.upgradeIndexMetadata(metadata,
+        String message = expectThrows(IllegalStateException.class, () -> service.verifyIndexMetadata(metadata,
             Version.CURRENT.minimumIndexCompatibilityVersion())).getMessage();
         assertThat(message, equalTo("The index [foo/" + metadata.getIndexUUID() + "] was created with version [" + indexCreated + "] " +
              "but the minimum compatible version is [" + minCompat + "]." +
@@ -87,11 +87,11 @@ public class MetadataIndexUpgradeServiceTests extends ESTestCase {
         IndexMetadata goodMeta = newIndexMeta("foo", Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, indexCreated)
             .build());
-        service.upgradeIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
+        service.verifyIndexMetadata(goodMeta, Version.CURRENT.minimumIndexCompatibilityVersion());
     }
 
-    private MetadataIndexUpgradeService getMetadataIndexUpgradeService() {
-        return new MetadataIndexUpgradeService(
+    private IndexMetadataVerifier getIndexMetadataVerifier() {
+        return new IndexMetadataVerifier(
             Settings.EMPTY,
             xContentRegistry(),
             new MapperRegistry(Collections.emptyMap(), Collections.emptyMap(), null, Collections.emptyMap(),

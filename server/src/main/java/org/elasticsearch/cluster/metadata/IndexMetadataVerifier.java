@@ -44,16 +44,18 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * This service is responsible for upgrading legacy index metadata to the current version
- * <p>
- * Every time an existing index is introduced into cluster this service should be used
- * to upgrade the existing index metadata to the latest version of the cluster. It typically
- * occurs during cluster upgrade, when dangling indices are imported into the cluster or indices
- * are restored from a repository.
+ * This service is responsible for verifying index metadata when an index is introduced
+ * to the cluster, for example when restarting nodes, importing dangling indices, or restoring
+ * an index from a snapshot repository.
+ *
+ * It performs the following:
+ *   - Verifies the index version is not too old.
+ *   - Tries to parse the mappings to catch compatibility bugs early.
+ *   - Identifies unknown and invalid settings and archives them.
  */
-public class MetadataIndexUpgradeService {
+public class IndexMetadataVerifier {
 
-    private static final Logger logger = LogManager.getLogger(MetadataIndexUpgradeService.class);
+    private static final Logger logger = LogManager.getLogger(IndexMetadataVerifier.class);
 
     private final Settings settings;
     private final NamedXContentRegistry xContentRegistry;
@@ -61,8 +63,8 @@ public class MetadataIndexUpgradeService {
     private final IndexScopedSettings indexScopedSettings;
     private final ScriptService scriptService;
 
-    public MetadataIndexUpgradeService(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
-                                       IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
+    public IndexMetadataVerifier(Settings settings, NamedXContentRegistry xContentRegistry, MapperRegistry mapperRegistry,
+                                 IndexScopedSettings indexScopedSettings, ScriptService scriptService) {
         this.settings = settings;
         this.xContentRegistry = xContentRegistry;
         this.mapperRegistry = mapperRegistry;
@@ -77,7 +79,7 @@ public class MetadataIndexUpgradeService {
      * If the index does not need upgrade it returns the index metadata unchanged, otherwise it returns a modified index metadata. If index
      * cannot be updated the method throws an exception.
      */
-    public IndexMetadata upgradeIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
+    public IndexMetadata verifyIndexMetadata(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
         checkSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion);
 
         // we have to run this first otherwise in we try to create IndexSettings
@@ -88,11 +90,12 @@ public class MetadataIndexUpgradeService {
     }
 
     /**
-     * Elasticsearch does not support indices created before the previous major version. They must be reindexed using an earlier version
-     * before they can be opened here.
+     * Check that the index version is compatible. Elasticsearch does not support indices created before the
+     * previous major version.
      */
     private void checkSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        if (isSupportedVersion(indexMetadata, minimumIndexCompatibilityVersion) == false) {
+        boolean isSupportedVersion = indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
+        if (isSupportedVersion == false) {
             throw new IllegalStateException("The index " + indexMetadata.getIndex() + " was created with version ["
                 + indexMetadata.getCreationVersion() + "] but the minimum compatible version is ["
                 + minimumIndexCompatibilityVersion + "]. It should be re-indexed in Elasticsearch "
@@ -100,15 +103,16 @@ public class MetadataIndexUpgradeService {
         }
     }
 
-    /*
-     * Returns true if this index can be supported by the current version of elasticsearch
-     */
-    private static boolean isSupportedVersion(IndexMetadata indexMetadata, Version minimumIndexCompatibilityVersion) {
-        return indexMetadata.getCreationVersion().onOrAfter(minimumIndexCompatibilityVersion);
-    }
-
     /**
-     * Checks the mappings for compatibility with the current version
+     * Check that we can parse the mappings.
+     *
+     * This is not strictly necessary, since we parse the mappings later when loading the index and will
+     * catch issues then. But it lets us fail very quickly and clearly: if there is a mapping incompatibility,
+     * the node refuses to start instead of starting but having unallocated shards.
+     *
+     * Note that we don't expect users to encounter mapping incompatibilities, since our index compatibility
+     * policy guarantees we can read mappings from previous compatible index versions. A failure here would
+     * indicate a compatibility bug (which are unfortunately not that uncommon).
      */
     private void checkMappingsCompatibility(IndexMetadata indexMetadata) {
         try {
@@ -172,20 +176,24 @@ public class MetadataIndexUpgradeService {
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
-            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetadata.getIndex() + "]", ex);
+            throw new IllegalStateException("Failed to parse mappings for index [" + indexMetadata.getIndex() + "]", ex);
         }
     }
 
+    /**
+     * Identify invalid or unknown index settings and archive them. This leniency allows Elasticsearch to load
+     * indices even if they contain old settings that are no longer valid.
+     */
     IndexMetadata archiveBrokenIndexSettings(IndexMetadata indexMetadata) {
         final Settings settings = indexMetadata.getSettings();
-        final Settings upgrade = indexScopedSettings.archiveUnknownOrInvalidSettings(
+        final Settings newSettings = indexScopedSettings.archiveUnknownOrInvalidSettings(
             settings,
             e -> logger.warn("{} ignoring unknown index setting: [{}] with value [{}]; archiving",
                 indexMetadata.getIndex(), e.getKey(), e.getValue()),
             (e, ex) -> logger.warn(() -> new ParameterizedMessage("{} ignoring invalid index setting: [{}] with value [{}]; archiving",
                 indexMetadata.getIndex(), e.getKey(), e.getValue()), ex));
-        if (upgrade != settings) {
-            return IndexMetadata.builder(indexMetadata).settings(upgrade).build();
+        if (newSettings != settings) {
+            return IndexMetadata.builder(indexMetadata).settings(newSettings).build();
         } else {
             return indexMetadata;
         }

@@ -49,7 +49,7 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
-import org.elasticsearch.cluster.metadata.MetadataIndexUpgradeService;
+import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -153,7 +153,7 @@ public class RestoreService implements ClusterStateApplier {
 
     private final MetadataCreateIndexService createIndexService;
 
-    private final MetadataIndexUpgradeService metadataIndexUpgradeService;
+    private final IndexMetadataVerifier indexMetadataVerifier;
 
     private final ShardLimitValidator shardLimitValidator;
 
@@ -163,13 +163,13 @@ public class RestoreService implements ClusterStateApplier {
 
     public RestoreService(ClusterService clusterService, RepositoriesService repositoriesService,
                           AllocationService allocationService, MetadataCreateIndexService createIndexService,
-                          MetadataIndexUpgradeService metadataIndexUpgradeService, ClusterSettings clusterSettings,
+                          IndexMetadataVerifier indexMetadataVerifier, ClusterSettings clusterSettings,
                           ShardLimitValidator shardLimitValidator) {
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
         this.allocationService = allocationService;
         this.createIndexService = createIndexService;
-        this.metadataIndexUpgradeService = metadataIndexUpgradeService;
+        this.indexMetadataVerifier = indexMetadataVerifier;
         if (DiscoveryNode.isMasterNode(clusterService.getSettings())) {
             clusterService.addStateApplier(this);
         }
@@ -316,7 +316,7 @@ public class RestoreService implements ClusterStateApplier {
                                 snapshotIndexMetadata = updateIndexSettings(snapshotIndexMetadata,
                                     request.indexSettings(), request.ignoreIndexSettings());
                                 try {
-                                    snapshotIndexMetadata = metadataIndexUpgradeService.upgradeIndexMetadata(snapshotIndexMetadata,
+                                    snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata,
                                         minIndexCompatibilityVersion);
                                 } catch (Exception ex) {
                                     throw new SnapshotRestoreException(snapshot, "cannot restore index [" + index +

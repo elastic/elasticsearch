@@ -106,7 +106,8 @@ dependencies {
   api 'com.networknt:json-schema-validator:1.0.36'
   api 'org.ow2.asm:asm:9.0'
   api 'org.ow2.asm:asm-tree:9.0'
-  
+  api "org.yaml:snakeyaml:${props.getProperty('snakeyaml')}"
+
   compileOnly "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testImplementation "com.puppycrawl.tools:checkstyle:${props.getProperty('checkstyle')}"
   testFixturesApi "junit:junit:${props.getProperty('junit')}"

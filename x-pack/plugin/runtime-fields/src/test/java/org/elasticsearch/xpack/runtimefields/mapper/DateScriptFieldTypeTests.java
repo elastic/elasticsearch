@@ -38,7 +38,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -204,7 +204,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"timestamp\": [1595432181356]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -213,7 +213,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) throws IOException {
-                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Dates dates = (ScriptDocValues.Dates) getDoc().get("test");
@@ -266,7 +266,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         checkLoop(this::randomDistanceFeatureQuery);
     }
 
-    private Query randomDistanceFeatureQuery(MappedFieldType ft, QueryShardContext ctx) {
+    private Query randomDistanceFeatureQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.distanceFeatureQuery(randomDate(), randomTimeValue(), ctx);
     }
 
@@ -353,7 +353,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         long d1 = randomDate();
         long d2 = randomValueOtherThan(d1, DateScriptFieldTypeTests::randomDate);
         if (d1 > d2) {
@@ -386,7 +386,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomDate(), ctx);
     }
 
@@ -427,7 +427,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(randomList(1, 100, DateScriptFieldTypeTests::randomDate), ctx);
     }
 

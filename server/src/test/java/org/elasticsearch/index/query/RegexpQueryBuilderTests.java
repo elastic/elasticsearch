@@ -79,7 +79,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     }
 
     @Override
-    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(RegexpQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(RegexpQuery.class));
         RegexpQuery regexpQuery = (RegexpQuery) query;
 
@@ -120,7 +120,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
 
     public void testNumeric() throws Exception {
         RegexpQueryBuilder query = new RegexpQueryBuilder(INT_FIELD_NAME, "12");
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         QueryShardException e = expectThrows(QueryShardException.class, () -> query.toQuery(context));
         assertEquals("Can only use regexp queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
                 e.getMessage());

@@ -474,6 +474,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67097")
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.

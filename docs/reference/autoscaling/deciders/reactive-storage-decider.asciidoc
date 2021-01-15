@@ -1,0 +1,9 @@
+[role="xpack"]
+[[autoscaling-reactive-storage-decider]]
+=== Reactive storage decider
+
+The reactive storage decider (`reactive_storage`) calculates the storage required to contain
+the current data set. It signals that additional storage capacity is necessary
+when existing capacity has been exceeded (reactively).
+
+The reactive storage decider is enabled for all policies governing data nodes and has no configuration options.

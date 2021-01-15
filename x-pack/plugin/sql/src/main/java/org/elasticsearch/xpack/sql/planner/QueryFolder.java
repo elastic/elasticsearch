@@ -873,7 +873,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, typeToken());
+            return plan.transformUp(typeToken(), this::rule);
         }
 
         @Override

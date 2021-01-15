@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -117,24 +117,24 @@ public class TransportFieldCapabilitiesIndexAction
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
         try (Engine.Searcher searcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE)) {
 
-            final QueryShardContext queryShardContext = indexService.newQueryShardContext(shardId.id(), 0,
+            final SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(shardId.id(), 0,
                 searcher, request::nowInMillis, null, Collections.emptyMap());
 
-            if (canMatchShard(request, queryShardContext) == false) {
+            if (canMatchShard(request, searchExecutionContext) == false) {
                 return new FieldCapabilitiesIndexResponse(request.index(), Collections.emptyMap(), false);
             }
 
             Set<String> fieldNames = new HashSet<>();
             for (String field : request.fields()) {
-                fieldNames.addAll(queryShardContext.simpleMatchToIndexNames(field));
+                fieldNames.addAll(searchExecutionContext.simpleMatchToIndexNames(field));
             }
 
             Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
             Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
             for (String field : fieldNames) {
-                MappedFieldType ft = queryShardContext.getFieldType(field);
+                MappedFieldType ft = searchExecutionContext.getFieldType(field);
                 if (ft != null) {
-                    if (queryShardContext.isMetadataField(field)
+                    if (searchExecutionContext.isMetadataField(field)
                             || fieldPredicate.test(ft.name())) {
                         IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(field, ft.familyTypeName(),
                             ft.isSearchable(), ft.isAggregatable(), ft.meta());
@@ -154,9 +154,9 @@ public class TransportFieldCapabilitiesIndexAction
                                 break;
                             }
                             // checks if the parent field contains sub-fields
-                            if (queryShardContext.getFieldType(parentField) == null) {
+                            if (searchExecutionContext.getFieldType(parentField) == null) {
                                 // no field type, it must be an object field
-                                ObjectMapper mapper = queryShardContext.getObjectMapper(parentField);
+                                ObjectMapper mapper = searchExecutionContext.getObjectMapper(parentField);
                                 String type = mapper.nested().isNested() ? "nested" : "object";
                                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(parentField, type,
                                     false, false, Collections.emptyMap());
@@ -171,14 +171,14 @@ public class TransportFieldCapabilitiesIndexAction
         }
     }
 
-    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, QueryShardContext queryShardContext) throws IOException {
+    private boolean canMatchShard(FieldCapabilitiesIndexRequest req, SearchExecutionContext searchExecutionContext) throws IOException {
         if (req.indexFilter() == null || req.indexFilter() instanceof MatchAllQueryBuilder) {
             return true;
         }
         assert req.nowInMillis() != 0L;
         ShardSearchRequest searchRequest = new ShardSearchRequest(req.shardId(), req.nowInMillis(), AliasFilter.EMPTY);
         searchRequest.source(new SearchSourceBuilder().query(req.indexFilter()));
-        return SearchService.queryStillMatchesAfterRewrite(searchRequest, queryShardContext);
+        return SearchService.queryStillMatchesAfterRewrite(searchRequest, searchExecutionContext);
     }
 
     private ClusterBlockException checkGlobalBlock(ClusterState state) {

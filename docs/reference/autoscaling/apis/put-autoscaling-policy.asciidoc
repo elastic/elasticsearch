@@ -1,12 +1,12 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-put-autoscaling-policy]]
 === Put autoscaling policy API
 ++++
 <titleabbrev>Put autoscaling policy</titleabbrev>
 ++++
 
-experimental[]
+include::../autoscaling-designed-for-note.asciidoc[]
 
 Put autoscaling policy.
 
@@ -47,6 +47,7 @@ DELETE /_autoscaling/policy/name
 ==== {api-description-title}
 
 This API puts an autoscaling policy with the provided name.
+See <<autoscaling-deciders,Autoscaling Deciders>> for available deciders.
 
 [[autoscaling-put-autoscaling-policy-examples]]
 ==== {api-examples-title}

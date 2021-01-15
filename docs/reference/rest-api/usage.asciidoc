@@ -278,7 +278,7 @@ GET /_xpack/usage
       "rate_usage" : 0,
       "string_stats_usage" : 0,
       "moving_percentiles_usage" : 0,
-      "multi_terms_usage": 0
+      "multi_terms_usage" : 0
     }
   },
   "data_streams" : {

@@ -16,7 +16,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 
@@ -52,7 +52,7 @@ public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQuery
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         deprecationLogger.deprecate("to_query", "[deprecated] query");
         return new MatchAllDocsQuery();
     }

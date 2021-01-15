@@ -32,7 +32,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
@@ -704,7 +704,7 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         SourceLookup sourceLookup = new SourceLookup();
         sourceLookup.setSource(BytesReference.bytes(source));
 
-        FieldFetcher fieldFetcher = FieldFetcher.create(newQueryShardContext(mapperService), null, fields);
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), null, fields);
         return fieldFetcher.fetch(sourceLookup, ignoreFields != null ? ignoreFields : Collections.emptySet());
     }
 
@@ -730,14 +730,14 @@ public class FieldFetcherTests extends MapperServiceTestCase {
         return createMapperService(mapping);
     }
 
-    private static QueryShardContext newQueryShardContext(MapperService mapperService) {
+    private static SearchExecutionContext newSearchExecutionContext(MapperService mapperService) {
         Settings settings = Settings.builder().put("index.version.created", Version.CURRENT)
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put(IndexMetadata.SETTING_INDEX_UUID, "uuid").build();
         IndexMetadata indexMetadata = new IndexMetadata.Builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
-        return new QueryShardContext(
+        return new SearchExecutionContext(
             0,
             0,
             indexSettings,

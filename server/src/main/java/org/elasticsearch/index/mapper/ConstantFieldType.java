@@ -27,7 +27,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.List;
 import java.util.Map;
@@ -59,7 +59,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
      * Return whether the constant value of this field matches the provided {@code pattern}
      * as documented in {@link Regex#simpleMatch}.
      */
-    protected abstract boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context);
+    protected abstract boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context);
 
     private static String valueToString(Object value) {
         return value instanceof BytesRef
@@ -68,7 +68,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termQuery(Object value, QueryShardContext context) {
+    public final Query termQuery(Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, false, context)) {
             return Queries.newMatchAllQuery();
@@ -78,7 +78,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+    public final Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         String pattern = valueToString(value);
         if (matches(pattern, true, context)) {
             return Queries.newMatchAllQuery();
@@ -88,7 +88,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     }
 
     @Override
-    public final Query termsQuery(List<?> values, QueryShardContext context) {
+    public final Query termsQuery(List<?> values, SearchExecutionContext context) {
         for (Object value : values) {
             String pattern = valueToString(value);
             if (matches(pattern, false, context)) {
@@ -103,7 +103,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query prefixQuery(String prefix,
                              @Nullable MultiTermQuery.RewriteMethod method,
                              boolean caseInsensitive,
-                             QueryShardContext context) {
+                             SearchExecutionContext context) {
         String pattern = prefix + "*";
         if (matches(pattern, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
@@ -116,7 +116,7 @@ public abstract class ConstantFieldType extends MappedFieldType {
     public final Query wildcardQuery(String value,
                                @Nullable MultiTermQuery.RewriteMethod method,
                                boolean caseInsensitive,
-                               QueryShardContext context) {
+                               SearchExecutionContext context) {
         if (matches(value, caseInsensitive, context)) {
             return Queries.newMatchAllQuery();
         } else {

@@ -77,7 +77,7 @@ The snapshot process starts immediately for the primary shards that have been st
 relocation or initialization of shards to complete before snapshotting them.
 
 Besides creating a copy of each data stream and index, the snapshot process can also store global cluster metadata, which includes persistent
-cluster settings and templates as well as data stored in system indices, such as Watches and task records, regardless of whether those system
+cluster settings, templates, and data stored in system indices, such as Watches and task records, regardless of whether those system
 indices are named in the `indices` section of the request. The <<create-snapshot-api-feature-states,`feature_states` field>> can be used to
 select a subset of system indices to be included in the snapshot. The transient settings and registered snapshot repositories are not stored
 as part of the snapshot.

@@ -20,7 +20,7 @@ import java.util.Objects;
  */
 public class RollupStep extends AsyncActionStep {
     public static final String NAME = "rollup";
-    public static final String ROLLUP_INDEX_NAME_PREFIX = "_rollup";
+    public static final String ROLLUP_INDEX_NAME_PREFIX = "rollup-";
 
     private final RollupActionConfig config;
 

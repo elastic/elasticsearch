@@ -209,16 +209,21 @@ public class RollupV2Indexer extends AsyncTwoPhaseIndexer<Map<String, Object>, R
             ActionListener.wrap(r -> {
                 ClientHelper.executeWithHeadersAsync(headers, ClientHelper.ROLLUP_ORIGIN, client,
                     ResizeAction.INSTANCE, resizeRequest,
-                    ActionListener.wrap(rr -> { deleteTmpIndex(listener); }, e -> { deleteTmpIndex(listener); }));
-                }, e -> { deleteTmpIndex(listener); }));
+                    ActionListener.wrap(rr -> { deleteTmpIndex(listener, null); }, e -> { deleteTmpIndex(listener, e); }));
+                }, e -> { deleteTmpIndex(listener, null); }));
     }
 
-    private void deleteTmpIndex(ActionListener<Void> listener) {
+    private void deleteTmpIndex(ActionListener<Void> listener, Exception exception) {
         ClientHelper.executeWithHeadersAsync(headers, ClientHelper.ROLLUP_ORIGIN, client,
             DeleteIndexAction.INSTANCE, new DeleteIndexRequest(tmpIndex),
             ActionListener.wrap(r -> {
-                listener.onResponse(null);
-                completionListener.onResponse(null);
+                if (exception == null) {
+                    listener.onResponse(null);
+                    completionListener.onResponse(null);
+                } else {
+                    listener.onFailure(exception);
+                    completionListener.onFailure(exception);
+                }
             }, e -> {
                 listener.onFailure(e);
                 completionListener.onFailure(e);

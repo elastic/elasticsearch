@@ -1494,23 +1494,6 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         assertBusy(() -> assertTrue(indexExists(index)));
     }
 
-    public void testRollupIndexAndDeleteOriginal() throws Exception {
-        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
-            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
-        index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
-        RollupActionConfig rollupConfig = new RollupActionConfig(
-            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
-
-        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
-        updatePolicy(index, policy);
-
-        assertBusy(() -> assertTrue(indexExists(rollupIndex)));
-        assertBusy(() -> assertFalse(getOnlyIndexSettings(client(), rollupIndex).containsKey(LifecycleSettings.LIFECYCLE_NAME)));
-        assertBusy(() -> assertFalse(indexExists(index)));
-    }
-
     public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));

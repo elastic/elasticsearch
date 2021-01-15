@@ -401,7 +401,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return this;
     }
 
-    private static abstract class Values extends AbstractCollection implements Writeable {
+    private abstract static class Values extends AbstractCollection implements Writeable {
 
         private static Values readFrom(StreamInput in) throws IOException {
             if (in.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
@@ -447,37 +447,37 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
 
         @Override
-        final public boolean add(Object o) {
+        public final boolean add(Object o) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        final public boolean remove(Object o) {
+        public final boolean remove(Object o) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        final public boolean containsAll(Collection c) {
+        public final boolean containsAll(Collection c) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        final public boolean addAll(Collection c) {
+        public final boolean addAll(Collection c) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        final public boolean removeAll(Collection c) {
+        public final boolean removeAll(Collection c) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        final public boolean retainAll(Collection c) {
+        public final boolean retainAll(Collection c) {
             throw new UnsupportedOperationException();
         }
 
         @Override
-        final public void clear() {
+        public final void clear() {
             throw new UnsupportedOperationException();
         }
     }

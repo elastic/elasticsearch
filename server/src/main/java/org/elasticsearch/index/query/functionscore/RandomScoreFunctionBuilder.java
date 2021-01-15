@@ -27,7 +27,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -149,7 +149,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) {
         final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
         if (seed == null) {
             // DocID-based random score generation

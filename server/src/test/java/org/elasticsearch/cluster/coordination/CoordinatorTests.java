@@ -44,6 +44,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.MockLogAppender;
 
@@ -61,8 +62,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.DEFAULT_DELAY_VARIABILITY;
 import static org.elasticsearch.cluster.coordination.AbstractCoordinatorTestCase.Cluster.EXTREME_DELAY_VARIABILITY;
-import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.Coordinator.Mode.CANDIDATE;
+import static org.elasticsearch.cluster.coordination.Coordinator.PUBLISH_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.ElectionSchedulerFactory.ELECTION_INITIAL_TIMEOUT_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -80,7 +81,6 @@ import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.test.NodeRoles.nonMasterNode;
 import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -572,25 +572,25 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
         }
     }
 
-    public void testUnHealthyLeaderRemoved() {
-        AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
-        try (Cluster cluster = new Cluster(randomIntBetween(1, 3), true, Settings.EMPTY,
-            () -> nodeHealthServiceStatus.get())) {
+    public void testUnhealthyLeaderIsReplaced() {
+        final AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(HEALTHY, "healthy-info"));
+        final int initialClusterSize = between(1, 3);
+        try (Cluster cluster = new Cluster(initialClusterSize, true, Settings.EMPTY, nodeHealthServiceStatus::get)) {
             cluster.runRandomly();
             cluster.stabilise();
 
             final ClusterNode leader = cluster.getAnyLeader();
 
-            logger.info("--> adding three new healthy nodes");
-            ClusterNode newNode1 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                () -> new StatusInfo(HEALTHY, "healthy-info"));
-            ClusterNode newNode2 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                () -> new StatusInfo(HEALTHY, "healthy-info"));
-            ClusterNode newNode3 = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings,
-                () -> new StatusInfo(HEALTHY, "healthy-info"));
-            cluster.clusterNodes.add(newNode1);
-            cluster.clusterNodes.add(newNode2);
-            cluster.clusterNodes.add(newNode3);
+            final int newClusterNodes = between(initialClusterSize + 1, 4);
+            logger.info("--> adding [{}] new healthy nodes", newClusterNodes);
+            final NodeHealthService alwaysHealthy = () -> new StatusInfo(HEALTHY, "healthy-info");
+            final Set<String> newNodeIds = new HashSet<>(newClusterNodes);
+            for (int i = 0; i < newClusterNodes; i++) {
+                final ClusterNode node = cluster.new ClusterNode(nextNodeIndex.getAndIncrement(), true, leader.nodeSettings, alwaysHealthy);
+                newNodeIds.add(node.getId());
+                cluster.clusterNodes.add(node);
+            }
+
             cluster.stabilise(
                 // The first pinging discovers the master
                 defaultMillis(DISCOVERY_FIND_PEERS_INTERVAL_SETTING)
@@ -600,7 +600,7 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     // followup reconfiguration
                     + 3 * 2 * DEFAULT_CLUSTER_STATE_UPDATE_DELAY);
 
-            logger.info("--> changing health status of leader {} to unhealthy", leader);
+            logger.info("--> change initial nodes to report as unhealthy");
             nodeHealthServiceStatus.getAndSet(new StatusInfo(UNHEALTHY, "unhealthy-info"));
 
             cluster.stabilise(
@@ -615,10 +615,10 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
 
                     // then wait for both of:
                     + Math.max(
-                    // 1. the term bumping publication to time out
-                    defaultMillis(PUBLISH_TIMEOUT_SETTING),
-                    // 2. the new leader to notice that the old leader is unresponsive
-                    (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
+                        // 1. the term bumping publication to time out
+                        defaultMillis(PUBLISH_TIMEOUT_SETTING),
+                        // 2. the new leader to notice that the old leader is unresponsive
+                        (defaultMillis(FOLLOWER_CHECK_INTERVAL_SETTING) + defaultMillis(FOLLOWER_CHECK_TIMEOUT_SETTING))
                     )
 
                     // then wait for the new leader to commit a state without the old leader
@@ -627,8 +627,8 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
                     + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
             );
 
-            assertThat(cluster.getAnyLeader().getId(), anyOf(equalTo(newNode1.getId()), equalTo(newNode2.getId()),
-                equalTo(newNode3.getId())));
+            final String leaderId = cluster.getAnyLeader().getId();
+            assertTrue(leaderId + " should be one of " + newNodeIds, newNodeIds.contains(leaderId));
         }
     }
 

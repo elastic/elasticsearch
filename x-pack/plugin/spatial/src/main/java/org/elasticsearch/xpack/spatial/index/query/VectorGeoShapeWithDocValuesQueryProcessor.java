@@ -36,8 +36,8 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.MultiLine;
-import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -52,7 +52,7 @@ public class VectorGeoShapeWithDocValuesQueryProcessor {
         WITHIN_UNSUPPORTED_GEOMETRIES.add(MultiLine.class);
     }
 
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context, boolean hasDocValues) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context, boolean hasDocValues) {
         // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
         if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
             throw new QueryShardException(context,

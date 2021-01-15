@@ -332,7 +332,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
     }
 
     /** builds the appropriate lucene shape query */
-    protected abstract Query buildShapeQuery(QueryShardContext context, MappedFieldType fieldType);
+    protected abstract Query buildShapeQuery(SearchExecutionContext context, MappedFieldType fieldType);
     /** writes the xcontent specific to this shape query */
     protected abstract void doShapeQueryXContent(XContentBuilder builder, Params params) throws IOException;
     /** creates a new ShapeQueryBuilder from the provided field name and shape builder */
@@ -343,7 +343,7 @@ public abstract class AbstractGeometryQueryBuilder<QB extends AbstractGeometryQu
 
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         if (shape == null || supplier != null) {
             throw new UnsupportedOperationException("query must be rewritten first");
         }

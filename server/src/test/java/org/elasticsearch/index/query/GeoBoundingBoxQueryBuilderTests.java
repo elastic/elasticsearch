@@ -111,7 +111,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     public void testExceptionOnMissingTypes() {
-        QueryShardContext context = createShardContextWithNoType();
+        SearchExecutionContext context = createShardContextWithNoType();
         GeoBoundingBoxQueryBuilder qb = createTestQueryBuilder();
         qb.ignoreUnmapped(false);
         QueryShardException e = expectThrows(QueryShardException.class, () -> qb.toQuery(context));
@@ -206,7 +206,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context)
+    protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
         throws IOException {
         final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
@@ -373,9 +373,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     }
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         // just check if we can parse the query
-        parseQuery(query).toQuery(shardContext);
+        parseQuery(query).toQuery(searchExecutionContext);
     }
 
     public void testFromJson() throws IOException {
@@ -532,14 +532,14 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     public void testIgnoreUnmapped() throws IOException {
         final GeoBoundingBoxQueryBuilder queryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         queryBuilder.ignoreUnmapped(true);
-        QueryShardContext shardContext = createShardContext();
-        Query query = queryBuilder.toQuery(shardContext);
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        Query query = queryBuilder.toQuery(searchExecutionContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoBoundingBoxQueryBuilder failingQueryBuilder = new GeoBoundingBoxQueryBuilder("unmapped").setCorners(1.0, 0.0, 0.0, 1.0);
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(searchExecutionContext));
         assertThat(e.getMessage(), containsString("failed to find geo field [unmapped]"));
     }
 }

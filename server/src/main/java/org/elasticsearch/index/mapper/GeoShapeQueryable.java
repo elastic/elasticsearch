@@ -23,7 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 /**
  * Implemented by {@link org.elasticsearch.index.mapper.MappedFieldType} that support
@@ -31,11 +31,11 @@ import org.elasticsearch.index.query.QueryShardContext;
  */
 public interface GeoShapeQueryable {
 
-    Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context);
+    Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context);
 
     @Deprecated
     default Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                          QueryShardContext context) {
+                          SearchExecutionContext context) {
         return geoShapeQuery(shape, fieldName, relation, context);
     }
 }

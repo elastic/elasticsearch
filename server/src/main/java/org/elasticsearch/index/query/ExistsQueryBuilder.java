@@ -82,15 +82,15 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryShardContext context = queryShardContext.convertToShardContext();
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        SearchExecutionContext context = queryRewriteContext.convertToSearchExecutionContext();
         if (context != null) {
             Collection<String> fields = getMappedField(context, fieldName);
             if (fields.isEmpty()) {
                 return new MatchNoneQueryBuilder();
             }
         }
-        return super.doRewrite(queryShardContext);
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -139,11 +139,11 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         return newFilter(context, fieldName, true);
     }
 
-    public static Query newFilter(QueryShardContext context, String fieldPattern, boolean checkRewrite) {
+    public static Query newFilter(SearchExecutionContext context, String fieldPattern, boolean checkRewrite) {
 
        Collection<String> fields = getMappedField(context, fieldPattern);
 
@@ -171,7 +171,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Query newLegacyExistsQuery(QueryShardContext context, Collection<String> fields) {
+    private static Query newLegacyExistsQuery(SearchExecutionContext context, Collection<String> fields) {
         // We create TermsQuery directly here rather than using FieldNamesFieldType.termsQuery()
         // so we don't end up with deprecation warnings
         if (fields.size() == 1) {
@@ -187,13 +187,13 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         return new ConstantScoreQuery(boolFilterBuilder.build());
     }
 
-    private static Query newLegacyExistsQuery(QueryShardContext context, String field) {
+    private static Query newLegacyExistsQuery(SearchExecutionContext context, String field) {
         MappedFieldType fieldType = context.getFieldType(field);
         String fieldName = fieldType != null ? fieldType.name() : field;
         return new TermQuery(new Term(FieldNamesFieldMapper.NAME, fieldName));
     }
 
-    private static Query newFieldExistsQuery(QueryShardContext context, String field) {
+    private static Query newFieldExistsQuery(SearchExecutionContext context, String field) {
         if (context.isFieldMapped(field)) {
             Query filter = context.getFieldType(field).existsQuery(context);
             return new ConstantScoreQuery(filter);
@@ -207,7 +207,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
         }
     }
 
-    private static Query newObjectFieldExistsQuery(QueryShardContext context, String objField) {
+    private static Query newObjectFieldExistsQuery(SearchExecutionContext context, String objField) {
         BooleanQuery.Builder booleanQuery = new BooleanQuery.Builder();
         Collection<String> fields = context.simpleMatchToIndexNames(objField + ".*");
         for (String field : fields) {
@@ -221,7 +221,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
      * Helper method to get field mapped to this fieldPattern
      * @return return collection of fields if exists else return empty.
      */
-    private static Collection<String> getMappedField(QueryShardContext context, String fieldPattern) {
+    private static Collection<String> getMappedField(SearchExecutionContext context, String fieldPattern) {
         if (context.isFieldMapped(FieldNamesFieldMapper.NAME) == false) {
             // can only happen when no types exist, so no docs exist either
             return Collections.emptySet();

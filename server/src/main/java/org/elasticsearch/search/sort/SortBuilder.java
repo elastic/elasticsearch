@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.search.DocValueFormat;
@@ -73,13 +73,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
     /**
      * Create a {@linkplain SortFieldAndFormat} from this builder.
      */
-    protected abstract SortFieldAndFormat build(QueryShardContext context) throws IOException;
+    protected abstract SortFieldAndFormat build(SearchExecutionContext context) throws IOException;
 
     /**
      * Create a {@linkplain BucketedSort} which is useful for sorting inside of aggregations.
      */
     public abstract BucketedSort buildBucketedSort(
-        QueryShardContext context,
+        SearchExecutionContext context,
         BigArrays bigArrays,
         int bucketSize,
         BucketedSort.ExtraData extra
@@ -157,7 +157,7 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         }
     }
 
-    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, QueryShardContext context) throws IOException {
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context) throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {
@@ -188,13 +188,13 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         return Optional.empty();
     }
 
-    protected static Nested resolveNested(QueryShardContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
+    protected static Nested resolveNested(SearchExecutionContext context, String nestedPath, QueryBuilder nestedFilter) throws IOException {
         NestedSortBuilder nestedSortBuilder = new NestedSortBuilder(nestedPath);
         nestedSortBuilder.setFilter(nestedFilter);
         return resolveNested(context, nestedSortBuilder);
     }
 
-    protected static Nested resolveNested(QueryShardContext context, NestedSortBuilder nestedSort) throws IOException {
+    protected static Nested resolveNested(SearchExecutionContext context, NestedSortBuilder nestedSort) throws IOException {
         final Query childQuery = resolveNestedQuery(context, nestedSort, null);
         if (childQuery == null) {
             return null;
@@ -209,7 +209,9 @@ public abstract class SortBuilder<T extends SortBuilder<T>> implements NamedWrit
         return new Nested(context.bitsetFilter(parentQuery), childQuery, nestedSort, context.searcher());
     }
 
-    private static Query resolveNestedQuery(QueryShardContext context, NestedSortBuilder nestedSort, Query parentQuery) throws IOException {
+    private static Query resolveNestedQuery(SearchExecutionContext context,
+                                            NestedSortBuilder nestedSort,
+                                            Query parentQuery) throws IOException {
         if (nestedSort == null || nestedSort.getPath() == null) {
             return null;
         }

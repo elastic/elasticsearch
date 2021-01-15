@@ -27,7 +27,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.List;
 import java.util.Map;
@@ -49,7 +49,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
         Query query = AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
         if (boost() != 1f) {
@@ -59,7 +59,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
         Query query = new TermQuery(new Term(name(), indexedValueForSearch(value)));
         if (boost() != 1f) {
@@ -69,7 +69,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(List<?> values, SearchExecutionContext context) {
         failIfNotIndexed();
         BytesRef[] bytesRefs = new BytesRef[values.size()];
         for (int i = 0; i < bytesRefs.length; i++) {

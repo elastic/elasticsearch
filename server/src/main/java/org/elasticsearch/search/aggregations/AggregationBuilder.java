@@ -144,7 +144,7 @@ public abstract class AggregationBuilder
      * identity reference must be returned otherwise the builder will be
      * rewritten infinitely.
      */
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         return this;
     }
 
@@ -162,7 +162,7 @@ public abstract class AggregationBuilder
      * and pipeline aggregations. Just "zero", "one", and "many".
      * <p>
      * Unlike {@link CardinalityUpperBound} which is <strong>total</strong>
-     * instead of <strong>per parent bucket</strong>. 
+     * instead of <strong>per parent bucket</strong>.
      */
     public enum BucketCardinality {
         NONE, ONE, MANY;

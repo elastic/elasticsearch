@@ -23,8 +23,13 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
     @Override
     public synchronized RecoveryState setStage(Stage stage) {
         // The transition to the final state was done by #prewarmCompleted, just ignore the transition
-        if (getStage() == Stage.DONE) {
+        if (getStage() == Stage.DONE || getStage() == Stage.FINALIZE) {
             return this;
+        }
+
+        if (stage == Stage.TRANSLOG) {
+            super.setStage(Stage.TRANSLOG);
+            super.setStage(Stage.FINALIZE);
         }
 
         // Pre-warm is still running, hold the state transition

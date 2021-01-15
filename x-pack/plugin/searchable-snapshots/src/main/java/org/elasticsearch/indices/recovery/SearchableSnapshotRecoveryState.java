@@ -29,7 +29,7 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
         if (stage == Stage.TRANSLOG) {
             super.setStage(Stage.TRANSLOG);
-            super.setStage(Stage.FINALIZE);
+            return super.setStage(Stage.FINALIZE);
         }
 
         // Pre-warm is still running, hold the state transition

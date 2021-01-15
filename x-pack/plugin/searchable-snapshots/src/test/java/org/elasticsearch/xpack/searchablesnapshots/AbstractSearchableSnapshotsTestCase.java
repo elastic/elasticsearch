@@ -181,11 +181,11 @@ public abstract class AbstractSearchableSnapshotsTestCase extends ESIndexInputTe
         DiscoveryNode targetNode = new DiscoveryNode("local", buildNewFakeTransportAddress(), Version.CURRENT);
         SearchableSnapshotRecoveryState recoveryState = new SearchableSnapshotRecoveryState(shardRouting, targetNode, null);
 
+        recoveryState.getIndex().setFileDetailsComplete();
         recoveryState.setStage(RecoveryState.Stage.INIT)
             .setStage(RecoveryState.Stage.INDEX)
             .setStage(RecoveryState.Stage.VERIFY_INDEX)
             .setStage(RecoveryState.Stage.TRANSLOG);
-        recoveryState.getIndex().setFileDetailsComplete();
         if (finalizedDone) {
             recoveryState.setStage(RecoveryState.Stage.FINALIZE).setStage(RecoveryState.Stage.DONE);
         }

@@ -49,11 +49,17 @@ public class RestTestTransformer {
             .map(transform -> (RestTestTransformGlobalSetup) transform)
             .collect(Collectors.toList());
 
-        // Collect any global setup transformations
+        // Collect any global teardown transformations
         List<RestTestTransformGlobalTeardown> teardownTransforms = transformations.stream()
             .filter(transform -> transform instanceof RestTestTransformGlobalTeardown)
             .map(transform -> (RestTestTransformGlobalTeardown) transform)
             .collect(Collectors.toList());
+
+        // Collect any transformations that are identified by an object key.
+        Map<String, RestTestTransformByObjectKey> objectKeyFinders = transformations.stream()
+            .filter(transform -> transform instanceof RestTestTransformByObjectKey)
+            .map(transform -> (RestTestTransformByObjectKey) transform)
+            .collect(Collectors.toMap(RestTestTransformByObjectKey::getKeyToFind, transform -> transform));
 
         // transform the tests and include the global setup and teardown as part of the transform
         for (ObjectNode test : tests) {
@@ -67,11 +73,6 @@ public class RestTestTransformer {
                 if ("teardown".equals(testName)) {
                     teardownSection = test;
                 }
-                Map<String, RestTestTransformByObjectKey> objectKeyFinders = transformations.stream()
-                    .filter(transform -> transform instanceof RestTestTransformByObjectKey)
-                    .map(transform -> (RestTestTransformByObjectKey) transform)
-                    .collect(Collectors.toMap(RestTestTransformByObjectKey::getKeyToFind, transform -> transform));
-
                 transformByObjectKeyName(test, objectKeyFinders);
             }
         }
@@ -81,8 +82,10 @@ public class RestTestTransformer {
             int i = 0;
             for (RestTestTransformGlobalSetup setupTransform : setupTransforms) {
                 ObjectNode result = setupTransform.transformSetup(setupSection);
-                if (result != null && setupSection == null && i++ == 0) {
+                // add the setup section if it does not currently exist
+                if (i++ == 0 && result != null && setupSection == null) {
                     tests.addFirst(result);
+                    setupSection = result;
                 }
             }
         }
@@ -92,8 +95,10 @@ public class RestTestTransformer {
             int i = 0;
             for (RestTestTransformGlobalTeardown teardownTransform : teardownTransforms) {
                 ObjectNode result = teardownTransform.transformTeardown(teardownSection);
-                if (result != null && teardownSection == null && i++ == 0) {
+                // add the teardown section if it does not currently exist
+                if (i++ == 0 && result != null && teardownSection == null) {
                     tests.addLast(result);
+                    teardownSection = result;
                 }
             }
         }

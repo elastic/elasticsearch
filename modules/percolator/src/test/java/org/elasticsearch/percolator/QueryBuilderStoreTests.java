@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.mock.orig.Mockito;
 import org.elasticsearch.search.SearchModule;
@@ -87,17 +87,17 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 }
             }
 
-            QueryShardContext queryShardContext = mock(QueryShardContext.class);
-            when(queryShardContext.indexVersionCreated()).thenReturn(version);
-            when(queryShardContext.getWriteableRegistry()).thenReturn(writableRegistry());
-            when(queryShardContext.getXContentRegistry()).thenReturn(xContentRegistry());
-            when(queryShardContext.getForField(fieldMapper.fieldType()))
+            SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+            when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
+            when(searchExecutionContext.getWriteableRegistry()).thenReturn(writableRegistry());
+            when(searchExecutionContext.getXContentRegistry()).thenReturn(xContentRegistry());
+            when(searchExecutionContext.getForField(fieldMapper.fieldType()))
                 .thenReturn(new BytesBinaryIndexFieldData(fieldMapper.name(), CoreValuesSourceType.KEYWORD));
-            when(queryShardContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
+            when(searchExecutionContext.getFieldType(Mockito.anyString())).thenAnswer(invocation -> {
                 final String fieldName = (String) invocation.getArguments()[0];
                 return new KeywordFieldMapper.KeywordFieldType(fieldName);
             });
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), queryShardContext);
+            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(fieldMapper.fieldType(), searchExecutionContext);
 
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 LeafReaderContext leafContext = indexReader.leaves().get(0);

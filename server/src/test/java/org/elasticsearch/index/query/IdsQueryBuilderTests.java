@@ -69,7 +69,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     }
 
     @Override
-    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(IdsQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         boolean allTypes = queryBuilder.types().length == 0 ||
                 queryBuilder.types().length == 1 && "_all".equals(queryBuilder.types()[0]);
         if (queryBuilder.ids().size() == 0
@@ -167,7 +167,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContextWithNoType();
+        SearchExecutionContext context = createShardContextWithNoType();
         context.setAllowUnmappedFields(true);
         IdsQueryBuilder queryBuilder = createTestQueryBuilder();
         IllegalStateException e = expectThrows(IllegalStateException.class,

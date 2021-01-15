@@ -22,7 +22,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.MapperPlugin;
 
 import java.io.IOException;
@@ -43,7 +43,7 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         return null;
     }
 
@@ -53,7 +53,7 @@ public class TestRuntimeField extends RuntimeFieldType {
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         return null;
     }
 

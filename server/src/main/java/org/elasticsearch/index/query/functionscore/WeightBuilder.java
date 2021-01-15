@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 
@@ -70,7 +70,7 @@ public class WeightBuilder extends ScoreFunctionBuilder<WeightBuilder> {
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) throws IOException {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
         //nothing to do here, weight will be applied by the parent class, no score function
         return null;
     }

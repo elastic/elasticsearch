@@ -47,7 +47,7 @@ import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -179,7 +179,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
@@ -276,7 +276,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 float l = Float.NEGATIVE_INFINITY;
                 float u = Float.POSITIVE_INFINITY;
                 if (lowerTerm != null) {
@@ -362,7 +362,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 return doubleRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query = DoublePoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
@@ -444,7 +444,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context);
             }
 
@@ -501,7 +501,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 return INTEGER.rangeQuery(field, lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues, context);
             }
 
@@ -578,7 +578,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 int l = Integer.MIN_VALUE;
                 int u = Integer.MAX_VALUE;
                 if (lowerTerm != null) {
@@ -684,7 +684,7 @@ public class NumberFieldMapper extends FieldMapper {
             @Override
             public Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                     boolean includeLower, boolean includeUpper,
-                                    boolean hasDocValues, QueryShardContext context) {
+                                    boolean hasDocValues, SearchExecutionContext context) {
                 return longRangeQuery(lowerTerm, upperTerm, includeLower, includeUpper, (l, u) -> {
                     Query query = LongPoint.newRangeQuery(field, l, u);
                     if (hasDocValues) {
@@ -740,7 +740,7 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Query termsQuery(String field, List<Object> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                          boolean includeLower, boolean includeUpper,
-                                         boolean hasDocValues, QueryShardContext context);
+                                         boolean hasDocValues, SearchExecutionContext context);
         public abstract Number parse(XContentParser parser, boolean coerce) throws IOException;
         public abstract Number parse(Object value, boolean coerce);
         public abstract Number parsePoint(byte[] value);
@@ -921,7 +921,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             Query query = type.termQuery(name(), value);
             if (boost() != 1f) {
@@ -931,7 +931,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, QueryShardContext context) {
+        public Query termsQuery(List values, SearchExecutionContext context) {
             failIfNotIndexed();
             Query query = type.termsQuery(name(), values);
             if (boost() != 1f) {
@@ -941,7 +941,8 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper,
+                                SearchExecutionContext context) {
             failIfNotIndexed();
             Query query = type.rangeQuery(name(), lowerTerm, upperTerm, includeLower, includeUpper, hasDocValues(), context);
             if (boost() != 1f) {
@@ -973,7 +974,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

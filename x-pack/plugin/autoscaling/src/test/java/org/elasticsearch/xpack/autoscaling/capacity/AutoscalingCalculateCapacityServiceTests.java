@@ -357,6 +357,23 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
     }
 
+    public void testValidateNotEmptyDeciders() {
+        AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
+            org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())
+        );
+        String policyName = randomAlphaOfLength(8);
+        AutoscalingPolicy policy = new AutoscalingPolicy(
+            policyName,
+            new TreeSet<>(randomBoolean() ? org.elasticsearch.common.collect.Set.of() : org.elasticsearch.common.collect.Set.of("master")),
+            new TreeMap<>()
+        );
+        IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> service.validate(policy));
+        assertThat(
+            exception.getMessage(),
+            equalTo("no default nor user configured deciders for policy [" + policyName + "] with roles [" + policy.roles() + "]")
+        );
+    }
+
     public void testValidateSettingName() {
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(
             org.elasticsearch.common.collect.Set.of(new FixedAutoscalingDeciderService())

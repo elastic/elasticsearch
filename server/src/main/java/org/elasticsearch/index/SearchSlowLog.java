@@ -171,7 +171,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             } else {
                 messageFields.put("total_hits", "-1");
             }
-            String[] types = context.getQueryShardContext().getTypes();
+            String[] types = context.getSearchExecutionContext().getTypes();
             messageFields.put("types", escapeJson(asJsonArray(types != null ? Arrays.stream(types) : Stream.empty())));
             messageFields.put("stats", escapeJson(asJsonArray(
                 context.groupStats() != null ? context.groupStats().stream() : Stream.empty())));
@@ -204,11 +204,11 @@ public final class SearchSlowLog implements SearchOperationListener {
                 sb.append("-1");
             }
             sb.append("], ");
-            if (context.getQueryShardContext().getTypes() == null) {
+            if (context.getSearchExecutionContext().getTypes() == null) {
                 sb.append("types[], ");
             } else {
                 sb.append("types[");
-                Strings.arrayToDelimitedString(context.getQueryShardContext().getTypes(), ",", sb);
+                Strings.arrayToDelimitedString(context.getSearchExecutionContext().getTypes(), ",", sb);
                 sb.append("], ");
             }
             if (context.groupStats() == null) {

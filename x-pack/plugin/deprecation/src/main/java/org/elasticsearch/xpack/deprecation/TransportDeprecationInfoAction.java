@@ -5,6 +5,15 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
+
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
@@ -21,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -29,15 +39,6 @@ import org.elasticsearch.xpack.core.deprecation.DeprecationInfoAction;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckAction;
 import org.elasticsearch.xpack.core.deprecation.NodesDeprecationCheckRequest;
-
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
-
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
-import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<DeprecationInfoAction.Request,
         DeprecationInfoAction.Response> {
@@ -91,10 +92,16 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                 new OriginSettingClient(client, ClientHelper.DEPRECATION_ORIGIN)
             );
             pluginSettingIssues(PLUGIN_CHECKERS, components, ActionListener.wrap(
-                deprecationIssues -> listener.onResponse(
-                    DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
-                        request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS,
-                        deprecationIssues)),
+                deprecationIssues -> {
+                    final DeprecationInfoAction.Response finalResponse;
+                    try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().newStoredContext(false)) {
+                        // We store the context here and drop any new response headers to prevent getting a deprecation warning on the
+                        // deprecation info API call when we resolve indices.
+                        finalResponse = DeprecationInfoAction.Response.from(state, indexNameExpressionResolver,
+                            request, response, INDEX_SETTINGS_CHECKS, CLUSTER_SETTINGS_CHECKS, deprecationIssues);
+                    }
+                    listener.onResponse(finalResponse);
+                },
                 listener::onFailure
             ));
 

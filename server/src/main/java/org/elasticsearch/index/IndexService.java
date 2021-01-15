@@ -61,7 +61,7 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SearchIndexNameMatcher;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -198,7 +198,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             assert indexAnalyzers != null;
             this.mapperService = new MapperService(indexSettings, indexAnalyzers, xContentRegistry, similarityService, mapperRegistry,
                 // we parse all percolator queries as they would be parsed on shard 0
-                () -> newQueryShardContext(0, 0, null, System::currentTimeMillis, null, emptyMap()), idFieldDataEnabled, scriptService);
+                () -> newSearchExecutionContext(0, 0, null, System::currentTimeMillis, null, emptyMap()),
+                idFieldDataEnabled, scriptService);
             this.indexFieldData = new IndexFieldDataService(indexSettings, indicesFieldDataCache, circuitBreakerService, mapperService);
             if (indexSettings.getIndexSortConfig().hasIndexSort()) {
                 // we delay the actual creation of the sort order for this index because the mapping has not been merged yet.
@@ -591,12 +592,12 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
 
     /**
      * Creates a new QueryShardContext. The context has not types set yet, if types are required set them via
-     * {@link QueryShardContext#setTypes(String...)}.
+     * {@link SearchExecutionContext}.
      *
      * Passing a {@code null} {@link IndexSearcher} will return a valid context, however it won't be able to make
      * {@link IndexReader}-specific optimizations, such as rewriting containing range queries.
      */
-    public QueryShardContext newQueryShardContext(
+    public SearchExecutionContext newSearchExecutionContext(
         int shardId,
         int shardRequestIndex,
         IndexSearcher searcher,
@@ -606,11 +607,10 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     ) {
         final SearchIndexNameMatcher indexNameMatcher =
             new SearchIndexNameMatcher(index().getName(), clusterAlias, clusterService, expressionResolver);
-        return new QueryShardContext(
+        return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
             indexSettings,
-            bigArrays,
             indexCache.bitsetFilterCache(),
             indexFieldData::getForField,
             mapperService(),

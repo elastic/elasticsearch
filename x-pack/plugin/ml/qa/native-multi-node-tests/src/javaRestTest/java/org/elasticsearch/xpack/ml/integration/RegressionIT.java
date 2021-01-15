@@ -15,7 +15,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.rest.RestStatus;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.core.ml.action.NodeAcknowledgedResponse;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
@@ -36,20 +34,19 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.junit.After;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -282,15 +279,10 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         NodeAcknowledgedResponse response = startAnalytics(jobId);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
+        // Wait until progress for first phase is over 1
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
-            assertThat(
-                state,
-                is(anyOf(
-                    equalTo(DataFrameAnalyticsState.REINDEXING),
-                    equalTo(DataFrameAnalyticsState.ANALYZING),
-                    equalTo(DataFrameAnalyticsState.STOPPED))));
+            List<PhaseProgress> progress = getAnalyticsStats(jobId).getProgress();
+            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
         });
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);

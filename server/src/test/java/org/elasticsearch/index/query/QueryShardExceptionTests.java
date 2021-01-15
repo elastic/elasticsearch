@@ -26,17 +26,18 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class QueryShardExceptionTests extends ESTestCase {
 
-    public void testCreateFromQueryShardContext() {
+    public void testCreateFromSearchExecutionContext() {
         String indexUuid = randomAlphaOfLengthBetween(5, 10);
         String clusterAlias = randomAlphaOfLengthBetween(5, 10);
-        QueryShardContext queryShardContext = QueryShardContextTests.createQueryShardContext(indexUuid, clusterAlias);
+        SearchExecutionContext searchExecutionContext = SearchExecutionContextTests.createSearchExecutionContext(indexUuid, clusterAlias);
         {
-            QueryShardException queryShardException = new QueryShardException(queryShardContext, "error");
+            QueryShardException queryShardException = new QueryShardException(searchExecutionContext, "error");
             assertThat(queryShardException.getIndex().getName(), equalTo(clusterAlias + ":index"));
             assertThat(queryShardException.getIndex().getUUID(), equalTo(indexUuid));
         }
         {
-            QueryShardException queryShardException = new QueryShardException(queryShardContext, "error", new IllegalArgumentException());
+            QueryShardException queryShardException = new QueryShardException(
+                searchExecutionContext, "error", new IllegalArgumentException());
             assertThat(queryShardException.getIndex().getName(), equalTo(clusterAlias + ":index"));
             assertThat(queryShardException.getIndex().getUUID(), equalTo(indexUuid));
         }

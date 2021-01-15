@@ -120,7 +120,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                             // To facilitate ML UI functionality being controlled using Kibana security privileges
                             "manage_ml",
                             // The symbolic constant for this one is in SecurityActionMapper, so not accessible from X-Pack core
-                            "cluster:admin/analyze"
+                            "cluster:admin/analyze",
+                            // To facilitate using the file uploader functionality
+                            "monitor_text_structure"
                         },
                         new RoleDescriptor.IndicesPrivileges[] {
                                 RoleDescriptor.IndicesPrivileges.builder()

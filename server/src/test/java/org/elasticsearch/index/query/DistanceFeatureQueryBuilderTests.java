@@ -73,7 +73,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
     @Override
     protected void doAssertLuceneQuery(DistanceFeatureQueryBuilder queryBuilder,
                                        Query query,
-                                       QueryShardContext context) throws IOException {
+                                       SearchExecutionContext context) throws IOException {
         String fieldName = expectedFieldName(queryBuilder.fieldName());
         Object origin = queryBuilder.origin().origin();
         String pivot = queryBuilder.pivot();
@@ -215,7 +215,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
-        Query query = parseQuery(queryString).toQuery(createShardContext());
+        Query query = parseQuery(queryString).toQuery(createSearchExecutionContext());
         assertEquals(expectedQuery, query);
     }
 
@@ -227,7 +227,8 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             "            \"pivot\" : \"random_string\"\n" +
             "    }\n" +
             "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertThat(e.getMessage(), containsString("query can only be run on a date, date_nanos or geo_point field type!"));
     }
 }

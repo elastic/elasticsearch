@@ -62,7 +62,7 @@ public class ShrinkStep extends AsyncActionStep {
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
         getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {
-            listener.onResponse(response.isAcknowledged());
+            listener.onResponse(true);
         }, listener::onFailure));
 
     }

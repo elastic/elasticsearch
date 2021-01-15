@@ -13,17 +13,16 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.GroupedActionListener;
+import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.ThreadedActionListener;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -85,64 +84,106 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         super(NAME, Response::new);
     }
 
-    public static class TransportAction extends TransportMasterNodeAction<Request, Response> {
-        // Needs to run on a non-voting-only master-eligible node or a data node so that it has access to the repository so it can clean up
-        // at the end. However today there's no good way to reroute an action onto a suitable node apart from routing it tothe elected
-        // master, so we run it there. This should be no big deal, coordinating the test isn't particularly heavy.
+    public static class TransportAction extends HandledTransportAction<Request, Response> {
 
+        private final TransportService transportService;
+        private final ClusterService clusterService;
         private final RepositoriesService repositoriesService;
 
         @Inject
         public TransportAction(
             TransportService transportService,
-            ClusterService clusterService,
-            ThreadPool threadPool,
             ActionFilters actionFilters,
-            RepositoriesService repositoriesService,
-            IndexNameExpressionResolver indexNameExpressionResolver
+            ClusterService clusterService,
+            RepositoriesService repositoriesService
         ) {
-            super(
-                NAME,
-                transportService,
-                clusterService,
-                threadPool,
-                actionFilters,
-                RepositorySpeedTestAction.Request::new,
-                indexNameExpressionResolver,
-                RepositorySpeedTestAction.Response::new,
-                ThreadPool.Names.SAME
-            );
+            super(NAME, transportService, actionFilters, RepositorySpeedTestAction.Request::new, ThreadPool.Names.SAME);
+            this.transportService = transportService;
+            this.clusterService = clusterService;
             this.repositoriesService = repositoriesService;
         }
 
         @Override
-        protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener) {
-            final Repository repository = repositoriesService.repository(request.getRepositoryName());
-            if (repository instanceof BlobStoreRepository == false) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
-            }
-            if (repository.isReadOnly()) {
-                throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
-            }
+        protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
+            final ClusterState state = clusterService.state();
 
+            final ThreadPool threadPool = transportService.getThreadPool();
             request.reseed(threadPool.relativeTimeInMillis());
 
-            assert task instanceof CancellableTask;
-            new AsyncAction(
-                transportService,
-                (BlobStoreRepository) repository,
-                (CancellableTask) task,
-                request,
-                state.nodes(),
-                threadPool::relativeTimeInMillis,
-                listener
-            ).run();
-        }
+            final DiscoveryNode localNode = transportService.getLocalNode();
+            if (isSnapshotNode(localNode)) {
+                final Repository repository = repositoriesService.repository(request.getRepositoryName());
+                if (repository instanceof BlobStoreRepository == false) {
+                    throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is not a blob-store repository");
+                }
+                if (repository.isReadOnly()) {
+                    throw new IllegalArgumentException("repository [" + request.getRepositoryName() + "] is read-only");
+                }
 
-        @Override
-        protected ClusterBlockException checkBlock(Request request, ClusterState state) {
-            return null;
+                assert task instanceof CancellableTask;
+                new AsyncAction(
+                    transportService,
+                    (BlobStoreRepository) repository,
+                    (CancellableTask) task,
+                    request,
+                    state.nodes(),
+                    threadPool::relativeTimeInMillis,
+                    listener
+                ).run();
+                return;
+            }
+
+            if (request.getReroutedFrom() != null) {
+                assert false : request.getReroutedFrom();
+                throw new IllegalArgumentException(
+                    "speed test of repository ["
+                        + request.getRepositoryName()
+                        + "] rerouted from ["
+                        + request.getReroutedFrom()
+                        + "] to non-snapshot node"
+                );
+            }
+
+            request.reroutedFrom(localNode);
+            final List<DiscoveryNode> snapshotNodes = getSnapshotNodes(state.nodes());
+            if (snapshotNodes.isEmpty()) {
+                listener.onFailure(
+                    new IllegalArgumentException(
+                        "no snapshot nodes found for speed test of repository [" + request.getRepositoryName() + "]"
+                    )
+                );
+            } else {
+                if (snapshotNodes.size() > 1) {
+                    snapshotNodes.remove(state.nodes().getMasterNode());
+                }
+                final DiscoveryNode targetNode = snapshotNodes.get(new Random(request.getSeed()).nextInt(snapshotNodes.size()));
+                RepositorySpeedTestAction.logger.trace("rerouting speed test [{}] to [{}]", request.getDescription(), targetNode);
+                transportService.sendChildRequest(
+                    targetNode,
+                    NAME,
+                    request,
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(listener, Response::new)
+                );
+            }
         }
+    }
+
+    private static boolean isSnapshotNode(DiscoveryNode discoveryNode) {
+        return (discoveryNode.isDataNode() || discoveryNode.isMasterNode())
+            && RepositoriesService.isDedicatedVotingOnlyNode(discoveryNode.getRoles()) == false;
+    }
+
+    private static List<DiscoveryNode> getSnapshotNodes(DiscoveryNodes discoveryNodes) {
+        final ObjectContainer<DiscoveryNode> nodesContainer = discoveryNodes.getMasterAndDataNodes().values();
+        final List<DiscoveryNode> nodes = new ArrayList<>(nodesContainer.size());
+        for (ObjectCursor<DiscoveryNode> cursor : nodesContainer) {
+            if (isSnapshotNode(cursor.value)) {
+                nodes.add(cursor.value);
+            }
+        }
+        return nodes;
     }
 
     public static class AsyncAction {
@@ -263,11 +304,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
             final Random random = new Random(request.getSeed());
 
-            final ObjectContainer<DiscoveryNode> nodesContainer = discoveryNodes.getMasterAndDataNodes().values();
-            final List<DiscoveryNode> nodes = new ArrayList<>(nodesContainer.size());
-            for (ObjectCursor<DiscoveryNode> cursor : nodesContainer) {
-                nodes.add(cursor.value);
-            }
+            final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
             final long maxBlobSize = request.getMaxBlobSize().getBytes();
             final List<Long> blobSizes = new ArrayList<>();
@@ -458,6 +495,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
                 listener.onResponse(
                     new Response(
+                        transportService.getLocalNode().getId(),
+                        transportService.getLocalNode().getName(),
                         request.getRepositoryName(),
                         request.blobCount,
                         request.concurrency,
@@ -498,7 +537,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         }
     }
 
-    public static class Request extends MasterNodeRequest<Request> {
+    public static class Request extends ActionRequest {
 
         private final String repositoryName;
 
@@ -508,6 +547,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private TimeValue timeout = TimeValue.timeValueSeconds(30);
         private ByteSizeValue maxBlobSize = ByteSizeValue.ofMb(10);
         private boolean detailed = false;
+        private DiscoveryNode reroutedFrom = null;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -522,6 +562,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             timeout = in.readTimeValue();
             maxBlobSize = new ByteSizeValue(in);
             detailed = in.readBoolean();
+            reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
         }
 
         @Override
@@ -539,6 +580,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             out.writeTimeValue(timeout);
             maxBlobSize.writeTo(out);
             out.writeBoolean(detailed);
+            out.writeOptionalWriteable(reroutedFrom);
         }
 
         @Override
@@ -607,6 +649,14 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             return detailed;
         }
 
+        public DiscoveryNode getReroutedFrom() {
+            return reroutedFrom;
+        }
+
+        public void reroutedFrom(DiscoveryNode discoveryNode) {
+            reroutedFrom = discoveryNode;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -640,6 +690,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
 
+        private final String coordinatingNodeId;
+        private final String coordinatingNodeName;
         private final String repositoryName;
         private final int blobCount;
         private final int concurrency;
@@ -652,6 +704,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final long deleteTimeNanos;
 
         public Response(
+            String coordinatingNodeId,
+            String coordinatingNodeName,
             String repositoryName,
             int blobCount,
             int concurrency,
@@ -663,6 +717,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             long listingTimeNanos,
             long deleteTimeNanos
         ) {
+            this.coordinatingNodeId = coordinatingNodeId;
+            this.coordinatingNodeName = coordinatingNodeName;
             this.repositoryName = repositoryName;
             this.blobCount = blobCount;
             this.concurrency = concurrency;
@@ -677,6 +733,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
         public Response(StreamInput in) throws IOException {
             super(in);
+            coordinatingNodeId = in.readString();
+            coordinatingNodeName = in.readString();
             repositoryName = in.readString();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
@@ -691,6 +749,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            out.writeString(coordinatingNodeId);
+            out.writeString(coordinatingNodeName);
             out.writeString(repositoryName);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
@@ -711,6 +771,12 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+
+            builder.startObject("coordinating_node");
+            builder.field("id", coordinatingNodeId);
+            builder.field("name", coordinatingNodeName);
+            builder.endObject();
+
             builder.field("repository", repositoryName);
             builder.field("blob_count", blobCount);
             builder.field("concurrency", concurrency);

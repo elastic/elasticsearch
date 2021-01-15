@@ -37,7 +37,6 @@ public class RestRepositorySpeedTestAction extends BaseRestHandler {
         verifyRepositoryRequest.seed(request.paramAsLong("seed", verifyRepositoryRequest.getSeed()));
         verifyRepositoryRequest.maxBlobSize(request.paramAsSize("max_blob_size", verifyRepositoryRequest.getMaxBlobSize()));
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.getTimeout()));
-        verifyRepositoryRequest.masterNodeTimeout(request.paramAsTime("master_timeout", verifyRepositoryRequest.masterNodeTimeout()));
         verifyRepositoryRequest.detailed(request.paramAsBoolean("detailed", verifyRepositoryRequest.getDetailed()));
 
         RestCancellableNodeClient cancelClient = new RestCancellableNodeClient(client, request.getHttpChannel());

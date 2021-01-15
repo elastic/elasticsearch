@@ -47,6 +47,8 @@ setup:
         concurrency: 5
         max_blob_size: 1mb
 
+  - is_true: coordinating_node.id
+  - is_true: coordinating_node.name
   - match: { repository:    test_repo }
   - match: { blob_count:    10 }
   - match: { concurrency:   5 }
@@ -80,6 +82,8 @@ setup:
         max_blob_size: 1mb
         detailed: true
 
+  - is_true: coordinating_node.id
+  - is_true: coordinating_node.name
   - match: { repository:    test_repo }
   - match: { blob_count:    10 }
   - match: { concurrency:   5 }

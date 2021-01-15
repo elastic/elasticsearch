@@ -17,7 +17,7 @@ import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.GeoShapeQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
@@ -56,7 +56,7 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoShapeQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoShapeQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         assertThat(true, equalTo(query instanceof ConstantScoreQuery));
         Query geoShapeQuery = ((ConstantScoreQuery) query).getQuery();
         MappedFieldType fieldType = context.getFieldType("test");

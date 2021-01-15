@@ -65,7 +65,7 @@ import java.util.stream.Collectors;
  * in this case we insist that the read succeeds.
  *
  *
- *
+ * <pre>
  *
  * +---------+                           +-------+                               +---------+
  * | Writer  |                           | Repo  |                               | Readers |
@@ -132,6 +132,7 @@ import java.util.stream.Collectors;
  *      |←-----------------                  |                                        |
  *      |                                    |                                        |
  *
+ * </pre>
  *
  *
  * On success, details of how long everything took are returned. On failure, cancels the remote read tasks to try and avoid consuming
@@ -799,6 +800,26 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             builder.endObject();
             return builder;
         }
+
+        long getWriteBytes() {
+            return blobLength + (overwrite ? blobLength : 0L);
+        }
+
+        long getWriteThrottledNanos() {
+            return writeThrottledNanos;
+        }
+
+        long getWriteElapsedNanos() {
+            return writeElapsedNanos + overwriteElapsedNanos;
+        }
+
+        List<ReadDetail> getReadDetails() {
+            return readDetails;
+        }
+
+        long getChecksumBytes() {
+            return checksumEnd - checksumStart;
+        }
     }
 
     public static class ReadDetail implements Writeable, ToXContentFragment {
@@ -808,8 +829,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
         private final boolean beforeWriteComplete;
         private final boolean isNotFound;
         private final long firstByteNanos;
-        private final long readNanos;
         private final long throttleNanos;
+        private final long elapsedNanos;
 
         public ReadDetail(
             String nodeId,
@@ -817,7 +838,7 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             boolean beforeWriteComplete,
             boolean isNotFound,
             long firstByteNanos,
-            long readNanos,
+            long elapsedNanos,
             long throttleNanos
         ) {
             this.nodeId = nodeId;
@@ -825,8 +846,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             this.beforeWriteComplete = beforeWriteComplete;
             this.isNotFound = isNotFound;
             this.firstByteNanos = firstByteNanos;
-            this.readNanos = readNanos;
             this.throttleNanos = throttleNanos;
+            this.elapsedNanos = elapsedNanos;
         }
 
         public ReadDetail(StreamInput in) throws IOException {
@@ -835,8 +856,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             beforeWriteComplete = in.readBoolean();
             isNotFound = in.readBoolean();
             firstByteNanos = in.readVLong();
-            readNanos = in.readVLong();
             throttleNanos = in.readVLong();
+            elapsedNanos = in.readVLong();
         }
 
         @Override
@@ -846,8 +867,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             out.writeBoolean(beforeWriteComplete);
             out.writeBoolean(isNotFound);
             out.writeVLong(firstByteNanos);
-            out.writeVLong(readNanos);
             out.writeVLong(throttleNanos);
+            out.writeVLong(elapsedNanos);
         }
 
         @Override
@@ -868,12 +889,24 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             } else {
                 builder.field("found", true);
                 builder.field("first_byte_nanos", firstByteNanos);
-                builder.field("read_nanos", readNanos);
+                builder.field("read_nanos", elapsedNanos);
                 builder.field("throttle_nanos", throttleNanos);
             }
 
             builder.endObject();
             return builder;
+        }
+
+        long getFirstByteNanos() {
+            return firstByteNanos;
+        }
+
+        long getThrottledNanos() {
+            return throttleNanos;
+        }
+
+        long getElapsedNanos() {
+            return elapsedNanos;
         }
     }
 

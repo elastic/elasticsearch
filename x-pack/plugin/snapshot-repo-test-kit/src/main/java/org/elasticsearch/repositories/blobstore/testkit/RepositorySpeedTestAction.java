@@ -166,7 +166,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final GroupedActionListener<Void> workersListener;
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
         private final List<BlobSpeedTestAction.Response> responses;
-        private final SpeedTestStatistics statistics = new SpeedTestStatistics();
+        private final SpeedTestStatistics.Builder statistics = new SpeedTestStatistics.Builder();
 
         @SuppressWarnings("OptionalUsedAsFieldOrParameterType")
         private OptionalLong listingStartTimeNanos = OptionalLong.empty();
@@ -327,6 +327,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                                     responses.add(response);
                                 }
                             }
+                            statistics.add(response);
                             processNextTask();
                         }
 
@@ -463,6 +464,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         request.maxBlobSize,
                         request.seed,
                         blobPath,
+                        statistics.build(),
                         responses,
                         deleteStartTimeNanos.getAsLong() - listingStartTimeNanos.getAsLong(),
                         completionTimeNanos - deleteStartTimeNanos.getAsLong()
@@ -644,6 +646,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final ByteSizeValue maxBlobSize;
         private final long seed;
         private final String blobPath;
+        private final SpeedTestStatistics statistics;
         private final List<BlobSpeedTestAction.Response> blobResponses;
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
@@ -655,6 +658,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             ByteSizeValue maxBlobSize,
             long seed,
             String blobPath,
+            SpeedTestStatistics statistics,
             List<BlobSpeedTestAction.Response> blobResponses,
             long listingTimeNanos,
             long deleteTimeNanos
@@ -665,6 +669,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             this.maxBlobSize = maxBlobSize;
             this.seed = seed;
             this.blobPath = blobPath;
+            this.statistics = statistics;
             this.blobResponses = blobResponses;
             this.listingTimeNanos = listingTimeNanos;
             this.deleteTimeNanos = deleteTimeNanos;
@@ -678,6 +683,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             maxBlobSize = new ByteSizeValue(in);
             seed = in.readLong();
             blobPath = in.readString();
+            statistics = new SpeedTestStatistics(in);
             blobResponses = in.readList(BlobSpeedTestAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
@@ -691,6 +697,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             maxBlobSize.writeTo(out);
             out.writeLong(seed);
             out.writeString(blobPath);
+            statistics.writeTo(out);
             out.writeList(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
@@ -710,6 +717,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             builder.field("max_blob_size", maxBlobSize);
             builder.field("seed", seed);
             builder.field("blob_path", blobPath);
+            builder.field("statistics", statistics);
 
             if (blobResponses.size() > 0) {
                 builder.startArray("details");

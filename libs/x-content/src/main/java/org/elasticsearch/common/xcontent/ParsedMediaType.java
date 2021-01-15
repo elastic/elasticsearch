@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +44,7 @@ public class ParsedMediaType {
         this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = Collections.unmodifiableMap(parameters);
+        this.parameters = Map.copyOf(parameters);
     }
 
     /**

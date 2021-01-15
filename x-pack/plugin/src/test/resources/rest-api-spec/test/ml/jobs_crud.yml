@@ -1215,6 +1215,8 @@
 
 ---
 "Test put job after closing results index":
+  - skip:
+      features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -1223,6 +1225,8 @@
   - do:
       indices.close:
         index: ".ml-anomalies-shared"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-anomalies-shared\]/
@@ -1242,6 +1246,8 @@
 
 ---
 "Test put job after closing state index":
+  - skip:
+      features: ["allowed_warnings"]
 
   - do:
       indices.create:
@@ -1250,6 +1256,8 @@
   - do:
       indices.close:
         index: ".ml-state-000001"
+      allowed_warnings:
+        - "the default value for the ?wait_for_active_shards parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour"
 
   - do:
       catch: /Cannot create job \[closed-results-job\] as it requires closed index \[\.ml-state-000001\]/

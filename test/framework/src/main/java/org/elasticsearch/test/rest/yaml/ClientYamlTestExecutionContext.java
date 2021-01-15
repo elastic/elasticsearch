@@ -108,6 +108,9 @@ public class ClientYamlTestExecutionContext {
             Object responseBody = response != null ? response.getBody() : null;
             //we always stash the last response body
             stash.stashValue("body", responseBody);
+            if(requestHeaders.isEmpty() == false) {
+                stash.stashValue("request_headers", requestHeaders);
+            }
         }
     }
 

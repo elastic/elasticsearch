@@ -40,7 +40,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
     public void testRewriteMissingField() throws Exception {
         IndexService indexService = createIndex("test");
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new QueryShardContext(
+        QueryRewriteContext context = new SearchExecutionContext(
             0,
             0,
             indexService.getIndexSettings(),
@@ -76,7 +76,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
             .endObject().endObject());
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
-        QueryRewriteContext context = new QueryShardContext(0, 0, indexService.getIndexSettings(), null, null,
+        QueryRewriteContext context = new SearchExecutionContext(0, 0, indexService.getIndexSettings(), null, null,
             indexService.mapperService(), indexService.mapperService().mappingLookup(), null, null, xContentRegistry(), writableRegistry(),
                 null, null, null, null, null, () -> true, null, emptyMap());
         RangeQueryBuilder range = new RangeQueryBuilder("foo");
@@ -96,7 +96,7 @@ public class RangeQueryRewriteTests extends ESSingleNodeTestCase {
         indexService.mapperService().merge("type",
                 new CompressedXContent(mapping), MergeReason.MAPPING_UPDATE);
         IndexReader reader = new MultiReader();
-        QueryRewriteContext context = new QueryShardContext(
+        QueryRewriteContext context = new SearchExecutionContext(
             0,
             0,
             indexService.getIndexSettings(),

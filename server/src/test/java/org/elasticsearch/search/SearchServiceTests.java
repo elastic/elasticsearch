@@ -60,7 +60,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IndexShard;
@@ -656,7 +656,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
 
         @Override
         protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
-            if (queryRewriteContext.convertToShardContext() != null) {
+            if (queryRewriteContext.convertToSearchExecutionContext() != null) {
                 throw new IllegalStateException("Fail on rewrite phase");
             }
             return this;
@@ -671,7 +671,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected Query doToQuery(QueryShardContext context) {
+        protected Query doToQuery(SearchExecutionContext context) {
             return null;
         }
 
@@ -931,9 +931,9 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
             0, indexService.numberOfShards(), AliasFilter.EMPTY, 1f, nowInMillis, clusterAlias);
         try (DefaultSearchContext searchContext = service.createSearchContext(request, new TimeValue(System.currentTimeMillis()))) {
             SearchShardTarget searchShardTarget = searchContext.shardTarget();
-            QueryShardContext queryShardContext = searchContext.getQueryShardContext();
+            SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
             String expectedIndexName = clusterAlias == null ? index : clusterAlias + ":" + index;
-            assertEquals(expectedIndexName, queryShardContext.getFullyQualifiedIndex().getName());
+            assertEquals(expectedIndexName, searchExecutionContext.getFullyQualifiedIndex().getName());
             assertEquals(expectedIndexName, searchShardTarget.getFullyQualifiedIndexName());
             assertEquals(clusterAlias, searchShardTarget.getClusterAlias());
             assertEquals(shardId, searchShardTarget.getShardId());

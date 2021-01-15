@@ -54,7 +54,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -78,17 +78,16 @@ import static org.mockito.Mockito.when;
 
 public class WildcardFieldMapperTests extends MapperTestCase {
 
-    static QueryShardContext createMockQueryShardContext(boolean allowExpensiveQueries, Version version) {
-        QueryShardContext queryShardContext = mock(QueryShardContext.class);
-        when(queryShardContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
-        when(queryShardContext.indexVersionCreated()).thenReturn(version);
-        return queryShardContext;
+    static SearchExecutionContext createMockSearchExecutionContext(boolean allowExpensiveQueries, Version version) {
+        SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.allowExpensiveQueries()).thenReturn(allowExpensiveQueries);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(version);
+        return searchExecutionContext;
     }
 
     private static final String KEYWORD_FIELD_NAME = "keyword_field";
     private static final String WILDCARD_FIELD_NAME = "wildcard_field";
-    public static final QueryShardContext MOCK_QSC = createMockQueryShardContext(true, Version.CURRENT);
-    public static final QueryShardContext MOCK_7_9_QSC = createMockQueryShardContext(true, Version.V_7_9_0);
+    public static final SearchExecutionContext MOCK_CONTEXT = createMockSearchExecutionContext(true, Version.CURRENT);
 
     static final int MAX_FIELD_LENGTH = 30;
     static WildcardFieldMapper wildcardFieldType;
@@ -200,7 +199,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
 
         // Test regexp query
-        wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+        wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(queryString, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
         wildcardFieldTopDocs = searcher.search(wildcardFieldQuery, 10, Sort.INDEXORDER);
         assertThat(wildcardFieldTopDocs.totalHits.value, equalTo(0L));
 
@@ -239,13 +238,13 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     }
 
     private void expectTermMatch(IndexSearcher searcher, String term,long count) throws IOException {
-        Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_QSC);
+        Query q = wildcardFieldType.fieldType().termQuery(term, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
         assertThat(td.totalHits.value, equalTo(count));
     }
 
     private void expectPrefixMatch(IndexSearcher searcher, String term,long count) throws IOException {
-        Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_QSC);
+        Query q = wildcardFieldType.fieldType().prefixQuery(term, null, MOCK_CONTEXT);
         TopDocs td = searcher.search(q, 10, Sort.RELEVANCE);
         assertThat(td.totalHits.value, equalTo(count));
     }
@@ -294,20 +293,20 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             case 0:
                 pattern = getRandomWildcardPattern();
                 boolean caseInsensitive = randomBoolean();
-                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_QSC);
+                wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_CONTEXT);
+                keywordFieldQuery = keywordFieldType.fieldType().wildcardQuery(pattern, null, caseInsensitive, MOCK_CONTEXT);
                 break;
             case 1:
                 pattern = getRandomRegexPattern(values);
                 int matchFlags = randomBoolean()? 0 : RegExp.ASCII_CASE_INSENSITIVE;
-                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags,20000, null, MOCK_QSC);
+                wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags, 20000, null, MOCK_CONTEXT);
+                keywordFieldQuery = keywordFieldType.fieldType().regexpQuery(pattern, RegExp.ALL, matchFlags,20000, null, MOCK_CONTEXT);
                 break;
             case 2:
                 pattern = randomABString(5);
                 boolean caseInsensitivePrefix = randomBoolean();
-                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_QSC);
-                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_QSC);
+                wildcardFieldQuery = wildcardFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_CONTEXT);
+                keywordFieldQuery = keywordFieldType.fieldType().prefixQuery(pattern, null, caseInsensitivePrefix, MOCK_CONTEXT);
                 break;
             case 3:
                 int edits = randomInt(2);
@@ -334,16 +333,16 @@ public class WildcardFieldMapperTests extends MapperTestCase {
                 boolean transpositions = randomBoolean();
 
                 wildcardFieldQuery = wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50,
-                    transpositions, MOCK_QSC);
+                    transpositions, MOCK_CONTEXT);
                 keywordFieldQuery = keywordFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50,
-                    transpositions, MOCK_QSC);
+                    transpositions, MOCK_CONTEXT);
                 break;
             case 4:
                 TermRangeQuery trq = getRandomRange(values);
                 wildcardFieldQuery = wildcardFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
-                    trq.includesUpper(), null, null, null, MOCK_QSC);
+                    trq.includesUpper(), null, null, null, MOCK_CONTEXT);
                 keywordFieldQuery = keywordFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
-                    trq.includesUpper(), null, null, null, MOCK_QSC);
+                    trq.includesUpper(), null, null, null, MOCK_CONTEXT);
                 break;
 
             }
@@ -363,14 +362,14 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
         //Test keyword and wildcard sort operations are also equivalent
-        QueryShardContext shardContextMock = createMockShardContext();
+        SearchExecutionContext searchExecutionContext = createMockContext();
 
         FieldSortBuilder wildcardSortBuilder = new FieldSortBuilder(WILDCARD_FIELD_NAME);
-        SortField wildcardSortField = wildcardSortBuilder.build(shardContextMock).field;
+        SortField wildcardSortField = wildcardSortBuilder.build(searchExecutionContext).field;
         ScoreDoc[] wildcardHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(wildcardSortField)).scoreDocs;
 
         FieldSortBuilder keywordSortBuilder = new FieldSortBuilder(KEYWORD_FIELD_NAME);
-        SortField keywordSortField = keywordSortBuilder.build(shardContextMock).field;
+        SortField keywordSortField = keywordSortBuilder.build(searchExecutionContext).field;
         ScoreDoc[] keywordHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(keywordSortField)).scoreDocs;
 
         assertThat(wildcardHits.length, equalTo(keywordHits.length));
@@ -433,9 +432,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             BytesRef upper = bounds[1] == null ? null :new BytesRef(bounds[1]);
             TermRangeQuery trq = new TermRangeQuery(WILDCARD_FIELD_NAME, lower, upper, randomBoolean(), randomBoolean());
             Query wildcardFieldQuery = wildcardFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
-                trq.includesUpper(), null, null, null, MOCK_QSC);
+                trq.includesUpper(), null, null, null, MOCK_CONTEXT);
             Query keywordFieldQuery = keywordFieldType.fieldType().rangeQuery(trq.getLowerTerm(),trq.getUpperTerm(), trq.includesLower(),
-                trq.includesUpper(), null, null, null, MOCK_QSC);
+                trq.includesUpper(), null, null, null, MOCK_CONTEXT);
 
 
             TopDocs kwTopDocs = searcher.search(keywordFieldQuery, 10, Sort.RELEVANCE);
@@ -460,12 +459,12 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // All these expressions should rewrite to a match all with no verification step required at all
         String superfastRegexes[]= { ".*",  "...*..", "(foo|bar|.*)", "@"};
         for (String regex : superfastRegexes) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             assertTrue(wildcardFieldQuery instanceof DocValuesFieldExistsQuery);
         }
         String matchNoDocsRegexes[]= { ""};
         for (String regex : matchNoDocsRegexes) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             assertTrue(wildcardFieldQuery instanceof MatchNoDocsQuery);
         }
 
@@ -486,7 +485,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String[] test : acceleratedTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
 
@@ -494,7 +493,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // TODO we can possibly improve on some of these
         String matchAllButVerifyTests[]= { "..", "(a)?","(a|b){0,3}", "((foo)?|(foo|bar)?)", "@&~(abc.+)", "aaa.+&.+bbb"};
         for (String regex : matchAllButVerifyTests) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
             assertTrue(regex +" was not a pure verify query " +formatQuery(wildcardFieldQuery),
                 wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv);
         }
@@ -510,7 +509,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String[] test : suboptimalTests) {
             String regex = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", ""+WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().regexpQuery(regex, RegExp.ALL, 0, 20000, null, MOCK_CONTEXT);
 
             testExpectedAccelerationQuery(regex, wildcardFieldQuery, expectedAccelerationQueryString);
         }
@@ -526,7 +525,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // All these expressions should rewrite to MatchAll with no verification step required at all
         String superfastPattern[] = { "*", "**", "*?" };
         for (String pattern : superfastPattern) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             assertTrue(
                 pattern + " was not a pure match all query " + formatQuery(wildcardFieldQuery),
                 wildcardFieldQuery instanceof DocValuesFieldExistsQuery
@@ -546,7 +545,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         for (String[] test : tests) {
             String pattern = test[0];
             String expectedAccelerationQueryString = test[1].replaceAll("_", "" + WildcardFieldMapper.TOKEN_START_OR_END_CHAR);
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             testExpectedAccelerationQuery(pattern, wildcardFieldQuery, expectedAccelerationQueryString);
             assertTrue(wildcardFieldQuery instanceof BooleanQuery);
         }
@@ -554,7 +553,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         // TODO All these expressions have no acceleration at all and could be improved
         String slowPatterns[] = { "??" };
         for (String pattern : slowPatterns) {
-            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_QSC);
+            Query wildcardFieldQuery = wildcardFieldType.fieldType().wildcardQuery(pattern, null, MOCK_CONTEXT);
             assertTrue(
                 pattern + " was not as slow as we assumed " + formatQuery(wildcardFieldQuery),
                 wildcardFieldQuery instanceof AutomatonQueryOnBinaryDv
@@ -607,7 +606,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
         Query getFuzzyQuery() {
-            return wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, true, MOCK_QSC);
+            return wildcardFieldType.fieldType().fuzzyQuery(pattern, fuzziness, prefixLength, 50, true, MOCK_CONTEXT);
         }
 
         Query getExpectedApproxQuery() throws ParseException {
@@ -683,7 +682,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
 
         Query getRangeQuery() {
-            return wildcardFieldType.fieldType().rangeQuery(lower, upper, true, true, null, null, null, MOCK_QSC);
+            return wildcardFieldType.fieldType().rangeQuery(lower, upper, true, true, null, null, null, MOCK_CONTEXT);
         }
 
         Query getExpectedApproxQuery() throws ParseException {
@@ -884,7 +883,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
         }
     }
 
-    protected final QueryShardContext createMockShardContext() {
+    protected final SearchExecutionContext createMockContext() {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index,
             Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build());
@@ -894,7 +893,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fieldIndexName, searchLookup);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        return new QueryShardContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
+        return new SearchExecutionContext(0, 0, idxSettings, bitsetFilterCache, indexFieldDataLookup,
                 null, null, null, null, xContentRegistry(), null, null, null,
                 () -> randomNonNegativeLong(), null, null, () -> true, null, emptyMap()) {
             @Override

@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
+import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.junit.After;
 import org.junit.Before;
 
@@ -496,15 +497,10 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         NodeAcknowledgedResponse response = startAnalytics(jobId);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until state is one of REINDEXING or ANALYZING, or until it is STOPPED.
+        // Wait until progress for first phase is over 1
         assertBusy(() -> {
-            DataFrameAnalyticsState state = getAnalyticsStats(jobId).getState();
-            assertThat(
-                state,
-                is(anyOf(
-                    equalTo(DataFrameAnalyticsState.REINDEXING),
-                    equalTo(DataFrameAnalyticsState.ANALYZING),
-                    equalTo(DataFrameAnalyticsState.STOPPED))));
+            List<PhaseProgress> progress = getAnalyticsStats(jobId).getProgress();
+            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
         });
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);

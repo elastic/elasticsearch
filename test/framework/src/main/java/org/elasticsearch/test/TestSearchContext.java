@@ -28,7 +28,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchExtBuilder;
@@ -72,7 +72,7 @@ public class TestSearchContext extends SearchContext {
     final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
     final IndexShard indexShard;
     final QuerySearchResult queryResult = new QuerySearchResult();
-    final QueryShardContext queryShardContext;
+    final SearchExecutionContext searchExecutionContext;
     ParsedQuery originalQuery;
     ParsedQuery postFilter;
     Query query;
@@ -95,23 +95,23 @@ public class TestSearchContext extends SearchContext {
         this.indexService = indexService;
         this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.indexShard = indexService.getShardOrNull(0);
-        queryShardContext = indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap());
+        searchExecutionContext = indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap());
     }
 
-    public TestSearchContext(QueryShardContext queryShardContext) {
-        this(queryShardContext, null, null, null);
+    public TestSearchContext(SearchExecutionContext searchExecutionContext) {
+        this(searchExecutionContext, null, null, null);
     }
 
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard, ContextIndexSearcher searcher) {
-        this(queryShardContext, indexShard, searcher, null);
+    public TestSearchContext(SearchExecutionContext searchExecutionContext, IndexShard indexShard, ContextIndexSearcher searcher) {
+        this(searchExecutionContext, indexShard, searcher, null);
     }
 
-    public TestSearchContext(QueryShardContext queryShardContext, IndexShard indexShard,
+    public TestSearchContext(SearchExecutionContext searchExecutionContext, IndexShard indexShard,
                              ContextIndexSearcher searcher, ScrollContext scrollContext) {
         this.indexService = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = indexShard;
-        this.queryShardContext = queryShardContext;
+        this.searchExecutionContext = searchExecutionContext;
         this.searcher = searcher;
         this.scrollContext = scrollContext;
     }
@@ -516,8 +516,8 @@ public class TestSearchContext extends SearchContext {
     public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
 
     @Override
-    public QueryShardContext getQueryShardContext() {
-        return queryShardContext;
+    public SearchExecutionContext getSearchExecutionContext() {
+        return searchExecutionContext;
     }
 
     @Override

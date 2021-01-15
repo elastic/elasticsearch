@@ -26,10 +26,10 @@ import org.elasticsearch.index.mapper.LegacyGeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.spatial.index.fielddata.plain.AbstractLatLonShapeIndexFieldData;
+import org.elasticsearch.xpack.spatial.index.query.VectorGeoShapeWithDocValuesQueryProcessor;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.GeoShapeValuesSourceType;
 
 import java.util.Arrays;
@@ -128,7 +128,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
     public static final class GeoShapeWithDocValuesFieldType extends AbstractShapeGeometryFieldType implements GeoShapeQueryable {
 
-        private final VectorGeoShapeQueryProcessor queryProcessor = new VectorGeoShapeQueryProcessor();
+        private final VectorGeoShapeWithDocValuesQueryProcessor queryProcessor = new VectorGeoShapeWithDocValuesQueryProcessor();
 
         public GeoShapeWithDocValuesFieldType(String name, boolean indexed, boolean hasDocValues,
                                               Orientation orientation, GeoShapeParser parser, Map<String, String> meta) {
@@ -146,8 +146,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
-            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context);
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+            return queryProcessor.geoShapeQuery(shape, fieldName, relation, context, hasDocValues());
         }
     }
 

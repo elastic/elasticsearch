@@ -26,7 +26,7 @@ does not log system actions to avoid cluttering the logs.
 | `{"type":"audit", "timestamp":"2020-12-30T21:56:43,608+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"anonymous_access_denied", "origin.type":"rest", "origin.address":"[::1]:50543", "url.path":"/twitter/_async_search", "url.query":"pretty", "request.method":"POST", "request.id":"TqA9OisyQ8WTl1ivJUV1AA"}`
 
 | `authentication_failed`
-| Logged when the authentication token cannot be matched to a known user.
+| Logged when the authentication credentials cannot be matched to a known user.
 | `{"type":"audit", "timestamp":"2020-12-30T22:10:15,510+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"rest", "event.action":"authentication_failed", "user.name":"elastic", "origin.type":"rest", "origin.address":"[::1]:51504", "url.path":"/_security/user/user1", "url.query":"pretty", "request.method":"POST", "request.id":"POv8p_qeTl2tb5xoFl0HIg"}`
 
 | `authentication_success`

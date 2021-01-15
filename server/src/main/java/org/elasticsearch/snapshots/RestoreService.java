@@ -711,8 +711,8 @@ public class RestoreService implements ClusterStateApplier {
             .filter(featureName -> systemIndices.getFeatures().containsKey(featureName))
             .collect(Collectors.toList());
         if (featuresNotOnThisNode.isEmpty() == false) {
-            logger.warn("while restoring feature states from snapshot [{}], some requested feature states are not present on this node: {}",
-                snapshot, featuresNotOnThisNode);
+            throw new SnapshotRestoreException(snapshot, "requested feature states [" + featuresNotOnThisNode + "] are present in" +
+                "snapshot but those features are not installed on the current master node");
         }
         return featureStatesToRestore;
     }

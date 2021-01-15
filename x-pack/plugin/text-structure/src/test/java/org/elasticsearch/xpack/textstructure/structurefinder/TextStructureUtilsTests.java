@@ -458,7 +458,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         assertNotNull(pipeline);
 
-        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+        assertEquals("Ingest pipeline created by text structure finder", pipeline.remove("description"));
 
         List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
         assertNotNull(processors);
@@ -496,7 +496,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         assertNotNull(pipeline);
 
-        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+        assertEquals("Ingest pipeline created by text structure finder", pipeline.remove("description"));
 
         List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
         assertNotNull(processors);
@@ -535,7 +535,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         assertNotNull(pipeline);
 
-        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+        assertEquals("Ingest pipeline created by text structure finder", pipeline.remove("description"));
 
         List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
         assertNotNull(processors);
@@ -575,7 +575,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         assertNotNull(pipeline);
 
-        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+        assertEquals("Ingest pipeline created by text structure finder", pipeline.remove("description"));
 
         List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
         assertNotNull(processors);
@@ -628,7 +628,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         assertNotNull(pipeline);
 
-        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+        assertEquals("Ingest pipeline created by text structure finder", pipeline.remove("description"));
 
         List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
         assertNotNull(processors);
@@ -683,7 +683,7 @@ public class TextStructureUtilsTests extends TextStructureTestCase {
         );
         assertNotNull(pipeline);
 
-        assertEquals("Ingest pipeline created by file structure finder", pipeline.remove("description"));
+        assertEquals("Ingest pipeline created by text structure finder", pipeline.remove("description"));
 
         List<Map<String, Object>> processors = (List<Map<String, Object>>) pipeline.remove("processors");
         assertNotNull(processors);

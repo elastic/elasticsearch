@@ -618,7 +618,7 @@ end::dfas-feature-processors-ngram-ngrams[]
 
 tag::dfas-feature-processors-ngram-start[]
 Specifies the zero-indexed start of the ngram substring. Negative values are 
-allowed. Defaults to `0`.
+allowed for encoding ngram of string suffixes. Defaults to `0`.
 end::dfas-feature-processors-ngram-start[]
 
 tag::dfas-feature-processors-one-hot[]

@@ -164,7 +164,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
 [%collapsible%open]
 =======
 `feature_prefix`::::
-(Required, string)
+(Optional, string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-feat-pref]
 
 `field`::::
@@ -172,7 +172,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-f
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-field]
 
 `length`::::
-(Required, integer)
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-length]
 
 `n_grams`::::
@@ -180,7 +180,7 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-l
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-ngrams]
 
 `start`::::
-(Required, integer)
+(Optional, integer)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-start]
 =======
 

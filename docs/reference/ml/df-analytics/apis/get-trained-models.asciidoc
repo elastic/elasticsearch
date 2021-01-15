@@ -113,10 +113,6 @@ Information on the creator of the trained model.
 (<<time-units,time units>>)
 The time when the trained model was created.
 
-`description`:::
-(string)
-The free-text description of the trained model.
-
 `default_field_map` :::
 (object)
 A string to string object that contains the default field map to use
@@ -126,6 +122,10 @@ The analytics job would then supply a default field map entry for
 `"foo" : "foo.keyword"`.
 +
 Any field map described in the inference configuration takes precedence.
+
+`description`:::
+(string)
+The free-text description of the trained model.
 
 `estimated_heap_memory_usage_bytes`:::
 (integer)
@@ -144,22 +144,6 @@ or `classification` configuration. It must match the underlying
 .Properties of `inference_config`
 [%collapsible%open]
 =====
-`regression`::::
-(object)
-Regression configuration for inference.
-+
-.Properties of regression inference
-[%collapsible%open]
-======
-`num_top_feature_importance_values`:::::
-(integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
-
-`results_field`:::::
-(string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
-======
-
 `classification`::::
 (object)
 Classification configuration for inference.
@@ -187,8 +171,22 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
 (string)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
 ======
-=====
+`regression`::::
+(object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+======
+`num_top_feature_importance_values`:::::
+(integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
 
+`results_field`:::::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+======
+=====
 
 `input`:::
 (object)

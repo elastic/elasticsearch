@@ -394,7 +394,8 @@ public final class SnapshotClient {
 
     /**
      * Get a list of features which can be included in a snapshot as feature states.
-     * See [link here]
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-snapshottable-features-api.html"> Get Snapshottable
+     * Features API on elastic.co</a>
      *
      * @param getFeaturesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
@@ -413,6 +414,9 @@ public final class SnapshotClient {
     }
 
     /**
+     * Asynchronously get a list of features which can be included in a snapshot as feature states.
+     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/get-snapshottable-features-api.html"> Get Snapshottable
+     * Features API on elastic.co</a>
      *
      * @param getFeaturesRequest the request
      * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized

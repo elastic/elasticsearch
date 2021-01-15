@@ -1,0 +1,150 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+package org.elasticsearch.gradle
+
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.gradle.testkit.runner.TaskOutcome
+
+class RestResourcesPluginFuncTest extends AbstractGradleFuncTest {
+
+    def "restResources does nothing when there are no tests"() {
+        given:
+        internalBuild()
+        buildFile << """
+            apply plugin: 'elasticsearch.rest-resources'
+            apply plugin: 'elasticsearch.java'
+        """
+
+        String api = "foo.json"
+        setupRestResources([api])
+
+        when:
+        def result = gradleRunner("copyRestApiSpecsTask").build()
+
+        then:
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
+    }
+
+    def "restResources copies API by default for projects with tests"() {
+        given:
+        internalBuild()
+        buildFile << """
+           apply plugin: 'elasticsearch.rest-resources'
+           apply plugin: 'elasticsearch.java'
+        """
+        String api = "foo.json"
+        setupRestResources([api])
+        addRestTestsToProject(["10_basic.yml"])
+
+        when:
+        def result = gradleRunner("copyRestApiSpecsTask").build()
+
+        then:
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
+        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
+        new File(resourceDir, "/api/" + api).exists()
+    }
+
+    def "restResources copies API by configuration"() {
+        given:
+        internalBuild()
+        buildFile << """
+            apply plugin: 'elasticsearch.rest-resources'
+            apply plugin: 'elasticsearch.java'
+
+            restResources {
+                restApi {
+                    includeCore 'foo'
+                    includeXpack 'xpackfoo'
+                }
+            }
+        """
+        String apiFoo = "foo.json"
+        String apiXpackFoo = "xpackfoo.json"
+        String apiBar = "bar.json"
+        String apiXpackBar = "xpackbar.json"
+        setupRestResources([apiFoo, apiBar], [], [apiXpackFoo, apiXpackBar])
+        addRestTestsToProject(["10_basic.yml"])
+
+        when:
+        def result = gradleRunner("copyRestApiSpecsTask").build()
+
+        then:
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
+        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
+        new File(resourceDir, "/api/" + apiFoo).exists()
+        new File(resourceDir, "/api/" + apiXpackFoo).exists()
+        new File(resourceDir, "/api/" + apiBar).exists() == false
+        new File(resourceDir, "/api/" + apiXpackBar).exists() == false
+    }
+
+    def "restResources copies Tests and API by configuration"() {
+        given:
+        internalBuild()
+        buildFile << """
+            apply plugin: 'elasticsearch.rest-resources'
+            apply plugin: 'elasticsearch.java'
+
+            restResources {
+                restApi {
+                    includeCore '*'
+                    includeXpack '*'
+                }
+                restTests {
+                    includeCore 'foo'
+                    includeXpack 'bar'
+                }
+            }
+        """
+        String apiCore1 = "foo1.json"
+        String apiCore2 = "foo2.json"
+        String apiXpack = "xpack.json"
+        String coreTest = "foo/10_basic.yml"
+        String xpackTest = "bar/10_basic.yml"
+        setupRestResources([apiCore1, apiCore2], [coreTest], [apiXpack], [xpackTest])
+        // intentionally not adding tests to project, they will be copied over via the plugin
+        // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
+
+        when:
+        def result = gradleRunner("copyRestApiSpecsTask").build()
+
+        then:
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
+        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
+        new File(resourceDir, "/api/" + apiCore1).exists()
+        new File(resourceDir, "/api/" + apiCore2).exists()
+        new File(resourceDir, "/api/" + apiXpack).exists()
+        new File(resourceDir, "/test/" + coreTest).exists()
+        new File(resourceDir, "/test/" + xpackTest).exists()
+    }
+
+    void addRestTestsToProject(List<String> tests) {
+        // uses the test source set by default, but in practice it would be a custom source set set by another plugin
+        File testDir = new File(testProjectDir.root, "src/test/resources/rest-api-spec/test/foo")
+        testDir.mkdirs();
+        tests.each { test ->
+            new File(testDir, test).createNewFile()
+        }
+    }
+}

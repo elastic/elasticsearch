@@ -120,7 +120,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                versionList.addAll(
             Arrays.asList(Version.fromString("$major"), Version.fromString("$minor"), Version.fromString("$bugfix"), currentVersion)
         )
-        
+
         BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)
         BuildParams.init { it.setBwcVersions(versions) }
         """
@@ -143,21 +143,37 @@ abstract class AbstractGradleFuncTest extends Specification {
         }
     }
 
-    void setupInternalRestResources(String api, String test){
-        internalBuild()
-        addSubProject(":test:framework") <<  "apply plugin: 'elasticsearch.java'"
-        addSubProject(":distribution:archives:integ-test-zip") <<  "configurations { extracted }"
-        addSubProject(":rest-api-spec") <<  """
+    void setupRestResources(List<String> apis, List<String> tests = [], List<String> xpackApis = [], List<String> xpackTests = []) {
+        addSubProject(":test:framework") << "apply plugin: 'elasticsearch.java'"
+        addSubProject(":distribution:archives:integ-test-zip") << "configurations { extracted }"
+        addSubProject(":rest-api-spec") << """
         configurations { restSpecs\nrestTests }
         artifacts {
           restSpecs(new File(projectDir, "src/main/resources/rest-api-spec/api"))
           restTests(new File(projectDir, "src/main/resources/rest-api-spec/test"))
         }
         """
-        addSubProject(":x-pack:plugin") << "configurations { restXpackSpecs\nrestXpackTests }"
+        addSubProject(":x-pack:plugin") << """
+        configurations { restXpackSpecs\nrestXpackTests }
+        artifacts {
+          //The api and tests need to stay at src/test/... since some external tooling depends on that exact file path.
+          restXpackSpecs(new File(projectDir, "src/test/resources/rest-api-spec/api"))
+          restXpackTests(new File(projectDir, "src/test/resources/rest-api-spec/test"))
+        }
+        """
 
-        //add the mock api and test files
-        file("rest-api-spec/src/main/resources/rest-api-spec/test/" + test) << ""
-        file("rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        xpackApis.each { api ->
+            file("x-pack/plugin/src/test/resources/rest-api-spec/api/" + api) << ""
+        }
+        xpackTests.each { test ->
+            file("x-pack/plugin/src/test/resources/rest-api-spec/test/" + test) << ""
+        }
+
+        apis.each { api ->
+            file("rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        }
+        tests.each { test ->
+            file("rest-api-spec/src/main/resources/rest-api-spec/test/" + test) << ""
+        }
     }
 }

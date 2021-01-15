@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.cluster.service.MasterService;
-
 import java.util.List;
 
 public interface ClusterStateTaskListener {

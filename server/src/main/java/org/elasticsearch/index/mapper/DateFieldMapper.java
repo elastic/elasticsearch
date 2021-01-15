@@ -45,7 +45,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -357,7 +357,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
@@ -375,13 +375,13 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             return rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -419,7 +419,7 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             @Nullable ZoneId timeZone,
             DateMathParser parser,
-            QueryShardContext context,
+            SearchExecutionContext context,
             Resolution resolution,
             BiFunction<Long, Long, Query> builder
         ) {
@@ -451,7 +451,7 @@ public final class DateFieldMapper extends FieldMapper {
          * @param builder build the query
          * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
          */
-        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
+        public static Query handleNow(SearchExecutionContext context, Function<LongSupplier, Query> builder) {
             boolean[] nowUsed = new boolean[1];
             LongSupplier nowSupplier = () -> {
                 nowUsed[0] = true;
@@ -478,7 +478,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery

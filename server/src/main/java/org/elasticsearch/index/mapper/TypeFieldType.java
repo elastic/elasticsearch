@@ -25,7 +25,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -65,7 +65,7 @@ public final class TypeFieldType extends ConstantFieldType {
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         deprecationLogger.deprecate(DeprecationCategory.QUERIES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         return new MatchAllDocsQuery();
     }
@@ -77,12 +77,12 @@ public final class TypeFieldType extends ConstantFieldType {
     }
 
     @Override
-    public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
         throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
     }
 
     @Override
-    protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+    protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
         deprecationLogger.deprecate(DeprecationCategory.QUERIES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         if (caseInsensitive) {
             return pattern.equalsIgnoreCase(type);

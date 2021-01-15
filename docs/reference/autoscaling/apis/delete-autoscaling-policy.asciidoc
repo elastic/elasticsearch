@@ -47,7 +47,7 @@ This API deletes an autoscaling policy with the provided name.
 [[autoscaling-delete-autoscaling-policy-examples]]
 ==== {api-examples-title}
 
-This example deletes an autoscaling policy named `my_autosaling_policy`.
+This example deletes an autoscaling policy named `my_autoscaling_policy`.
 
 [source,console]
 --------------------------------------------------

@@ -42,7 +42,7 @@ import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TermBasedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -131,17 +131,22 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return new DocValuesFieldExistsQuery(name());
         }
 
         @Override
-        public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query prefixQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             return wildcardQuery(value + "*", method, caseInsensitive, context);
         }
 
@@ -159,7 +164,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             int matchFlags,
             int maxDeterminizedStates,
             @Nullable MultiTermQuery.RewriteMethod method,
-            QueryShardContext context
+            SearchExecutionContext context
         ) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
@@ -205,7 +210,7 @@ public class VersionStringFieldMapper extends FieldMapper {
             int prefixLength,
             int maxExpansions,
             boolean transpositions,
-            QueryShardContext context
+            SearchExecutionContext context
         ) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
@@ -240,7 +245,12 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query wildcardQuery(String value, MultiTermQuery.RewriteMethod method, boolean caseInsensitive, QueryShardContext context) {
+        public Query wildcardQuery(
+            String value,
+            MultiTermQuery.RewriteMethod method,
+            boolean caseInsensitive,
+            SearchExecutionContext context
+        ) {
             if (context.allowExpensiveQueries() == false) {
                 throw new ElasticsearchException(
                     "[wildcard] queries cannot be executed when '" + ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false."
@@ -293,7 +303,13 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             BytesRef lower = lowerTerm == null ? null : indexedValueForSearch(lowerTerm);
             BytesRef upper = upperTerm == null ? null : indexedValueForSearch(upperTerm);
             return new TermRangeQuery(name(), lower, upper, includeLower, includeUpper);

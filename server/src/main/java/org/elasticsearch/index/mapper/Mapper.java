@@ -25,7 +25,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptService;
 
@@ -62,7 +62,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             private final Function<String, RuntimeFieldType.Parser> runtimeTypeParsers;
             private final boolean supportsDynamicRuntimeMappings;
             private final Version indexVersionCreated;
-            private final Supplier<QueryShardContext> queryShardContextSupplier;
+            private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
             private final DateFormatter dateFormatter;
             private final ScriptService scriptService;
             private final IndexAnalyzers indexAnalyzers;
@@ -73,7 +73,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                                  Function<String, TypeParser> typeParsers,
                                  Function<String, RuntimeFieldType.Parser> runtimeTypeParsers,
                                  Version indexVersionCreated,
-                                 Supplier<QueryShardContext> queryShardContextSupplier,
+                                 Supplier<SearchExecutionContext> searchExecutionContextSupplier,
                                  DateFormatter dateFormatter,
                                  ScriptService scriptService,
                                  IndexAnalyzers indexAnalyzers,
@@ -84,7 +84,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 this.typeParsers = typeParsers;
                 this.runtimeTypeParsers = runtimeTypeParsers;
                 this.indexVersionCreated = indexVersionCreated;
-                this.queryShardContextSupplier = queryShardContextSupplier;
+                this.searchExecutionContextSupplier = searchExecutionContextSupplier;
                 this.dateFormatter = dateFormatter;
                 this.scriptService = scriptService;
                 this.indexAnalyzers = indexAnalyzers;
@@ -129,8 +129,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return indexVersionCreated;
             }
 
-            public Supplier<QueryShardContext> queryShardContextSupplier() {
-                return queryShardContextSupplier;
+            public Supplier<SearchExecutionContext> searchExecutionContext() {
+                return searchExecutionContextSupplier;
             }
 
             /**
@@ -160,7 +160,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
-                        in.queryShardContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
                         in.idFieldDataEnabled, in.supportsDynamicRuntimeMappings);
                 }
 

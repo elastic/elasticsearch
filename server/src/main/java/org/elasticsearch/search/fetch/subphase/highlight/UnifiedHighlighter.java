@@ -37,7 +37,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
 
@@ -73,7 +73,7 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext = fieldContext.hitContext;
 
         CheckedSupplier<String, IOException> loadFieldValues = () -> {
-            List<Object> fieldValues = loadFieldValues(highlighter, fieldContext.context.getQueryShardContext(), fieldType,
+            List<Object> fieldValues = loadFieldValues(highlighter, fieldContext.context.getSearchExecutionContext(), fieldType,
                 hitContext, fieldContext.forceSource);
             if (fieldValues.size() == 0) {
                 return null;
@@ -112,9 +112,9 @@ public class UnifiedHighlighter implements Highlighter {
         Encoder encoder = fieldContext.field.fieldOptions().encoder().equals("html")
             ? HighlightUtils.Encoders.HTML
             : HighlightUtils.Encoders.DEFAULT;
-        int maxAnalyzedOffset = fieldContext.context.getQueryShardContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
+        int maxAnalyzedOffset = fieldContext.context.getSearchExecutionContext().getIndexSettings().getHighlightMaxAnalyzedOffset();
         int numberOfFragments = fieldContext.field.fieldOptions().numberOfFragments();
-        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getQueryShardContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER));
+        Analyzer analyzer = wrapAnalyzer(fieldContext.context.getSearchExecutionContext().getIndexAnalyzer(f -> Lucene.KEYWORD_ANALYZER));
         PassageFormatter passageFormatter = getPassageFormatter(fieldContext.hitContext, fieldContext.field, encoder);
         IndexSearcher searcher = fieldContext.context.searcher();
         OffsetSource offsetSource = getOffsetSource(fieldContext.fieldType);
@@ -164,12 +164,12 @@ public class UnifiedHighlighter implements Highlighter {
 
     protected List<Object> loadFieldValues(
         CustomUnifiedHighlighter highlighter,
-        QueryShardContext qsc,
+        SearchExecutionContext searchContext,
         MappedFieldType fieldType,
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, qsc, hitContext, forceSource);
+        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource);
         fieldValues = fieldValues.stream()
             .map((s) -> convertFieldValue(fieldType, s))
             .collect(Collectors.toList());

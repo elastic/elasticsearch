@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.supercsv.exception.SuperCsvException;
 import org.supercsv.io.CsvListReader;
 import org.supercsv.prefs.CsvPreference;
@@ -36,7 +36,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     private static final int MAX_LEVENSHTEIN_COMPARISONS = 100;
     private static final int LONG_FIELD_THRESHOLD = 100;
     private final List<String> sampleMessages;
-    private final FileStructure structure;
+    private final TextStructure structure;
 
     static DelimitedFileStructureFinder makeDelimitedFileStructureFinder(
         List<String> explanation,
@@ -125,7 +125,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
 
         Map<String, Object> csvProcessorSettings = makeCsvProcessorSettings("message", columnNamesList, delimiter, quoteChar, trimFields);
 
-        FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.DELIMITED).setCharset(charsetName)
+        TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.DELIMITED).setCharset(charsetName)
             .setHasByteOrderMarker(hasByteOrderMarker)
             .setSampleStart(preamble)
             .setNumLinesAnalyzed(lineNumbers.get(lineNumbers.size() - 1))
@@ -227,14 +227,14 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
             structureBuilder.setFieldStats(mappingsAndFieldStats.v2());
         }
 
-        FileStructure structure = structureBuilder.setMappings(
+        TextStructure structure = structureBuilder.setMappings(
             Collections.singletonMap(FileStructureUtils.MAPPING_PROPERTIES_SETTING, fieldMappings)
         ).setExplanation(explanation).build();
 
         return new DelimitedFileStructureFinder(sampleMessages, structure);
     }
 
-    private DelimitedFileStructureFinder(List<String> sampleMessages, FileStructure structure) {
+    private DelimitedFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }
@@ -245,7 +245,7 @@ public class DelimitedFileStructureFinder implements FileStructureFinder {
     }
 
     @Override
-    public FileStructure getStructure() {
+    public TextStructure getStructure() {
         return structure;
     }
 

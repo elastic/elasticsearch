@@ -24,7 +24,12 @@ public class OperatorOnlyRegistry {
         "cluster:admin/autoscaling/put_autoscaling_policy",
         "cluster:admin/autoscaling/delete_autoscaling_policy",
         "cluster:admin/autoscaling/get_autoscaling_policy",
-        "cluster:admin/autoscaling/get_autoscaling_capacity");
+        "cluster:admin/autoscaling/get_autoscaling_capacity",
+        // Repository speed test actions are not mentioned in core, literal strings are needed.
+        "cluster:admin/repository/speed_test",
+        "cluster:admin/repository/speed_test/blob",
+        "cluster:admin/repository/speed_test/blob/read"
+        );
 
     /**
      * Check whether the given action and request qualify as operator-only. The method returns

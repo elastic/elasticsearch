@@ -262,6 +262,9 @@ This method populates the destination index with the latest documents for each
 unique key value. For example, you might want to find the latest orders (sorted
 by the `order_date` field) for each customer or for each country and region.
 
+[role="screenshot"]
+image::images/ecommerce-latest1.png["Creating a latest {transform} in {kib}"]
+
 .API example
 [%collapsible]
 ====

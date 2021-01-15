@@ -110,15 +110,15 @@ public abstract class CoreTestTranslater {
                 Map<String, String> params = Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
                 for (String type : RUNTIME_TYPES) {
-                    if (type.equals(IpFieldMapper.CONTENT_TYPE) ||
-                        type.equals(GeoPointFieldMapper.CONTENT_TYPE) ||
-                        type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    if (type.equals(IpFieldMapper.CONTENT_TYPE)
+                        || type.equals(GeoPointFieldMapper.CONTENT_TYPE)
+                        || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
                         // There isn't a dynamic template to pick up ips and geopoints. They'll just look like strings.
                         continue;
                     }
-                    //It would be great to use dynamic:runtime and remove the need for dynamic templates.
-                    //Unfortunately, string fields get dynamically mapped as a multi-field which we can't mimic from a dynamic
-                    //template either, hence we register a dynamic template for each type besides string.
+                    // It would be great to use dynamic:runtime and remove the need for dynamic templates.
+                    // Unfortunately, string fields get dynamically mapped as a multi-field which we can't mimic from a dynamic
+                    // template either, hence we register a dynamic template for each type besides string.
                     HashMap<String, Object> map = new HashMap<>();
                     map.put("match_mapping_type", type);
                     map.putAll(dynamicTemplateFor());

@@ -103,7 +103,7 @@ the snapshot.
 IMPORTANT: The global cluster state includes the cluster's index
 templates, such as those <<create-a-data-stream-template,matching a data
 stream>>. If your snapshot includes data streams, we recommend storing the
-cluster state as part of the snapshot. This lets you later restored any
+global state as part of the snapshot. This lets you later restored any
 templates required for a data stream.
 
 By default, the entire snapshot will fail if one or more indices participating in the snapshot do not have

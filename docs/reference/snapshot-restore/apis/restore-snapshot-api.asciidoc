@@ -123,11 +123,11 @@ indices.
 +
 --
 (Optional, Boolean)
-If `false`, the cluster state is not restored. Defaults to `false`.
+If `false`, the global state is not restored. Defaults to `false`.
 
-If `true`, the current cluster state is included in the restore operation.
+If `true`, the current global state is included in the restore operation.
 
-The cluster state includes:
+The global state includes:
 
 * Persistent cluster settings
 * Index templates

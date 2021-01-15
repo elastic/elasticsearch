@@ -92,10 +92,10 @@ argument is provided, the snapshot only includes the specified data streams and 
 +
 --
 (Optional, Boolean)
-If `true`, the current cluster state is included in the snapshot.
+If `true`, the current global state is included in the snapshot.
 Defaults to `true`.
 
-The cluster state includes:
+The global state includes:
 
 * Persistent cluster settings
 * Index templates

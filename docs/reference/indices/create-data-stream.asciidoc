@@ -41,6 +41,12 @@ DELETE /_index_template/template
 
 `PUT /_data_stream/<data-stream>`
 
+[[indices-create-data-stream-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `create_index`
+or `manage` <<privileges-list-indices,index privilege>> for the data stream.
+
 [[indices-create-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 

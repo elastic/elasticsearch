@@ -64,7 +64,7 @@ quantity. The result is an entity-centric index that shows the number of sold
 items in every product category in the last year.
 
 [role="screenshot"]
-image::images/pivot-preview.png["Example of a {transform} pivot in {kib}"]
+image::images/pivot-preview.png["Example of a pivot {transform} preview in {kib}"]
 
 [[latest-transform-overview]]
 == Latest {transforms}
@@ -76,6 +76,9 @@ into a new index. You must identify one or more fields as the unique key for
 grouping your data, as well as a date field that sorts the data chronologically.
 For example, you can use this type of {transform} to keep track of the latest
 purchase for each customer or the latest event for each host.
+
+[role="screenshot"]
+image::images/latest-preview.png["Example of a latest {transform} preview in {kib}"]
 
 As in the case of a pivot, a latest {transform} can run once or continuously. It
 performs a composite aggregation on the data in the source index and stores the

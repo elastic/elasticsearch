@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.ml.integration;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -74,19 +75,19 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
         assertThat(configHolder.get(), is(equalTo(config)));
 
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
-        originSettingClient.prepareIndex(".ml-state-000001")
+        originSettingClient.prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
             .setId("delete-config-with-state-and-stats_regression_state#1")
             .setSource("{}", XContentType.JSON)
             .get();
-        originSettingClient.prepareIndex(".ml-state-000001")
+        originSettingClient.prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
             .setId("data_frame_analytics-delete-config-with-state-and-stats-progress")
             .setSource("{}", XContentType.JSON)
             .get();
-        originSettingClient.prepareIndex(".ml-stats-000001")
+        originSettingClient.prepareIndex(".ml-stats-000001", SINGLE_MAPPING_NAME)
             .setId("delete-config-with-state-and-stats_1")
             .setSource("{\"job_id\": \"delete-config-with-state-and-stats\"}", XContentType.JSON)
             .get();
-        originSettingClient.prepareIndex(".ml-stats-000001")
+        originSettingClient.prepareIndex(".ml-stats-000001", SINGLE_MAPPING_NAME)
             .setId("delete-config-with-state-and-stats_2")
             .setSource("{\"job_id\": \"delete-config-with-state-and-stats\"}", XContentType.JSON)
             .get();
@@ -121,7 +122,7 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 }

@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.hamcrest.Matchers.containsString;
 
@@ -104,7 +105,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
     public void testCreateWithExistingCategorizerDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(client().prepareIndex(".ml-state-000001")
+        testCreateWithExistingDocs(client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setId(jobId + "_categorizer_state#1")
             .setSource("{}", XContentType.JSON)
@@ -114,7 +115,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
     public void testCreateWithExistingQuantilesDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(client().prepareIndex(".ml-state-000001")
+        testCreateWithExistingDocs(client().prepareIndex(".ml-state-000001", SINGLE_MAPPING_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setId(jobId + "_quantiles")
             .setSource("{}", XContentType.JSON)
@@ -123,7 +124,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
     public void testCreateWithExistingResultsDocs() {
         String jobId = "job-id-with-existing-docs";
-        testCreateWithExistingDocs(client().prepareIndex(".ml-anomalies-shared")
+        testCreateWithExistingDocs(client().prepareIndex(".ml-anomalies-shared", SINGLE_MAPPING_NAME)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setId(jobId + "_1464739200000_1")
             .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
@@ -185,7 +186,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
         namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
         namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
-        namedXContent.addAll(new SearchModule(Settings.EMPTY, emptyList()).getNamedXContents());
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, false, emptyList()).getNamedXContents());
         return new NamedXContentRegistry(namedXContent);
     }
 }

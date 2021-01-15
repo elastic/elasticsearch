@@ -12,6 +12,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -26,6 +27,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQueryBuilder> {
@@ -38,11 +40,15 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         if (randomBoolean()) {
-            mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-                "test", "type=geo_shape"))), MapperService.MergeReason.MAPPING_UPDATE);
+            XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                .startObject("test").field("type", "geo_shape").endObject().endObject().endObject().endObject();
+            mapperService.merge("_doc",
+                new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         } else {
-            mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-                "test", "type=geo_shape,doc_values=false"))), MapperService.MergeReason.MAPPING_UPDATE);
+            XContentBuilder mapping = jsonBuilder().startObject().startObject("_doc").startObject("properties")
+                .startObject("test").field("type", "geo_shape").field("doc_values", false).endObject().endObject().endObject().endObject();
+            mapperService.merge("_doc",
+                new CompressedXContent(Strings.toString(mapping)), MapperService.MergeReason.MAPPING_UPDATE);
         }
     }
 

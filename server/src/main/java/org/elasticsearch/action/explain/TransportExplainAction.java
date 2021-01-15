@@ -114,7 +114,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
             if (!result.exists()) {
                 return new ExplainResponse(shardId.getIndexName(), request.id(), false);
             }
-            context.parsedQuery(context.getQueryShardContext().toQuery(request.query()));
+            context.parsedQuery(context.getSearchExecutionContext().toQuery(request.query()));
             context.preProcess(true);
             int topLevelDocId = result.docIdAndVersion().docId + result.docIdAndVersion().docBase;
             Explanation explanation = context.searcher().explain(context.query(), topLevelDocId);

@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.supercsv.prefs.CsvPreference;
 
 import java.io.IOException;
@@ -37,8 +37,8 @@ public class DelimitedFileStructureFinderFactory implements FileStructureFinderF
     }
 
     @Override
-    public boolean canFindFormat(FileStructure.Format format) {
-        return format == null || format == FileStructure.Format.DELIMITED;
+    public boolean canFindFormat(TextStructure.Format format) {
+        return format == null || format == TextStructure.Format.DELIMITED;
     }
 
     /**

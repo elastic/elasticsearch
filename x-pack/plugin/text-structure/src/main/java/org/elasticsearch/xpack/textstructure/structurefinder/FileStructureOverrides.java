@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xpack.core.textstructure.action.FindFileStructureAction;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.List;
 import java.util.Objects;
@@ -17,14 +17,14 @@ import java.util.Objects;
  * aspect of the file structure detection is not overridden.
  *
  * There is no consistency checking in this class.  Consistency checking of the different
- * fields is done in {@link FindFileStructureAction.Request}.
+ * fields is done in {@link FindStructureAction.Request}.
  */
 public class FileStructureOverrides {
 
     public static final FileStructureOverrides EMPTY_OVERRIDES = new Builder().build();
 
     private final String charset;
-    private final FileStructure.Format format;
+    private final TextStructure.Format format;
     private final List<String> columnNames;
     private final Boolean hasHeaderRow;
     private final Character delimiter;
@@ -34,7 +34,7 @@ public class FileStructureOverrides {
     private final String timestampFormat;
     private final String timestampField;
 
-    public FileStructureOverrides(FindFileStructureAction.Request request) {
+    public FileStructureOverrides(FindStructureAction.Request request) {
 
         this(
             request.getCharset(),
@@ -52,7 +52,7 @@ public class FileStructureOverrides {
 
     private FileStructureOverrides(
         String charset,
-        FileStructure.Format format,
+        TextStructure.Format format,
         List<String> columnNames,
         Boolean hasHeaderRow,
         Character delimiter,
@@ -82,7 +82,7 @@ public class FileStructureOverrides {
         return charset;
     }
 
-    public FileStructure.Format getFormat() {
+    public TextStructure.Format getFormat() {
         return format;
     }
 
@@ -162,7 +162,7 @@ public class FileStructureOverrides {
     public static class Builder {
 
         private String charset;
-        private FileStructure.Format format;
+        private TextStructure.Format format;
         private List<String> columnNames;
         private Boolean hasHeaderRow;
         private Character delimiter;
@@ -177,7 +177,7 @@ public class FileStructureOverrides {
             return this;
         }
 
-        public Builder setFormat(FileStructure.Format format) {
+        public Builder setFormat(TextStructure.Format format) {
             this.format = format;
             return this;
         }

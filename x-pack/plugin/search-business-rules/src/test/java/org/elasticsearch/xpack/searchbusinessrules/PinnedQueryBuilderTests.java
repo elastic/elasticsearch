@@ -18,7 +18,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -90,7 +90,7 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
         }
 
     @Override
-    protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, QueryShardContext searchContext) throws IOException {
+    protected void doAssertLuceneQuery(PinnedQueryBuilder queryBuilder, Query query, SearchExecutionContext searchContext) {
         if (queryBuilder.ids().size() == 0 && queryBuilder.organicQuery() == null) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else {
@@ -118,14 +118,14 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
             bigList[i] = String.valueOf(i);
         }
         expectThrows(IllegalArgumentException.class, () -> new PinnedQueryBuilder(new MatchAllQueryBuilder(), bigList));
-        
+
     }
 
     public void testEmptyPinnedQuery() throws Exception {
         XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
         contentBuilder.startObject().startObject("pinned").endObject().endObject();
         try (XContentParser xParser = createParser(contentBuilder)) {
-            expectThrows(ParsingException.class, () -> parseQuery(xParser).toQuery(createShardContext()));
+            expectThrows(ParsingException.class, () -> parseQuery(xParser).toQuery(createSearchExecutionContext()));
         }
     }
 
@@ -168,13 +168,13 @@ public class PinnedQueryBuilderTests extends AbstractQueryTestCase<PinnedQueryBu
 
     public void testRewrite() throws IOException {
         PinnedQueryBuilder pinnedQueryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("foo", 1), "1");
-        QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createShardContext());
+        QueryBuilder rewritten = pinnedQueryBuilder.rewrite(createSearchExecutionContext());
         assertThat(rewritten, instanceOf(PinnedQueryBuilder.class));
     }
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         PinnedQueryBuilder queryBuilder = new PinnedQueryBuilder(new TermQueryBuilder("unmapped_field", "42"));
         IllegalStateException e = expectThrows(IllegalStateException.class,

@@ -6,9 +6,9 @@
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.xpack.core.textstructure.action.FindFileStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.FieldStats;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -22,7 +22,7 @@ import java.util.regex.Pattern;
 public class TextLogFileStructureFinder implements FileStructureFinder {
 
     private final List<String> sampleMessages;
-    private final FileStructure structure;
+    private final TextStructure structure;
 
     static TextLogFileStructureFinder makeTextLogFileStructureFinder(
         List<String> explanation,
@@ -98,7 +98,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
                                 + lineMergeSizeLimit
                                 + "]). If you have messages this big please increase "
                                 + "the value of ["
-                                + FindFileStructureAction.Request.LINE_MERGE_SIZE_LIMIT
+                                + FindStructureAction.Request.LINE_MERGE_SIZE_LIMIT
                                 + "]. Otherwise it "
                                 + "probably means the timestamp has been incorrectly detected, so try overriding that."
                         );
@@ -125,7 +125,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         // null to allow GC before Grok pattern search
         sampleLines = null;
 
-        FileStructure.Builder structureBuilder = new FileStructure.Builder(FileStructure.Format.SEMI_STRUCTURED_TEXT).setCharset(
+        TextStructure.Builder structureBuilder = new TextStructure.Builder(TextStructure.Format.SEMI_STRUCTURED_TEXT).setCharset(
             charsetName
         )
             .setHasByteOrderMarker(hasByteOrderMarker)
@@ -178,7 +178,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
 
         boolean needClientTimeZone = timestampFormatFinder.hasTimezoneDependentParsing();
 
-        FileStructure structure = structureBuilder.setTimestampField(interimTimestampField)
+        TextStructure structure = structureBuilder.setTimestampField(interimTimestampField)
             .setJodaTimestampFormats(timestampFormatFinder.getJodaTimestampFormats())
             .setJavaTimestampFormats(timestampFormatFinder.getJavaTimestampFormats())
             .setNeedClientTimezone(needClientTimeZone)
@@ -203,7 +203,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
         return new TextLogFileStructureFinder(sampleMessages, structure);
     }
 
-    private TextLogFileStructureFinder(List<String> sampleMessages, FileStructure structure) {
+    private TextLogFileStructureFinder(List<String> sampleMessages, TextStructure structure) {
         this.sampleMessages = Collections.unmodifiableList(sampleMessages);
         this.structure = structure;
     }
@@ -214,7 +214,7 @@ public class TextLogFileStructureFinder implements FileStructureFinder {
     }
 
     @Override
-    public FileStructure getStructure() {
+    public TextStructure getStructure() {
         return structure;
     }
 

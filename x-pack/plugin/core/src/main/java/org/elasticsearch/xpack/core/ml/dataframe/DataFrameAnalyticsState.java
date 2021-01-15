@@ -15,6 +15,9 @@ import java.util.Locale;
 
 public enum DataFrameAnalyticsState implements Writeable {
 
+    // States reindexing and analyzing are no longer used.
+    // However, we need to keep them for BWC as tasks may be
+    // awaiting assignment in older versioned nodes.
     STARTED, REINDEXING, ANALYZING, STOPPING, STOPPED, FAILED, STARTING;
 
     public static DataFrameAnalyticsState fromString(String name) {

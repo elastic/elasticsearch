@@ -217,7 +217,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      * only for {@link #toXContent} and tests, don't use this to construct a query.
      * use {@link #getValues()} instead.
      */
-    List<Object> values() {
+    public List<Object> values() {
         List<Object> readableValues = new ArrayList<>();
         for (Object value : values) {
             readableValues.add(AbstractQueryBuilder.maybeConvertToString(value));

@@ -107,7 +107,7 @@ invoked to create or update a role mapping.
 
 | `put_user`
 | Logged when the <<security-api-put-user,put user API>> is invoked to create or
-update a native or built-in user. Note that user updates can also change the
+update a native user. Note that user updates can also change the
 user's password.
 | `{"type":"audit", "timestamp":"2020-12-30T22:10:09,749+0200", "node.id":"0RMNyghkQYCc_gVd1G6tZQ", "event.type":"security_config_change", "event.action":"put_user", "request.id":"VIiSvhp4Riim_tpkQCVSQA", "put":{"user":{"name":"user1","enabled":false,"roles":["admin","other_role1"],"full_name":"Jack Sparrow","email":"jack@blackpearl.com","has_password":true,"metadata":{"cunning":10}}}}`
 

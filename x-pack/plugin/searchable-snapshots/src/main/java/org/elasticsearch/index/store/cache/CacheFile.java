@@ -235,7 +235,21 @@ public class CacheFile {
 
     private void decrementRefCount() {
         final boolean released = refCounter.decRef();
-        assert released == false || (evicted.get() && Files.notExists(file));
+        assert assertRefCounted(released);
+    }
+
+    private boolean assertRefCounted(boolean isReleased) {
+        final boolean isEvicted = evicted.get();
+        final boolean notExists = Files.notExists(file);
+        assert isReleased == false || (isEvicted && notExists) : "fully released cache file should be deleted from disk but got ["
+            + "released="
+            + isReleased
+            + ", evicted="
+            + isEvicted
+            + ", file not exists="
+            + notExists
+            + ']';
+        return true;
     }
 
     /**
@@ -494,7 +508,7 @@ public class CacheFile {
                     }
                 }
             } finally {
-                refCounter.decRef();
+                decrementRefCount();
             }
         } else {
             assert evicted.get();

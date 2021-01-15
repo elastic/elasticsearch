@@ -53,7 +53,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
@@ -144,7 +144,7 @@ public class MatchQuery {
 
     public static final ZeroTermsQuery DEFAULT_ZERO_TERMS_QUERY = ZeroTermsQuery.NONE;
 
-    protected final QueryShardContext context;
+    protected final SearchExecutionContext context;
 
     protected Analyzer analyzer;
 
@@ -173,7 +173,7 @@ public class MatchQuery {
 
     protected boolean autoGenerateSynonymsPhraseQuery = true;
 
-    public MatchQuery(QueryShardContext context) {
+    public MatchQuery(SearchExecutionContext context) {
         this.context = context;
     }
 

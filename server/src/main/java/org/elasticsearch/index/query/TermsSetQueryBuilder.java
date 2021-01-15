@@ -221,7 +221,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("No terms supplied for \"" + getName() + "\" query.");
         }
@@ -238,7 +238,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     /**
      * Visible only for testing purposes.
      */
-    List<Query> createTermQueries(QueryShardContext context) {
+    List<Query> createTermQueries(SearchExecutionContext context) {
         final MappedFieldType fieldType = context.getFieldType(fieldName);
         final List<Query> queries = new ArrayList<>(values.size());
         for (Object value : values) {
@@ -251,7 +251,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
         return queries;
     }
 
-    private LongValuesSource createValuesSource(QueryShardContext context) {
+    private LongValuesSource createValuesSource(SearchExecutionContext context) {
         LongValuesSource longValuesSource;
         if (minimumShouldMatchField != null) {
             MappedFieldType msmFieldType = context.getFieldType(minimumShouldMatchField);

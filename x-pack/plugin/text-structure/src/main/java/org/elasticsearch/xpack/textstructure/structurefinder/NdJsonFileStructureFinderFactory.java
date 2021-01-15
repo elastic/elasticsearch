@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -20,8 +20,8 @@ import static org.elasticsearch.common.xcontent.json.JsonXContent.jsonXContent;
 public class NdJsonFileStructureFinderFactory implements FileStructureFinderFactory {
 
     @Override
-    public boolean canFindFormat(FileStructure.Format format) {
-        return format == null || format == FileStructure.Format.NDJSON;
+    public boolean canFindFormat(TextStructure.Format format) {
+        return format == null || format == TextStructure.Format.NDJSON;
     }
 
     /**

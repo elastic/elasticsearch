@@ -109,6 +109,15 @@ at least `2000`.
 (Optional, integer) The number of write operations to perform concurrently.
 Defaults to `10`.
 
+`read_node_count`::
+(Optional, integer) The number of nodes on which to perform a read operation
+after writing each blob.  Defaults to `10`.
+
+`early_read_node_count`::
+(Optional, integer) The number of nodes on which to perform an early read
+operation while writing each blob. Defaults to `2`. Early read operations are
+only rarely performed.
+
 `seed`::
 (Optional, integer) The seed for the pseudo-random number generator used to
 generate the list of operations performed during the test. To repeat the same

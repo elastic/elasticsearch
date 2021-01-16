@@ -31,6 +31,14 @@
         "type":"number",
         "description":"Number of operations to run concurrently during the test"
       },
+      "read_node_count":{
+        "type":"number",
+        "description":"Number of nodes on which to read a blob after writing"
+      },
+      "early_read_node_count":{
+        "type":"number",
+        "description":"Number of nodes on which to read a blob during writing"
+      },
       "seed":{
         "type":"number",
         "description":"Seed for the random number generator used to create the test workload"

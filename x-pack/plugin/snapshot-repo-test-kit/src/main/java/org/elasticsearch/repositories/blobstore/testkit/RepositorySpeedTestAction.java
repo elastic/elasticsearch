@@ -325,6 +325,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         targetLength,
                         random.nextLong(),
                         nodes,
+                        request.readNodeCount,
+                        request.earlyReadNodeCount,
                         smallBlob && (random.nextInt(50) == 0), // TODO magic 50
                         repository.supportURLRepo() && smallBlob && random.nextInt(50) == 0 // TODO magic 50
                     )
@@ -501,6 +503,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         request.getRepositoryName(),
                         request.blobCount,
                         request.concurrency,
+                        request.readNodeCount,
+                        request.earlyReadNodeCount,
                         request.maxBlobSize,
                         request.seed,
                         blobPath,
@@ -544,6 +548,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
 
         private int blobCount = 100;
         private int concurrency = 10;
+        private int readNodeCount = 10;
+        private int earlyReadNodeCount = 2;
         private long seed = 0L;
         private TimeValue timeout = TimeValue.timeValueSeconds(30);
         private ByteSizeValue maxBlobSize = ByteSizeValue.ofMb(10);
@@ -560,6 +566,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             seed = in.readLong();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
+            readNodeCount = in.readVInt();
+            earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
             maxBlobSize = new ByteSizeValue(in);
             detailed = in.readBoolean();
@@ -578,6 +586,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             out.writeLong(seed);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
+            out.writeVInt(readNodeCount);
+            out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);
             maxBlobSize.writeTo(out);
             out.writeBoolean(detailed);
@@ -658,6 +668,28 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             reroutedFrom = discoveryNode;
         }
 
+        public void readNodeCount(int readNodeCount) {
+            if (readNodeCount <= 0) {
+                throw new IllegalArgumentException("readNodeCount must be >0, but was [" + readNodeCount + "]");
+            }
+            this.readNodeCount = readNodeCount;
+        }
+
+        public int getReadNodeCount() {
+            return readNodeCount;
+        }
+
+        public void earlyReadNodeCount(int earlyReadNodeCount) {
+            if (earlyReadNodeCount <= 0) {
+                throw new IllegalArgumentException("earlyReadNodeCount must be >0, but was [" + earlyReadNodeCount + "]");
+            }
+            this.earlyReadNodeCount = earlyReadNodeCount;
+        }
+
+        public int getEarlyReadNodeCount() {
+            return earlyReadNodeCount;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -671,6 +703,10 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                 + blobCount
                 + ", concurrency="
                 + concurrency
+                + ", readNodeCount="
+                + readNodeCount
+                + ", earlyReadNodeCount="
+                + earlyReadNodeCount
                 + ", seed="
                 + seed
                 + ", timeout="
@@ -687,6 +723,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                 seed = newSeed;
             }
         }
+
     }
 
     public static class Response extends ActionResponse implements StatusToXContentObject {
@@ -696,6 +733,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final String repositoryName;
         private final int blobCount;
         private final int concurrency;
+        private final int readNodeCount;
+        private final int earlyReadNodeCount;
         private final ByteSizeValue maxBlobSize;
         private final long seed;
         private final String blobPath;
@@ -710,6 +749,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             String repositoryName,
             int blobCount,
             int concurrency,
+            int readNodeCount,
+            int earlyReadNodeCount,
             ByteSizeValue maxBlobSize,
             long seed,
             String blobPath,
@@ -723,6 +764,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             this.repositoryName = repositoryName;
             this.blobCount = blobCount;
             this.concurrency = concurrency;
+            this.readNodeCount = readNodeCount;
+            this.earlyReadNodeCount = earlyReadNodeCount;
             this.maxBlobSize = maxBlobSize;
             this.seed = seed;
             this.blobPath = blobPath;
@@ -739,6 +782,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             repositoryName = in.readString();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
+            readNodeCount = in.readVInt();
+            earlyReadNodeCount = in.readVInt();
             maxBlobSize = new ByteSizeValue(in);
             seed = in.readLong();
             blobPath = in.readString();
@@ -755,6 +800,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             out.writeString(repositoryName);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
+            out.writeVInt(readNodeCount);
+            out.writeVInt(earlyReadNodeCount);
             maxBlobSize.writeTo(out);
             out.writeLong(seed);
             out.writeString(blobPath);
@@ -781,6 +828,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             builder.field("repository", repositoryName);
             builder.field("blob_count", blobCount);
             builder.field("concurrency", concurrency);
+            builder.field("read_node_count", readNodeCount);
+            builder.field("early_read_node_count", earlyReadNodeCount);
             builder.field("max_blob_size", maxBlobSize);
             builder.field("seed", seed);
             builder.field("blob_path", blobPath);

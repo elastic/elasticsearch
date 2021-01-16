@@ -222,21 +222,21 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             checksumWholeBlob = random.nextBoolean();
             if (checksumWholeBlob) {
                 checksumStart = 0L;
-                checksumEnd = this.request.targetLength;
+                checksumEnd = request.targetLength;
             } else {
-                checksumStart = randomLongBetween(0L, this.request.targetLength);
-                checksumEnd = randomLongBetween(checksumStart + 1, this.request.targetLength + 1);
+                checksumStart = randomLongBetween(0L, request.targetLength);
+                checksumEnd = randomLongBetween(checksumStart + 1, request.targetLength + 1);
             }
 
             final ArrayList<DiscoveryNode> nodes = new ArrayList<>(request.nodes); // copy for shuffling purposes
             if (request.readEarly) {
                 Collections.shuffle(nodes, random);
-                earlyReadNodes = nodes.stream().limit(2).collect(Collectors.toList()); // TODO magic 2
+                earlyReadNodes = nodes.stream().limit(request.earlyReadNodeCount).collect(Collectors.toList());
             } else {
                 earlyReadNodes = List.of();
             }
             Collections.shuffle(nodes, random);
-            readNodes = nodes.stream().limit(10).collect(Collectors.toList()); // TODO magic 10
+            readNodes = nodes.stream().limit(request.readNodeCount).collect(Collectors.toList());
 
             final StepListener<Collection<NodeResponse>> readsCompleteStep = new StepListener<>();
             readNodesListener = new GroupedActionListener<>(
@@ -585,6 +585,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
         private final long targetLength;
         private final long seed;
         private final List<DiscoveryNode> nodes;
+        private final int readNodeCount;
+        private final int earlyReadNodeCount;
         private final boolean readEarly;
         private final boolean writeAndOverwrite;
 
@@ -595,6 +597,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             long targetLength,
             long seed,
             List<DiscoveryNode> nodes,
+            int readNodeCount,
+            int earlyReadNodeCount,
             boolean readEarly,
             boolean writeAndOverwrite
         ) {
@@ -606,6 +610,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             this.targetLength = targetLength;
             this.seed = seed;
             this.nodes = nodes;
+            this.readNodeCount = readNodeCount;
+            this.earlyReadNodeCount = earlyReadNodeCount;
             this.readEarly = readEarly;
             this.writeAndOverwrite = writeAndOverwrite;
         }
@@ -618,6 +624,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             targetLength = in.readVLong();
             seed = in.readLong();
             nodes = in.readList(DiscoveryNode::new);
+            readNodeCount = in.readVInt();
+            earlyReadNodeCount = in.readVInt();
             readEarly = in.readBoolean();
             writeAndOverwrite = in.readBoolean();
         }
@@ -631,6 +639,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             out.writeVLong(targetLength);
             out.writeLong(seed);
             out.writeList(nodes);
+            out.writeVInt(readNodeCount);
+            out.writeVInt(earlyReadNodeCount);
             out.writeBoolean(readEarly);
             out.writeBoolean(writeAndOverwrite);
         }

@@ -34,6 +34,10 @@ public class RestRepositorySpeedTestAction extends BaseRestHandler {
 
         verifyRepositoryRequest.blobCount(request.paramAsInt("blob_count", verifyRepositoryRequest.getBlobCount()));
         verifyRepositoryRequest.concurrency(request.paramAsInt("concurrency", verifyRepositoryRequest.getConcurrency()));
+        verifyRepositoryRequest.readNodeCount(request.paramAsInt("read_node_count", verifyRepositoryRequest.getReadNodeCount()));
+        verifyRepositoryRequest.earlyReadNodeCount(
+            request.paramAsInt("early_read_node_count", verifyRepositoryRequest.getEarlyReadNodeCount())
+        );
         verifyRepositoryRequest.seed(request.paramAsLong("seed", verifyRepositoryRequest.getSeed()));
         verifyRepositoryRequest.maxBlobSize(request.paramAsSize("max_blob_size", verifyRepositoryRequest.getMaxBlobSize()));
         verifyRepositoryRequest.timeout(request.paramAsTime("timeout", verifyRepositoryRequest.getTimeout()));

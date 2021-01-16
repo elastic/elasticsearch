@@ -46,12 +46,16 @@ setup:
         blob_count: 10
         concurrency: 5
         max_blob_size: 1mb
+        read_node_count: 2
+        early_read_node_count: 1
 
   - is_true: coordinating_node.id
   - is_true: coordinating_node.name
   - match: { repository:    test_repo }
   - match: { blob_count:    10 }
   - match: { concurrency:   5 }
+  - match: { read_node_count: 2 }
+  - match: { early_read_node_count: 1 }
   - match: { max_blob_size: 1mb }
   - is_true: seed
   - is_true: blob_path
@@ -87,6 +91,8 @@ setup:
   - match: { repository:    test_repo }
   - match: { blob_count:    10 }
   - match: { concurrency:   5 }
+  - match: { read_node_count: 10 }
+  - match: { early_read_node_count: 2 }
   - match: { max_blob_size: 1mb }
   - is_true: seed
   - is_true: blob_path

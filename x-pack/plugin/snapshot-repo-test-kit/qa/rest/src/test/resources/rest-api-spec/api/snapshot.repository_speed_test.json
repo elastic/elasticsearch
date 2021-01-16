@@ -43,6 +43,10 @@
         "type":"number",
         "description":"Seed for the random number generator used to create the test workload"
       },
+      "rare_action_probability":{
+        "type":"number",
+        "description":"Probability of taking a rare action such as an early read or an overwrite"
+      },
       "max_blob_size":{
         "type":"string",
         "description":"Maximum size of a blob to create during the test, e.g '1gb' or '100mb'"

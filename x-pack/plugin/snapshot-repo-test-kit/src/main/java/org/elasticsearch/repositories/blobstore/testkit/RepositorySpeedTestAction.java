@@ -327,8 +327,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         nodes,
                         request.readNodeCount,
                         request.earlyReadNodeCount,
-                        smallBlob && (random.nextInt(50) == 0), // TODO magic 50
-                        repository.supportURLRepo() && smallBlob && random.nextInt(50) == 0 // TODO magic 50
+                        smallBlob && random.nextDouble() < request.getRareActionProbability(),
+                        repository.supportURLRepo() && smallBlob && random.nextDouble() < request.getRareActionProbability()
                     )
                 );
                 queue.add(verifyBlobTask);
@@ -507,6 +507,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                         request.earlyReadNodeCount,
                         request.maxBlobSize,
                         request.seed,
+                        request.rareActionProbability,
                         blobPath,
                         summary.build(),
                         responses,
@@ -551,6 +552,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private int readNodeCount = 10;
         private int earlyReadNodeCount = 2;
         private long seed = 0L;
+        private double rareActionProbability = 0.02;
         private TimeValue timeout = TimeValue.timeValueSeconds(30);
         private ByteSizeValue maxBlobSize = ByteSizeValue.ofMb(10);
         private boolean detailed = false;
@@ -564,6 +566,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             super(in);
             repositoryName = in.readString();
             seed = in.readLong();
+            rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
             readNodeCount = in.readVInt();
@@ -584,6 +587,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             super.writeTo(out);
             out.writeString(repositoryName);
             out.writeLong(seed);
+            out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
             out.writeVInt(readNodeCount);
@@ -690,6 +694,19 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             return earlyReadNodeCount;
         }
 
+        public void rareActionProbability(double rareActionProbability) {
+            if (rareActionProbability < 0. || rareActionProbability > 1.) {
+                throw new IllegalArgumentException(
+                    "rareActionProbability must be between 0 and 1, but was [" + rareActionProbability + "]"
+                );
+            }
+            this.rareActionProbability = rareActionProbability;
+        }
+
+        public double getRareActionProbability() {
+            return rareActionProbability;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -709,6 +726,8 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
                 + earlyReadNodeCount
                 + ", seed="
                 + seed
+                + ", rareActionProbability="
+                + rareActionProbability
                 + ", timeout="
                 + timeout
                 + ", maxBlobSize="
@@ -737,6 +756,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
         private final int earlyReadNodeCount;
         private final ByteSizeValue maxBlobSize;
         private final long seed;
+        private final double rareActionProbability;
         private final String blobPath;
         private final SpeedTestSummary summary;
         private final List<BlobSpeedTestAction.Response> blobResponses;
@@ -753,6 +773,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             int earlyReadNodeCount,
             ByteSizeValue maxBlobSize,
             long seed,
+            double rareActionProbability,
             String blobPath,
             SpeedTestSummary summary,
             List<BlobSpeedTestAction.Response> blobResponses,
@@ -768,6 +789,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             this.earlyReadNodeCount = earlyReadNodeCount;
             this.maxBlobSize = maxBlobSize;
             this.seed = seed;
+            this.rareActionProbability = rareActionProbability;
             this.blobPath = blobPath;
             this.summary = summary;
             this.blobResponses = blobResponses;
@@ -786,6 +808,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             earlyReadNodeCount = in.readVInt();
             maxBlobSize = new ByteSizeValue(in);
             seed = in.readLong();
+            rareActionProbability = in.readDouble();
             blobPath = in.readString();
             summary = new SpeedTestSummary(in);
             blobResponses = in.readList(BlobSpeedTestAction.Response::new);
@@ -804,6 +827,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             out.writeVInt(earlyReadNodeCount);
             maxBlobSize.writeTo(out);
             out.writeLong(seed);
+            out.writeDouble(rareActionProbability);
             out.writeString(blobPath);
             summary.writeTo(out);
             out.writeList(blobResponses);
@@ -832,6 +856,7 @@ public class RepositorySpeedTestAction extends ActionType<RepositorySpeedTestAct
             builder.field("early_read_node_count", earlyReadNodeCount);
             builder.field("max_blob_size", maxBlobSize);
             builder.field("seed", seed);
+            builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
             builder.field("summary", summary);
 

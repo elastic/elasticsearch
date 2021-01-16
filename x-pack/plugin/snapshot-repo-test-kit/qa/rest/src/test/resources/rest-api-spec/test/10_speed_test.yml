@@ -48,6 +48,7 @@ setup:
         max_blob_size: 1mb
         read_node_count: 2
         early_read_node_count: 1
+        rare_action_probability: 0.01
 
   - is_true: coordinating_node.id
   - is_true: coordinating_node.name
@@ -56,6 +57,7 @@ setup:
   - match: { concurrency:   5 }
   - match: { read_node_count: 2 }
   - match: { early_read_node_count: 1 }
+  - match: { rare_action_probability: 0.01 }
   - match: { max_blob_size: 1mb }
   - is_true: seed
   - is_true: blob_path
@@ -93,6 +95,7 @@ setup:
   - match: { concurrency:   5 }
   - match: { read_node_count: 10 }
   - match: { early_read_node_count: 2 }
+  - match: { rare_action_probability: 0.02 }
   - match: { max_blob_size: 1mb }
   - is_true: seed
   - is_true: blob_path

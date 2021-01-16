@@ -2243,7 +2243,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
             .collect(Collectors.toMap(Function.identity(),
                 nodeName -> internalCluster().getInstance(PersistedClusterStateService.class, nodeName)));
         final ClusterState clusterState = clusterStateBuilder.build();
-        internalCluster().fullRestart(new InternalTestCluster.RestartCallback(){
+        internalCluster().fullRestart(new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
                 final PersistedClusterStateService lucenePersistedStateFactory = lucenePersistedStateFactories.get(nodeName);
@@ -2253,6 +2253,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
+    }
 
     /**
      * On Debian 8 the "memory" subsystem is not mounted by default

@@ -33,6 +33,26 @@ public class ParsedMediaTypeTests extends ESTestCase {
     MediaTypeRegistry<XContentType> mediaTypeRegistry = new MediaTypeRegistry<XContentType>()
         .register(XContentType.values());
 
+    public void testCanonicalParsing() {
+        assertThat(ParsedMediaType.parseMediaType("application/json")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.JSON));
+        assertThat(ParsedMediaType.parseMediaType("application/yaml")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.YAML));
+        assertThat(ParsedMediaType.parseMediaType("application/smile")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.SMILE));
+        assertThat(ParsedMediaType.parseMediaType("application/cbor")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.CBOR));
+
+        assertThat(ParsedMediaType.parseMediaType("application/vnd.elasticsearch+json;compatible-with=7")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_JSON));
+        assertThat(ParsedMediaType.parseMediaType("application/vnd.elasticsearch+yaml;compatible-with=7")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_YAML));
+        assertThat(ParsedMediaType.parseMediaType("application/vnd.elasticsearch+smile;compatible-with=7")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_SMILE));
+        assertThat(ParsedMediaType.parseMediaType("application/vnd.elasticsearch+cbor;compatible-with=7")
+            .toMediaType(mediaTypeRegistry), equalTo(XContentType.VND_CBOR));
+    }
+
     public void testJsonWithParameters() throws Exception {
         String mediaType = "application/vnd.elasticsearch+json";
         assertThat(ParsedMediaType.parseMediaType(mediaType).getParameters(),
@@ -48,7 +68,7 @@ public class ParsedMediaTypeTests extends ESTestCase {
     public void testWhiteSpaceInTypeSubtype() {
         String mediaType = " application/vnd.elasticsearch+json ";
         assertThat(ParsedMediaType.parseMediaType(mediaType).toMediaType(mediaTypeRegistry),
-            equalTo(XContentType.JSON));
+            equalTo(XContentType.VND_JSON));
 
         assertThat(ParsedMediaType.parseMediaType(mediaType + "; compatible-with=123; charset=UTF-8").getParameters(),
             equalTo(Map.of("charset", "utf-8", "compatible-with", "123")));

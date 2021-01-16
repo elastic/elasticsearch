@@ -43,6 +43,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.engine.EngineFactory;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -553,5 +554,13 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin implements Scrip
             .stream()
             .flatMap(p -> p.getSystemIndexDescriptors(this.settings).stream())
             .collect(Collectors.toList());
+    }
+
+    @Override
+    public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
+        return filterPlugins(MapperPlugin.class).stream()
+            .map(MapperPlugin::getMetadataMappers)
+            .flatMap (map -> map.entrySet().stream())
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 }

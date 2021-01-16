@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.suggest.term;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 
@@ -26,8 +26,8 @@ final class TermSuggestionContext extends SuggestionContext {
 
     private final DirectSpellcheckerSettings settings = new DirectSpellcheckerSettings();
 
-    TermSuggestionContext(QueryShardContext shardContext) {
-        super(TermSuggester.INSTANCE, shardContext);
+    TermSuggestionContext(SearchExecutionContext searchExecutionContext) {
+        super(TermSuggester.INSTANCE, searchExecutionContext);
     }
 
     public DirectSpellcheckerSettings getDirectSpellCheckerSettings() {

@@ -121,7 +121,7 @@ docker-compose up
 +
 [source,sh]
 --------------------------------------------------
-curl -X GET "localhost:9200/_cat/nodes?v&pretty"
+curl -X GET "localhost:9200/_cat/nodes?v=true&pretty"
 --------------------------------------------------
 // NOTCONSOLE
 

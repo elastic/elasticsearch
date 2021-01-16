@@ -34,7 +34,7 @@ import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -130,7 +130,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -141,7 +141,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected boolean matches(String pattern, boolean caseInsensitive, QueryShardContext context) {
+        protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
             if (value == null) {
                 return false;
             }
@@ -149,7 +149,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
         }
 
@@ -158,7 +158,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 Object lowerTerm, Object upperTerm,
                 boolean includeLower, boolean includeUpper,
                 ShapeRelation relation, ZoneId timeZone, DateMathParser parser,
-                QueryShardContext context) {
+                SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -175,7 +175,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                boolean transpositions, QueryShardContext context) {
+                boolean transpositions, SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }
@@ -205,7 +205,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             if (this.value == null) {
                 return new MatchNoDocsQuery();
             }

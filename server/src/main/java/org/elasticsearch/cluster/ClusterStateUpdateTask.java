@@ -72,7 +72,11 @@ public abstract class ClusterStateUpdateTask
     public abstract ClusterState execute(ClusterState currentState) throws Exception;
 
     /**
-     * A callback called when execute fails.
+     * A callback for when task execution fails.
+     *
+     * Implementations of this callback should not throw exceptions: an exception thrown here is logged by the master service at {@code
+     * ERROR} level and otherwise ignored. If log-and-ignore is the right behaviour then implementations should do so themselves, typically
+     * using a more specific logger and at a less dramatic log level.
      */
     public abstract void onFailure(String source, Exception e);
 

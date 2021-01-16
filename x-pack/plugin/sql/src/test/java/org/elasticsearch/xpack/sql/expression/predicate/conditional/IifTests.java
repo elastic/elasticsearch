@@ -62,7 +62,7 @@ public class IifTests extends AbstractNodeTestCase<Iif, Expression> {
 
         Source newSource = randomValueOtherThan(iif.source(), SourceTests::randomSource);
         assertEquals(new Iif(iif.source(), iif.conditions().get(0).condition(), iif.conditions().get(0).result(), iif.elseResult()),
-            iif.transformPropertiesOnly(p -> Objects.equals(p, iif.source()) ? newSource: p, Object.class));
+            iif.transformPropertiesOnly(Object.class, p -> Objects.equals(p, iif.source()) ? newSource: p));
     }
 
     @Override

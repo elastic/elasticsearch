@@ -137,7 +137,7 @@ public class ActivateWatchTests extends AbstractWatcherIntegrationTestCase {
                 "status.last_met_condition",
                 "status.actions.**");
 
-        XContentBuilder builder = new XContentBuilder(XContentType.JSON.xContent(), new BytesStreamOutput(), filters);
+        XContentBuilder builder = new XContentBuilder(XContentType.JSON, new BytesStreamOutput(), filters);
         source.toXContent(builder, ToXContent.EMPTY_PARAMS);
 
         // now that we filtered out the watch status state, lets put it back in

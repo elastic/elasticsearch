@@ -39,9 +39,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
@@ -398,9 +396,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
                 .put("index.routing.allocation.require._name", mergeNode)).get();
         ensureGreen("source");
 
-        final InternalClusterInfoService infoService = (InternalClusterInfoService) internalCluster().getInstance(ClusterInfoService.class,
-            internalCluster().getMasterName());
-        infoService.refresh();
+        refreshClusterInfo();
         // kick off a retry and wait until it's done!
         ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
         long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target")

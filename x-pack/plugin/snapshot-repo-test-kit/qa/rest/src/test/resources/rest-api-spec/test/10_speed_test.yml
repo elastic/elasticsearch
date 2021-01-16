@@ -66,13 +66,14 @@ setup:
   - gte: { delete_nanos:  0}
   - match: { summary.write.count: 10}
   - gte: { summary.write.total_bytes: 0}
-  - gte: { summary.write.throttled_nanos: 0}
-  - gte: { summary.write.elapsed_nanos: 0}
+  - gte: { summary.write.total_throttled_nanos: 0}
+  - gte: { summary.write.total_elapsed_nanos: 0}
   - gte: { summary.read.count: 10}
   - gte: { summary.read.total_bytes: 0}
-  - gte: { summary.read.wait_nanos: 0}
-  - gte: { summary.read.throttled_nanos: 0}
-  - gte: { summary.read.elapsed_nanos: 0}
+  - gte: { summary.read.total_wait_nanos: 0}
+  - gte: { summary.read.max_wait_nanos: 0}
+  - gte: { summary.read.total_throttled_nanos: 0}
+  - gte: { summary.read.total_elapsed_nanos: 0}
 
 ---
 "Speed test with details":
@@ -104,10 +105,11 @@ setup:
   - gte: { delete_nanos:  0}
   - match: { summary.write.count: 10}
   - gte: { summary.write.total_bytes: 0}
-  - gte: { summary.write.throttled_nanos: 0}
-  - gte: { summary.write.elapsed_nanos: 0}
+  - gte: { summary.write.total_throttled_nanos: 0}
+  - gte: { summary.write.total_elapsed_nanos: 0}
   - gte: { summary.read.count: 10}
   - gte: { summary.read.total_bytes: 0}
-  - gte: { summary.read.wait_nanos: 0}
-  - gte: { summary.read.throttled_nanos: 0}
-  - gte: { summary.read.elapsed_nanos: 0}
+  - gte: { summary.read.total_wait_nanos: 0}
+  - gte: { summary.read.max_wait_nanos: 0}
+  - gte: { summary.read.total_throttled_nanos: 0}
+  - gte: { summary.read.total_elapsed_nanos: 0}

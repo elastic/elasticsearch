@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
 
 public class SpeedTestSummary implements Writeable, ToXContentFragment {
@@ -24,6 +25,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
     private final long readCount;
     private final long readBytes;
     private final long readWaitNanos;
+    private final long maxReadWaitNanos;
     private final long readThrottledNanos;
     private final long readElapsedNanos;
 
@@ -35,6 +37,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         long readCount,
         long readBytes,
         long readWaitNanos,
+        long maxReadWaitNanos,
         long readThrottledNanos,
         long readElapsedNanos
     ) {
@@ -45,6 +48,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         this.readCount = readCount;
         this.readBytes = readBytes;
         this.readWaitNanos = readWaitNanos;
+        this.maxReadWaitNanos = maxReadWaitNanos;
         this.readThrottledNanos = readThrottledNanos;
         this.readElapsedNanos = readElapsedNanos;
     }
@@ -57,6 +61,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         readCount = in.readVLong();
         readBytes = in.readVLong();
         readWaitNanos = in.readVLong();
+        maxReadWaitNanos = in.readVLong();
         readThrottledNanos = in.readVLong();
         readElapsedNanos = in.readVLong();
     }
@@ -70,6 +75,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         out.writeVLong(readCount);
         out.writeVLong(readBytes);
         out.writeVLong(readWaitNanos);
+        out.writeVLong(maxReadWaitNanos);
         out.writeVLong(readThrottledNanos);
         out.writeVLong(readElapsedNanos);
     }
@@ -81,16 +87,17 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         builder.startObject("write");
         builder.field("count", writeCount);
         builder.field("total_bytes", writeBytes);
-        builder.field("throttled_nanos", writeThrottledNanos);
-        builder.field("elapsed_nanos", writeElapsedNanos);
+        builder.field("total_throttled_nanos", writeThrottledNanos);
+        builder.field("total_elapsed_nanos", writeElapsedNanos);
         builder.endObject();
 
         builder.startObject("read");
         builder.field("count", readCount);
         builder.field("total_bytes", readBytes);
-        builder.field("wait_nanos", readWaitNanos);
-        builder.field("throttled_nanos", readThrottledNanos);
-        builder.field("elapsed_nanos", readElapsedNanos);
+        builder.field("total_wait_nanos", readWaitNanos);
+        builder.field("max_wait_nanos", maxReadWaitNanos);
+        builder.field("total_throttled_nanos", readThrottledNanos);
+        builder.field("total_elapsed_nanos", readElapsedNanos);
         builder.endObject();
 
         builder.endObject();
@@ -107,6 +114,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
         private final LongAdder readCount = new LongAdder();
         private final LongAdder readBytes = new LongAdder();
         private final LongAdder readWaitNanos = new LongAdder();
+        private final LongAccumulator maxReadWaitNanos = new LongAccumulator(Long::max, Long.MIN_VALUE);
         private final LongAdder readThrottledNanos = new LongAdder();
         private final LongAdder readElapsedNanos = new LongAdder();
 
@@ -119,6 +127,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
                 readCount.longValue(),
                 readBytes.longValue(),
                 readWaitNanos.longValue(),
+                Long.max(0L, maxReadWaitNanos.longValue()),
                 readThrottledNanos.longValue(),
                 readElapsedNanos.longValue()
             );
@@ -136,6 +145,7 @@ public class SpeedTestSummary implements Writeable, ToXContentFragment {
                 readCount.add(1L);
                 readBytes.add(checksumBytes);
                 readWaitNanos.add(readDetail.getFirstByteNanos());
+                maxReadWaitNanos.accumulate(readDetail.getFirstByteNanos());
                 readThrottledNanos.add(readDetail.getThrottledNanos());
                 readElapsedNanos.add(readDetail.getElapsedNanos());
             }

@@ -1360,8 +1360,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             return;
         }
         if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
+            logger.debug("[{}] loading repository metadata for the first time, trying to determine correct generation and to store " +
+                    "it in the cluster state", metadata.name());
             initializeRepoGenerationTracking(listener);
         } else {
+            logger.trace("[{}] loading un-cached repository data with best known repository generation [{}]", metadata.name(),
+                    latestKnownRepoGen);
             threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
         }
     }
@@ -1416,6 +1420,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                     }
                                 }), onFailure)));
             } else {
+                logger.trace("[{}] waiting for existing initialization of repository metadata generation in cluster state",
+                        metadata.name());
                 repoDataInitialized.addListener(listener);
             }
         }

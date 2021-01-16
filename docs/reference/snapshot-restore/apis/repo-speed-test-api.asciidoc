@@ -118,16 +118,16 @@ after writing each blob.  Defaults to `10`.
 operation while writing each blob. Defaults to `2`. Early read operations are
 only rarely performed.
 
+`max_blob_size`::
+(Optional, <<size-units, size units>>) The maximum size of a blob to be written
+during the test. Defaults to `10mb`. For realistic experiments you should set
+this to at least `2gb`.
+
 `seed`::
 (Optional, integer) The seed for the pseudo-random number generator used to
 generate the list of operations performed during the test. To repeat the same
 set of operations in multiple experiments, use the same seed in each
 experiment.
-
-`max_blob_size`::
-(Optional, <<size-units, size units>>) The maximum size of a blob to be written
-during the test. Defaults to `10mb`. For realistic experiments you should set
-this to at least `2gb`.
 
 `timeout`::
 (Optional, <<time-units, time units>>) Specifies the period of time to wait for
@@ -138,4 +138,256 @@ the test is cancelled and returns an error. Defaults to `30s`.
 [[repo-speed-test-api-response-body]]
 ==== {api-response-body-title}
 
-TODO
+`coordinating_node`::
+(object)
+Identifies the node which coordinated the speed test and performed the final cleanup.
++
+.Properties of `coordinating_node`
+[%collapsible%open]
+====
+`id`::
+(string)
+The id of the coordinating node.
+
+`name`::
+(string)
+The name of the coordinating node
+====
+
+`repository`::
+(string)
+The name of the repository that was the subject of the speed test.
+
+`blob_count`::
+(integer)
+The number of blobs written to the repository during the test, equal to the
+`?blob_count` request parameter.
+
+`concurrency`::
+(integer)
+The number of write operations performed concurrently during the test, equal to
+the `?concurrency` request parameter.
+
+`read_node_count`::
+(integer)
+The limit on the number of nodes on which read operations were performed after
+writing each blob, equal to the `?read_node_count` request parameter.
+
+`early_read_node_count`::
+(integer)
+The limit on the number of nodes on which early read operations were performed
+after writing each blob, equal to the `?early_read_node_count` request
+parameter.
+
+`max_blob_size`::
+(string)
+The limit on the size of a blob written during the test, equal to the
+`?max_blob_size` parameter.
+
+`seed`::
+(long)
+The seed for the pseudo-random number generator used to generate the operations
+used during the test. Equal to the `?seed` request parameter if set.
+
+`rare_action_probability`::
+(double)
+The probability of performing rare actions during the test. Equal to the
+`?rare_action_probability` request parameter.
+
+`blob_path`::
+(string)
+The path in the repository under which all the blobs were written during the
+test.
+
+`summary`::
+(object)
+A collection of statistics that summarise the results of the test.
++
+.Properties of `summary`
+[%collapsible%open]
+====
+`write`::
+(object)
+A collection of statistics that summarise the results of the write operations
+in the test.
++
+.Properties of `write`
+[%collapsible%open]
+=====
+`count`::
+(integer)
+The numer of write operations performed in the test.
+
+`total_bytes`::
+(integer)
+The total size of all the blobs written in the test, in bytes.
+
+`total_throttled_nanos`::
+(integer)
+The total time spent waiting due to the `max_snapshot_bytes_per_sec` throttle,
+in nanoseconds.
+
+`total_elapsed_nanos`::
+(integer)
+The total elapsed time spent on writing blobs in the test, in nanoseconds.
+=====
+
+`read`::
+(object)
+A collection of statistics that summarise the results of the read operations in
+the test.
++
+.Properties of `read`
+[%collapsible%open]
+=====
+`count`::
+(integer)
+The numer of read operations performed in the test.
+
+`total_bytes`::
+(integer)
+The total size of all the blobs or partial blobs read in the test, in bytes.
+
+`total_throttled_nanos`::
+(integer)
+The total time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles, in nanoseconds.
+
+`total_wait_nanos`::
+(integer)
+The total time spent waiting for the first byte of each read request to be
+received, in nanoseconds.
+
+`max_wait_nanos`::
+(integer)
+The maximum time spent waiting for the first byte of any read request to be
+received, in nanoseconds.
+
+`total_elapsed_nanos`::
+(integer)
+The total elapsed time spent on reading blobs in the test, in nanoseconds.
+=====
+====
+
+`details`::
+(array)
+A description of every read and write operation performed during the test. This is
+only returned if the `?details` request parameter is set to `true`.
++
+.Properties of items within `details`
+[%collapsible]
+====
+`blob`::
+(object)
+A description of the blob that was written and read.
++
+.Properties of `blob`
+[%collapsible%open]
+=====
+`name`::
+(string)
+The name of the blob.
+
+`size`::
+(long)
+The size of the blob in bytes.
+
+`read_start`::
+(long)
+The position, in bytes, at which read operations started.
+
+`read_end`::
+(long)
+The position, in bytes, at which read operations completed.
+
+`read_early`::
+(boolean)
+Whether any read operations were started before the write operation completed.
+
+`overwritten`::
+(boolean)
+Whether the blob was overwritten while the read operations were ongoing.
+=====
+
+`writer_node`::
+(object)
+Identifies the node which wrote this blob and coordinated the read operations.
++
+.Properties of `writer_node`
+[%collapsible%open]
+=====
+`id`::
+(string)
+The id of the writer node.
+
+`name`::
+(string)
+The name of the writer node
+=====
+
+`write_elapsed_nanos`::
+(object)
+The elapsed time spent writing this blob, in nanoseconds.
+
+`overwrite_elapsed_nanos`::
+(object)
+The elapsed time spent overwriting this blob, in nanoseconds. Omitted if the
+blob was not overwritten.
+
+`write_throttled_nanos`::
+(object)
+The length of time spent waiting for the `max_snapshot_bytes_per_sec` throttle
+while writing this blob, in nanoseconds.
+
+`reads`::
+(array)
+A description of every read operation performed on this blob.
++
+.Properties of items within `reads`
+[%collapsible%open]
+=====
+`node`::
+(object)
+Identifies the node which performed the read operation.
++
+.Properties of `node`
+[%collapsible%open]
+======
+`id`::
+(string)
+The id of the reader node.
+
+`name`::
+(string)
+The name of the reader node
+======
+
+`before_write_complete`::
+(boolean)
+Whether the read operation may have started before the write operation was
+complete. Omitted if `false`.
+
+`found`::
+(boolean)
+Whether the blob was found by this read operation or not. May be `false` if the
+read was started before the write completed.
+
+`first_byte_nanos`::
+(boolean)
+The length of time waiting for the first byte of the read operation to be
+received, in nanoseconds. Omitted if the blob was not found.
+
+`elapsed_nanos`::
+(boolean)
+The length of time spent reading this blob, in nanoseconds. Omitted if the blob
+was not found.
+
+`throttled_nanos`::
+(boolean)
+The length of time time spent waiting due to the `max_restore_bytes_per_sec` or
+`indices.recovery.max_bytes_per_sec` throttles during the read of this blob, in
+nanoseconds. Omitted if the blob was not found.
+
+=====
+
+====

@@ -800,9 +800,9 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             builder.field("name", nodeName);
             builder.endObject();
 
-            builder.field("write_nanos", writeElapsedNanos);
+            builder.field("write_elapsed_nanos", writeElapsedNanos);
             if (overwrite) {
-                builder.field("overwrite_nanos", overwriteElapsedNanos);
+                builder.field("overwrite_elapsed_nanos", overwriteElapsedNanos);
             }
             builder.field("write_throttled_nanos", writeThrottledNanos);
 
@@ -904,8 +904,8 @@ public class BlobSpeedTestAction extends ActionType<BlobSpeedTestAction.Response
             } else {
                 builder.field("found", true);
                 builder.field("first_byte_nanos", firstByteNanos);
-                builder.field("read_nanos", elapsedNanos);
-                builder.field("throttle_nanos", throttleNanos);
+                builder.field("elapsed_nanos", elapsedNanos);
+                builder.field("throttled_nanos", throttleNanos);
             }
 
             builder.endObject();

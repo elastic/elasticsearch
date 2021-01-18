@@ -11,8 +11,10 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xpack.autoscaling.AutoscalingIntegTestCase;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
-import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
+
+import java.util.TreeMap;
+import java.util.TreeSet;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.autoscaling.AutoscalingTestCase.mutateAutoscalingDeciders;
@@ -35,11 +37,14 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67620")
     public void testUpdatePolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
         final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(
             policy.name(),
-            AutoscalingTestCase.randomRoles(),
+            new TreeSet<>(
+                randomSubsetOf(org.elasticsearch.common.collect.List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))
+            ),
             mutateAutoscalingDeciders(policy.deciders())
         );
         putAutoscalingPolicy(updatedPolicy);
@@ -70,6 +75,19 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         assertThat(
             exception.getMessage(),
             containsString("name must not contain the following characters " + Strings.INVALID_FILENAME_CHARS)
+        );
+    }
+
+    public void testPutNoDeciderPolicy() {
+        String policyName = randomAlphaOfLength(8);
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> putAutoscalingPolicy(new AutoscalingPolicy(policyName, new TreeSet<>(), new TreeMap<>()))
+        );
+
+        assertThat(
+            exception.getMessage(),
+            containsString("no default nor user configured deciders for policy [" + policyName + "] with roles [[]]")
         );
     }
 

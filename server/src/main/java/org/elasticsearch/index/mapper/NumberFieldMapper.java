@@ -55,6 +55,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -168,10 +169,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, Collection<?> values) {
                 float[] v = new float[values.size()];
-                for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i), false);
+                int pos = 0;
+                for (Object value: values) {
+                    v[pos++] = parse(value, false);
                 }
                 return HalfFloatPoint.newSetQuery(field, v);
             }
@@ -264,11 +266,11 @@ public class NumberFieldMapper extends FieldMapper {
                 return FloatPoint.newExactQuery(field, v);
             }
 
-            @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, Collection<?> values) {
                 float[] v = new float[values.size()];
-                for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i), false);
+                int pos = 0;
+                for (Object value: values) {
+                    v[pos++] = parse(value, false);
                 }
                 return FloatPoint.newSetQuery(field, v);
             }
@@ -351,11 +353,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
-                double[] v = new double[values.size()];
-                for (int i = 0; i < values.size(); ++i) {
-                    v[i] = parse(values.get(i), false);
-                }
+            public Query termsQuery(String field, Collection<?> values) {
+                double[] v = values.stream().mapToDouble(value -> parse(value, false)).toArray();
                 return DoublePoint.newSetQuery(field, v);
             }
 
@@ -437,7 +436,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, Collection<?> values) {
                 return INTEGER.termsQuery(field, values);
             }
 
@@ -494,7 +493,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, Collection<?> values) {
                 return INTEGER.termsQuery(field, values);
             }
 
@@ -555,12 +554,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, Collection<?> values) {
                 int[] v = new int[values.size()];
                 int upTo = 0;
 
-                for (int i = 0; i < values.size(); i++) {
-                    Object value = values.get(i);
+                for (Object value : values) {
                     if (!hasDecimalPart(value)) {
                         v[upTo++] = parse(value, true);
                     }
@@ -661,12 +659,11 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public Query termsQuery(String field, List<Object> values) {
+            public Query termsQuery(String field, Collection<?> values) {
                 long[] v = new long[values.size()];
                 int upTo = 0;
 
-                for (int i = 0; i < values.size(); i++) {
-                    Object value = values.get(i);
+                for (Object value : values) {
                     if (!hasDecimalPart(value)) {
                         v[upTo++] = parse(value, true);
                     }
@@ -737,7 +734,7 @@ public class NumberFieldMapper extends FieldMapper {
             return parser;
         }
         public abstract Query termQuery(String field, Object value);
-        public abstract Query termsQuery(String field, List<Object> values);
+        public abstract Query termsQuery(String field, Collection<?> values);
         public abstract Query rangeQuery(String field, Object lowerTerm, Object upperTerm,
                                          boolean includeLower, boolean includeUpper,
                                          boolean hasDocValues, SearchExecutionContext context);
@@ -931,7 +928,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             Query query = type.termsQuery(name(), values);
             if (boost() != 1f) {

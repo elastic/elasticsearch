@@ -121,10 +121,10 @@ setup:
       search:
         index: locations
         body:
+          runtime_mappings:
+            location:
+              type: geo_point
           query:
-            runtime_mappings:
-              location:
-                type: geo_point
             geo_shape:
               location:
                 shape:

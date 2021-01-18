@@ -465,10 +465,4 @@ public class QueryDSLDocumentationTests extends ESTestCase {
             0.6f
         );
     }
-
-    public void testRankFeatureLinear() {
-        RankFeatureQueryBuilders.linear(
-            "pagerank"
-        );
-    }
 }

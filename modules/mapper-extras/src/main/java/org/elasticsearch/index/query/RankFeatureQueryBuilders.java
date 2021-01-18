@@ -66,7 +66,7 @@ public final class RankFeatureQueryBuilders {
 
     /**
      * Return a new {@link RankFeatureQueryBuilder} that will score documents as
-     * {@code indexed value of S)} where S is the value of the static feature.
+     * {@code S)} where S is the indexed value of the static feature.
      * @param fieldName     field that stores features
      */
     public static RankFeatureQueryBuilder linear(String fieldName) {

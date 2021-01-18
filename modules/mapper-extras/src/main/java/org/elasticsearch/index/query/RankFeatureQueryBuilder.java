@@ -247,8 +247,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         }
 
         /**
-         * A scoring function that scores documents as {@code indexed value of S}
-         * where S is the value of the static feature.
+         * A scoring function that scores documents as simply {@code S}
+         * where S is the indexed value of the static feature.
          */
         public static class Linear extends ScoreFunction {
 

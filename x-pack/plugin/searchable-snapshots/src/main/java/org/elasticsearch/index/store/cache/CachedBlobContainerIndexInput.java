@@ -290,19 +290,13 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + rangeToWrite;
             final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
-                final int read;
-                if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
-                    final ByteBuffer duplicate = b.duplicate();
-                    duplicate.limit(duplicate.position() + toIntBytes(rangeToRead.v2() - rangeToRead.v1()));
-                    read = readCacheFile(channel, position, duplicate);
-                    assert duplicate.position() <= b.limit();
-                    b.position(duplicate.position());
-                } else {
-                    read = readCacheFile(channel, position, b);
-                }
-                return read;
-            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
+                channel -> readCacheFile(channel, position, b),
+                this::writeCacheFile,
+                directory.cacheFetchAsyncExecutor()
+            );
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();

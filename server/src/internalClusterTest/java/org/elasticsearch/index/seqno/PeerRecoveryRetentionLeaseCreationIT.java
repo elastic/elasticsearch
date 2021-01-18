@@ -19,12 +19,12 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.env.NodeMetadata;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
@@ -36,13 +36,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 0)
 public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
+    private static final String INDEX_NAME = "index";
 
     @Override
     protected boolean forbidPrivateIndexSettings() {
         return false;
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701")
     public void testCanRecoverFromStoreWithoutPeerRecoveryRetentionLease() throws Exception {
         /*
          * In a full cluster restart from a version without peer-recovery retention leases, the leases on disk will not include a lease for
@@ -52,37 +52,43 @@ public class PeerRecoveryRetentionLeaseCreationIT extends ESIntegTestCase {
 
         internalCluster().startMasterOnlyNode();
         final String dataNode = internalCluster().startDataOnlyNode();
-        final Path[] nodeDataPaths = internalCluster().getInstance(NodeEnvironment.class, dataNode).nodeDataPaths();
 
-        assertAcked(prepareCreate("index").setSettings(Settings.builder()
+        assertAcked(prepareCreate(INDEX_NAME).setSettings(Settings.builder()
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true)
             .put(IndexMetadata.SETTING_VERSION_CREATED,
                 // simulate a version which supports soft deletes (v6.5.0-and-later) with which this node is compatible
                 VersionUtils.randomVersionBetween(random(),
                     Version.max(Version.CURRENT.minimumIndexCompatibilityVersion(), Version.V_6_5_0), Version.CURRENT))));
-        ensureGreen("index");
+        ensureGreen(INDEX_NAME);
 
-        // Change the node ID so that the persisted retention lease no longer applies.
-        final String oldNodeId = client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
-        final String newNodeId = randomValueOtherThan(oldNodeId, () -> UUIDs.randomBase64UUID(random()));
+        IndicesService service = internalCluster().getInstance(IndicesService.class, dataNode);
+        String uuid = client().admin().indices().getIndex(new GetIndexRequest().indices(INDEX_NAME)).actionGet().getSetting(INDEX_NAME,
+            IndexMetadata.SETTING_INDEX_UUID);
+        Path path = service.indexService(new Index(INDEX_NAME, uuid)).getShard(0).shardPath().getShardStatePath();
 
+        long version = between(1, 1000);
         internalCluster().restartNode(dataNode, new InternalTestCluster.RestartCallback() {
             @Override
             public Settings onNodeStopped(String nodeName) throws Exception {
-                final NodeMetadata nodeMetadata = new NodeMetadata(newNodeId, Version.CURRENT);
-                NodeMetadata.FORMAT.writeAndCleanup(nodeMetadata, nodeDataPaths);
-                return Settings.EMPTY;
+                RetentionLeases.FORMAT.writeAndCleanup(new RetentionLeases(1, version, org.elasticsearch.common.collect.List.of()), path);
+                return super.onNodeStopped(nodeName);
             }
         });
 
-        ensureGreen("index");
-        assertThat(client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId(),
-            equalTo(newNodeId));
-        final RetentionLeases retentionLeases = client().admin().indices().prepareStats("index").get().getShards()[0]
+        ensureGreen(INDEX_NAME);
+        final RetentionLeases retentionLeases = getRetentionLeases();
+        final String nodeId = client().admin().cluster().prepareNodesInfo(dataNode).clear().get().getNodes().get(0).getNode().getId();
+        assertTrue("expected lease for [" + nodeId + "] in " + retentionLeases,
+            retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)));
+        // verify that we touched the right file.
+        assertThat(retentionLeases.version(), equalTo(version + 1));
+    }
+
+    public RetentionLeases getRetentionLeases() {
+        return client().admin().indices().prepareStats(INDEX_NAME).get().getShards()[0]
             .getRetentionLeaseStats().retentionLeases();
-        assertTrue("expected lease for [" + newNodeId + "] in " + retentionLeases,
-            retentionLeases.contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(newNodeId)));
     }
 
 }

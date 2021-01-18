@@ -64,6 +64,43 @@ class RestResourcesPluginFuncTest extends AbstractGradleFuncTest {
         new File(resourceDir, "/api/" + api).exists()
     }
 
+    def "restResources copies all core API (but not x-pack) by default for projects with copied tests"() {
+        given:
+        internalBuild()
+        buildFile << """
+            apply plugin: 'elasticsearch.rest-resources'
+            apply plugin: 'elasticsearch.java'
+
+            restResources {
+                restTests {
+                    includeCore 'foo'
+                    includeXpack 'bar'
+                }
+            }
+        """
+        String apiCore1 = "foo1.json"
+        String apiCore2 = "foo2.json"
+        String apiXpack = "xpack.json"
+        String coreTest = "foo/10_basic.yml"
+        String xpackTest = "bar/10_basic.yml"
+        setupRestResources([apiCore1, apiCore2], [coreTest], [apiXpack], [xpackTest])
+        // intentionally not adding tests to project, they will be copied over via the plugin
+        // this tests that the test copy happens before the api copy since the api copy will only trigger if there are tests in the project
+
+        when:
+        def result = gradleRunner("copyRestApiSpecsTask").build()
+
+        then:
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
+        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
+        new File(resourceDir, "/api/" + apiCore1).exists()
+        new File(resourceDir, "/api/" + apiCore2).exists()
+        new File(resourceDir, "/api/" + apiXpack).exists() == false //x-pack specs must be explicitly configured
+        new File(resourceDir, "/test/" + coreTest).exists()
+        new File(resourceDir, "/test/" + xpackTest).exists()
+    }
+
     def "restResources copies API by configuration"() {
         given:
         internalBuild()
@@ -137,14 +174,12 @@ class RestResourcesPluginFuncTest extends AbstractGradleFuncTest {
         new File(resourceDir, "/api/" + apiXpack).exists()
         new File(resourceDir, "/test/" + coreTest).exists()
         new File(resourceDir, "/test/" + xpackTest).exists()
-    }
 
-    void addRestTestsToProject(List<String> tests) {
-        // uses the test source set by default, but in practice it would be a custom source set set by another plugin
-        File testDir = new File(testProjectDir.root, "src/test/resources/rest-api-spec/test/foo")
-        testDir.mkdirs();
-        tests.each { test ->
-            new File(testDir, test).createNewFile()
-        }
+        when:
+        result = gradleRunner("copyRestApiSpecsTask").build()
+
+        then:
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.UP_TO_DATE
     }
 }

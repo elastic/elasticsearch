@@ -41,52 +41,49 @@ class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
     }
 
-    def "yamlRestTest executes and copies api and tests from :rest-api-spec"() {
+    def "yamlRestTest executes and copies api and tests to correct source set"() {
         given:
-        String api = "foo.json"
-        String test = "foo/10_basic.yml"
-        setupInternalRestResources(api, test)
-
+        internalBuild()
         buildFile << """
-        apply plugin: 'elasticsearch.yaml-rest-test'
+            apply plugin: 'elasticsearch.yaml-rest-test'
 
-        restResources {
-          restTests {
-            includeCore '*'
-          }
-        }
+            dependencies {
+               yamlRestTestImplementation "junit:junit:4.12"
+            }
+
+            // can't actually spin up test cluster from this test
+           tasks.withType(Test).configureEach{ enabled = false }
         """
+        String api = "foo.json"
+        setupRestResources([api])
+        addRestTestsToProject(["10_basic.yml"], "yamlRestTest")
+        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
+
         when:
         def result = gradleRunner("yamlRestTest").build()
 
         then:
-        result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE //no Java classes in source set
-        result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
+        result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
-
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
         File resourceDir = new File(testProjectDir.root, "build/resources/yamlRestTest/rest-api-spec")
-        assert new File(resourceDir, "/test/" + test).exists()
-        assert new File(resourceDir, "/api/" + api).exists()
+        File classDir = new File(testProjectDir.root, "build/classes/java/yamlRestTest")
+        new File(resourceDir, "/api/" + api).exists()
+        new File(resourceDir, "/test/10_basic.yml").exists()
+        new File(classDir, "/MockIT.class").exists()
+
+        File wrongResourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
+        File wrongClassDir = new File(testProjectDir.root, "build/classes/java/test")
+        new File(wrongResourceDir, "/api/" + api).exists() == false
+        new File(wrongResourceDir, "/test/10_basic.yml").exists() == false
+        new File(wrongClassDir, "/MockIT.class").exists() == false
 
         when:
-        //add the mock java test and dependency to run
-        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
-
-        buildFile << """
-           dependencies {
-           yamlRestTestImplementation "junit:junit:4.12"
-        }
-        """
-
-        result = gradleRunner("yamlRestTest", '-i').buildAndFail() //expect to fail since we don't actually spin up a cluster
+        result = gradleRunner("yamlRestTest").build()
 
         then:
-        result.task(':copyYamlTestsTask').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':yamlRestTest').outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, "Starting `node{::yamlRestTest-0}`")
-        assertOutputContains(result.output, "Expected configuration ':es_distro_extracted_testclusters--yamlRestTest-")
-        assertOutputContains(result.output, "to contain exactly one file, however, it contains no files.")
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
     }
-
 }

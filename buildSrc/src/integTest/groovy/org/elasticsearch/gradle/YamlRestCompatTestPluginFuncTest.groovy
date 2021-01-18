@@ -28,7 +28,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractGradleFuncTest {
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:
 
-        addSubProject(":distribution:bwc:minor") <<  """
+        addSubProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
@@ -52,63 +52,71 @@ class YamlRestCompatTestPluginFuncTest extends AbstractGradleFuncTest {
 
     def "yamlRestCompatTest executes and copies api and tests from :bwc:minor"() {
         given:
-        String api = "wrongversion.json"
-        String test = "wrongversion.yml"
-        setupInternalRestResources(api, test)
+        internalBuild()
 
-        addSubProject(":distribution:bwc:minor") <<  """
+        addSubProject(":distribution:bwc:minor") << """
         configurations { checkout }
         artifacts {
             checkout(new File(projectDir, "checkoutDir"))
         }
         """
 
-        //add the compatible test and api files
-        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/foo/10_basic.yml") << ""
-        file("distribution/bwc/minor/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/foo.json") << ""
-
         buildFile << """
-          apply plugin: 'elasticsearch.yaml-rest-compat-test'
-          import org.elasticsearch.gradle.testclusters.TestDistribution;
-          testClusters {
-            yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
-          }
+            apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+            // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
+            import org.elasticsearch.gradle.testclusters.TestDistribution;
+            testClusters {
+              yamlRestCompatTest.setTestDistribution(TestDistribution.INTEG_TEST)
+            }
+
+            dependencies {
+               yamlRestTestImplementation "junit:junit:4.12"
+            }
+
+            // can't actually spin up test cluster from this test
+           tasks.withType(Test).configureEach{ enabled = false }
         """
+
+        String wrongApi = "wrong_version.json"
+        String wrongTest = "wrong_version.yml"
+        setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
+        addRestTestsToProject(["additional_test.yml"], "yamlRestCompatTest")
+        //intentionally adding to yamlRestTest source set since the .classes are copied from there
+        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
+
+        String api = "foo.json"
+        String test = "10_basic.yml"
+        //add the compatible test and api files, these are the prior version's normal yaml rest tests
+        file("distribution/bwc/minor/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
         def result = gradleRunner("yamlRestCompatTest").build()
 
         then:
-        result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE //no Java classes in source set
+        result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SUCCESS
 
         File resourceDir = new File(testProjectDir.root, "build/resources/yamlRestCompatTest/rest-api-spec")
-        // ensure the compatible resources from bwc:minor are in the resource dir
-        assert new File(resourceDir, "test/foo/10_basic.yml").exists()
-        assert new File(resourceDir, "api/foo.json").exists()
-        // we don't copy the "normal" rest resources to the compat resource dir
-        assert new File(resourceDir, "/test/" + test).exists() == false
-        assert new File(resourceDir, "/api/" + api).exists() == false
+        File classDir = new File(testProjectDir.root, "build/classes/java/yamlRestTest")
+        new File(resourceDir, "/api/" + api).exists()
+        new File(resourceDir, "/test/" + test).exists()
+        new File(resourceDir, "/test/additional_test.yml").exists()
+        new File(classDir, "/MockIT.class").exists() //The "standard" runner is used to execute the compat test
+
+        new File(resourceDir, "/api/" + wrongApi).exists() == false
+        new File(resourceDir, "/test/" + wrongTest).exists() == false
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
-        //add the mock java test and dependency to run, the runner from the yamlRestTest sourceSet is used
-        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
-
-        buildFile << """
-           dependencies {
-           yamlRestTestImplementation "junit:junit:4.12"
-        }
-        """
-
-        result = gradleRunner("yamlRestCompatTest", '-i').buildAndFail() //expect failure - we don't actually spin up a cluster
+        result = gradleRunner("yamlRestCompatTest").build()
 
         then:
+        result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':yamlRestCompatTest').outcome == TaskOutcome.FAILED
-        assertOutputContains(result.output, "Starting `node{::yamlRestCompatTest-0}`")
-        assertOutputContains(result.output, "Expected configuration ':es_distro_extracted_testclusters--yamlRestCompatTest-")
-        assertOutputContains(result.output, "to contain exactly one file, however, it contains no files.")
     }
 }

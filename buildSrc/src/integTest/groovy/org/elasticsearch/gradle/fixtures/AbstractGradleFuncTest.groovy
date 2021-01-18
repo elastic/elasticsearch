@@ -176,4 +176,13 @@ abstract class AbstractGradleFuncTest extends Specification {
             file("rest-api-spec/src/main/resources/rest-api-spec/test/" + test) << ""
         }
     }
+
+    void addRestTestsToProject(List<String> tests, String sourceSet = "test") {
+        // uses the test source set by default, but in practice it would be a custom source set set by another plugin
+        File testDir = new File(testProjectDir.root, "src/" + sourceSet + "/resources/rest-api-spec/test")
+        testDir.mkdirs();
+        tests.each { test ->
+            new File(testDir, test).createNewFile()
+        }
+    }
 }

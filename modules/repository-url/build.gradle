@@ -23,7 +23,7 @@ import org.elasticsearch.gradle.test.AntFixture
 
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
-
+apply plugin: 'elasticsearch.test.fixtures'
 
 esplugin {
   description 'Module for URL repository'
@@ -39,31 +39,39 @@ restResources {
  // This directory is shared between two URL repositories and one FS repository in YAML integration tests
 File repositoryDir = new File(project.buildDir, "shared-repository")
 
-/** A task to start the URLFixture which exposes the repositoryDir over HTTP **/
-def urlFixtureTaskProvider = tasks.register("urlFixture", AntFixture) {
-  dependsOn "testClasses"
-  doFirst {
+def testJar = tasks.register("testJar", Jar) {
+  from sourceSets.test.output
+  classifier = "test"
+}
+
+tasks.named("preProcessFixture").configure {
+  inputs.files(testJar, sourceSets.test.runtimeClasspath)
+  doLast {
+    file("${testFixturesDir}/shared").mkdirs()
+    project.copy {
+      from testJar
+      from sourceSets.test.runtimeClasspath
+      into "${testFixturesDir}/shared"
+    }
     repositoryDir.mkdirs()
   }
-  env 'CLASSPATH', "${-> project.sourceSets.test.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.repositories.url.URLFixture', baseDir, "${repositoryDir.absolutePath}"
 }
 
-tasks.named("yamlRestTest").configure {
-  dependsOn urlFixtureTaskProvider
-}
+testFixtures.useFixture()
 
-tasks.named("internalClusterTest").configure {
-  dependsOn urlFixtureTaskProvider
+def fixtureAddress = {
+  int ephemeralPort = tasks.named("postProcessFixture").get().ext."test.fixtures.url-fixture.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
 }
 
 testClusters.all {
+  println "repositoryDir.absolutePath = $repositoryDir.absolutePath"
   // repositoryDir is used by a FS repository to create snapshots
   setting 'path.repo', "${repositoryDir.absolutePath}", PropertyNormalization.IGNORE_VALUE
   // repositoryDir is used by two URL repositories to restore snapshots
   setting 'repositories.url.allowed_urls', {
-    "http://snapshot.test*,http://${urlFixture.addressAndPort}"
+    "http://snapshot.test*,${fixtureAddress()}"
   }, PropertyNormalization.IGNORE_VALUE
 }
 

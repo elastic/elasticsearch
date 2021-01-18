@@ -11,34 +11,38 @@
     <!-- Forbid using '!' for logical negations in favour of checking against 'false' explicitly. -->
     <!-- This is only reported in the IDE for now because there are many violations -->
     <module name="DescendantToken">
-      <property name="id" value="BooleanNegation" />
-      <property name="tokens" value="EXPR"/>
-      <property name="limitedTokens" value="LNOT"/>
-      <property name="maximumNumber" value="0"/>
-      <property name="maximumDepth" value="1"/>
-      <message
-          key="descendant.token.max"
-          value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
+        <property name="id" value="BooleanNegation" />
+        <property name="tokens" value="EXPR"/>
+        <property name="limitedTokens" value="LNOT"/>
+        <property name="maximumNumber" value="0"/>
+        <property name="maximumDepth" value="1"/>
+        <message
+            key="descendant.token.max"
+            value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>
     </module>
 
-    <!-- Public methods must have JavaDoc -->
     <module name="MissingJavadocMethod">
-      <property name="severity" value="warning"/>
+        <property name="severity" value="warning" />
+        <!-- Exclude short methods from this check - we don't want to have to document getters -->
+        <property name="minLineCount" value="2" />
+        <message key="javadoc.missing" value="Public methods should be documented" />
     </module>
 
-    <!-- Packages must have JavaDoc -->
     <module name="MissingJavadocPackage">
-      <property name="severity" value="warning"/>
+        <property name="severity" value="warning"/>
+        <message
+            key="package.javadoc.missing"
+            value="A description and other related documentation for a package should be written up in the package-info.java" />
     </module>
 
-    <!-- Types must have JavaDoc -->
     <module name="MissingJavadocType">
-      <property name="severity" value="warning"/>
+        <property name="severity" value="warning"/>
+        <message key="javadoc.missing" value="Types should explain their purpose" />
     </module>
 
     <!-- Public methods must have JavaDoc -->
     <module name="JavadocMethod">
-      <property name="severity" value="warning"/>
-      <property name="scope" value="public"/>
+        <property name="severity" value="warning"/>
+        <property name="scope" value="public"/>
     </module>
 </module>

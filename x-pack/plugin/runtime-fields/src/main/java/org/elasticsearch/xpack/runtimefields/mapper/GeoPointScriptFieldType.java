@@ -98,8 +98,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     @Override
     public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
-        if (luceneGeometries.length == 0 ||
-            (relation == ShapeRelation.CONTAINS && Arrays.stream(luceneGeometries).anyMatch(g -> (g instanceof Point) == false))) {
+        if (luceneGeometries.length == 0
+            || (relation == ShapeRelation.CONTAINS && Arrays.stream(luceneGeometries).anyMatch(g -> (g instanceof Point) == false))) {
             return new MatchNoDocsQuery();
         }
         return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, luceneGeometries);

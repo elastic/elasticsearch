@@ -36,7 +36,7 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
     protected GeoPointScriptFieldGeoShapeQuery mutate(GeoPointScriptFieldGeoShapeQuery orig) {
         switch (randomInt(2)) {
             case 0:
-                return  new GeoPointScriptFieldGeoShapeQuery(
+                return new GeoPointScriptFieldGeoShapeQuery(
                     randomValueOtherThan(orig.script(), this::randomScript),
                     leafFactory,
                     orig.fieldName(),
@@ -44,13 +44,7 @@ public class GeoPointScriptFieldGeoShapeQueryTests extends AbstractGeoPointScrip
                     polygon2
                 );
             case 1:
-                return new GeoPointScriptFieldGeoShapeQuery(
-                    orig.script(),
-                    leafFactory,
-                    orig.fieldName(),
-                    ShapeRelation.DISJOINT,
-                    polygon1
-                );
+                return new GeoPointScriptFieldGeoShapeQuery(orig.script(), leafFactory, orig.fieldName(), ShapeRelation.DISJOINT, polygon1);
             default:
                 return new GeoPointScriptFieldGeoShapeQuery(
                     orig.script(),

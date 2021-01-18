@@ -1336,7 +1336,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             return;
         }
-        if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false) {
+        if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false &&
+                clusterService.state().nodes().getMinNodeVersion().onOrAfter(RepositoryMetadata.REPO_GEN_IN_CS_VERSION)) {
             logger.debug("[{}] loading repository metadata for the first time, trying to determine correct generation and to store " +
                     "it in the cluster state", metadata.name());
             initializeRepoGenerationTracking(listener);

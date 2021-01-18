@@ -18,8 +18,8 @@ This means a resilient cluster must have:
 
 - At least three master-eligible nodes
 - At least two nodes of each role
-- At least two copies of each shard (one primary and one or more replicas, or a
-  copy in a <<searchable-snapshots,searchable snapshot>>)
+- At least two copies of each shard (one primary and one or more replicas,
+  unless the index is a <<searchable-snapshots,searchable snapshot index>>)
 
 A resilient cluster needs three master-eligible nodes so that if one of
 them fails then the remaining two still form a majority and can hold a

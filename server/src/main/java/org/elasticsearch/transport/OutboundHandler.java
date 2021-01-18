@@ -171,6 +171,11 @@ final class OutboundHandler {
         public void close() {
             IOUtils.closeWhileHandlingException(bytesStreamOutput);
         }
+
+        @Override
+        public String toString() {
+            return "MessageSerializer{" + message + "}";
+        }
     }
 
     private class SendContext extends NotifyOnceListener<Void> implements CheckedSupplier<BytesReference, IOException> {
@@ -212,8 +217,8 @@ final class OutboundHandler {
             final long took = threadPool.relativeTimeInMillis() - startTime;
             final long logThreshold = slowLogThresholdMs;
             if (logThreshold > 0 && took > logThreshold) {
-                logger.warn("sending transport message of size [{}] on [{}] took [{}ms] which is above the warn threshold of [{}ms]",
-                        messageSize, channel, took, logThreshold);
+                logger.warn("sending transport message [{}] of size [{}] on [{}] took [{}ms] which is above the warn threshold of [{}ms]",
+                        messageSupplier, messageSize, channel, took, logThreshold);
             }
         }
 

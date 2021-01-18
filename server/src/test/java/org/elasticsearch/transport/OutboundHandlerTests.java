@@ -310,7 +310,7 @@ public class OutboundHandlerTests extends ESTestCase {
                         "expected message",
                         OutboundHandler.class.getCanonicalName(),
                         Level.WARN,
-                        "sending transport message of size "));
+                        "sending transport message "));
         final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
         Loggers.addAppender(outboundHandlerLogger, mockAppender);
         handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));

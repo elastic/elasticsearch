@@ -643,7 +643,7 @@ public class RestControllerTests extends ESTestCase {
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
+        final String mimeType = randomCompatibleMediaType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -679,7 +679,7 @@ public class RestControllerTests extends ESTestCase {
 
         final byte version = Version.CURRENT.minimumRestCompatibilityVersion().major;
 
-        final String mimeType = randomCompatibleMimeType(version);
+        final String mimeType = randomCompatibleMediaType(version);
         String content = randomAlphaOfLength((int) Math.round(BREAKER_LIMIT.getBytes() / inFlightRequestsBreaker.getOverhead()));
         final List<String> mimeTypeList = Collections.singletonList(mimeType);
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY)
@@ -729,7 +729,7 @@ public class RestControllerTests extends ESTestCase {
             }));
     }
 
-    private String randomCompatibleMimeType(byte version) {
+    private String randomCompatibleMediaType(byte version) {
         XContentType type = randomFrom(XContentType.VND_JSON, XContentType.VND_SMILE, XContentType.VND_CBOR, XContentType.VND_YAML);
         return type.toParsedMediaType()
             .responseContentTypeHeader(Map.of(MediaType.COMPATIBLE_WITH_PARAMETER_NAME, String.valueOf(version)));

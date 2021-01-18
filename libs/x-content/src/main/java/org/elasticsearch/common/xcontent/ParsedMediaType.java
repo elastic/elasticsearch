@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -45,7 +44,7 @@ public class ParsedMediaType {
         this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = parameters;
+        this.parameters = Map.copyOf(parameters);
     }
 
     /**
@@ -56,7 +55,7 @@ public class ParsedMediaType {
     }
 
     public Map<String, String> getParameters() {
-        return Collections.unmodifiableMap(parameters);
+        return parameters;
     }
 
     /**
@@ -108,8 +107,9 @@ public class ParsedMediaType {
 
     public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
         ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
-        parsedMediaType.parameters.putAll(parameters);
-        return parsedMediaType;
+
+        return new ParsedMediaType(parsedMediaType.originalHeaderValue,
+            parsedMediaType.type, parsedMediaType.subType, parameters);
     }
 
     // simplistic check for media ranges. do not validate if this is a correct header

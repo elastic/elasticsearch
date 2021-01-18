@@ -31,8 +31,8 @@ import org.elasticsearch.xpack.runtimefields.query.StringScriptFieldWildcardQuer
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -195,7 +195,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
     }
 
     @Override
-    public Query termsQuery(List<?> values, SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         Set<String> terms = values.stream().map(v -> BytesRefs.toString(Objects.requireNonNull(v))).collect(toSet());
         return new StringScriptFieldTermsQuery(script, leafFactory(context), name(), terms);

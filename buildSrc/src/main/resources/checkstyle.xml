@@ -10,6 +10,8 @@
     <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
+  <module name="SuppressWarningsFilter"/>
+
   <!-- Checks Java files and forbids empty Javadoc comments -->
   <module name="RegexpMultiline">
     <property name="id" value="EmptyJavadoc"/>
@@ -29,14 +31,17 @@
     <property name="max" value="76"/>
   </module>
 
-  <module name="TreeWalker">
-    <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
-      suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
-      unfair. -->
-    <module name="LineLength">
+  <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
+    suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
+    unfair. -->
+  <module name="LineLength">
       <property name="max" value="140"/>
       <property name="ignorePattern" value="^ *\* *https?://[^ ]+$"/>
-    </module>
+  </module>
+
+  <module name="TreeWalker">
+    <!-- Make the @SuppressWarnings annotations available to Checkstyle -->
+    <module name="SuppressWarningsHolder"/>
 
     <module name="AvoidStarImport" />
 
@@ -104,6 +109,7 @@
 
     <!-- Forbid equality comparisons with `true` -->
     <module name="DescendantToken">
+      <property name="id" value="EqualityWithTrue" />
       <property name="tokens" value="EQUAL"/>
       <property name="limitedTokens" value="LITERAL_TRUE"/>
       <property name="maximumNumber" value="0"/>
@@ -111,14 +117,11 @@
       <message key="descendant.token.max" value="Do not check for equality with 'true', since it is implied"/>
     </module>
 
-    <!-- Forbid using '!' for logical negations in favour of checking
-         against 'false' explicitly. -->
-    <!-- This is disabled for now because there are many, many violations,
-         hence the rule is reporting at the "warning" severity. -->
-
+    <!-- Forbid using '!' for logical negations in favour of checking against 'false' explicitly. -->
+    <!-- This is disabled for now because there are many violations, hence the rule is reporting at the "warning" severity. -->
     <!--
     <module name="DescendantToken">
-      <property name="severity" value="warning"/>
+      <property name="id" value="BooleanNegation" />
       <property name="tokens" value="EXPR"/>
       <property name="limitedTokens" value="LNOT"/>
       <property name="maximumNumber" value="0"/>

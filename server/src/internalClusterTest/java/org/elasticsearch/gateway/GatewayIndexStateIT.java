@@ -530,12 +530,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         writeBrokenMeta(metaStateService -> {
             for (final Path path : paths) {
-                try (Stream<Path> stateFiles = Files.list(path.resolve(MetadataStateFormat.STATE_DIR_NAME))) {
-                    for (final Path manifestPath : stateFiles.collect(Collectors.toList())) {
-                        IOUtils.rm(manifestPath);
-                    }
-
-                }
+                IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
             }
             metaStateService.writeGlobalState("test", Metadata.builder(metadata)
                 // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the

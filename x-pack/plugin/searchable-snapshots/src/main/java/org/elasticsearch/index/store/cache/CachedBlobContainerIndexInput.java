@@ -288,7 +288,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + (position + length)
                 + "] vs "
                 + rangeToWrite;
+
             final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
+            assert rangeToRead.v2() - rangeToRead.v1() == b.remaining() : b.remaining() + " vs " + rangeToRead;
 
             final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
                 rangeToWrite,

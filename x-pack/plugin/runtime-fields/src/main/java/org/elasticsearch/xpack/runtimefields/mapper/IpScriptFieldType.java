@@ -35,6 +35,7 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -149,7 +150,7 @@ public final class IpScriptFieldType extends AbstractScriptFieldType<IpFieldScri
     }
 
     @Override
-    public Query termsQuery(List<?> values, SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         BytesRefHash terms = new BytesRefHash(values.size(), BigArrays.NON_RECYCLING_INSTANCE);
         List<Query> cidrQueries = null;

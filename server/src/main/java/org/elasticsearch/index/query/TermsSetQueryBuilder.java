@@ -29,8 +29,12 @@ import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.LongValuesSource;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
@@ -43,11 +47,18 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
 
 import java.io.IOException;
+import java.nio.CharBuffer;
+import java.util.AbstractList;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
@@ -65,7 +76,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
 
     public TermsSetQueryBuilder(String fieldName, List<?> values) {
         this.fieldName = Objects.requireNonNull(fieldName);
-        this.values = TermsQueryBuilder.convert(Objects.requireNonNull(values));
+        this.values = convert(Objects.requireNonNull(values));
     }
 
     public TermsSetQueryBuilder(StreamInput in) throws IOException {
@@ -139,7 +150,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(TERMS_FIELD.getPreferredName(), TermsQueryBuilder.convertBack(values));
+        builder.field(TERMS_FIELD.getPreferredName(), convertBack(values));
         if (minimumShouldMatchField != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatchField);
         }
@@ -340,6 +351,109 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return this;
         }
 
+    }
+
+    //TODO: remove these optimizations in a follow up (https://github.com/elastic/elasticsearch/pull/67223)
+    private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
+        Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
+    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
+        Arrays.asList(BytesRef.class, String.class));
+
+    /**
+     * Convert the internal {@link List} of values back to a user-friendly list.
+     * Integers are kept as-is since the terms query does not make any difference
+     * between {@link Integer}s and {@link Long}s, but {@link BytesRef}s are
+     * converted back to {@link String}s.
+     */
+    static List<Object> convertBack(List<?> list) {
+        return new AbstractList<Object>() {
+            @Override
+            public int size() {
+                return list.size();
+            }
+            @Override
+            public Object get(int index) {
+                Object o = list.get(index);
+                if (o instanceof BytesRef) {
+                    o = ((BytesRef) o).utf8ToString();
+                }
+                // we do not convert longs, all integer types are equivalent
+                // as far as this query is concerned
+                return o;
+            }
+        };
+    }
+
+    /**
+     * Convert the list in a way that optimizes storage in the case that all
+     * elements are either integers or {@link String}s/{@link BytesRef}/
+     * {@link CharBuffer}s. This is useful to help garbage collections for
+     * use-cases that involve sending very large terms queries to Elasticsearch.
+     * If the list does not only contain integers or {@link String}s, then a
+     * list is returned where all {@link String}/{@link CharBuffer}s have been
+     * replaced with {@link BytesRef}s.
+     */
+    static List<?> convert(List<?> list) {
+        if (list.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        final boolean allNumbers = list.stream().allMatch(o -> o != null && INTEGER_TYPES.contains(o.getClass()));
+        if (allNumbers) {
+            final long[] elements = list.stream().mapToLong(o -> ((Number) o).longValue()).toArray();
+            return new AbstractList<Object>() {
+                @Override
+                public Object get(int index) {
+                    return elements[index];
+                }
+                @Override
+                public int size() {
+                    return elements.length;
+                }
+            };
+        }
+
+        final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
+        if (allStrings) {
+            final BytesRefBuilder builder = new BytesRefBuilder();
+            try (BytesStreamOutput bytesOut = new BytesStreamOutput()) {
+                final int[] endOffsets = new int[list.size()];
+                int i = 0;
+                for (Object o : list) {
+                    BytesRef b;
+                    if (o instanceof BytesRef) {
+                        b = (BytesRef) o;
+                    } else if (o instanceof CharBuffer) {
+                        b = new BytesRef((CharBuffer) o);
+                    } else {
+                        builder.copyChars(o.toString());
+                        b = builder.get();
+                    }
+                    bytesOut.writeBytes(b.bytes, b.offset, b.length);
+                    if (i == 0) {
+                        endOffsets[0] = b.length;
+                    } else {
+                        endOffsets[i] = Math.addExact(endOffsets[i-1], b.length);
+                    }
+                    ++i;
+                }
+                final BytesReference bytes = bytesOut.bytes();
+                return new AbstractList<Object>() {
+                    @Override
+                    public Object get(int i) {
+                        final int startOffset = i == 0 ? 0 : endOffsets[i-1];
+                        final int endOffset = endOffsets[i];
+                        return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
+                    }
+                    @Override
+                    public int size() {
+                        return endOffsets.length;
+                    }
+                };
+            }
+        }
+
+        return list.stream().map(o -> o instanceof String ? new BytesRef(o.toString()) : o).collect(Collectors.toList());
     }
 
     // Forked from LongValuesSource.FieldValuesSource and changed getValues() method to always use sorted numeric

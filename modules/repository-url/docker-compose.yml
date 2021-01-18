@@ -7,7 +7,6 @@ services:
         port: 80
         workingDir: "/fixture/work"
         repositoryDir: "/fixture/repo"
-      dockerfile: Dockerfile
     volumes:
       - ./testfixtures_shared/shared:/fixture/shared
       - ./build/shared-repository:/fixture/repo

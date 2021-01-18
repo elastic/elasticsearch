@@ -19,20 +19,30 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.persistence.ElasticsearchMappings;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetector;
+import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
+import org.elasticsearch.xpack.ml.dataframe.inference.InferenceRunner;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
 import org.elasticsearch.xpack.ml.dataframe.process.AnalyticsProcessManager;
 import org.elasticsearch.xpack.ml.dataframe.steps.AnalysisStep;
 import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
+import org.elasticsearch.xpack.ml.dataframe.steps.FinalStep;
+import org.elasticsearch.xpack.ml.dataframe.steps.InferenceStep;
 import org.elasticsearch.xpack.ml.dataframe.steps.ReindexingStep;
 import org.elasticsearch.xpack.ml.dataframe.steps.StepResponse;
+import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
+import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
+import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -43,27 +53,36 @@ public class DataFrameAnalyticsManager {
 
     private static final Logger LOGGER = LogManager.getLogger(DataFrameAnalyticsManager.class);
 
+    private final Settings settings;
     /**
      * We need a {@link NodeClient} to get the reindexing task and be able to report progress
      */
     private final NodeClient client;
+    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final DataFrameAnalyticsConfigProvider configProvider;
     private final AnalyticsProcessManager processManager;
     private final DataFrameAnalyticsAuditor auditor;
     private final IndexNameExpressionResolver expressionResolver;
+    private final ResultsPersisterService resultsPersisterService;
+    private final ModelLoadingService modelLoadingService;
     /** Indicates whether the node is shutting down. */
     private final AtomicBoolean nodeShuttingDown = new AtomicBoolean();
 
-    public DataFrameAnalyticsManager(NodeClient client, ClusterService clusterService, DataFrameAnalyticsConfigProvider configProvider,
-                                     AnalyticsProcessManager processManager, DataFrameAnalyticsAuditor auditor,
-                                     IndexNameExpressionResolver expressionResolver) {
+    public DataFrameAnalyticsManager(Settings settings, NodeClient client, ThreadPool threadPool, ClusterService clusterService,
+                                     DataFrameAnalyticsConfigProvider configProvider, AnalyticsProcessManager processManager,
+                                     DataFrameAnalyticsAuditor auditor, IndexNameExpressionResolver expressionResolver,
+                                     ResultsPersisterService resultsPersisterService, ModelLoadingService modelLoadingService) {
+        this.settings = Objects.requireNonNull(settings);
         this.client = Objects.requireNonNull(client);
+        this.threadPool = Objects.requireNonNull(threadPool);
         this.clusterService = Objects.requireNonNull(clusterService);
         this.configProvider = Objects.requireNonNull(configProvider);
         this.processManager = Objects.requireNonNull(processManager);
         this.auditor = Objects.requireNonNull(auditor);
         this.expressionResolver = Objects.requireNonNull(expressionResolver);
+        this.resultsPersisterService = Objects.requireNonNull(resultsPersisterService);
+        this.modelLoadingService = Objects.requireNonNull(modelLoadingService);
     }
 
     public void execute(DataFrameAnalyticsTask task, ClusterState clusterState) {
@@ -141,6 +160,12 @@ public class DataFrameAnalyticsManager {
             case RESUMING_ANALYZING:
                 executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
                 break;
+            case RESUMING_INFERENCE:
+                buildInferenceStep(task, config, ActionListener.wrap(
+                    inferenceStep -> executeStep(task, config, inferenceStep),
+                    task::setFailed
+                ));
+                break;
             case FINISHED:
             default:
                 task.setFailed(ExceptionsHelper.serverError("Unexpected starting state [" + startingState + "]"));
@@ -162,7 +187,15 @@ public class DataFrameAnalyticsManager {
                         executeStep(task, config, new AnalysisStep(client, task, auditor, config, processManager));
                         break;
                     case ANALYSIS:
-                        // This is the last step
+                        buildInferenceStep(task, config, ActionListener.wrap(
+                            inferenceStep -> executeStep(task, config, inferenceStep),
+                            task::setFailed
+                        ));
+                        break;
+                    case INFERENCE:
+                        executeStep(task, config, new FinalStep(client, task, auditor, config));
+                        break;
+                    case FINAL:
                         LOGGER.info("[{}] Marking task completed", config.getId());
                         task.markAsCompleted();
                         break;
@@ -197,6 +230,24 @@ public class DataFrameAnalyticsManager {
                     }
                 }
             ));
+    }
+
+    private void buildInferenceStep(DataFrameAnalyticsTask task, DataFrameAnalyticsConfig config, ActionListener<InferenceStep> listener) {
+        ParentTaskAssigningClient parentTaskClient = new ParentTaskAssigningClient(client, task.getParentTaskId());
+
+        ActionListener<ExtractedFieldsDetector> extractedFieldsDetectorListener = ActionListener.wrap(
+            extractedFieldsDetector -> {
+                ExtractedFields extractedFields = extractedFieldsDetector.detect().v1();
+                InferenceRunner inferenceRunner = new InferenceRunner(settings, parentTaskClient, modelLoadingService,
+                    resultsPersisterService, task.getParentTaskId(), config, extractedFields, task.getStatsHolder().getProgressTracker(),
+                    task.getStatsHolder().getDataCountsTracker());
+                InferenceStep inferenceStep = new InferenceStep(client, task, auditor, config, threadPool, inferenceRunner);
+                listener.onResponse(inferenceStep);
+            },
+            listener::onFailure
+        );
+
+        new ExtractedFieldsDetectorFactory(parentTaskClient).createFromDest(config, extractedFieldsDetectorListener);
     }
 
     public boolean isNodeShuttingDown() {

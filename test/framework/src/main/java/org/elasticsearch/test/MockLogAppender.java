@@ -41,7 +41,7 @@ public class MockLogAppender extends AbstractAppender {
     private List<LoggingExpectation> expectations;
 
     public MockLogAppender() throws IllegalAccessException {
-        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null);
+        super("mock", RegexFilter.createFilter(".*(\n.*)*", new String[0], false, null, null), null, false);
         /*
          * We use a copy-on-write array list since log messages could be appended while we are setting up expectations. When that occurs,
          * we would run into a concurrent modification exception from the iteration over the expectations in #append, concurrent with a

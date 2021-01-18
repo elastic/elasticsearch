@@ -38,6 +38,9 @@ POST /my-index-000001/_rollup/rollup-my-index-000001
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/my-keyword-field/http.request.method/]
+// TEST[s/my-other-keyword-field/user.id/]
+// TEST[s/my-numeric-field/http.response.bytes/]
 
 
 [[rollup-api-request]]

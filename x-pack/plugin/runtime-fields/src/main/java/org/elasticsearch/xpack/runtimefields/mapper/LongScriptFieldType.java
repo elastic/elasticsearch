@@ -27,8 +27,8 @@ import org.elasticsearch.xpack.runtimefields.query.LongScriptFieldTermsQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -125,7 +125,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     }
 
     @Override
-    public Query termsQuery(List<?> values, SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchAllQuery();
         }

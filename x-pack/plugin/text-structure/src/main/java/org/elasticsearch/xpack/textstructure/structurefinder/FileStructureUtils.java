@@ -485,7 +485,7 @@ public final class FileStructureUtils {
         }
 
         Map<String, Object> pipeline = new LinkedHashMap<>();
-        pipeline.put(Pipeline.DESCRIPTION_KEY, "Ingest pipeline created by file structure finder");
+        pipeline.put(Pipeline.DESCRIPTION_KEY, "Ingest pipeline created by text structure finder");
 
         List<Map<String, Object>> processors = new ArrayList<>();
 

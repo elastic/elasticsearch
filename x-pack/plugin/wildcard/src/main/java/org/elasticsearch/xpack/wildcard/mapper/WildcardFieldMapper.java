@@ -71,6 +71,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -892,7 +893,7 @@ public class WildcardFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
             for (Object value : values) {
                 bq.add(termQuery(value, context), Occur.SHOULD);

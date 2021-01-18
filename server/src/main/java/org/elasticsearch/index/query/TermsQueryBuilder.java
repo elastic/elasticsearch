@@ -22,9 +22,8 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.client.Client;
@@ -34,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -43,15 +43,15 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.indices.TermsLookup;
 
 import java.io.IOException;
-import java.nio.CharBuffer;
-import java.util.AbstractList;
+import java.io.UncheckedIOException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
+import java.util.function.IntFunction;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -61,9 +61,10 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
+    private static final Version VERSION_STORE_VALUES_AS_BYTES_REFERENCE = Version.V_8_0_0;
 
     private final String fieldName;
-    private final List<?> values;
+    private final Values values;
     private final TermsLookup termsLookup;
     private final Supplier<List<?>> supplier;
 
@@ -74,7 +75,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     /**
      * constructor used internally for serialization of both value / termslookup variants
      */
-    TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
+    private TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -85,7 +86,8 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("Both values and termsLookup specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = values == null ? null : convert(values);
+        //already converted in {@link fromXContent}
+        this.values = values == null ? null : new BinaryValues(values, false);
         this.termsLookup = termsLookup;
         this.supplier = null;
     }
@@ -165,7 +167,11 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             throw new IllegalArgumentException("No value specified for terms query");
         }
         this.fieldName = fieldName;
-        this.values = convert(values);
+        if (values instanceof Values) {
+            this.values = (Values) values;
+        } else {
+            this.values = new BinaryValues(values, true);
+        }
         this.termsLookup = null;
         this.supplier = null;
     }
@@ -182,9 +188,9 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
      */
     public TermsQueryBuilder(StreamInput in) throws IOException {
         super(in);
-        fieldName = in.readString();
-        termsLookup = in.readOptionalWriteable(TermsLookup::new);
-        values = (List<?>) in.readGenericValue();
+        this.fieldName = in.readString();
+        this.termsLookup = in.readOptionalWriteable(TermsLookup::new);
+        this.values = Values.readFrom(in);
         this.supplier = null;
     }
 
@@ -195,138 +201,32 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         out.writeString(fieldName);
         out.writeOptionalWriteable(termsLookup);
-        out.writeGenericValue(values);
+        Values.writeTo(out, values);
     }
 
     public String fieldName() {
         return this.fieldName;
     }
 
+    public Values getValues() {
+        return values;
+    }
+
+    /**
+     * get readable values
+     * only for {@link #toXContent} and tests, don't use this to construct a query.
+     * use {@link #getValues()} instead.
+     */
     public List<Object> values() {
-        return convertBack(this.values);
+        List<Object> readableValues = new ArrayList<>();
+        for (Object value : values) {
+            readableValues.add(AbstractQueryBuilder.maybeConvertToString(value));
+        }
+        return readableValues;
     }
 
     public TermsLookup termsLookup() {
         return this.termsLookup;
-    }
-
-    private static final Set<Class<? extends Number>> INTEGER_TYPES = new HashSet<>(
-            Arrays.asList(Byte.class, Short.class, Integer.class, Long.class));
-    private static final Set<Class<?>> STRING_TYPES = new HashSet<>(
-            Arrays.asList(BytesRef.class, String.class));
-
-    /**
-     * Same as {@link #convert(List)} but on an {@link Iterable}.
-     */
-    private static List<?> convert(Iterable<?> values) {
-        List<?> list;
-        if (values instanceof List<?>) {
-            list = (List<?>) values;
-        } else {
-            ArrayList<Object> arrayList = new ArrayList<>();
-            for (Object o : values) {
-                arrayList.add(o);
-            }
-            list = arrayList;
-        }
-        return convert(list);
-    }
-
-    /**
-     * Convert the list in a way that optimizes storage in the case that all
-     * elements are either integers or {@link String}s/{@link BytesRef}/
-     * {@link CharBuffer}s. This is useful to help garbage collections for
-     * use-cases that involve sending very large terms queries to Elasticsearch.
-     * If the list does not only contain integers or {@link String}s, then a
-     * list is returned where all {@link String}/{@link CharBuffer}s have been
-     * replaced with {@link BytesRef}s.
-     */
-    static List<?> convert(List<?> list) {
-        if (list.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        final boolean allNumbers = list.stream().allMatch(o -> o != null && INTEGER_TYPES.contains(o.getClass()));
-        if (allNumbers) {
-            final long[] elements = list.stream().mapToLong(o -> ((Number) o).longValue()).toArray();
-            return new AbstractList<Object>() {
-                @Override
-                public Object get(int index) {
-                    return elements[index];
-                }
-                @Override
-                public int size() {
-                    return elements.length;
-                }
-            };
-        }
-
-        final boolean allStrings = list.stream().allMatch(o -> o != null && STRING_TYPES.contains(o.getClass()));
-        if (allStrings) {
-            final BytesRefBuilder builder = new BytesRefBuilder();
-            try (BytesStreamOutput bytesOut = new BytesStreamOutput()) {
-                final int[] endOffsets = new int[list.size()];
-                int i = 0;
-                for (Object o : list) {
-                    BytesRef b;
-                    if (o instanceof BytesRef) {
-                        b = (BytesRef) o;
-                    } else if (o instanceof CharBuffer) {
-                        b = new BytesRef((CharBuffer) o);
-                    } else {
-                        builder.copyChars(o.toString());
-                        b = builder.get();
-                    }
-                    bytesOut.writeBytes(b.bytes, b.offset, b.length);
-                    if (i == 0) {
-                        endOffsets[0] = b.length;
-                    } else {
-                        endOffsets[i] = Math.addExact(endOffsets[i-1], b.length);
-                    }
-                    ++i;
-                }
-                final BytesReference bytes = bytesOut.bytes();
-                return new AbstractList<Object>() {
-                    @Override
-                    public Object get(int i) {
-                        final int startOffset = i == 0 ? 0 : endOffsets[i-1];
-                        final int endOffset = endOffsets[i];
-                        return bytes.slice(startOffset, endOffset - startOffset).toBytesRef();
-                    }
-                    @Override
-                    public int size() {
-                        return endOffsets.length;
-                    }
-                };
-            }
-        }
-
-        return list.stream().map(o -> o instanceof String ? new BytesRef(o.toString()) : o).collect(Collectors.toList());
-    }
-
-    /**
-     * Convert the internal {@link List} of values back to a user-friendly list.
-     * Integers are kept as-is since the terms query does not make any difference
-     * between {@link Integer}s and {@link Long}s, but {@link BytesRef}s are
-     * converted back to {@link String}s.
-     */
-    static List<Object> convertBack(List<?> list) {
-        return new AbstractList<Object>() {
-            @Override
-            public int size() {
-                return list.size();
-            }
-            @Override
-            public Object get(int index) {
-                Object o = list.get(index);
-                if (o instanceof BytesRef) {
-                    o = ((BytesRef) o).utf8ToString();
-                }
-                // we do not convert longs, all integer types are equivalent
-                // as far as this query is concerned
-                return o;
-            }
-        };
     }
 
     @Override
@@ -337,7 +237,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             termsLookup.toXContent(builder, params);
             builder.endObject();
         } else {
-            builder.field(fieldName, convertBack(values));
+            builder.field(fieldName, values());
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -499,5 +399,254 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
 
         return this;
+    }
+
+    private abstract static class Values extends AbstractCollection implements Writeable {
+
+        private static Values readFrom(StreamInput in) throws IOException {
+            if (in.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+                return in.readOptionalWriteable(BinaryValues::new);
+            } else {
+                List<?> list = (List<?>)in.readGenericValue();
+                return list == null ? null : new ListValues(list);
+            }
+        }
+
+        private static void writeTo(StreamOutput out, Values values) throws IOException {
+            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+                out.writeOptionalWriteable(values);
+            } else {
+                if (values == null) {
+                    out.writeGenericValue(null);
+                } else {
+                    values.writeTo(out);
+                }
+            }
+        }
+
+        protected static BytesReference serialize(Iterable<?> values, boolean convert) {
+            List<?> list;
+            if (values instanceof List<?>) {
+                list = (List<?>) values;
+            } else {
+                ArrayList<Object> arrayList = new ArrayList<>();
+                for (Object o : values) {
+                    arrayList.add(o);
+                }
+                list = arrayList;
+            }
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                if (convert) {
+                    list = list.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+                }
+                output.writeGenericValue(list);
+                return output.bytes();
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to serialize TermsQueryBuilder", e);
+            }
+        }
+
+        @Override
+        public final boolean add(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final boolean remove(Object o) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final boolean containsAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final boolean addAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final boolean removeAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final boolean retainAll(Collection c) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public final void clear() {
+            throw new UnsupportedOperationException();
+        }
+    }
+
+    /**
+     * Store terms as a {@link BytesReference}.
+     * <p>
+     * When users send a query contain a lot of terms, A {@link BytesReference} can help
+     * gc and reduce the cost of {@link #doWriteTo}, which can be slow for lots of terms.
+     */
+    private static class BinaryValues extends Values {
+
+        private final BytesReference valueRef;
+        private final int size;
+
+        private BinaryValues(StreamInput in) throws IOException {
+            this(in.readBytesReference());
+        }
+
+        private BinaryValues(Iterable<?> values, boolean convert) {
+            this(serialize(values, convert));
+        }
+
+        private BinaryValues(BytesReference bytesRef) {
+            this.valueRef = bytesRef;
+            try (StreamInput in = valueRef.streamInput()) {
+                size = consumerHeadersAndGetListSize(in);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        @Override
+        public int size() {
+            return size;
+        }
+
+        @Override
+        public Iterator iterator() {
+            return new Iterator<>() {
+                private final StreamInput in;
+                private int pos = 0;
+
+                {
+                    try {
+                        in = valueRef.streamInput();
+                        consumerHeadersAndGetListSize(in);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
+                    }
+                }
+
+                @Override
+                public boolean hasNext() {
+                    return pos < size;
+                }
+
+                @Override
+                public Object next() {
+                    try {
+                        pos++;
+                        return in.readGenericValue();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("failed to deserialize TermsQueryBuilder", e);
+                    }
+                }
+            };
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+                out.writeBytesReference(valueRef);
+            } else {
+                valueRef.writeTo(out);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            BinaryValues that = (BinaryValues) o;
+            return Objects.equals(valueRef, that.valueRef);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(valueRef);
+        }
+
+        private int consumerHeadersAndGetListSize(StreamInput in) throws IOException {
+            byte genericSign = in.readByte();
+            assert genericSign == 7;
+            return in.readVInt();
+        }
+    }
+
+    /**
+     * This is for lower version requests compatible.
+     * <p>
+     * If we do not keep this, it could be expensive when receiving a request from
+     * lower version.
+     * We have to read the value list by {@link StreamInput#readGenericValue},
+     * serialize it into {@link BytesReference}, and then deserialize it again when
+     * {@link #doToQuery} called}.
+     * <p>
+     *
+     * TODO: remove in 9.0.0
+     */
+    private static class ListValues extends Values {
+
+        private final List<?> values;
+
+        private ListValues(List<?> values) throws IOException {
+            this.values = values;
+        }
+
+        @Override
+        public int size() {
+            return values.size();
+        }
+
+        @Override
+        public boolean contains(Object o) {
+            return values.contains(o);
+        }
+
+        @Override
+        public Iterator iterator() {
+            return values.iterator();
+        }
+
+        @Override
+        public Object[] toArray() {
+            return values.toArray();
+        }
+
+        @Override
+        public Object[] toArray(Object[] a) {
+            return values.toArray(a);
+        }
+
+        @Override
+        public Object[] toArray(IntFunction generator) {
+            return values.toArray(generator);
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
+                BytesReference bytesRef = serialize(values, false);
+                out.writeBytesReference(bytesRef);
+            } else {
+                out.writeGenericValue(values);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ListValues that = (ListValues) o;
+            return Objects.equals(values, that.values);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(values);
+        }
     }
 }

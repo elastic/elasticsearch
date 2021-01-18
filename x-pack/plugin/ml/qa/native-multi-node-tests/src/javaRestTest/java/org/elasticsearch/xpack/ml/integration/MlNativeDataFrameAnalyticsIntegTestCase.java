@@ -278,7 +278,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
         assertBusy(() -> {
             List<PhaseProgress> progress = getAnalyticsStats(jobId).getProgress();
             Optional<PhaseProgress> phaseProgress = progress.stream().filter(p -> phase.equals(p.getPhase())).findFirst();
-            assertThat("unexpected phase [" + phase + "]; progress was " + progress, phaseProgress.isEmpty(), is(false));
+            assertThat("unexpected phase [" + phase + "]; progress was " + progress, phaseProgress.isPresent(), is(true));
             assertThat(phaseProgress.get().getProgressPercent(), greaterThan(1));
         }, 60, TimeUnit.SECONDS);
     }

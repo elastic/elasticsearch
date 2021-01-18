@@ -18,6 +18,7 @@ Snapshots can be stored in either local or remote repositories.
 Remote repositories can reside on Amazon S3, HDFS, Microsoft Azure,
 Google Cloud Storage,
 and other platforms supported by a {plugins}/repository.html[repository plugin].
+// end::snapshot-intro[]
 
 {es} takes snapshots incrementally: the snapshotting process only copies data
 to the repository that was not already copied there by an earlier snapshot,
@@ -27,7 +28,6 @@ incrementality only applies within a single repository because no data is
 shared between repositories. Snapshots are also logically independent from each
 other, even within a single repository: deleting a snapshot does not affect the
 integrity of any other snapshot.
-// end::snapshot-intro[]
 
 // tag::restore-intro[]
 You can <<snapshots-restore-snapshot,restore snapshots>> to a running cluster, which includes all data streams and indices in the snapshot
@@ -48,13 +48,14 @@ data from a filesystem-level backup. If you try to restore a cluster from such
 a backup it may fail with reports of corruption or missing files or other data
 inconsistencies, or it may appear to have succeeded having silently lost some
 of your data.
+// end::backup-warning[]
 
 A copy of the data directories of a cluster's nodes does not work as a backup
 because it is not a consistent representation of their contents at a single
 point in time. You cannot fix this by shutting down nodes while making the
 copies, nor by taking atomic filesystem-level snapshots, because {es} has
-consistency requirements that span the whole cluster.
-// end::backup-warning[]
+consistency requirements that span the whole cluster. You must use the built-in
+snapshot functionality for cluster backups.
 
 [discrete]
 [[snapshot-restore-version-compatibility]]

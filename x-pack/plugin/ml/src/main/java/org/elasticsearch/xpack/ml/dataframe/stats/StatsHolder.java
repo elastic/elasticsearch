@@ -38,7 +38,7 @@ public class StatsHolder {
      * Updates the progress tracker with potentially new in-between phases
      * that were introduced in a later version while making sure progress indicators
      * are correct.
-     * @param analysisPhases the new analysis phases
+     * @param analysisPhases the full set of phases of the analysis in current version
      * @param hasInferencePhase whether the analysis supports inference
      */
     public void adjustProgressTracker(List<String> analysisPhases, boolean hasInferencePhase) {

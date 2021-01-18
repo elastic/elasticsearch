@@ -23,6 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
@@ -77,6 +78,7 @@ public final class TransformInternalIndex {
     public static final String LONG = "long";
     public static final String KEYWORD = "keyword";
     public static final String BOOLEAN = "boolean";
+    public static final String OBJECT = "object";
 
     public static IndexTemplateMetadata getIndexTemplateMetadata() throws IOException {
         IndexTemplateMetadata transformTemplate = IndexTemplateMetadata.builder(TransformInternalIndexConstants.LATEST_INDEX_VERSIONED_NAME)
@@ -282,6 +284,10 @@ public final class TransformInternalIndex {
                         .field(TYPE, KEYWORD)
                     .endObject()
                     .startObject(SourceConfig.QUERY.getPreferredName())
+                        .field(ENABLED, false)
+                    .endObject()
+                    .startObject(SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName())
+                        .field(TYPE, OBJECT)
                         .field(ENABLED, false)
                     .endObject()
                 .endObject()

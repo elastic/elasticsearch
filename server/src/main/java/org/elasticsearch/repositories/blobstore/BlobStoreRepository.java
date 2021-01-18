@@ -296,7 +296,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      *     <li>The {@link #uncleanStart} flag is set to {@code true}</li>
      * </ul>
      */
-    private volatile boolean bestEffortConsistency = true;
+    private volatile boolean bestEffortConsistency;
 
     /**
      * IO buffer size hint for reading and writing to the underlying blob store.

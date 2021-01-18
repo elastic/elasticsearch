@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.benchmark.time;
 
-import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.time.DateFormatter;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -43,15 +42,10 @@ import java.util.concurrent.TimeUnit;
 public class DateFormatterBenchmark {
 
     private final DateFormatter javaFormatter = DateFormatter.forPattern("8year_month_day||ordinal_date||epoch_millis");
-    private final DateFormatter jodaFormatter = Joda.forPattern("year_month_day||ordinal_date||epoch_millis");
 
     @Benchmark
     public TemporalAccessor parseJavaDate() {
         return javaFormatter.parse("1234567890");
     }
 
-    @Benchmark
-    public TemporalAccessor parseJodaDate() {
-        return jodaFormatter.parse("1234567890");
-    }
 }

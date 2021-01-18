@@ -20,7 +20,6 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.rounding.DateTimeUnit;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.common.unit.TimeValue;
@@ -225,7 +224,7 @@ public class RoundingTests extends ESTestCase {
 
     /**
      * Randomized test on TimeUnitRounding. Test uses random
-     * {@link DateTimeUnit} and {@link ZoneId} and often (50% of the time)
+     * {@link Rounding.DateTimeUnit} and {@link ZoneId} and often (50% of the time)
      * chooses test dates that are exactly on or close to offset changes (e.g.
      * DST) in the chosen time zone.
      *

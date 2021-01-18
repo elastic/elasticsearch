@@ -7,7 +7,7 @@
  * not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *    http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing,
  * software distributed under the License is distributed on an
@@ -57,7 +57,7 @@ public class Joda {
     // it results in errors sent to status logger and startup to fail.
     // Hence a lazy initialization.
     private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger
-        = new LazyInitializable(() -> DeprecationLogger.getLogger(FormatNames.class));
+        = new LazyInitializable<>(() -> DeprecationLogger.getLogger(FormatNames.class));
     /**
      * Parses a joda based pattern, including some named ones (similar to the built in Joda ISO ones).
      */

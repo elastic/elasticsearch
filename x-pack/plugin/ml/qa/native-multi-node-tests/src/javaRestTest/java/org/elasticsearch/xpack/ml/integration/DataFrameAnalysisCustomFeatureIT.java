@@ -14,6 +14,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -27,18 +28,24 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.BoostedTreeParams;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.Regression;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.Multi;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.NGram;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
+import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.utils.QueryProvider;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasKey;
@@ -111,7 +118,17 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
                 42L,
                 null,
                 null,
-                Collections.singletonList(new NGram(TEXT_FIELD, "f", new int[]{1, 2}, 0, 2, true))))
+                Arrays.asList(
+                    new NGram(TEXT_FIELD, "f", new int[]{1}, 0, 2, true),
+                    new Multi(new PreProcessor[]{
+                        new NGram(TEXT_FIELD, "ngram", new int[]{2}, 0, 3, true),
+                        new FrequencyEncoding("ngram.20",
+                            "frequency",
+                            MapBuilder.<String, Double>newMapBuilder().put("ca", 5.0).put("do", 1.0).map(), true),
+                        new OneHotEncoding("ngram.21", MapBuilder.<String, String>newMapBuilder().put("at", "is_cat").map(), true)
+                    },
+                        true)
+                    )))
             .setAnalyzedFields(new FetchSourceContext(true, new String[]{TEXT_FIELD, NUMERICAL_FIELD}, new String[]{}))
             .build();
         putAnalytics(config);
@@ -130,7 +147,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> importanceArray = (List<Map<String, Object>>)resultsObject.get("feature_importance");
             assertThat(importanceArray.stream().map(m -> m.get("feature_name").toString()).collect(Collectors.toSet()),
-                everyItem(startsWith("f.")));
+                everyItem(anyOf(startsWith("f."), startsWith("ngram"), equalTo("is_cat"), equalTo("frequency"))));
         }
 
         assertProgressComplete(jobId);

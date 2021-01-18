@@ -25,18 +25,14 @@ import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogException;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 
 import static org.elasticsearch.index.store.SearchableSnapshotDirectory.unwrapDirectory;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.isSearchableSnapshotStore;
 
 public class SearchableSnapshotIndexEventListener implements IndexEventListener {
@@ -116,14 +112,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
 
                     logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: {})", shardId, reason);
                     cacheService.markShardAsEvictedInCache(
-                        new SnapshotId(
-                            SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
-                            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
-                        ),
-                        new IndexId(
-                            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                            SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings())
-                        ),
+                        SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+                        SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
                         shardId
                     );
                 }

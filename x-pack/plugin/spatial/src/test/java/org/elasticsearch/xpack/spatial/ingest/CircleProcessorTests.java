@@ -30,7 +30,7 @@ import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.VectorGeoShapeQueryProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
@@ -218,7 +218,7 @@ public class CircleProcessorTests extends ESTestCase {
             = new GeoShapeWithDocValuesFieldType(fieldName, true, false, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
 
         VectorGeoShapeQueryProcessor processor = new VectorGeoShapeQueryProcessor();
-        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query pointOnDatelineQuery = processor.geoShapeQuery(new Point(180, circle.getLat()), fieldName,
@@ -250,7 +250,7 @@ public class CircleProcessorTests extends ESTestCase {
         MappedFieldType shapeType = new ShapeFieldType(fieldName, true, ShapeBuilder.Orientation.RIGHT, null, Collections.emptyMap());
 
         ShapeQueryProcessor processor = new ShapeQueryProcessor();
-        QueryShardContext mockedContext = mock(QueryShardContext.class);
+        SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
         Query sameShapeQuery = processor.shapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
         Query centerPointQuery = processor.shapeQuery(new Point(circle.getLon(), circle.getLat()), fieldName,

@@ -58,7 +58,7 @@ public class SpanGapQueryBuilderTests extends AbstractQueryTestCase<SpanNearQuer
     }
 
     @Override
-    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(SpanNearQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, either(instanceOf(SpanNearQuery.class))
             .or(instanceOf(SpanTermQuery.class))
             .or(instanceOf(SpanBoostQuery.class))

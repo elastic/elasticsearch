@@ -30,13 +30,13 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -122,28 +122,25 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for internal field [" + name() + "].");
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
             return LongPoint.newExactQuery(name(), v);
         }
 
         @Override
-        public Query termsQuery(List<?> values, @Nullable QueryShardContext context) {
-            long[] v = new long[values.size()];
-            for (int i = 0; i < values.size(); ++i) {
-                v[i] = parse(values.get(i));
-            }
+        public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
+            long[] v = values.stream().mapToLong(this::parse).toArray();
             return LongPoint.newSetQuery(name(), v);
         }
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower,
-                                boolean includeUpper, QueryShardContext context) {
+                                boolean includeUpper, SearchExecutionContext context) {
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
             if (lowerTerm != null) {

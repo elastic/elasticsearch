@@ -19,13 +19,39 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class StatsHolderTests extends ESTestCase {
 
+    public void testAdjustProgressTracker_GivenZeroProgress() {
+        List<PhaseProgress> phases = Collections.unmodifiableList(
+            Arrays.asList(
+                new PhaseProgress("reindexing", 0),
+                new PhaseProgress("loading_data", 0),
+                new PhaseProgress("a", 0),
+                new PhaseProgress("b", 0),
+                new PhaseProgress("writing_results", 0)
+            )
+        );
+        StatsHolder statsHolder = new StatsHolder(phases);
+
+        statsHolder.adjustProgressTracker(Arrays.asList("a", "b"), false);
+
+        List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
+
+        assertThat(phaseProgresses.size(), equalTo(5));
+        assertThat(phaseProgresses.stream().map(PhaseProgress::getPhase).collect(Collectors.toList()),
+            contains("reindexing", "loading_data", "a", "b", "writing_results"));
+        assertThat(phaseProgresses.get(0).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(1).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(2).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(3).getProgressPercent(), equalTo(0));
+        assertThat(phaseProgresses.get(4).getProgressPercent(), equalTo(0));
+    }
+
     public void testAdjustProgressTracker_GivenSameAnalysisPhases() {
         List<PhaseProgress> phases = Collections.unmodifiableList(
             Arrays.asList(
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("reindexing", 100),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("loading_data", 20),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("a", 30),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("b", 40),
+                new PhaseProgress("reindexing", 100),
+                new PhaseProgress("loading_data", 20),
+                new PhaseProgress("a", 30),
+                new PhaseProgress("b", 40),
                 new PhaseProgress("writing_results", 50)
             )
         );
@@ -48,10 +74,10 @@ public class StatsHolderTests extends ESTestCase {
     public void testAdjustProgressTracker_GivenDifferentAnalysisPhases() {
         List<PhaseProgress> phases = Collections.unmodifiableList(
             Arrays.asList(
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("reindexing", 100),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("loading_data", 20),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("a", 30),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("b", 40),
+                new PhaseProgress("reindexing", 100),
+                new PhaseProgress("loading_data", 20),
+                new PhaseProgress("a", 30),
+                new PhaseProgress("b", 40),
                 new PhaseProgress("writing_results", 50)
             )
         );
@@ -74,10 +100,10 @@ public class StatsHolderTests extends ESTestCase {
     public void testAdjustProgressTracker_GivenReindexingProgressIncomplete() {
         List<PhaseProgress> phases = Collections.unmodifiableList(
             Arrays.asList(
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("reindexing", 42),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("loading_data", 20),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("a", 30),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("b", 40),
+                new PhaseProgress("reindexing", 42),
+                new PhaseProgress("loading_data", 20),
+                new PhaseProgress("a", 30),
+                new PhaseProgress("b", 40),
                 new PhaseProgress("writing_results", 50)
             )
         );
@@ -100,10 +126,10 @@ public class StatsHolderTests extends ESTestCase {
     public void testResetProgressTracker() {
         List<PhaseProgress> phases = Collections.unmodifiableList(
             Arrays.asList(
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("reindexing", 100),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("loading_data", 20),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("a", 30),
-                new org.elasticsearch.xpack.core.ml.utils.PhaseProgress("b", 40),
+                new PhaseProgress("reindexing", 100),
+                new PhaseProgress("loading_data", 20),
+                new PhaseProgress("a", 30),
+                new PhaseProgress("b", 40),
                 new PhaseProgress("writing_results", 50)
             )
         );

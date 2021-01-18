@@ -386,7 +386,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         final MappedFieldType ft = context.getFieldType(field);
 
         if (ft instanceof RankFeatureFieldType) {

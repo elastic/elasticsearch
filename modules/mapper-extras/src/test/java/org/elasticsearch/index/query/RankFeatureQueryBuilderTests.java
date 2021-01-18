@@ -94,7 +94,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     @Override
-    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, QueryShardContext context) {
+    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         Class<?> expectedClass = FeatureField.newSaturationQuery("", "", 1, 1).getClass();
         assertThat(query, either(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(expectedClass)));
     }
@@ -105,7 +105,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
                 "        \"field\": \"my_feature_field\"\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
@@ -115,7 +115,8 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
                 "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" +
                 "    }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertEquals("[rank_feature] query only works on [rank_feature] fields and features of [rank_features] fields, not [text]",
             e.getMessage());
     }
@@ -129,7 +130,8 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
                 "        }\n" +
                 "    }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertEquals(
                 "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
                 e.getMessage());

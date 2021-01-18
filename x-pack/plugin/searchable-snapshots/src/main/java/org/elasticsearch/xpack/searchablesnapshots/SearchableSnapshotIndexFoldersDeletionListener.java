@@ -12,18 +12,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.IndexStorePlugin;
-import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.nio.file.Path;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 
 /**
  * This {@link IndexStorePlugin.IndexFoldersDeletionListener} is called when an index folder or a shard folder is deleted from the disk. If
@@ -62,14 +58,8 @@ public class SearchableSnapshotIndexFoldersDeletionListener implements IndexStor
 
         logger.debug("{} marking shard as evicted in searchable snapshots cache (reason: cache files deleted from disk)", shardId);
         cacheService.markShardAsEvictedInCache(
-            new SnapshotId(
-                SNAPSHOT_SNAPSHOT_NAME_SETTING.get(indexSettings.getSettings()),
-                SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings())
-            ),
-            new IndexId(
-                SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
-                SNAPSHOT_INDEX_ID_SETTING.get(indexSettings.getSettings())
-            ),
+            SNAPSHOT_SNAPSHOT_ID_SETTING.get(indexSettings.getSettings()),
+            SNAPSHOT_INDEX_NAME_SETTING.get(indexSettings.getSettings()),
             shardId
         );
     }

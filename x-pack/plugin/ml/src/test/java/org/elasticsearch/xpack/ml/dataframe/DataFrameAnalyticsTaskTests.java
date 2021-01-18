@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -34,6 +35,8 @@ import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask.StartingState;
 import org.elasticsearch.xpack.ml.dataframe.stats.ProgressTracker;
+import org.elasticsearch.xpack.ml.dataframe.steps.DataFrameAnalyticsStep;
+import org.elasticsearch.xpack.ml.dataframe.steps.StepResponse;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
@@ -163,7 +166,7 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, clusterService, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams);
         task.init(persistentTasksService, taskManager, "task-id", 42);
 
         task.persistProgress(client, "task_id", runnable);
@@ -240,9 +243,9 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
 
         DataFrameAnalyticsTask task =
             new DataFrameAnalyticsTask(
-                123, "type", "action", null, Map.of(), client, clusterService, analyticsManager, auditor, taskParams);
+                123, "type", "action", null, Map.of(), client, analyticsManager, auditor, taskParams);
         task.init(persistentTasksService, taskManager, "task-id", 42);
-        task.setReindexingFinished();
+        task.setStep(new StubReindexingStep(task.getStatsHolder().getProgressTracker()));
         Exception exception = new Exception("some exception");
 
         task.setFailed(exception);
@@ -284,5 +287,33 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
             listener.onResponse(response);
             return null;
         };
+    }
+
+    private class StubReindexingStep implements DataFrameAnalyticsStep {
+
+        private final ProgressTracker progressTracker;
+
+        StubReindexingStep(ProgressTracker progressTracker) {
+            this.progressTracker = progressTracker;
+        }
+
+        @Override
+        public Name name() {
+            return Name.REINDEXING;
+        }
+
+        @Override
+        public void execute(ActionListener<StepResponse> listener) {
+        }
+
+        @Override
+        public void cancel(String reason, TimeValue timeout) {
+        }
+
+        @Override
+        public void updateProgress(ActionListener<Void> listener) {
+            progressTracker.updateReindexingProgress(100);
+            listener.onResponse(null);
+        }
     }
 }

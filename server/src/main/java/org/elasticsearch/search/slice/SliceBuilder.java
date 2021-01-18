@@ -35,7 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 
 import java.io.IOException;
@@ -197,7 +197,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
      * @param context Additional information needed to build the query
      */
     @SuppressWarnings("rawtypes")
-    public Query toFilter(ShardSearchRequest request, QueryShardContext context) {
+    public Query toFilter(ShardSearchRequest request, SearchExecutionContext context) {
         final MappedFieldType type = context.getFieldType(field);
         if (type == null) {
             throw new IllegalArgumentException("field " + field + " not found");

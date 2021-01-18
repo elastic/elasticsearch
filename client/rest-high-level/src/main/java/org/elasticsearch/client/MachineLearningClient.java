@@ -41,8 +41,6 @@ import org.elasticsearch.client.ml.DeleteJobResponse;
 import org.elasticsearch.client.ml.DeleteModelSnapshotRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -1915,48 +1913,6 @@ public final class MachineLearningClient {
             MLRequestConverters::mlInfo,
             options,
             MlInfoResponse::fromXContent,
-            listener,
-            Collections.emptySet());
-    }
-
-    /**
-     * Finds the structure of a file
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
-     *     ML Find File Structure documentation</a>
-     *
-     * @param request The find file structure request
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response containing details of the file structure
-     * @throws IOException when there is a serialization issue sending the request or receiving the response
-     */
-    public FindFileStructureResponse findFileStructure(FindFileStructureRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(request,
-            MLRequestConverters::findFileStructure,
-            options,
-            FindFileStructureResponse::fromXContent,
-            Collections.emptySet());
-    }
-
-    /**
-     * Finds the structure of a file asynchronously and notifies the listener on completion
-     * <p>
-     * For additional info
-     * see <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-find-file-structure.html">
-     *         ML Find File Structure documentation</a>
-     *
-     * @param request The find file structure request
-     * @param options  Additional request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @param listener Listener to be notified upon request completion
-     * @return cancellable that may be used to cancel the request
-     */
-    public Cancellable findFileStructureAsync(FindFileStructureRequest request, RequestOptions options,
-                                              ActionListener<FindFileStructureResponse> listener) {
-        return restHighLevelClient.performRequestAsyncAndParseEntity(request,
-            MLRequestConverters::findFileStructure,
-            options,
-            FindFileStructureResponse::fromXContent,
             listener,
             Collections.emptySet());
     }

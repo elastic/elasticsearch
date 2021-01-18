@@ -79,6 +79,7 @@ for (String fixtureName : ['hdfsFixture', 'secureHdfsFixture']) {
 
     // If it's a secure fixture, then depend on Kerberos Fixture and principals + add the krb5conf to the JVM options
     if (name.equals('secureHdfsFixture')) {
+      miniHDFSArgs.addAll(["--add-exports", "java.security.jgss/sun.security.krb5=ALL-UNNAMED"])
       miniHDFSArgs.add("-Djava.security.krb5.conf=${krb5conf}")
     }
     // configure port dynamically

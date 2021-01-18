@@ -303,11 +303,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         NodeAcknowledgedResponse response = startAnalytics(jobId);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until progress for first phase is over 1
-        assertBusy(() -> {
-            List<PhaseProgress> progress = getAnalyticsStats(jobId).getProgress();
-            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
-        });
+        String phaseToWait = randomFrom("reindexing", "loading_data", "feature_selection", "fine_tuning_parameters");
+        waitUntilSomeProgressHasBeenMadeForPhase(jobId, phaseToWait);
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 

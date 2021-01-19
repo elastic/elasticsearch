@@ -67,8 +67,9 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             // after transitioning to FINALIZE stage
             if (stage != Stage.FINALIZE && stage != Stage.DONE) {
                 assert false : "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; but current stage is [" + stage + "]";
-                throw new IllegalStateException("expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; " +
-                    "but current stage is [" + stage + "]");
+                throw new IllegalStateException(
+                    "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; " + "but current stage is [" + stage + "]"
+                );
             }
         }
     }

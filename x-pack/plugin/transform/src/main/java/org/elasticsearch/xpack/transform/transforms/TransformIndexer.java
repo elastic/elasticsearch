@@ -338,7 +338,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
             sourceHasChanged(ActionListener.wrap(hasChanged -> {
-                context.setChangesLastSearchedAt(instantOfTrigger);
+                context.setLastSearchedTime(instantOfTrigger);
                 hasSourceChanged = hasChanged;
                 if (hasChanged) {
                     context.setChangesLastDetectedAt(instantOfTrigger);
@@ -357,7 +357,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }));
         } else {
             hasSourceChanged = true;
-            context.setChangesLastSearchedAt(instantOfTrigger);
+            context.setLastSearchedTime(instantOfTrigger);
             context.setChangesLastDetectedAt(instantOfTrigger);
             changedSourceListener.onResponse(null);
         }

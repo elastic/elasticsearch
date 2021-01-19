@@ -161,13 +161,13 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         a -> {
             long behind = a[2] == null ? 0L : (Long) a[2];
             Instant changesLastDetectedAt = (Instant) a[3];
-            Instant changesLastSearchedAt = (Instant) a[4];
+            Instant lastSearchedTime = (Instant) a[4];
             return new TransformCheckpointingInfo(
                 a[0] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[0],
                 a[1] == null ? TransformCheckpointStats.EMPTY : (TransformCheckpointStats) a[1],
                 behind,
                 changesLastDetectedAt,
-                changesLastSearchedAt
+                lastSearchedTime
             );
         }
     );

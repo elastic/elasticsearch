@@ -174,8 +174,8 @@ public class TransformTask extends AllocatedPersistentTask implements SchedulerE
             if (context.getChangesLastDetectedAt() != null) {
                 infoBuilder.setChangesLastDetectedAt(context.getChangesLastDetectedAt());
             }
-            if (context.getChangesLastSearchedAt() != null) {
-                infoBuilder.setLastSearchTime(context.getChangesLastSearchedAt());
+            if (context.getLastSearchedTime() != null) {
+                infoBuilder.setLastSearchTime(context.getLastSearchedTime());
             }
             listener.onResponse(infoBuilder.build());
         }, listener::onFailure);

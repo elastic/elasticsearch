@@ -21,6 +21,11 @@ Returns cluster nodes statistics.
 
 `GET /_nodes/<node_id>/stats/<metric>/<index_metric>`
 
+[[cluster-nodes-stats-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-nodes-stats-api-desc]]
 ==== {api-description-title}

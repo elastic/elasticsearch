@@ -313,6 +313,8 @@ The response includes indexed values for documents matching model number
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_type" : "_doc"/"_type": $body.hits.hits.0._type/]
+// TESTRESPONSE[s/"_type" : "_doc"/"_type": $body.hits.hits.1._type/]
 // TESTRESPONSE[s/"_id" : "F1BeSXYBg_szTodcYCmk"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"_id" : "l02aSXYBkpNf6QRDO62Q"/"_id": $body.hits.hits.1._id/]
 
@@ -406,6 +408,8 @@ which still returns in the response:
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_type" : "_doc"/"_type": $body.hits.hits.0._type/]
+// TESTRESPONSE[s/"_type" : "_doc"/"_type": $body.hits.hits.1._type/]
 // TESTRESPONSE[s/"_id" : "F1BeSXYBg_szTodcYCmk"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"_id" : "l02aSXYBkpNf6QRDO62Q"/"_id": $body.hits.hits.1._id/]
 
@@ -557,6 +561,7 @@ address.
     "hits" : [
       {
         "_index" : "my-index",
+        "_type" : "_doc",
         "_id" : "oWs5KXYB-XyJbifr9mrz",
         "_score" : 1.0,
         "_source" : {
@@ -583,6 +588,7 @@ address.
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_type" : "_doc"/"_type": $body.hits.hits.0._type/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]
 // TESTRESPONSE[s/"day_of_week" : \[\n\s+"Sunday"\n\s\]/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
 
@@ -771,4 +777,5 @@ and determine which fields to index.
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_type" : "_doc"/"_type": $body.hits.hits.0._type/]
 // TESTRESPONSE[s/"_id" : "oWs5KXYB-XyJbifr9mrz"/"_id": $body.hits.hits.0._id/]

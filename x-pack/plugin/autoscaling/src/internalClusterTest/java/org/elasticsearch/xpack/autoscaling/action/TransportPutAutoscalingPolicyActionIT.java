@@ -38,6 +38,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         assertThat(metadata.policies().get(policy.name()).policy(), equalTo(policy));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67620")
     public void testUpdatePolicy() {
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
         final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(

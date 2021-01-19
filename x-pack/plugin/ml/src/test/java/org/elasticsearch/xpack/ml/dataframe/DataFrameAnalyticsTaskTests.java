@@ -118,6 +118,18 @@ public class DataFrameAnalyticsTaskTests extends ESTestCase {
         assertThat(startingState, equalTo(StartingState.RESUMING_ANALYZING));
     }
 
+    public void testDetermineStartingState_GivenInferenceIsIncomplete() {
+        List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
+            new PhaseProgress("loading_data", 100),
+            new PhaseProgress("analyzing", 100),
+            new PhaseProgress("writing_results", 100),
+            new PhaseProgress("inference", 40));
+
+        StartingState startingState = DataFrameAnalyticsTask.determineStartingState("foo", progress);
+
+        assertThat(startingState, equalTo(StartingState.RESUMING_INFERENCE));
+    }
+
     public void testDetermineStartingState_GivenFinished() {
         List<PhaseProgress> progress = Arrays.asList(new PhaseProgress("reindexing", 100),
             new PhaseProgress("loading_data", 100),

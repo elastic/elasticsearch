@@ -19,9 +19,13 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -30,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -37,6 +42,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -294,5 +300,40 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(channel.getLocalAddress(), remoteException.address().address());
 
         assertEquals("header_value", header.getHeaders().v1().get("header"));
+    }
+
+    public void testSlowLogOutboundMessage() throws Exception {
+        final MockLogAppender mockAppender = new MockLogAppender();
+        mockAppender.start();
+        mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                        "expected message",
+                        OutboundHandler.class.getCanonicalName(),
+                        Level.WARN,
+                        "sending transport message "));
+        final Logger outboundHandlerLogger = LogManager.getLogger(OutboundHandler.class);
+        Loggers.addAppender(outboundHandlerLogger, mockAppender);
+        handler.setSlowLogThreshold(TimeValue.timeValueMillis(5L));
+
+        try {
+            final int length = randomIntBetween(1, 100);
+            final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
+            handler.sendBytes(new FakeTcpChannel() {
+                @Override
+                public void sendMessage(BytesReference reference, ActionListener<Void> listener) {
+                    try {
+                        TimeUnit.SECONDS.sleep(1L);
+                        listener.onResponse(null);
+                    } catch (InterruptedException e) {
+                        listener.onFailure(e);
+                    }
+                }
+            }, new BytesArray(randomByteArrayOfLength(length)), f);
+            f.get();
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(outboundHandlerLogger, mockAppender);
+            mockAppender.stop();
+        }
     }
 }

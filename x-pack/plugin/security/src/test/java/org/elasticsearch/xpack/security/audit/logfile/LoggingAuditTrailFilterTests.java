@@ -31,12 +31,15 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
+import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.AuditEventMetaInfo;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.MockRequest;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrailTests.RestContent;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
+import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -57,7 +60,6 @@ import java.util.Optional;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege.findPrivilegesThatGrant;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.Utils.createApiKeyAuthentication;
 import static org.hamcrest.Matchers.is;
@@ -126,7 +128,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
         final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredActions);
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.privilegesPolicy.privileges",
-            filteredPrivileges);
+            randomBoolean() ? filteredPrivileges : filteredActions);
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
@@ -217,7 +219,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
         final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredActions);
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.privileges",
-            filteredPrivileges);
+            randomBoolean() ? filteredPrivileges : filteredActions);
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
@@ -343,7 +345,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final List<String> filteredActions = randomNonEmptyListOfFilteredActions();
         final List<String> filteredPrivileges = randomNonEmptyListOfFilteredPrivileges(filteredActions);
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.privileges",
-            filteredPrivileges);
+            randomBoolean() ? filteredPrivileges : filteredActions);
 
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
@@ -1937,7 +1939,37 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
             "indices:admin/refresh*",
             "indices:admin/flush*",
             "indices:admin/synced_flush",
-            "indices:admin/forcemerge*"};
+            "indices:admin/forcemerge*",
+            "cluster:admin/xpack/security/*",
+            "cluster:admin/xpack/security/saml/*",
+            "cluster:admin/xpack/security/oidc/*",
+            "cluster:admin/xpack/security/token/*",
+            "cluster:admin/xpack/security/api_key/*",
+            "cluster:monitor/*",
+            "cluster:monitor/xpack/ml/*",
+            "cluster:monitor/text_structure/*",
+            "cluster:monitor/data_frame/*",
+            "cluster:monitor/xpack/watcher/*",
+            "cluster:monitor/xpack/rollup/*",
+            "cluster:*",
+            "indices:admin/index_template/*",
+            "indices:admin/data_stream/*",
+            "cluster:admin/xpack/ml/*",
+            "cluster:admin/data_frame/*",
+            "cluster:monitor/data_frame/*",
+            "cluster:monitor/transform/*",
+            "cluster:admin/transform/*",
+            "cluster:admin/xpack/watcher/*",
+            "cluster:monitor/nodes/liveness",
+            "cluster:monitor/state",
+            "indices:admin/template/*",
+            "cluster:admin/component_template/*",
+            "cluster:admin/ingest/pipeline/*",
+            "cluster:admin/xpack/rollup/*",
+            "cluster:admin/xpack/ccr/*",
+            "cluster:admin/ilm/*",
+            "cluster:admin/slm/*",
+            "cluster:admin/xpack/enrich/*"};
         Random random = random();
         for (int i = 0; i < randomIntBetween(1, 4); i++) {
             Object name = actionPatterns[random.nextInt(actionPatterns.length)];
@@ -1947,11 +1979,13 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
     }
 
     private List<String> randomNonEmptyListOfFilteredPrivileges(List<String> listOfActions) {
-        final List<String> filtered = new ArrayList<>(listOfActions.size());
+        final List<String> filtered = new ArrayList<>();
         for (int i = 0; i < listOfActions.size(); i++) {
-            Collection<String> privileges = findPrivilegesThatGrant(listOfActions.get(i));
+            Collection<String> privileges = AuthorizationService.isIndexAction(listOfActions.get(i)) ?
+                IndexPrivilege.findPrivilegesThatGrant(listOfActions.get(i)) :
+                ClusterPrivilegeResolver.findPrivilegesThatGrant(listOfActions.get(i), null, null);
             assertNotNull(privileges);
-            filtered.add(privileges.iterator().next());
+            filtered.addAll(privileges);
         }
         return filtered;
     }

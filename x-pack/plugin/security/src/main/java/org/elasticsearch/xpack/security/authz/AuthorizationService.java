@@ -572,7 +572,7 @@ public class AuthorizationService {
         return new IllegalArgumentException(message);
     }
 
-    private static boolean isIndexAction(String action) {
+    public static boolean isIndexAction(String action) {
         return IndexPrivilege.ACTION_MATCHER.test(action);
     }
 

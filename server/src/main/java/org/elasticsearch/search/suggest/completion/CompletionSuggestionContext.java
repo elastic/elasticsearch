@@ -22,7 +22,7 @@ import org.apache.lucene.search.suggest.document.CompletionQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
@@ -33,8 +33,8 @@ import java.util.Map;
 
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
-    protected CompletionSuggestionContext(QueryShardContext shardContext) {
-        super(CompletionSuggester.INSTANCE, shardContext);
+    protected CompletionSuggestionContext(SearchExecutionContext searchExecutionContext) {
+        super(CompletionSuggester.INSTANCE, searchExecutionContext);
     }
 
     private CompletionFieldMapper.CompletionFieldType fieldType;

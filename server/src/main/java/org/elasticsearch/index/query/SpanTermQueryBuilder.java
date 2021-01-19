@@ -79,7 +79,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
+    protected SpanQuery doToQuery(SearchExecutionContext context) throws IOException {
         MappedFieldType mapper = context.getFieldType(fieldName);
         Term term;
         if (mapper == null) {

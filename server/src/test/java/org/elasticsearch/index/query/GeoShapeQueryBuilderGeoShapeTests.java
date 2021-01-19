@@ -59,7 +59,7 @@ public class GeoShapeQueryBuilderGeoShapeTests extends GeoShapeQueryBuilderTests
             }
         }
         if (randomBoolean()) {
-            QueryShardContext context = createShardContext();
+            SearchExecutionContext context = createSearchExecutionContext();
             if (context.indexVersionCreated().onOrAfter(Version.V_7_5_0)) { // CONTAINS is only supported from version 7.5
                 if (shapeType == RandomShapeGenerator.ShapeType.LINESTRING || shapeType == RandomShapeGenerator.ShapeType.MULTILINESTRING) {
                     builder.relation(randomFrom(ShapeRelation.DISJOINT, ShapeRelation.INTERSECTS, ShapeRelation.CONTAINS));

@@ -27,7 +27,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.search.MultiValueMode;
@@ -154,7 +154,7 @@ public class IndexSortSettingsTests extends ESTestCase {
         final IndexFieldDataService indexFieldDataService = new IndexFieldDataService(indexSettings, cache, circuitBreakerService, null);
         MappedFieldType fieldType = new RuntimeFieldType("field", Collections.emptyMap()) {
             @Override
-            public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                 throw new UnsupportedOperationException();
             }
 
@@ -170,7 +170,7 @@ public class IndexSortSettingsTests extends ESTestCase {
             }
 
             @Override
-            public Query termQuery(Object value, QueryShardContext context) {
+            public Query termQuery(Object value, SearchExecutionContext context) {
                 throw new UnsupportedOperationException();
             }
 

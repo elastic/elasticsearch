@@ -17,6 +17,7 @@ import java.util.Collections;
 import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -60,6 +61,37 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         });
         assertThat(completed[0], is(true));
         assertThat(failure[0], nullValue());
+    }
+
+    public void testRequestNotAcknowledged() {
+        IndexMetadata indexMetadata = getIndexMetadata();
+
+        Mockito.doAnswer(invocation -> {
+            CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
+            assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
+            @SuppressWarnings("unchecked")
+            ActionListener<CloseIndexResponse> listener = (ActionListener<CloseIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new CloseIndexResponse(false, false, Collections.emptyList()));
+            return null;
+        }).when(indicesClient).close(Mockito.any(), Mockito.any());
+
+        Boolean[] completed = new Boolean[1];
+        Exception[] failure = new Exception[1];
+        CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
+        step.performAction(indexMetadata, emptyClusterState(), null, new AsyncActionStep.Listener() {
+            @Override
+            public void onResponse(boolean complete) {
+                completed[0] = complete;
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                failure[0] = e;
+            }
+        });
+        assertThat(completed[0], nullValue());
+        assertThat(failure[0], notNullValue());
+        assertThat(failure[0].getMessage(), is("close index request failed to be acknowledged"));
     }
 
     public void testCloseFollowingIndexFailed() {

@@ -92,14 +92,14 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
         // Replace value
         Object newValue = randomValueOfTypeOtherThan(literal.value(), literal.dataType());
         assertEquals(new Literal(literal.source(), newValue, literal.dataType()),
-                literal.transformPropertiesOnly(p -> p == literal.value() ? newValue : p, Object.class));
+            literal.transformPropertiesOnly(Object.class, p -> p == literal.value() ? newValue : p));
 
         // Replace data type if there are more compatible data types
         List<DataType> validDataTypes = validReplacementDataTypes(literal.value(), literal.dataType());
         if (validDataTypes.size() > 1) {
             DataType newDataType = randomValueOtherThan(literal.dataType(), () -> randomFrom(validDataTypes));
             assertEquals(new Literal(literal.source(), literal.value(), newDataType),
-                    literal.transformPropertiesOnly(p -> newDataType, DataType.class));
+                literal.transformPropertiesOnly(DataType.class, p -> newDataType));
         }
     }
 

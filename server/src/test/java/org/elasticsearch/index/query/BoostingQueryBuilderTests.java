@@ -40,7 +40,7 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(BoostingQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         Query positive = queryBuilder.positiveQuery().rewrite(context).toQuery(context);
         Query negative = queryBuilder.negativeQuery().rewrite(context).toQuery(context);
         if (positive == null || negative == null) {
@@ -98,12 +98,13 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         QueryBuilder negative = randomBoolean() ? new MatchAllQueryBuilder() :
             new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString());
         BoostingQueryBuilder qb = new BoostingQueryBuilder(positive, negative);
-        QueryBuilder rewrite = qb.rewrite(createShardContext());
+        QueryBuilder rewrite = qb.rewrite(createSearchExecutionContext());
         if (positive instanceof MatchAllQueryBuilder && negative instanceof MatchAllQueryBuilder) {
             assertSame(rewrite, qb);
         } else {
             assertNotSame(rewrite, qb);
-            assertEquals(new BoostingQueryBuilder(positive.rewrite(createShardContext()), negative.rewrite(createShardContext())), rewrite);
+            assertEquals(new BoostingQueryBuilder(positive.rewrite(createSearchExecutionContext()),
+                negative.rewrite(createSearchExecutionContext())), rewrite);
         }
     }
 
@@ -111,13 +112,13 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         BoostingQueryBuilder builder = new BoostingQueryBuilder(
             new TermQueryBuilder("unmapped_field", "value"),
             new TermQueryBuilder(KEYWORD_FIELD_NAME, "other_value"));
-        QueryBuilder rewrite = builder.rewrite(createShardContext());
+        QueryBuilder rewrite = builder.rewrite(createSearchExecutionContext());
         assertThat(rewrite, instanceOf(MatchNoneQueryBuilder.class));
     }
 
     @Override
     public void testMustRewrite() throws IOException {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
 
         BoostingQueryBuilder queryBuilder1 = new BoostingQueryBuilder(

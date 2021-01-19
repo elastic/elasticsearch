@@ -104,7 +104,9 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test010Install() {
+    public void test010Install() throws Exception {
+        // Wait for the container to come up, because we assert the state of some files that Elasticsearch creates on startup.
+        waitForElasticsearch(installation);
         verifyContainerInstallation(installation, distribution());
     }
 
@@ -474,6 +476,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that environment variables are translated to -E options even for commands invoked under
      * `docker exec`, where the Docker image's entrypoint is not executed.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67097")
     public void test085EnvironmentVariablesAreRespectedUnderDockerExec() {
         // This test relies on a CLI tool attempting to connect to Elasticsearch, and the
         // tool in question is only in the default distribution.

@@ -103,12 +103,20 @@ your template is applied instead of the built-in template for `logs-*-*`.
 
 [xpack]#`data_stream`#::
 (Optional, object)
-Indicates whether the template is used to create data streams and their backing
-indices. If so, use an empty object as the argument: +
-`data_stream: { }`.
+If this object is included, the template is used to create data streams and
+their backing indices. Supports an empty object: `data_stream: { }`
 +
 Data streams require a matching index template with a `data_stream` object.
 See <<create-a-data-stream-template>>.
++
+.Properties of `data_stream`
+[%collapsible%open]
+====
+[[data-stream-hidden]]
+`hidden`::
+(Optional, Boolean)
+If `true`, the data stream is <<hidden-indices,hidden>>. Defaults to `false`.
+====
 
 `template`::
 (Optional, object)

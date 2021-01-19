@@ -29,7 +29,7 @@ class TransformContext {
     private volatile int numFailureRetries = Transform.DEFAULT_FAILURE_RETRIES;
     private final AtomicInteger failureCount;
     private volatile Instant changesLastDetectedAt;
-    private volatile Instant lastSearchedTime;
+    private volatile Instant lastSearchTime;
     private volatile boolean shouldStopAtCheckpoint;
 
     // the checkpoint of this transform, storing the checkpoint until data indexing from source to dest is _complete_
@@ -108,12 +108,12 @@ class TransformContext {
         return changesLastDetectedAt;
     }
 
-    void setLastSearchedTime(Instant time) {
-        lastSearchedTime = time;
+    void setLastSearchTime(Instant time) {
+        lastSearchTime = time;
     }
 
-    Instant getLastSearchedTime() {
-        return lastSearchedTime;
+    Instant getLastSearchTime() {
+        return lastSearchTime;
     }
 
     public boolean shouldStopAtCheckpoint() {

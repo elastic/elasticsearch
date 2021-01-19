@@ -534,9 +534,8 @@ public final class Script implements ToXContentObject, Writeable {
             this.lang = Objects.requireNonNull(lang);
             // making sure if content_type was application/json, application/json; charset=UTF-8 (note space and casing)
             // it will be treated as the XContentType.JSON.mediaType() -> application/json;charset=utf-8
-            Map<String, String> optionsMap = Maps.copyMapWithModifiedEntryWhenPresent(options, CONTENT_TYPE_OPTION,
+            this.options = Maps.copyMapWithModifiedEntryWhenPresent(Collections.unmodifiableMap(options), CONTENT_TYPE_OPTION,
                 value -> value.startsWith("application/json") ? XContentType.JSON.mediaType() : value);
-            this.options = Collections.unmodifiableMap(optionsMap);
         } else if (type == ScriptType.STORED) {
             if (lang != null) {
                 throw new IllegalArgumentException("lang cannot be specified for stored scripts");

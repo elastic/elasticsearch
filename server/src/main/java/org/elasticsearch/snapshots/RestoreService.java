@@ -92,6 +92,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
@@ -304,7 +305,7 @@ public class RestoreService implements ClusterStateApplier {
                 // log a deprecation warning if the any of the indexes to delete were included in the request and the snapshot
                 // is from a version that should have feature states
                 if (snapshotInfo.version().onOrAfter(FEATURE_STATES_VERSION) && explicitlyRequestedSystemIndices.isEmpty() == false) {
-                    deprecationLogger.deprecate("restore-system-index-from-snapshot",
+                    deprecationLogger.deprecate(DeprecationCategory.API, "restore-system-index-from-snapshot",
                         "Restoring system indices by name is deprecated. Use feature states instead. System indices: "
                             + explicitlyRequestedSystemIndices);
                 }

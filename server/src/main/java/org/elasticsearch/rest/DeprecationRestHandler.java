@@ -20,6 +20,7 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 
 import java.util.Objects;
@@ -57,7 +58,7 @@ public class DeprecationRestHandler implements RestHandler {
      */
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) throws Exception {
-        deprecationLogger.deprecate("deprecated_route", deprecationMessage);
+        deprecationLogger.deprecate(DeprecationCategory.API, "deprecated_route", deprecationMessage);
 
         handler.handleRequest(request, channel, client);
     }

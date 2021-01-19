@@ -54,6 +54,9 @@ public class ProgressTracker {
         assert progressPercentPerPhase.containsKey(REINDEXING);
         assert progressPercentPerPhase.containsKey(LOADING_DATA);
         assert progressPercentPerPhase.containsKey(WRITING_RESULTS);
+        // If there is inference it should be the last phase otherwise there
+        // are assumptions that do not hold.
+        assert progressPercentPerPhase.containsKey(INFERENCE) == false || INFERENCE.equals(phasesInOrder[phasesInOrder.length - 1]);
     }
 
     public void updateReindexingProgress(int progressPercent) {
@@ -94,6 +97,32 @@ public class ProgressTracker {
 
     private void updatePhase(String phase, int progress) {
         progressPercentPerPhase.computeIfPresent(phase, (k, v) -> Math.max(v, progress));
+    }
+
+    /**
+     * Resets progress to reflect all phases are complete except for inference
+     * which is set to zero.
+     */
+    public void resetForInference() {
+        for (Map.Entry<String, Integer> phaseProgress : progressPercentPerPhase.entrySet()) {
+            if (phaseProgress.getKey().equals(INFERENCE)) {
+                progressPercentPerPhase.put(phaseProgress.getKey(), 0);
+            } else {
+                progressPercentPerPhase.put(phaseProgress.getKey(), 100);
+            }
+        }
+    }
+
+    /**
+     * Returns whether all phases before inference are complete
+     */
+    public boolean areAllPhasesExceptInferenceComplete() {
+        for (Map.Entry<String, Integer> phaseProgress : progressPercentPerPhase.entrySet()) {
+            if (phaseProgress.getKey().equals(INFERENCE) == false && phaseProgress.getValue() < 100) {
+                return false;
+            }
+        }
+        return true;
     }
 
     public List<PhaseProgress> report() {

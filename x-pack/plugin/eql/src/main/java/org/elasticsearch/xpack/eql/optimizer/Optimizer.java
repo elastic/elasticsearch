@@ -113,31 +113,28 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
-            return filter.transformExpressionsUp(e -> {
+            return filter.transformExpressionsUp(InsensitiveBinaryComparison.class, cmp -> {
                 // expr : "wildcard*phrase?" || expr !: "wildcard*phrase?"
-                if (e instanceof InsensitiveBinaryComparison) {
-                    InsensitiveBinaryComparison cmp = (InsensitiveBinaryComparison) e;
+                Expression result = cmp;
+                Expression target = null;
+                String wildString = null;
 
-                    Expression target = null;
-                    String wildString = null;
-
-                    // check only the right side
-                    if (isWildcard(cmp.right())) {
-                        wildString = (String) cmp.right().fold();
-                        target = cmp.left();
-                    }
-
-                    if (target != null) {
-                        Expression like = new Like(e.source(), target, StringUtils.toLikePattern(wildString), true);
-                        if (e instanceof InsensitiveNotEquals) {
-                            like = new Not(e.source(), like);
-                        }
-
-                        e = like;
-                    }
+                // check only the right side
+                if (isWildcard(cmp.right())) {
+                    wildString = (String) cmp.right().fold();
+                    target = cmp.left();
                 }
 
-                return e;
+                if (target != null) {
+                    Expression like = new Like(cmp.source(), target, StringUtils.toLikePattern(wildString), true);
+                    if (cmp instanceof InsensitiveNotEquals) {
+                        like = new Not(cmp.source(), like);
+                    }
+
+                    result = like;
+                }
+
+                return result;
             });
         }
 
@@ -158,21 +155,19 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         @Override
         protected LogicalPlan rule(Filter filter) {
 
-            return filter.transformExpressionsUp(e -> {
+            return filter.transformExpressionsUp(BinaryComparison.class, cmp -> {
+                Expression result = cmp;
                 // expr == null || expr != null
-                if (e instanceof Equals || e instanceof NotEquals) {
-                    BinaryComparison cmp = (BinaryComparison) e;
-
+                if (cmp instanceof Equals || cmp instanceof NotEquals) {
                     if (cmp.right().foldable() && cmp.right().fold() == null) {
-                        if (e instanceof Equals) {
-                            e = new IsNull(e.source(), cmp.left());
+                        if (cmp instanceof Equals) {
+                            result = new IsNull(cmp.source(), cmp.left());
                         } else {
-                            e = new IsNotNull(e.source(), cmp.left());
+                            result = new IsNotNull(cmp.source(), cmp.left());
                         }
                     }
                 }
-
-                return e;
+                return result;
             });
         }
     }
@@ -189,7 +184,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                 plan = new Filter(f.source(), f.child(), new And(f.source(), f.condition(), filter.condition()));
             } else if (child instanceof UnaryPlan) {
                 UnaryPlan up = (UnaryPlan) child;
-                plan = child.replaceChildren(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
+                plan = child.replaceChildrenSameSize(singletonList(new Filter(filter.source(), up.child(), filter.condition())));
             }
 
             return plan;
@@ -322,8 +317,8 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
             // collect constraints for each filter
             join.queries().forEach(k ->
-                k.forEachDown(f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
-                                  , Filter.class));
+                k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))
+                ));
 
             if (constraints.isEmpty() == false) {
                 List<KeyedFilter> queries = join.queries().stream()
@@ -431,13 +426,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                         // preserve the order for the base query, everything else needs to be ascending
                         List<Order> pushedOrder = baseFilter ? orderBy.order() : ascendingOrders;
                         OrderBy order = new OrderBy(filter.source(), filter.child(), pushedOrder);
-                        orderedQueries.add((KeyedFilter) filter.replaceChildren(singletonList(order)));
+                        orderedQueries.add((KeyedFilter) filter.replaceChildrenSameSize(singletonList(order)));
                         baseFilter = false;
                     }
 
                     KeyedFilter until = join.until();
                     OrderBy order = new OrderBy(until.source(), until.child(), ascendingOrders);
-                    until = (KeyedFilter) until.replaceChildren(singletonList(order));
+                    until = (KeyedFilter) until.replaceChildrenSameSize(singletonList(order));
 
                     OrderDirection direction = orderBy.order().get(0).direction();
                     plan = join.with(orderedQueries, until, direction);

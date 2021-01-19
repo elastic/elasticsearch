@@ -24,11 +24,14 @@ import org.elasticsearch.gradle.info.BuildParams;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
+import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.bundling.AbstractArchiveTask;
 import org.gradle.api.tasks.bundling.Zip;
 
 /**
@@ -60,12 +63,12 @@ public class RestTestUtil {
             testTask.setClasspath(sourceSet.getRuntimeClasspath());
             // if this a module or plugin, it may have an associated zip file with it's contents, add that to the test cluster
             project.getPluginManager().withPlugin("elasticsearch.esplugin", plugin -> {
-                Zip bundle = (Zip) project.getTasks().getByName("bundlePlugin");
+                TaskProvider<Zip> bundle = project.getTasks().withType(Zip.class).named("bundlePlugin");
                 testTask.dependsOn(bundle);
-                if (project.getPath().contains("modules:") || project.getPath().startsWith(":x-pack:plugin")) {
-                    testTask.getClusters().forEach(c -> c.module(bundle.getArchiveFile()));
+                if (GradleUtils.isModuleProject(project.getPath())) {
+                    testTask.getClusters().forEach(c -> c.module(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
                 } else {
-                    testTask.getClusters().forEach(c -> c.plugin(bundle.getArchiveFile()));
+                    testTask.getClusters().forEach(c -> c.plugin(bundle.flatMap(AbstractArchiveTask::getArchiveFile)));
                 }
             });
         });

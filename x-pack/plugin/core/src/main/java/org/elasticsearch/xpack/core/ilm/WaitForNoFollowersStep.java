@@ -27,7 +27,7 @@ import java.util.Objects;
 import java.util.Optional;
 
 /**
- * A step that waits until the index it's used on is no longer a leader index.
+ * A step that waits until the managed index is no longer a leader index.
  * This is necessary as there are some actions which are not safe to perform on
  * a leader index, such as those which delete the index, including Shrink and
  * Delete.
@@ -41,6 +41,11 @@ public class WaitForNoFollowersStep extends AsyncWaitStep {
 
     WaitForNoFollowersStep(StepKey key, StepKey nextStepKey, Client client) {
         super(key, nextStepKey, client);
+    }
+
+    @Override
+    public boolean isRetryable() {
+        return true;
     }
 
     @Override

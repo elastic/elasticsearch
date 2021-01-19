@@ -936,23 +936,16 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
     }
 
-    public void testPartialReduce() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            testReduceCase(false);
-        }
+    public void testCoordCircuitBreaker() throws Exception {
+        int numShards = randomIntBetween(20, 200);
+        testReduceCase(numShards, numShards, true);
+        testReduceCase(numShards, numShards, false);
+        testReduceCase(numShards, randomIntBetween(2, numShards-1), true);
+        testReduceCase(numShards, randomIntBetween(2, numShards-1), false);
     }
 
-    public void testPartialReduceWithFailure() throws Exception {
-        for (int i = 0; i < 10; i++) {
-            testReduceCase(true);
-        }
-    }
-
-    private void testReduceCase(boolean shouldFail) throws Exception {
-        int expectedNumResults = randomIntBetween(20, 200);
-        int bufferSize = randomIntBetween(2, expectedNumResults - 1);
+    private void testReduceCase(int numShards, int bufferSize, boolean shouldFail) throws Exception {
         SearchRequest request = new SearchRequest();
-
         request.source(new SearchSourceBuilder().aggregation(AggregationBuilders.avg("foo")).size(0));
         request.setBatchedReduceSize(bufferSize);
         AtomicBoolean hasConsumedFailure = new AtomicBoolean();
@@ -963,10 +956,10 @@ public class SearchPhaseControllerTests extends ESTestCase {
         }
         QueryPhaseResultConsumer consumer = searchPhaseController.newSearchPhaseResults(fixedExecutor,
             circuitBreaker, SearchProgressListener.NOOP,
-            request, expectedNumResults, exc -> hasConsumedFailure.set(true));
-        CountDownLatch latch = new CountDownLatch(expectedNumResults);
-        Thread[] threads = new Thread[expectedNumResults];
-        for (int i =  0; i < expectedNumResults; i++) {
+            request, numShards, exc -> hasConsumedFailure.set(true));
+        CountDownLatch latch = new CountDownLatch(numShards);
+        Thread[] threads = new Thread[numShards];
+        for (int i =  0; i < numShards; i++) {
             final int index = i;
             threads[index] = new Thread(() -> {
                 QuerySearchResult result = new QuerySearchResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), index),
@@ -985,13 +978,15 @@ public class SearchPhaseControllerTests extends ESTestCase {
             });
             threads[index].start();
         }
-        for (int i = 0; i < expectedNumResults; i++) {
+        for (int i = 0; i < numShards; i++) {
             threads[i].join();
         }
         latch.await();
         if (shouldFail) {
             if (shouldFailPartial == false) {
                 circuitBreaker.shouldBreak.set(true);
+            } else {
+                circuitBreaker.shouldBreak.set(false);
             }
             CircuitBreakingException exc = expectThrows(CircuitBreakingException.class, () -> consumer.reduce());
             assertEquals(shouldFailPartial, hasConsumedFailure.get());

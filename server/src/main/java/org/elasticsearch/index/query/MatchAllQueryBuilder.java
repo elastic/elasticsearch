@@ -73,7 +73,7 @@ public class MatchAllQueryBuilder extends AbstractQueryBuilder<MatchAllQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) {
+    protected Query doToQuery(SearchExecutionContext context) {
         return Queries.newMatchAllQuery();
     }
 

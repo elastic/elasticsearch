@@ -210,7 +210,7 @@ final class FetchSearchPhase extends SearchPhase {
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         if (queryResult.hasSearchContext()
                 && context.getRequest().scroll() == null
-                && context.getRequest().pointInTimeBuilder() == null) {
+                && (context.isPartOfPointInTime(queryResult.getContextId()) == false)) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());

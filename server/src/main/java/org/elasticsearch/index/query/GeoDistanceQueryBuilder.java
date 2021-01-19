@@ -226,24 +226,24 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext shardContext) throws IOException {
-        MappedFieldType fieldType = shardContext.getFieldType(fieldName);
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
+        MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
                 return new MatchNoDocsQuery();
             } else {
-                throw new QueryShardException(shardContext, "failed to find geo field [" + fieldName + "]");
+                throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
         }
 
         if (!(fieldType instanceof GeoShapeQueryable)) {
-            throw new QueryShardException(shardContext,
+            throw new QueryShardException(context,
                 "Field [" + fieldName + "] is of unsupported type [" + fieldType.typeName() + "] for [" + NAME + "] query");
         }
 
         QueryValidationException exception = checkLatLon();
         if (exception != null) {
-            throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
+            throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);
         }
 
         if (GeoValidationMethod.isCoerce(validationMethod)) {
@@ -254,7 +254,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         final Circle circle =
             new Circle(center.lon(), center.lat(), this.distance);
         return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(),
-            SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, shardContext);
+            SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
     }
 
     @Override

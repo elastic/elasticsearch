@@ -19,7 +19,6 @@
 
 package org.elasticsearch.painless;
 
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptException;
 
 import java.nio.CharBuffer;
@@ -30,15 +29,6 @@ import java.util.regex.Pattern;
 import static java.util.Collections.singletonMap;
 
 public class RegexTests extends ScriptTestCase {
-
-    @Override
-    protected Settings scriptEngineSettings() {
-        // Enable regexes just for this test. They are disabled by default.
-        return Settings.builder()
-                .put(CompilerSettings.REGEX_ENABLED.getKey(), true)
-                .build();
-    }
-
     public void testPatternAfterReturn() {
         assertEquals(true, exec("return 'foo' ==~ /foo/"));
         assertEquals(false, exec("return 'bar' ==~ /foo/"));
@@ -151,6 +141,10 @@ public class RegexTests extends ScriptTestCase {
     // Make sure some methods on Pattern are whitelisted
     public void testSplit() {
         assertArrayEquals(new String[] {"cat", "dog"}, (String[]) exec("/,/.split('cat,dog')"));
+    }
+
+    public void testSplitWithLimit() {
+        assertArrayEquals(new String[] {"cat", "dog,pig"}, (String[]) exec("/,/.split('cat,dog,pig', 2)"));
     }
 
     public void testSplitAsStream() {

@@ -1172,10 +1172,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (entry.isClone()) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(
                         ActionRunnable.supply(metadataListener, () -> {
-                            final Metadata.Builder metaBuilder = Metadata.builder(repo.getSnapshotGlobalMetadata(entry.source()));
+                            final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
+                            final Metadata.Builder metaBuilder = Metadata.builder(existing);
+                            final Set<Index> existingIndices = new HashSet<>();
                             for (IndexId index : entry.indices()) {
-                                metaBuilder.put(repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index), false);
+                                final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
+                                existingIndices.add(indexMetadata.getIndex());
+                                metaBuilder.put(indexMetadata, false);
                             }
+                            // remove those data streams from metadata for which we are missing indices
+                            Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
+                            for (Map.Entry<String, DataStream> dataStreamEntry : existing.dataStreams().entrySet()) {
+                                if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
+                                    dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
+                                }
+                            }
+                            metaBuilder.dataStreams(dataStreamsToCopy);
                             return metaBuilder.build();
                         }));
             } else {

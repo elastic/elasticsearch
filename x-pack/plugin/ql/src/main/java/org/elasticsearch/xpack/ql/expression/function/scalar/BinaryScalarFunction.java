@@ -28,9 +28,6 @@ public abstract class BinaryScalarFunction extends ScalarFunction {
 
     @Override
     public final BinaryScalarFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         Expression newLeft = newChildren.get(0);
         Expression newRight = newChildren.get(1);
 

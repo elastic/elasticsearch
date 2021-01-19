@@ -94,9 +94,6 @@ public class NodeTests extends ESTestCase {
 
         @Override
         public AChildIsAProperty replaceChildren(List<Dummy> newChildren) {
-            if (newChildren.size() != 1) {
-                throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-            }
             return new AChildIsAProperty(source(), newChildren.get(0), thing());
         }
 

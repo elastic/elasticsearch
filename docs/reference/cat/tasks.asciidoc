@@ -64,7 +64,7 @@ include::{es-repo-dir}/cluster/tasks.asciidoc[tag=tasks-api-404]
 
 [source,console]
 ----
-GET _cat/tasks?v
+GET _cat/tasks?v=true
 ----
 // TEST[skip:No tasks to retrieve]
 

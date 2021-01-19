@@ -49,20 +49,20 @@ public class RateLimitingFilterTests extends ESTestCase {
     public void testMessagesAreRateLimitedByKey() {
         // Fill up the cache
         for (int i = 0; i < 128; i++) {
-            Message message = DeprecatedMessage.of("key " + i, "", "msg " + i);
+            Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key " + i, "", "msg " + i);
             assertThat("Expected key" + i + " to be accepted", filter.filter(message), equalTo(Result.ACCEPT));
         }
 
         // Should be rate-limited because it's still in the cache
-        Message message = DeprecatedMessage.of("key 0", "", "msg " + 0);
+        Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "", "msg " + 0);
         assertThat(filter.filter(message), equalTo(Result.DENY));
 
         // Filter a message with a previously unseen key, in order to evict key0 as it's the oldest
-        message = DeprecatedMessage.of("key 129", "", "msg " + 129);
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 129", "", "msg " + 129);
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
         // Should be allowed because key0 was evicted from the cache
-        message = DeprecatedMessage.of("key 0", "", "msg " + 0);
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "", "msg " + 0);
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
 
@@ -72,20 +72,20 @@ public class RateLimitingFilterTests extends ESTestCase {
     public void testMessagesAreRateLimitedByXOpaqueId() {
         // Fill up the cache
         for (int i = 0; i < 128; i++) {
-            Message message = DeprecatedMessage.of("", "id " + i, "msg " + i);
+            Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "", "id " + i, "msg " + i);
             assertThat("Expected key" + i + " to be accepted", filter.filter(message), equalTo(Result.ACCEPT));
         }
 
         // Should be rate-limited because it's still in the cache
-        Message message = DeprecatedMessage.of("", "id 0", "msg 0");
+        Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "", "id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.DENY));
 
         // Filter a message with a previously unseen key, in order to evict key0 as it's the oldest
-        message = DeprecatedMessage.of("", "id 129", "msg 129");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "", "id 129", "msg 129");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
         // Should be allowed because key0 was evicted from the cache
-        message = DeprecatedMessage.of("", "id 0", "msg 0");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "", "id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
 
@@ -95,20 +95,20 @@ public class RateLimitingFilterTests extends ESTestCase {
     public void testMessagesAreRateLimitedByKeyAndXOpaqueId() {
         // Fill up the cache
         for (int i = 0; i < 128; i++) {
-            Message message = DeprecatedMessage.of("key " + i, "opaque-id " + i, "msg " + i);
+            Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key " + i, "opaque-id " + i, "msg " + i);
             assertThat("Expected key" + i + " to be accepted", filter.filter(message), equalTo(Result.ACCEPT));
         }
 
         // Should be rate-limited because it's still in the cache
-        Message message = DeprecatedMessage.of("key 0", "opaque-id 0", "msg 0");
+        Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.DENY));
 
         // Filter a message with a previously unseen key, in order to evict key0 as it's the oldest
-        message = DeprecatedMessage.of("key 129", "opaque-id 129", "msg 129");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 129", "opaque-id 129", "msg 129");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
         // Should be allowed because key 0 was evicted from the cache
-        message = DeprecatedMessage.of("key 0", "opaque-id 0", "msg 0");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
 
@@ -117,18 +117,18 @@ public class RateLimitingFilterTests extends ESTestCase {
      * independently and checking that a message is not filtered.
      */
     public void testVariationsInKeyAndXOpaqueId() {
-        Message message = DeprecatedMessage.of("key 0", "opaque-id 0", "msg 0");
+        Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
-        message = DeprecatedMessage.of("key 0", "opaque-id 0", "msg 0");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 0", "msg 0");
         // Rejected because the "x-opaque-id" and "key" values are the same as above
         assertThat(filter.filter(message), equalTo(Result.DENY));
 
-        message = DeprecatedMessage.of("key 1", "opaque-id 0", "msg 0");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 1", "opaque-id 0", "msg 0");
         // Accepted because the "key" value is different
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
 
-        message = DeprecatedMessage.of("key 0", "opaque-id 1", "msg 0");
+        message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key 0", "opaque-id 1", "msg 0");
         // Accepted because the "x-opaque-id" value is different
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));
     }
@@ -145,7 +145,7 @@ public class RateLimitingFilterTests extends ESTestCase {
      * Check that the filter can be reset, so that previously-seen keys are treated as new keys.
      */
     public void testFilterCanBeReset() {
-        final Message message = DeprecatedMessage.of("key", "", "msg");
+        final Message message = DeprecatedMessage.of(DeprecationCategory.OTHER, "key", "", "msg");
 
         // First time, the message is a allowed
         assertThat(filter.filter(message), equalTo(Result.ACCEPT));

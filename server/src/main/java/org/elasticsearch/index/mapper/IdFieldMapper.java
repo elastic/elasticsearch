@@ -52,8 +52,8 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
@@ -133,16 +133,15 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, SearchExecutionContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
-            BytesRef[] bytesRefs = new BytesRef[values.size()];
-            for (int i = 0; i < bytesRefs.length; i++) {
-                Object idObject = values.get(i);
+            BytesRef[] bytesRefs = values.stream().map(v -> {
+                Object idObject = v;
                 if (idObject instanceof BytesRef) {
                     idObject = ((BytesRef) idObject).utf8ToString();
                 }
-                bytesRefs[i] = Uid.encodeId(idObject.toString());
-            }
+                return Uid.encodeId(idObject.toString());
+            }).toArray(BytesRef[]::new);
             return new TermInSetQuery(name(), bytesRefs);
         }
 

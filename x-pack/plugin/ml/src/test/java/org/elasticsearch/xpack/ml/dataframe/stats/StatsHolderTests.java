@@ -123,6 +123,32 @@ public class StatsHolderTests extends ESTestCase {
         assertThat(phaseProgresses.get(4).getProgressPercent(), equalTo(0));
     }
 
+    public void testAdjustProgressTracker_GivenAllPhasesCompleteExceptInference() {
+        List<PhaseProgress> phases = Collections.unmodifiableList(
+            Arrays.asList(
+                new PhaseProgress("reindexing", 100),
+                new PhaseProgress("loading_data", 100),
+                new PhaseProgress("a", 100),
+                new PhaseProgress("writing_results", 100),
+                new PhaseProgress("inference", 20)
+            )
+        );
+        StatsHolder statsHolder = new StatsHolder(phases);
+
+        statsHolder.adjustProgressTracker(Arrays.asList("a", "b"), true);
+
+        List<PhaseProgress> phaseProgresses = statsHolder.getProgressTracker().report();
+
+        assertThat(phaseProgresses, contains(
+            new PhaseProgress("reindexing", 100),
+            new PhaseProgress("loading_data", 100),
+            new PhaseProgress("a", 100),
+            new PhaseProgress("b", 100),
+            new PhaseProgress("writing_results", 100),
+            new PhaseProgress("inference", 0)
+        ));
+    }
+
     public void testResetProgressTracker() {
         List<PhaseProgress> phases = Collections.unmodifiableList(
             Arrays.asList(

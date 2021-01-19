@@ -19,6 +19,20 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.restore;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
@@ -31,20 +45,6 @@ import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest.FEATURE_STATES_VERSION;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
-
 /**
  * Restore snapshot request
  */
@@ -54,7 +54,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     private String repository;
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
-    private String[] featureStates;
+    private String[] featureStates = Strings.EMPTY_ARRAY;
     private String renamePattern;
     private String renameReplacement;
     private boolean waitForCompletion;
@@ -88,7 +88,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         indices = in.readStringArray();
         indicesOptions = IndicesOptions.readIndicesOptions(in);
         if (in.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            featureStates = in.readOptionalStringArray();
+            featureStates = in.readStringArray();
         }
         renamePattern = in.readOptionalString();
         renameReplacement = in.readOptionalString();
@@ -109,7 +109,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         out.writeStringArray(indices);
         indicesOptions.writeIndicesOptions(out);
         if (out.getVersion().onOrAfter(FEATURE_STATES_VERSION)) {
-            out.writeOptionalStringArray(featureStates);
+            out.writeStringArray(featureStates);
         }
         out.writeOptionalString(renamePattern);
         out.writeOptionalString(renameReplacement);
@@ -136,6 +136,9 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         }
         if (indicesOptions == null) {
             validationException = addValidationError("indicesOptions is missing", validationException);
+        }
+        if (featureStates == null) {
+            validationException = addValidationError("featureStates is missing", validationException);
         }
         if (indexSettings == null) {
             validationException = addValidationError("indexSettings are missing", validationException);
@@ -457,7 +460,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * @return Which plugin states should be included in the snapshot
+     * @return Which feature states should be included in the snapshot
      */
     @Nullable
     public String[] featureStates() {
@@ -465,7 +468,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * @param featureStates The plugin states to be included in the snapshot
+     * @param featureStates The feature states to be included in the snapshot
      */
     public RestoreSnapshotRequest featureStates(String[] featureStates) {
         this.featureStates = featureStates;
@@ -473,7 +476,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
     }
 
     /**
-     * @param featureStates The plugin states to be included in the snapshot
+     * @param featureStates The feature states to be included in the snapshot
      */
     public RestoreSnapshotRequest featureStates(List<String> featureStates) {
         return featureStates(featureStates.toArray(new String[featureStates.size()]));
@@ -561,7 +564,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
         }
-        if (featureStates != null && featureStates.length != 0) {
+        if (featureStates != null) {
             builder.startArray("feature_states");
             for (String plugin : featureStates) {
                 builder.value(plugin);

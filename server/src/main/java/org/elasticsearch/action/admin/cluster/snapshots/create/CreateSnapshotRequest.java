@@ -19,6 +19,18 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.create;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
+
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -33,18 +45,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-
-import java.io.IOException;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
-import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 
 /**
  * Create snapshot request
@@ -431,7 +431,7 @@ public class CreateSnapshotRequest extends MasterNodeRequest<CreateSnapshotReque
             builder.value(index);
         }
         builder.endArray();
-        if (featureStates != null && featureStates.length != 0) {
+        if (featureStates != null) {
             builder.startArray("feature_states");
             for (String plugin : featureStates) {
                 builder.value(plugin);

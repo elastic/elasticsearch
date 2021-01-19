@@ -38,17 +38,15 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
 
     public static final Releasable NO_OP = () -> {};
     private final BytesReference delegate;
-    private final AbstractRefCounted refCounted;
+    protected final AbstractRefCounted refCounted;
 
     public ReleasableBytesReference(BytesReference delegate, Releasable releasable) {
-        this.delegate = delegate;
-        this.refCounted = new RefCountedReleasable(releasable);
+        this(delegate, new RefCountedReleasable(releasable));
     }
 
-    private ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
+    public ReleasableBytesReference(BytesReference delegate, AbstractRefCounted refCounted) {
         this.delegate = delegate;
         this.refCounted = refCounted;
-        refCounted.incRef();
     }
 
     public static ReleasableBytesReference wrap(BytesReference reference) {
@@ -83,7 +81,9 @@ public final class ReleasableBytesReference implements RefCounted, Releasable, B
         if (from == 0 && length() == length) {
             return retain();
         }
-        return new ReleasableBytesReference(delegate.slice(from, length), refCounted);
+        ReleasableBytesReference slice = new ReleasableBytesReference(delegate.slice(from, length), refCounted);
+        refCounted.incRef();
+        return slice;
     }
 
     @Override

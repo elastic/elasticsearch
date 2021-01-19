@@ -233,9 +233,10 @@ public class CacheFile {
         return true;
     }
 
-    private void decrementRefCount() {
+    private boolean decrementRefCount() {
         final boolean released = refCounter.decRef();
         assert assertRefCounted(released);
+        return released;
     }
 
     private boolean assertRefCounted(boolean isReleased) {
@@ -486,6 +487,7 @@ public class CacheFile {
      * @throws java.nio.file.NoSuchFileException if the cache file does not exist
      */
     public SortedSet<Tuple<Long, Long>> fsync() throws IOException {
+        SortedSet<Tuple<Long, Long>> completedRanges = Collections.emptySortedSet();
         if (refCounter.tryIncRef()) {
             try {
                 if (needsFsync.compareAndSet(true, false)) {
@@ -494,13 +496,15 @@ public class CacheFile {
                         // Capture the completed ranges before fsyncing; ranges that are completed after this point won't be considered as
                         // persisted on disk by the caller of this method, even if they are fully written to disk at the time the file
                         // fsync is effectively executed
-                        final SortedSet<Tuple<Long, Long>> completedRanges = tracker.getCompletedRanges();
-                        assert completedRanges != null;
-                        assert completedRanges.isEmpty() == false;
+                        final SortedSet<Tuple<Long, Long>> fsyncedRanges = tracker.getCompletedRanges();
+                        assert fsyncedRanges != null;
+                        assert fsyncedRanges.isEmpty() == false;
 
-                        IOUtils.fsync(file, false, false);
+                        if (evicted.get() == false) {
+                            IOUtils.fsync(file, false, false);
+                            completedRanges = fsyncedRanges;
+                        }
                         success = true;
-                        return completedRanges;
                     } finally {
                         if (success == false) {
                             markAsNeedsFSync();
@@ -508,11 +512,14 @@ public class CacheFile {
                     }
                 }
             } finally {
-                decrementRefCount();
+                if (decrementRefCount()) {
+                    // cache file got evicted during fsync (maybe a shard eviction?)
+                    completedRanges = Collections.emptySortedSet();
+                }
             }
         } else {
             assert evicted.get();
         }
-        return Collections.emptySortedSet();
+        return completedRanges;
     }
 }

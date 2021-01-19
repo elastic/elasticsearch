@@ -31,8 +31,11 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
@@ -55,6 +58,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.rollup.RollupShardDecider;
+import org.elasticsearch.rollup.RollupV2;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
@@ -728,13 +733,29 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else if (preFilterShardSize == null) {
             preFilterShardSize = SearchRequest.DEFAULT_PRE_FILTER_SHARD_SIZE;
         }
+        if (RollupV2.isEnabled() && hasRollupDatastream(indices, clusterState)) {
+            return true;
+        }
+        return searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
+            && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
+            && preFilterShardSize < numShards;
+    }
 
-        boolean shouldFilterSearchShardsByQuery =
-            searchRequest.searchType() == QUERY_THEN_FETCH // we can't do this for DFS it needs to fan out to all shards all the time
-                && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source))
-                && preFilterShardSize < numShards;
-        boolean shouldFilterSearchShardsByRollupGroup = true;
-        return shouldFilterSearchShardsByQuery || shouldFilterSearchShardsByRollupGroup;
+    private static boolean hasRollupDatastream(String[] indices, ClusterState clusterState) {
+        for (String index : indices) {
+            IndexAbstraction originalIndex = clusterState.getMetadata().getIndicesLookup().get(index);
+            DataStream datastream = originalIndex.getParentDataStream() != null
+                ? originalIndex.getParentDataStream().getDataStream() : null;
+            //TODO(csoulios): Rollup metadata should be moved to datastream metadata
+            // RollupMetadata rollupMetadata = datastream != null ? datastream.getMetadata().get(RollupMetadata.TYPE);
+            RollupMetadata rollupMetadata = clusterState.getMetadata().custom(RollupMetadata.TYPE);
+            IndexMetadata indexMetadata = clusterState.getMetadata().index(index);
+            if (datastream != null && rollupMetadata != null
+                && (RollupShardDecider.isRollupIndex(indexMetadata) || rollupMetadata.contains(index))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {

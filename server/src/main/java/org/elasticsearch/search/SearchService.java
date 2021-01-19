@@ -35,6 +35,8 @@ import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -131,7 +133,6 @@ import org.elasticsearch.threadpool.ThreadPool.Names;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -1242,29 +1243,27 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 if (canMatch || hasRefreshPending) {
                     FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
                     minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+
+                    if (RollupV2.isEnabled()) {
+                        //TODO(csoulios): Rollup metadata should be moved to datastream metadata
+                        RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
+//                        IndexAbstraction originalIndex = clusterService.state().getMetadata().getIndicesLookup()
+//                            .get(request.shardId().getIndexName());
+//                        DataStream datastream = originalIndex.getParentDataStream() != null
+//                            ? originalIndex.getParentDataStream().getDataStream() : null;
+//                        RollupMetadata rollupMetadata = datastream != null ? datastream.getMetadata().get(RollupMetadata.TYPE);
+
+                        IndexMetadata requestIndexMetadata = clusterService.state().getMetadata()
+                                .index(request.shardId().getIndexName());
+
+                        if (RollupShardDecider.canMatch(request, context, requestIndexMetadata, rollupMetadata,
+                            request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
+                            return new CanMatchResponse(false, minMax);
+                        }
+                    }
                 } else {
                     minMax = null;
                 }
-
-                if (RollupV2.isEnabled()) {
-                    // get info about things
-                    QueryBuilder queryBuilder = request.source() == null ? null : request.source().query();
-                    AggregatorFactories.Builder aggregations = request.source() == null ? null : request.source().aggregations();
-
-                    RollupMetadata rollupMetadata = clusterService.state().getMetadata().custom(RollupMetadata.TYPE);
-                    IndexMetadata requestIndexMetadata = clusterService.state().getMetadata().index(request.shardId().getIndexName());
-
-                    // cluster state point here. collect metadata about all other indices that are a part of the query
-                    Map<String, String> indexRollupMeta = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
-                    logger.error("indices searching: " + Arrays.toString(request.indices()));
-                    logger.error("shard's index: " + requestIndexMetadata.getIndex().getName());
-                    // check can-match because rollup is part of request
-                    if (RollupShardDecider.shouldMatchRollup(context, queryBuilder, aggregations, rollupMetadata, indexRollupMeta,
-                        requestIndexMetadata, request.indices(), clusterService.state().getMetadata().getIndicesLookup()) == false) {
-                        return new CanMatchResponse(false, minMax);
-                    }
-                }
-
                 return new CanMatchResponse(canMatch || hasRefreshPending, minMax);
             }
         } finally {

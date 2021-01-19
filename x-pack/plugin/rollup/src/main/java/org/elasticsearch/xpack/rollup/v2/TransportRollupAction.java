@@ -75,6 +75,8 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
                     // TODO(talevy): find better spot to get the original index name
                     // extract created rollup index original index name to be used as metadata key
                     String originalIndexName = request.getSourceIndex();
+                    //TODO(csoulios): Following line fails when rollup action is called on a datastream
+                    // ie POST /my-data-stream/_rollup/y-data-stream-rollup
                     Map<String, String> idxMetadata = currentState.getMetadata().index(originalIndexName)
                         .getCustomData(RollupMetadata.TYPE);
                     String rollupGroupKeyName = (idxMetadata == null) ?
@@ -98,7 +100,7 @@ public class TransportRollupAction extends HandledTransportAction<RollupAction.R
                         group.add(rollupIndexName, dateConfig.getInterval(), rollupDateZoneId);
                         rollupGroups.put(rollupGroupKeyName, group);
                     }
-                    // add rolled up index to backing datastream if rolling up a backing index of a datastream
+                    // Add rolled up index to backing datastream if rolling up a backing index of a datastream
                     IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
                     DataStream dataStream = null;
                     if (originalIndex.getParentDataStream() != null) {

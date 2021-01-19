@@ -1094,12 +1094,14 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTime, results.getObject("test_date", java.sql.Time.class));
             assertEquals(expectedTime, results.getObject(9, java.sql.Time.class));
 
-            long millisFromNanos = toMilliSeconds(randomLongDateNanos);
-            java.sql.Time expectedTimeNanos = asTime(millisFromNanos, getZoneFromOffset(millisFromNanos));
-            assertEquals(expectedTimeNanos, results.getTime("test_date_nanos"));
-            assertEquals(expectedTimeNanos, results.getTime(10));
-            assertEquals(expectedTimeNanos, results.getObject("test_date_nanos", java.sql.Time.class));
-            assertEquals(expectedTimeNanos, results.getObject(10, java.sql.Time.class));
+            if (versionSupportsDateNanos()) {
+                long millisFromNanos = toMilliSeconds(randomLongDateNanos);
+                java.sql.Time expectedTimeNanos = asTime(millisFromNanos, getZoneFromOffset(millisFromNanos));
+                assertEquals(expectedTimeNanos, results.getTime("test_date_nanos"));
+                assertEquals(expectedTimeNanos, results.getTime(10));
+                assertEquals(expectedTimeNanos, results.getObject("test_date_nanos", java.sql.Time.class));
+                assertEquals(expectedTimeNanos, results.getObject(10, java.sql.Time.class));
+            }
 
             validateErrorsForTimeTestsWithoutCalendar(results::getTime);
         });

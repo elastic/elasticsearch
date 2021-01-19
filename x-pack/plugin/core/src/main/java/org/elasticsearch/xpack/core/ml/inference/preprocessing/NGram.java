@@ -114,6 +114,9 @@ public class NGram implements LenientlyParsedPreProcessor, StrictlyParsedPreProc
         this.field = ExceptionsHelper.requireNonNull(field, FIELD);
         this.featurePrefix = ExceptionsHelper.requireNonNull(featurePrefix, FEATURE_PREFIX);
         this.nGrams = ExceptionsHelper.requireNonNull(nGrams, NGRAMS);
+        if (nGrams.length == 0) {
+            throw ExceptionsHelper.badRequestException("[{}] must not be empty", NGRAMS.getPreferredName());
+        }
         if (Arrays.stream(this.nGrams).anyMatch(i -> i < MIN_GRAM || i > MAX_GRAM)) {
             throw ExceptionsHelper.badRequestException(
                 "[{}] is invalid [{}]; minimum supported value is [{}]; maximum supported value is [{}]",

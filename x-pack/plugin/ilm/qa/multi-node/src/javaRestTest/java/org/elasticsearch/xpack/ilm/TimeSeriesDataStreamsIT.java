@@ -229,7 +229,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
     private static Settings getLifecycleSettings(String policyName) {
         return Settings.builder()
             .put(LifecycleSettings.LIFECYCLE_NAME, policyName)
-            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 3)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2)
             .build();
     }
 }

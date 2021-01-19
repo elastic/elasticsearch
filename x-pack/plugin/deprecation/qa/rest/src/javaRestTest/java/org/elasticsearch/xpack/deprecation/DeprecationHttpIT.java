@@ -224,7 +224,6 @@ public class DeprecationHttpIT extends ESRestTestCase {
     /**
      * Check that deprecation messages can be recorded to an index
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65589")
     public void testDeprecationMessagesCanBeIndexed() throws Exception {
         try {
             configureWriteDeprecationLogsToIndex(true);
@@ -287,7 +286,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
                             hasKey("node.id"),
                             hasKey("node.name"),
-                            hasEntry("x-opaque-id", "some xid")
+                            hasEntry("x-opaque-id", "some xid"),
+                            hasEntry("elasticsearch.event.category", "settings")
                         ),
                         allOf(
                             hasKey("@timestamp"),
@@ -303,7 +303,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"),
                             hasKey("node.id"),
                             hasKey("node.name"),
-                            hasEntry("x-opaque-id", "some xid")
+                            hasEntry("x-opaque-id", "some xid"),
+                            hasEntry("elasticsearch.event.category", "api")
                         )
                     )
                 );

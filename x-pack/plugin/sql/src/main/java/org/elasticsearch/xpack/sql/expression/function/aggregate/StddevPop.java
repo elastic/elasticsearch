@@ -24,9 +24,6 @@ public class StddevPop extends NumericAggregate implements ExtendedStatsEnclosed
 
     @Override
     public StddevPop replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new StddevPop(source(), newChildren.get(0));
     }
 

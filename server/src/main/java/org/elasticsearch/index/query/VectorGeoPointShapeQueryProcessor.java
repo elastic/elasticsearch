@@ -48,7 +48,7 @@ import java.util.ArrayList;
 
 public class VectorGeoPointShapeQueryProcessor {
 
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         validateIsGeoPointFieldType(fieldName, context);
         // geo points only support intersects
         if (relation != ShapeRelation.INTERSECTS) {
@@ -59,7 +59,7 @@ public class VectorGeoPointShapeQueryProcessor {
         return getVectorQueryFromShape(shape, fieldName, relation, context);
     }
 
-    private void validateIsGeoPointFieldType(String fieldName, QueryShardContext context) {
+    private void validateIsGeoPointFieldType(String fieldName, SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType == false) {
             throw new QueryShardException(context, "Expected " + GeoPointFieldMapper.CONTENT_TYPE
@@ -68,18 +68,18 @@ public class VectorGeoPointShapeQueryProcessor {
     }
 
     protected Query getVectorQueryFromShape(
-        Geometry queryShape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        Geometry queryShape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         ShapeVisitor shapeVisitor = new ShapeVisitor(context, fieldName, relation);
         return queryShape.visit(shapeVisitor);
     }
 
     private class ShapeVisitor implements GeometryVisitor<Query, RuntimeException> {
-        QueryShardContext context;
+        SearchExecutionContext context;
         MappedFieldType fieldType;
         String fieldName;
         ShapeRelation relation;
 
-        ShapeVisitor(QueryShardContext context, String fieldName, ShapeRelation relation) {
+        ShapeVisitor(SearchExecutionContext context, String fieldName, ShapeRelation relation) {
             this.context = context;
             this.fieldType = context.getFieldType(fieldName);
             this.fieldName = fieldName;

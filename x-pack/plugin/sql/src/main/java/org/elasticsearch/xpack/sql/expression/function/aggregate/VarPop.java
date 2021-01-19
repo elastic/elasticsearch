@@ -24,9 +24,6 @@ public class VarPop extends NumericAggregate implements ExtendedStatsEnclosed {
 
     @Override
     public VarPop replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new VarPop(source(), newChildren.get(0));
     }
 

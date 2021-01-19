@@ -20,7 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -46,12 +46,12 @@ public class SuggestionSearchContext {
         private Analyzer analyzer;
         private int size = 5;
         private int shardSize = -1;
-        private QueryShardContext shardContext;
+        private SearchExecutionContext searchExecutionContext;
         private Suggester<?> suggester;
 
-        protected SuggestionContext(Suggester<?> suggester, QueryShardContext shardContext) {
+        protected SuggestionContext(Suggester<?> suggester, SearchExecutionContext searchExecutionContext) {
             this.suggester = suggester;
-            this.shardContext = shardContext;
+            this.searchExecutionContext = searchExecutionContext;
         }
 
         public BytesRef getText() {
@@ -121,8 +121,8 @@ public class SuggestionSearchContext {
             this.shardSize = shardSize;
         }
 
-        public QueryShardContext getShardContext() {
-            return this.shardContext;
+        public SearchExecutionContext getSearchExecutionContext() {
+            return this.searchExecutionContext;
         }
 
         @Override
@@ -136,7 +136,7 @@ public class SuggestionSearchContext {
                        ",shardSize=" + shardSize +
                        ",suggester=" + suggester +
                        ",analyzer=" + analyzer +
-                       ",shardContext=" + shardContext +
+                       ",searchExecutionContext=" + searchExecutionContext +
                    "]";
         }
     }

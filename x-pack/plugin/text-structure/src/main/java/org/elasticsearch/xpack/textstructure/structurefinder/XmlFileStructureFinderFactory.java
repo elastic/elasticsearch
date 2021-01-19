@@ -5,7 +5,7 @@
  */
 package org.elasticsearch.xpack.textstructure.structurefinder;
 
-import org.elasticsearch.xpack.core.textstructure.structurefinder.FileStructure;
+import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.xml.sax.SAXException;
 
 import javax.xml.parsers.ParserConfigurationException;
@@ -32,8 +32,8 @@ public class XmlFileStructureFinderFactory implements FileStructureFinderFactory
     }
 
     @Override
-    public boolean canFindFormat(FileStructure.Format format) {
-        return format == null || format == FileStructure.Format.XML;
+    public boolean canFindFormat(TextStructure.Format format) {
+        return format == null || format == TextStructure.Format.XML;
     }
 
     /**

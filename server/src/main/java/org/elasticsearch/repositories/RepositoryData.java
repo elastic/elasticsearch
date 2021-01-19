@@ -560,6 +560,9 @@ public final class RepositoryData {
             }
         }
 
+        // ensure we drained the stream completely
+        XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
+
         return new RepositoryData(genId, snapshots, snapshotStates, snapshotVersions, indexSnapshots, shardGenerations.build(),
                 buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers));
     }

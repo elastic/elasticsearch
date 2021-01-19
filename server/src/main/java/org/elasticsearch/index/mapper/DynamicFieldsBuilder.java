@@ -212,7 +212,7 @@ final class DynamicFieldsBuilder {
             RuntimeFieldType runtimeFieldType = parser.parse(fullName, mapping, parserContext);
             Runtime.createDynamicField(runtimeFieldType, context);
         } else {
-            Mapper.Builder builder = parseMapping(name, mappingType, mapping, dateFormatter, context);
+            Mapper.Builder builder = parseDynamicTemplateMapping(name, mappingType, mapping, dateFormatter, context);
             CONCRETE.createDynamicField(builder, context);
         }
         return true;
@@ -227,15 +227,16 @@ final class DynamicFieldsBuilder {
         String dynamicType = matchType.defaultMappingType();
         String mappingType = dynamicTemplate.mappingType(dynamicType);
         Map<String, Object> mapping = dynamicTemplate.mappingForName(name, dynamicType);
-        return parseMapping(name, mappingType, mapping, null, context);
+        return parseDynamicTemplateMapping(name, mappingType, mapping, null, context);
     }
 
-    private static Mapper.Builder parseMapping(String name,
+    private static Mapper.Builder parseDynamicTemplateMapping(String name,
                                                String mappingType,
                                                Map<String, Object> mapping,
                                                DateFormatter dateFormatter,
                                                ParseContext context) {
         Mapper.TypeParser.ParserContext parserContext = context.parserContext(dateFormatter);
+        parserContext = parserContext.createDynamicTemplateFieldContext(parserContext);
         Mapper.TypeParser typeParser = parserContext.typeParser(mappingType);
         if (typeParser == null) {
             throw new MapperParsingException("failed to find type parsed [" + mappingType + "] for [" + name + "]");

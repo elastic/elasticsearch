@@ -37,7 +37,7 @@ ext.buildDist = parent.tasks.named("buildIntegTestZip")
 
 publishing {
   publications {
-    nebula(MavenPublication) {
+    nebula {
       pom.packaging = 'zip'
       artifact(buildDist.flatMap { it.archiveFile })
     }

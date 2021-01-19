@@ -24,7 +24,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 publishing {
   publications {
-    nebula(MavenPublication) {
+    nebula {
       artifactId 'elasticsearch'
     }
   }

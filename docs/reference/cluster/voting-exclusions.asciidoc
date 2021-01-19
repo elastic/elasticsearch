@@ -11,11 +11,11 @@ Adds or removes master-eligible nodes from the
 [[voting-config-exclusions-api-request]]
 ==== {api-request-title}
 
-`POST _cluster/voting_config_exclusions?node_names=<node_names>` +
+`POST /_cluster/voting_config_exclusions?node_names=<node_names>` +
 
-`POST _cluster/voting_config_exclusions?node_ids=<node_ids>` +
+`POST /_cluster/voting_config_exclusions?node_ids=<node_ids>` +
 
-`DELETE _cluster/voting_config_exclusions`
+`DELETE /_cluster/voting_config_exclusions`
 
 [[voting-config-exclusions-api-prereqs]]
 ==== {api-prereq-title}

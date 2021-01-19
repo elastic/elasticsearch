@@ -9,8 +9,8 @@ Reloads the keystore on nodes in the cluster.
 [[cluster-nodes-reload-secure-settings-api-request]]
 ==== {api-request-title}
 
-`POST _nodes/reload_secure_settings` +
-`POST _nodes/<node_id>/reload_secure_settings`
+`POST /_nodes/reload_secure_settings` +
+`POST /_nodes/<node_id>/reload_secure_settings`
 
 [[cluster-nodes-reload-secure-settings-api-prereqs]]
 ==== {api-prereq-title}

@@ -42,7 +42,8 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
                 getTranslog().stop();
                 break;
             case FINALIZE:
-                // skip
+                validateCurrentStage(Stage.FINALIZE);
+                // The transition already happened
                 break;
             default:
                 super.setStage(stage);
@@ -58,8 +59,18 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
 
     @Override
     public synchronized void validateCurrentStage(Stage expected) {
-        // We skip the TRANSLOG phase for searchable snapshots
-        super.validateCurrentStage(expected == Stage.TRANSLOG ? Stage.FINALIZE : expected);
+        if (expected != Stage.TRANSLOG) {
+            super.validateCurrentStage(expected);
+        } else {
+            final Stage stage = getStage();
+            // For small indices it's possible that pre-warming finished shortly
+            // after transitioning to FINALIZE stage
+            if (stage != Stage.FINALIZE && stage != Stage.DONE) {
+                assert false : "expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; but current stage is [" + stage + "]";
+                throw new IllegalStateException("expected stage [" + Stage.FINALIZE + " || " + Stage.DONE + "]; " +
+                    "but current stage is [" + stage + "]");
+            }
+        }
     }
 
     public synchronized void setPreWarmComplete() {

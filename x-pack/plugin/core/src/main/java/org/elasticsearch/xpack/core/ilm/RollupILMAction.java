@@ -101,18 +101,10 @@ public class RollupILMAction implements LifecycleAction {
         CheckNotDataStreamWriteIndexStep checkNotWriteIndexStep = new CheckNotDataStreamWriteIndexStep(checkNotWriteIndex,
             readOnlyKey);
         ReadOnlyStep readOnlyStep = new ReadOnlyStep(readOnlyKey, rollupKey, client);
-        Settings setPolicySettings = Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, rollupPolicy).build();
-        StepKey updateLifecyclePolicyKey = new StepKey(phase, NAME, UpdateSettingsStep.NAME);
-        UpdateSettingsStep updateLifecycleSettingsStep = new UpdateSettingsStep(updateLifecyclePolicyKey, nextStepKey,
-            client, setPolicySettings);
-        final Step rollupStep;
-        if (rollupPolicy != null) {
-            rollupStep = new RollupStep(rollupKey, updateLifecyclePolicyKey, client, config);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep, updateLifecycleSettingsStep);
-        } else {
-            rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
-            return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
-        }
+        Step rollupStep = new RollupStep(rollupKey, nextStepKey, client, config);
+        // TODO(talevy): make RollupAction allow setting a policy on the index to make the transition more atomic
+        //               blocked on #66423.
+        return List.of(checkNotWriteIndexStep, readOnlyStep, rollupStep);
     }
 
     @Override

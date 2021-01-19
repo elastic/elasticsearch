@@ -61,7 +61,7 @@ import java.util.stream.IntStream;
  */
 public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     public static final String NAME = "terms";
-    private static final Version VERSION_STORE_VALUES_AS_BYTES_REFERENCE = Version.V_8_0_0;
+    private static final Version VERSION_STORE_VALUES_AS_BYTES_REFERENCE = Version.V_7_12_0;
 
     private final String fieldName;
     private final Values values;

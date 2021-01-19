@@ -11,6 +11,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -86,6 +87,7 @@ public class PivotConfig implements Writeable, ToXContentObject {
 
         if (maxPageSearchSize != null) {
             deprecationLogger.deprecate(
+                DeprecationCategory.API,
                 TransformField.MAX_PAGE_SEARCH_SIZE.getPreferredName(),
                 "[max_page_search_size] is deprecated inside pivot please use settings instead"
             );

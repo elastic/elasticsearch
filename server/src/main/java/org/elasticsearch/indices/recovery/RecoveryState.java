@@ -101,6 +101,11 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         }
     }
 
+    public enum IndexType {
+        REGULAR,
+        SEARCHABLE_SNAPSHOT;
+    }
+
     private Stage stage;
 
     private final Index index;
@@ -177,6 +182,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         return this.stage;
     }
 
+    public IndexType getIndexType() {
+        return IndexType.REGULAR;
+    }
 
     protected void validateAndSetStage(Stage expected, Stage next) {
         if (stage != expected) {

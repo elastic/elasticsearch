@@ -34,7 +34,32 @@ public final class SearchableSnapshotRecoveryState extends RecoveryState {
             return this;
         }
 
-        return super.setStage(stage);
+        switch (stage) {
+            case TRANSLOG:
+                super.setStage(Stage.TRANSLOG);
+                // Move directly to PRE_WARMING stage
+                validateAndSetStage(Stage.TRANSLOG, Stage.FINALIZE);
+                getTranslog().stop();
+                break;
+            case FINALIZE:
+                // skip
+                break;
+            default:
+                super.setStage(stage);
+        }
+
+        return this;
+    }
+
+    @Override
+    public IndexType getIndexType() {
+        return IndexType.SEARCHABLE_SNAPSHOT;
+    }
+
+    @Override
+    public synchronized void validateCurrentStage(Stage expected) {
+        // We skip the TRANSLOG phase for searchable snapshots
+        super.validateCurrentStage(expected == Stage.TRANSLOG ? Stage.FINALIZE : expected);
     }
 
     public synchronized void setPreWarmComplete() {

@@ -191,7 +191,12 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                     logger.trace("{} preparing shard for peer recovery", recoveryTarget.shardId());
                     indexShard.prepareForIndexRecovery();
                     final long startingSeqNo = indexShard.recoverLocallyUpToGlobalCheckpoint();
-                    assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG :
+                    final RecoveryState state = recoveryTarget.state();
+                    assert startingSeqNo == UNASSIGNED_SEQ_NO ||
+                        (state.getIndexType() == RecoveryState.IndexType.REGULAR && state.getStage() ==  RecoveryState.Stage.TRANSLOG) ||
+                        // Searchable snapshots skip the TRANSLOG recovery state stage
+                        (state.getIndexType() == RecoveryState.IndexType.SEARCHABLE_SNAPSHOT &&
+                            (state.getStage() ==  RecoveryState.Stage.FINALIZE || state.getStage() ==  RecoveryState.Stage.DONE) ) :
                         "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
                     startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
                     requestToSend = startRequest;

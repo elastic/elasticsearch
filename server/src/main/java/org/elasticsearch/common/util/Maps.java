@@ -73,12 +73,12 @@ public class Maps {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
-    public static <K, V> Map<K, V> copyMapWithModifiedEntryWhenPresent(final Map<K, V> map, final K key, final Function<V,V> function) {
-        if(map.containsKey(key)){
+    public static <K, V> Map<K, V> copyMapWithModifiedEntryWhenPresent(final Map<K, V> map, final K key, final Function<V, V> function) {
+        if (map.containsKey(key)) {
             V value = function.apply(map.get(key));
             assertImmutableMap(map, key, value);
-            return copyMapWithAddedOrReplacedEntry(map,key,value);
-        }else {
+            return copyMapWithAddedOrReplacedEntry(map, key, value);
+        } else {
             return map;
         }
     }

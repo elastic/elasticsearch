@@ -27,7 +27,6 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -735,34 +734,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             return;
         }
 
-        String[] matches = Strings.commaDelimitedListToStringArray(value);
-        List<String> indices = new ArrayList<>();
-        indices.add(".watches");
-        indices.add(".triggered_watches");
-        for (String index : indices) {
-            boolean matched = false;
-            for (String match : matches) {
-                char c = match.charAt(0);
-                if (c == '-') {
-                    if (Regex.simpleMatch(match.substring(1), index)) {
-                        throw new IllegalArgumentException(errorMessage);
-                    }
-                } else if (c == '+') {
-                    if (Regex.simpleMatch(match.substring(1), index)) {
-                        matched = true;
-                        break;
-                    }
-                } else {
-                    if (Regex.simpleMatch(match, index)) {
-                        matched = true;
-                        break;
-                    }
-                }
-            }
-            if (!matched) {
-                throw new IllegalArgumentException(errorMessage);
-            }
-        }
         logger.warn(
             "the [action.auto_create_index] setting is configured to be restrictive [{}]. "
                 + " for the next 6 months daily history indices are allowed to be created, but please make sure"

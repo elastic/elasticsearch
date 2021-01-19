@@ -19,8 +19,12 @@
 
 package org.elasticsearch.gradle.test.rest;
 
+import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
+import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.tasks.TaskProvider;
 
 /**
  * Lifecycle plugin to anchor all Rest compatibility testing to a single command. Usage: `checkRestCompat`
@@ -31,9 +35,18 @@ public class CheckRestCompatPlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getTasks().register("checkRestCompat", (checkTask) -> {
-            checkTask.setDescription("Runs all REST compatibility checks.");
-            checkTask.setGroup("verification");
+        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+
+        TaskProvider<Task> checkRestCompatTask = project.getTasks().register(CHECK_TASK_NAME, (thisCheckTask) -> {
+            thisCheckTask.setDescription("Runs all REST compatibility checks.");
+            thisCheckTask.setGroup("verification");
+        });
+
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> {
+            Object bwcEnabled = project.getExtensions().getExtraProperties().getProperties().get("bwc_tests_enabled");
+            if (bwcEnabled == null || (Boolean) bwcEnabled) {
+                check.dependsOn(checkRestCompatTask);
+            }
         });
     }
 }

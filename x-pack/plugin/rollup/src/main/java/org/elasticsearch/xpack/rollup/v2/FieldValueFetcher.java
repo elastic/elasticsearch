@@ -11,7 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -79,7 +79,7 @@ class FieldValueFetcher {
         }
     }
 
-    static List<FieldValueFetcher> build(QueryShardContext context, String[] fields) {
+    static List<FieldValueFetcher> build(SearchExecutionContext context, String[] fields) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);
@@ -92,7 +92,7 @@ class FieldValueFetcher {
         return Collections.unmodifiableList(fetchers);
     }
 
-    static List<FieldValueFetcher> buildHistograms(QueryShardContext context, String[] fields, double interval) {
+    static List<FieldValueFetcher> buildHistograms(SearchExecutionContext context, String[] fields, double interval) {
         List<FieldValueFetcher> fetchers = new ArrayList<>();
         for (String field : fields) {
             MappedFieldType fieldType = context.getFieldType(field);

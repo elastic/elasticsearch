@@ -45,7 +45,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.DocValueFetcher;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
@@ -88,7 +88,7 @@ class RollupShardIndexer {
 
     private final Directory dir;
     private final Engine.Searcher searcher;
-    private final QueryShardContext queryShardContext;
+    private final SearchExecutionContext searchExecutionContext;
     private final MappedFieldType timestampField;
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
@@ -131,7 +131,7 @@ class RollupShardIndexer {
                     return output;
                 }
             };
-            this.queryShardContext = indexService.newQueryShardContext(
+            this.searchExecutionContext = indexService.newSearchExecutionContext(
                 indexShard.shardId().id(),
                 0,
                 searcher,
@@ -139,7 +139,7 @@ class RollupShardIndexer {
                 null,
                 Collections.emptyMap()
             );
-            this.timestampField = queryShardContext.getFieldType(config.getGroupConfig().getDateHistogram().getField());
+            this.timestampField = searchExecutionContext.getFieldType(config.getGroupConfig().getDateHistogram().getField());
             verifyTimestampField(timestampField);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
@@ -147,18 +147,18 @@ class RollupShardIndexer {
 
             if (config.getGroupConfig().getTerms() != null) {
                 TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
-                this.groupFieldFetchers.addAll(FieldValueFetcher.build(queryShardContext, termsConfig.getFields()));
+                this.groupFieldFetchers.addAll(FieldValueFetcher.build(searchExecutionContext, termsConfig.getFields()));
             }
 
             if (config.getGroupConfig().getHistogram() != null) {
                 HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
-                this.groupFieldFetchers.addAll(FieldValueFetcher.buildHistograms(queryShardContext,
+                this.groupFieldFetchers.addAll(FieldValueFetcher.buildHistograms(searchExecutionContext,
                     histoConfig.getFields(), histoConfig.getInterval()));
             }
 
             if (config.getMetricsConfig().size() > 0) {
                 final String[] metricFields = config.getMetricsConfig().stream().map(MetricConfig::getField).toArray(String[]::new);
-                this.metricsFieldFetchers = FieldValueFetcher.build(queryShardContext, metricFields);
+                this.metricsFieldFetchers = FieldValueFetcher.build(searchExecutionContext, metricFields);
             } else {
                 this.metricsFieldFetchers = Collections.emptyList();
             }

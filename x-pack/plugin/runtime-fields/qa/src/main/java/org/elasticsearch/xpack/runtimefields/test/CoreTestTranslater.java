@@ -73,7 +73,7 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
-    //TODO geo_points are missing
+    // TODO geo_points are missing
     private static final Set<String> RUNTIME_TYPES = Set.of(
         BooleanFieldMapper.CONTENT_TYPE,
         DateFieldMapper.CONTENT_TYPE,
@@ -117,8 +117,7 @@ public abstract class CoreTestTranslater {
                      * is not possible. What we do for now is skip strings: we register a dynamic template for each type besides string.
                      * Ip fields never get dynamically mapped so they'll just look like strings.
                      */
-                    if (type.equals(IpFieldMapper.CONTENT_TYPE)
-                        || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                    if (type.equals(IpFieldMapper.CONTENT_TYPE) || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
                         continue;
                     }
                     HashMap<String, Object> map = new HashMap<>();

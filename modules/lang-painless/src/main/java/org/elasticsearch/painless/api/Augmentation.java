@@ -695,14 +695,14 @@ public class Augmentation {
         return receiver.split(new LimitedCharSequence(input, receiver, limitFactor));
     }
 
-    public static String[] split​(Pattern receiver, int limitFactor, CharSequence input, int limit) {
+    public static String[] split(Pattern receiver, int limitFactor, CharSequence input, int limit) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.split(input, limit);
         }
         return receiver.split(new LimitedCharSequence(input, receiver, limitFactor), limit);
     }
 
-    public static Stream<String> splitAsStream​(Pattern receiver, int limitFactor, CharSequence input) {
+    public static Stream<String> splitAsStream(Pattern receiver, int limitFactor, CharSequence input) {
         if (limitFactor == UNLIMITED_PATTERN_FACTOR) {
             return receiver.splitAsStream(input);
         }

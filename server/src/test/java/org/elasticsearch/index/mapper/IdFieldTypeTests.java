@@ -25,7 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
@@ -39,7 +39,7 @@ public class IdFieldTypeTests extends ESTestCase {
     }
 
     public void testTermsQuery() {
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
         Settings indexSettings = Settings.builder()
                 .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)

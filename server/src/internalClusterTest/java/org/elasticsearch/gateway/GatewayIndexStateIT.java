@@ -30,6 +30,7 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
@@ -40,10 +41,13 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.env.NodeMetadata;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -507,14 +511,12 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1L);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/48701")
-    // This test relates to loading a broken state that was written by a 6.x node, but for now we do not load state from old nodes.
     public void testHalfDeletedIndexImport() throws Exception {
         // It's possible for a 6.x node to add a tombstone for an index but not actually delete the index metadata from disk since that
         // deletion is slightly deferred and may race against the node being shut down; if you upgrade to 7.x when in this state then the
         // node won't start.
 
-        internalCluster().startNode();
+        final String nodeName = internalCluster().startNode();
         createIndex("test", Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -523,26 +525,37 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         final Metadata metadata = internalCluster().getInstance(ClusterService.class).state().metadata();
         final Path[] paths = internalCluster().getInstance(NodeEnvironment.class).nodeDataPaths();
-//        writeBrokenMeta(metaStateService -> {
-//            metaStateService.writeGlobalState("test", Metadata.builder(metadata)
-//                // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
-//                // term in the coordination metadata
-//                .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
-//                // add a tombstone but do not delete the index metadata from disk
-//               .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build()).build());
-//            for (final Path path : paths) {
-//                try (Stream<Path> stateFiles = Files.list(path.resolve(MetadataStateFormat.STATE_DIR_NAME))) {
-//                    for (final Path manifestPath : stateFiles
-//                        .filter(p -> p.getFileName().toString().startsWith(Manifest.FORMAT.getPrefix())).collect(Collectors.toList())) {
-//                        IOUtils.rm(manifestPath);
-//                    }
-//                }
-//            }
-//        });
+        final String nodeId = client().admin().cluster().prepareNodesInfo(nodeName).clear().get().getNodes().get(0).getNode().getId();
+
+        writeBrokenMeta(metaStateService -> {
+            for (final Path path : paths) {
+                IOUtils.rm(path.resolve(PersistedClusterStateService.METADATA_DIRECTORY_NAME));
+            }
+            metaStateService.writeGlobalState("test", Metadata.builder(metadata)
+                // we remove the manifest file, resetting the term and making this look like an upgrade from 6.x, so must also reset the
+                // term in the coordination metadata
+                .coordinationMetadata(CoordinationMetadata.builder(metadata.coordinationMetadata()).term(0L).build())
+                // add a tombstone but do not delete the index metadata from disk
+               .putCustom(IndexGraveyard.TYPE, IndexGraveyard.builder().addTombstone(metadata.index("test").getIndex()).build()).build());
+            NodeMetadata.FORMAT.writeAndCleanup(new NodeMetadata(nodeId, Version.CURRENT), paths);
+        });
 
         ensureGreen();
 
         assertBusy(() -> assertThat(internalCluster().getInstance(NodeEnvironment.class).availableIndexFolders(), empty()));
+    }
+
+    private void writeBrokenMeta(CheckedConsumer<MetaStateService, IOException> writer) throws Exception {
+        Map<String, MetaStateService> metaStateServices = Stream.of(internalCluster().getNodeNames())
+            .collect(Collectors.toMap(Function.identity(), nodeName -> internalCluster().getInstance(MetaStateService.class, nodeName)));
+        internalCluster().fullRestart(new RestartCallback(){
+            @Override
+            public Settings onNodeStopped(String nodeName) throws Exception {
+                final MetaStateService metaStateService = metaStateServices.get(nodeName);
+                writer.accept(metaStateService);
+                return super.onNodeStopped(nodeName);
+            }
+        });
     }
 
     private void restartNodesOnBrokenClusterState(ClusterState.Builder clusterStateBuilder) throws Exception {

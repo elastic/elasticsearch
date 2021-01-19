@@ -1,8 +1,8 @@
 [role="xpack"]
 [[promote-data-stream-api]]
-=== Promote Data Stream API
+=== Promote data stream API
 ++++
-<titleabbrev>Promote data stream api</titleabbrev>
+<titleabbrev>Promote data stream</titleabbrev>
 ++++
 
 The purpose of the promote data stream api is to turn

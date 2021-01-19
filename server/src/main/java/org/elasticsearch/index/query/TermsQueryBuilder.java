@@ -552,7 +552,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             if (out.getVersion().onOrAfter(VERSION_STORE_VALUES_AS_BYTES_REFERENCE)) {
                 out.writeBytesReference(valueRef);
             } else {
-                valueRef.writeTo(out);
+                out.writeGenericValue(new ArrayList(this));
             }
         }
 

@@ -27,6 +27,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermInSetQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.ParsingException;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.TypeFieldType;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.CoreMatchers;
 import org.junit.Before;
 
@@ -313,6 +315,14 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         QueryBuilder rewritten = query.rewrite(searchExecutionContext);
         assertThat(rewritten, instanceOf(MatchAllQueryBuilder.class));
+    }
+
+    public void testSerialization() throws IOException {
+        for (int i = 0; i < 5; i++) {
+            Version version = VersionUtils.randomCompatibleVersion(random(), Version.CURRENT);
+            TermsQueryBuilder cand = doCreateTestQueryBuilder();
+            assertSerialization(cand, version);
+        }
     }
 
     @Override

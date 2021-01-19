@@ -65,6 +65,7 @@ public class ReleaseNotesGenerator implements Closeable {
         Map<String, List<ChangelogEntry>> groupedChangelogs = changelogs.stream()
             .collect(
                 Collectors.groupingBy(
+                    // Breaking changes come first in the output
                     entry -> entry.getBreaking() == null ? entry.getType() : "breaking",
                     TreeMap::new,
                     Collectors.toList()
@@ -81,16 +82,22 @@ public class ReleaseNotesGenerator implements Closeable {
 
             changelogsByArea.forEach((area, perAreaChangelogs) -> {
                 out.println(area + "::");
-                perAreaChangelogs.forEach(log -> {
-                    out.print("* " + log.getSummary() + " {es-pull}" + log.getPr() + "[#" + log.getPr() + "]");
+
+                // Generate the output lines first so that we can sort them
+                perAreaChangelogs.stream().map(log -> {
+                    final StringBuilder sb = new StringBuilder(
+                        "* " + log.getSummary() + " {es-pull}" + log.getPr() + "[#" + log.getPr() + "]"
+                    );
                     final List<Integer> issues = log.getIssues();
                     if (issues != null && issues.isEmpty() == false) {
-                        out.print(issues.size() == 1 ? " (issue: " : " (issues: ");
-                        out.print(issues.stream().map(i -> "{es-issue}" + i + "[#" + i + "]").collect(Collectors.joining(", ")));
-                        out.print(")");
+                        sb.append(issues.size() == 1 ? " (issue: " : " (issues: ");
+                        sb.append(issues.stream().map(i -> "{es-issue}" + i + "[#" + i + "]").collect(Collectors.joining(", ")));
+                        sb.append(")");
                     }
-                    out.println();
-                });
+                    return sb.toString();
+                }).sorted().forEach(out::println);
+
+                out.println();
             });
 
             out.println();

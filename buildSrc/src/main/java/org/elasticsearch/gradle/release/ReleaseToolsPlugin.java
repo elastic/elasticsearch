@@ -30,5 +30,10 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
             action.setGroup("Documentation");
             action.setDescription("Generates release notes from changelog files held in this checkout");
         });
+
+        project.getTasks().register("validateChangelogs", ValidateChangelogsTask.class).configure(action -> {
+            action.setGroup("Documentation");
+            action.setDescription("Validates that all the changelogs YAML files are well-formed");
+        });
     }
 }

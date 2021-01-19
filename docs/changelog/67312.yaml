@@ -1,0 +1,8 @@
+pr: 67312
+issues:
+  - 66063
+area: Features/Features
+type: bug
+summary: Prevent unnecessary system index access warnings in Deprecation Info API
+versions:
+  - v7.12.0

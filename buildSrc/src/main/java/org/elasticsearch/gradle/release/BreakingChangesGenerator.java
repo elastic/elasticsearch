@@ -71,11 +71,9 @@ public class BreakingChangesGenerator implements Closeable {
             out.println("coming[" + version + "]");
         }
 
-        List.of(
-            "",
-            "//NOTE: The notable-breaking-changes tagged regions are re-used in the",
-            "//Installation and Upgrade Guide"
-        ).forEach(out::println);
+        out.println();
+        out.println("//NOTE: The notable-breaking-changes tagged regions are re-used in the");
+        out.println("//Installation and Upgrade Guide");
 
         final Map<String, List<ChangelogEntry.Breaking>> breakingChangesByArea = entries.stream()
             .map(ChangelogEntry::getBreaking)

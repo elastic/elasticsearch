@@ -1,0 +1,9 @@
+pr: 63500
+issues:
+  - 34588
+  - 60222
+area: Infra/Core
+type: deprecation
+summary: Add deprecation warning for removed `strict_duplicate_detection` setting
+versions:
+  - v7.12.0

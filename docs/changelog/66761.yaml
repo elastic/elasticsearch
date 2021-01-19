@@ -1,0 +1,8 @@
+pr: 66761
+issues: []
+area: EQL
+type: enhancement
+summary: Add `result_position` to correctness test
+versions:
+  - v7.12.0
+  - v8.0.0

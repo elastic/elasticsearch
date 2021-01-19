@@ -1,0 +1,9 @@
+pr: 66713
+issues:
+  - 61062
+area: Search
+type: enhancement
+summary: Retry point in time on other copy when possible
+versions:
+  - v7.12.0
+  - v8.0.0

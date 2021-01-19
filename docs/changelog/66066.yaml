@@ -1,0 +1,11 @@
+pr: 66066
+issues:
+  - 56620
+  - 65443
+  - 56620
+area: Task Management
+type: enhancement
+summary: Remove parent-task bans on channels disconnect
+versions:
+  - v7.12.0
+  - v8.0.0

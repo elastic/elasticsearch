@@ -1,0 +1,9 @@
+pr: 66534
+issues:
+  - 55685
+area: Features/Ingest
+type: feature
+summary: Network `community_id` processor for ingest pipelines
+versions:
+  - v7.12.0
+  - v8.0.0

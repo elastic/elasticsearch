@@ -22,7 +22,6 @@ package org.elasticsearch.gradle.release;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFileProperty;
@@ -32,11 +31,8 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternSet;
-import org.yaml.snakeyaml.Yaml;
 
-import java.io.File;
 import java.io.IOException;
-import java.nio.file.Files;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -105,14 +101,14 @@ public class GenerateReleaseNotesTask extends DefaultTask {
 
         final List<ChangelogEntry> entries = this.changelogs.getFiles()
             .stream()
-            .map(this::parseChangelog)
+            .map(ChangelogEntry::parseChangelog)
             .filter(
                 // If this change was released in an earlier version of Elasticsearch, do not
                 // include it in the notes. An absence of versions indicates that this change is only
                 // for the current release
                 each -> each.getVersions() == null
                     || each.getVersions().isEmpty()
-                    || each.getVersions().stream().allMatch(elasticsearchVersion::onOrBefore)
+                    || each.getVersions().stream().map(v -> v.replaceFirst("^v", "")).allMatch(elasticsearchVersion::onOrBefore)
             )
             .collect(Collectors.toList());
 
@@ -127,24 +123,5 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         try (BreakingChangesGenerator generator = new BreakingChangesGenerator(this.breakingChangesFile.get().getAsFile())) {
             generator.generate(entries);
         }
-    }
-
-    private ChangelogEntry parseChangelog(File file) {
-        final ChangelogEntry changelogEntry;
-        try {
-            Yaml yaml = new Yaml();
-            final String source = Files.readString(file.toPath());
-            changelogEntry = yaml.loadAs(source, ChangelogEntry.class);
-        } catch (Exception e) {
-            throw new GradleException("Failed to load changelog [" + file + "]: " + e.getMessage(), e);
-        }
-
-        try {
-            changelogEntry.validate();
-        } catch (IllegalArgumentException e) {
-            throw new GradleException("Validation failed for changelog [" + file + "]: " + e.getMessage(), e);
-        }
-
-        return changelogEntry;
     }
 }

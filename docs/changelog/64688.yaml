@@ -1,0 +1,8 @@
+pr: 64688
+issues: []
+area: Geo
+type: enhancement
+summary: Implement `IndexOrDocValuesQuery` for `geo_shape` field
+versions:
+  - v7.12.0
+  - v8.0.0

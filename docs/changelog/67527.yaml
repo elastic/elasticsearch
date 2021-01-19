@@ -1,0 +1,11 @@
+pr: 67527
+issues:
+  - 67158
+  - 67246
+  - 67498
+  - 66419
+area: Distributed
+type: deprecation
+summary: Warn of change of default of `wait_for_active_shards`
+versions:
+  - v7.12.0

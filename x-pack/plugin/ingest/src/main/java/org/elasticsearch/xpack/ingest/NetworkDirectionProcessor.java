@@ -172,11 +172,11 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     }
 
     private boolean isUnicast(InetAddress ip) {
-        return !Arrays.equals(ip.getAddress(), BROADCAST_IP4)
-            && !isUnspecified(ip)
-            && !isLoopback(ip)
-            && !isMulticast(ip)
-            && !isLinkLocalUnicast(ip);
+        return Arrays.equals(ip.getAddress(), BROADCAST_IP4) == false
+            && isUnspecified(ip) == false
+            && isLoopback(ip) == false
+            && isMulticast(ip) == false
+            && isLinkLocalUnicast(ip) == false;
     }
 
     private boolean isLinkLocalUnicast(InetAddress ip) {
@@ -205,7 +205,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     }
 
     private boolean isPublic(String ip) {
-        return !isLocalOrPrivate(ip);
+        return isLocalOrPrivate(ip) == false;
     }
 
     private boolean isLocalOrPrivate(String ip) {

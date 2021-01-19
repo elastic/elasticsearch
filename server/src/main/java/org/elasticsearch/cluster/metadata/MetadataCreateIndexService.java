@@ -53,6 +53,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -67,7 +68,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexSettingProvider;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.indices.IndicesService;
@@ -210,7 +211,7 @@ public class MetadataCreateIndexService {
             } else if (isHidden) {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
-                deprecationLogger.deprecate("index_name_starts_with_dot",
+                deprecationLogger.deprecate(DeprecationCategory.INDICES, "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names " +
                         "starting with a dot are reserved for hidden indices and system indices", index);
             }
@@ -362,7 +363,7 @@ public class MetadataCreateIndexService {
                     request.index(), isHiddenFromRequest);
 
                 if (v1Templates.size() > 1) {
-                    deprecationLogger.deprecate("index_template_multiple_match",
+                    deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(), v1Templates.stream().map(IndexTemplateMetadata::name).sorted().collect(Collectors.joining(", ")));
                 }
@@ -487,7 +488,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(templates), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()), metadataTransformer);
     }
 
@@ -520,7 +521,7 @@ public class MetadataCreateIndexService {
                 MetadataIndexTemplateService.resolveAliases(currentState.metadata(), templateName), currentState.metadata(), aliasValidator,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                xContentRegistry, indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                xContentRegistry, indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             Collections.singletonList(templateName), metadataTransformer);
     }
 
@@ -566,7 +567,7 @@ public class MetadataCreateIndexService {
                 currentState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                indexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())),
+                indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())),
             List.of(), metadataTransformer);
     }
 
@@ -766,12 +767,12 @@ public class MetadataCreateIndexService {
     public static List<AliasMetadata> resolveAndValidateAliases(String index, Set<Alias> aliases,
                                                                 List<Map<String, AliasMetadata>> templateAliases, Metadata metadata,
                                                                 AliasValidator aliasValidator, NamedXContentRegistry xContentRegistry,
-                                                                QueryShardContext queryShardContext) {
+                                                                SearchExecutionContext searchExecutionContext) {
         List<AliasMetadata> resolvedAliases = new ArrayList<>();
         for (Alias alias : aliases) {
             aliasValidator.validateAlias(alias, index, metadata);
             if (Strings.hasLength(alias.filter())) {
-                aliasValidator.validateAliasFilter(alias.name(), alias.filter(), queryShardContext, xContentRegistry);
+                aliasValidator.validateAliasFilter(alias.name(), alias.filter(), searchExecutionContext, xContentRegistry);
             }
             AliasMetadata aliasMetadata = AliasMetadata.builder(alias.name()).filter(alias.filter())
                 .indexRouting(alias.indexRouting()).searchRouting(alias.searchRouting()).writeIndex(alias.writeIndex())
@@ -804,7 +805,7 @@ public class MetadataCreateIndexService {
                 aliasValidator.validateAliasMetadata(aliasMetadata, index, metadata);
                 if (aliasMetadata.filter() != null) {
                     aliasValidator.validateAliasFilter(aliasMetadata.alias(), aliasMetadata.filter().uncompressed(),
-                        queryShardContext, xContentRegistry);
+                        searchExecutionContext, xContentRegistry);
                 }
                 templatesAliases.put(aliasMetadata.alias(), aliasMetadata);
                 resolvedAliases.add((aliasMetadata));
@@ -1170,7 +1171,8 @@ public class MetadataCreateIndexService {
         if (IndexSettings.INDEX_SOFT_DELETES_SETTING.get(indexSettings) &&
             (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
-            deprecationLogger.deprecate("translog_retention", "Translog retention settings [index.translog.retention.age] "
+            deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "translog_retention",
+                "Translog retention settings [index.translog.retention.age] "
                 + "and [index.translog.retention.size] are deprecated and effectively ignored. They will be removed in a future version.");
         }
     }

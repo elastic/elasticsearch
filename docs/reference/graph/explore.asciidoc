@@ -2,9 +2,6 @@
 [testenv="platinum"]
 [[graph-explore-api]]
 == Graph explore API
-++++
-<titleabbrev>Graph explore</titleabbrev>
-++++
 
 The graph explore API enables you to extract and summarize information about
 the documents and terms in an {es} data stream or index.

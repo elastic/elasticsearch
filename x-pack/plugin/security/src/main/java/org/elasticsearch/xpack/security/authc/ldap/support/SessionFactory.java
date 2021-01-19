@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.unit.TimeValue;
@@ -159,7 +160,7 @@ public abstract class SessionFactory {
         } else if (hostnameVerificationExists) {
             final String fullSettingKey = RealmSettings.getFullSettingKey(config, SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING);
             final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
-            DeprecationLogger.getLogger(logger.getName()).deprecate(deprecationKey,
+            DeprecationLogger.getLogger(logger.getName()).deprecate(DeprecationCategory.SETTINGS, deprecationKey,
                 "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",
                 fullSettingKey, RealmSettings.getFullSettingKey(config, SSLConfigurationSettings.VERIFICATION_MODE_SETTING_REALM));
             if (config.getSetting(SessionFactorySettings.HOSTNAME_VERIFICATION_SETTING)) {

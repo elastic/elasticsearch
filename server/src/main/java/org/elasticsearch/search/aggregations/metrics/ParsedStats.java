@@ -32,7 +32,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.search.aggregations.metrics.InternalStats.metricNames;
+import static org.elasticsearch.search.aggregations.metrics.InternalStats.METRIC_NAMES;
 
 public class ParsedStats extends ParsedAggregation implements Stats {
 
@@ -105,7 +105,7 @@ public class ParsedStats extends ParsedAggregation implements Stats {
 
     @Override
     public Iterable<String> valueNames() {
-        return metricNames;
+        return METRIC_NAMES;
     }
 
     @Override

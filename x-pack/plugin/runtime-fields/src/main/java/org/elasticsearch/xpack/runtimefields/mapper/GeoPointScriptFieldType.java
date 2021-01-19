@@ -20,7 +20,7 @@ import org.elasticsearch.geometry.MultiLine;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xpack.runtimefields.fielddata.GeoPointScriptFieldData;
@@ -80,13 +80,13 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         throw new IllegalArgumentException("Runtime field [" + name() + "] of type [" + typeName() + "] does not support range queries");
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         throw new IllegalArgumentException(
             "Geometry fields do not support exact searching, use dedicated geometry queries instead: [" + name() + "]"
         );
@@ -98,13 +98,13 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new GeoPointScriptFieldExistsQuery(script, leafFactory(context), name());
     }
 
     @Override
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
         if (shape == null) {
             return new MatchNoDocsQuery();
         }

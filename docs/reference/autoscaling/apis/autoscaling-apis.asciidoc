@@ -1,9 +1,9 @@
 [role="xpack"]
-[testenv="platinum"]
+[testenv="enterprise"]
 [[autoscaling-apis]]
 == Autoscaling APIs
 
-experimental[]
+include::../autoscaling-designed-for-note.asciidoc[]
 
 You can use the following APIs to perform autoscaling operations.
 

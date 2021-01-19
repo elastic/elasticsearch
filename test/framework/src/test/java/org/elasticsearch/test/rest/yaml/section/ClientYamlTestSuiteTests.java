@@ -30,6 +30,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.containsString;
@@ -509,13 +510,13 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         doSection.setExpectedWarningHeaders(singletonList("foo"));
         doSection.setApiCallSection(new ApiCallSection("test"));
-        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("warnings"), emptyList(), null);
         createTestSuite(skipSection, doSection).validate();
     }
 
     public void testAddingDoWithNodeSelectorWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("node_selector"), emptyList(), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCall = new ApiCallSection("test");
         apiCall.setNodeSelector(NodeSelector.SKIP_DEDICATED_MASTERS);
@@ -525,7 +526,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingDoWithHeadersWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("headers"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("headers"), emptyList(), null);
         DoSection doSection = new DoSection(new XContentLocation(lineNumber, 0));
         ApiCallSection apiCallSection = new ApiCallSection("test");
         apiCallSection.addHeaders(singletonMap("foo", "bar"));
@@ -535,7 +536,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
 
     public void testAddingContainsWithSkip() {
         int lineNumber = between(1, 10000);
-        SkipSection skipSection = new SkipSection(null, singletonList("contains"), null);
+        SkipSection skipSection = new SkipSection(null, singletonList("contains"), emptyList(), null);
         ContainsAssertion containsAssertion = new ContainsAssertion(
             new XContentLocation(lineNumber, 0),
             randomAlphaOfLength(randomIntBetween(3, 30)),

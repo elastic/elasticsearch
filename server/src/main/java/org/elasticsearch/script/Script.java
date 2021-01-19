@@ -633,9 +633,7 @@ public final class Script implements ToXContentObject, Writeable {
         String contentType = options == null ? null : options.get(CONTENT_TYPE_OPTION);
 
         if (type == ScriptType.INLINE) {
-            // ignoring the charset parameter
-            if(true)
-                throw new RuntimeException("tutaj");
+            // treating application/json;charset=utf-8 the same as application/json
             if (contentType != null && (contentType.startsWith(builder.contentType().mediaTypeWithoutParameters()))) {
                 try (InputStream stream = new BytesArray(idOrCode).streamInput()) {
                     builder.rawField(SOURCE_PARSE_FIELD.getPreferredName(), stream);

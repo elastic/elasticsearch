@@ -36,7 +36,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.ShingleTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.script.TemplateScript;
@@ -604,7 +604,7 @@ public class PhraseSuggestionBuilder extends SuggestionBuilder<PhraseSuggestionB
 
 
     @Override
-    public SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) throws IOException {
         PhraseSuggestionContext suggestionContext = new PhraseSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context, suggestionContext);

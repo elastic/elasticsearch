@@ -35,7 +35,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -280,7 +280,7 @@ public class CompletionSuggestionBuilder extends SuggestionBuilder<CompletionSug
     }
 
     @Override
-    public SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionContext build(SearchExecutionContext context) throws IOException {
         CompletionSuggestionContext suggestionContext = new CompletionSuggestionContext(context);
         // copy over common settings to each suggestion builder
         populateCommonFields(context, suggestionContext);

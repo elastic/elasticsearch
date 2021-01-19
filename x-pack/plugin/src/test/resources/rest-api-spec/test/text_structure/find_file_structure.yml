@@ -40,7 +40,7 @@ setup:
   - match: { mappings.properties.sourcetype.type: keyword }
   - match: { mappings.properties.time.type: date }
   - match: { mappings.properties.time.format: epoch_second }
-  - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
+  - match: { ingest_pipeline.description: "Ingest pipeline created by text structure finder" }
   - match: { ingest_pipeline.processors.0.date.field: time }
   - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
   - match: { field_stats.airline.count: 3 }
@@ -101,7 +101,7 @@ setup:
   - match: { mappings.properties.sourcetype.type: keyword }
   - match: { mappings.properties.time.type: date }
   - match: { mappings.properties.time.format: epoch_second }
-  - match: { ingest_pipeline.description: "Ingest pipeline created by file structure finder" }
+  - match: { ingest_pipeline.description: "Ingest pipeline created by text structure finder" }
   - match: { ingest_pipeline.processors.0.date.field: time }
   - match: { ingest_pipeline.processors.0.date.formats.0: UNIX }
   - match: { field_stats.airline.count: 3 }

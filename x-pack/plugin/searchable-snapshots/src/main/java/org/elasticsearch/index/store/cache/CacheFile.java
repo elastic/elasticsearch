@@ -163,6 +163,13 @@ public class CacheFile {
         return tracker.getCompletedRanges();
     }
 
+    /**
+     * Number of bytes that were present on the persistent when this cache file was created
+     */
+    public long getInitialLength() {
+        return tracker.getInitialLength();
+    }
+
     public void acquire(final EvictionListener listener) throws IOException {
         assert listener != null;
 
@@ -228,7 +235,21 @@ public class CacheFile {
 
     private void decrementRefCount() {
         final boolean released = refCounter.decRef();
-        assert released == false || (evicted.get() && Files.notExists(file));
+        assert assertRefCounted(released);
+    }
+
+    private boolean assertRefCounted(boolean isReleased) {
+        final boolean isEvicted = evicted.get();
+        final boolean fileExists = Files.exists(file);
+        assert isReleased == false || (isEvicted && fileExists == false) : "fully released cache file should be deleted from disk but got ["
+            + "released="
+            + isReleased
+            + ", evicted="
+            + isEvicted
+            + ", file exists="
+            + fileExists
+            + ']';
+        return true;
     }
 
     /**
@@ -487,7 +508,7 @@ public class CacheFile {
                     }
                 }
             } finally {
-                refCounter.decRef();
+                decrementRefCount();
             }
         } else {
             assert evicted.get();

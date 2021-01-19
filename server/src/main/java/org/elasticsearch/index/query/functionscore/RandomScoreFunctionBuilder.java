@@ -21,13 +21,14 @@ package org.elasticsearch.index.query.functionscore;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.IdFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -149,7 +150,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) {
         final int salt = (context.index().getName().hashCode() << 10) | context.getShardId();
         if (seed == null) {
             // DocID-based random score generation
@@ -157,7 +158,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
         } else {
             String fieldName;
             if (field == null) {
-                deprecationLogger.deprecate("seed_requires_field",
+                deprecationLogger.deprecate(DeprecationCategory.QUERIES, "seed_requires_field",
                     "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set");
                 fieldName = IdFieldMapper.NAME;
             } else {

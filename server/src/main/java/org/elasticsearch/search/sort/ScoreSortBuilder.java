@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 
 import java.io.IOException;
@@ -96,7 +96,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public SortFieldAndFormat build(QueryShardContext context) {
+    public SortFieldAndFormat build(SearchExecutionContext context) {
         if (order == SortOrder.DESC) {
             return SORT_SCORE;
         } else {
@@ -105,7 +105,7 @@ public class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
     }
 
     @Override
-    public BucketedSort buildBucketedSort(QueryShardContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
+    public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
         throws IOException {
         return new BucketedSort.ForFloats(bigArrays, order, DocValueFormat.RAW, bucketSize, extra) {
             @Override

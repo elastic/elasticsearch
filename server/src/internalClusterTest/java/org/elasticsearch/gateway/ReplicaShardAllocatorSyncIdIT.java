@@ -101,7 +101,7 @@ public class ReplicaShardAllocatorSyncIdIT extends ESIntegTestCase {
             // make sure that we have committed translog; otherwise, we can flush after relaying translog in store recovery
             flush(true, true);
             // make sure that background merges won't happen; otherwise, IndexWriter#hasUncommittedChanges can become true again
-            forceMerge(false, 1, false, false, false, UUIDs.randomBase64UUID());
+            forceMerge(false, 1, false, UUIDs.randomBase64UUID());
             assertNotNull(indexWriter);
             try (ReleasableLock ignored = writeLock.acquire()) {
                 assertThat(getTranslogStats().getUncommittedOperations(), equalTo(0));

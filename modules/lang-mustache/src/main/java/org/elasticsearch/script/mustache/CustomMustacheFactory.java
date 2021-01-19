@@ -51,7 +51,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CustomMustacheFactory extends DefaultMustacheFactory {
-
+    public static final String V7_JSON_MIME_TYPE_WITH_CHARSET = "application/json; charset=UTF-8";
     static final String JSON_MIME_TYPE_WITH_CHARSET = "application/json;charset=utf-8";
     static final String JSON_MIME_TYPE = "application/json";
     static final String PLAIN_TEXT_MIME_TYPE = "text/plain";
@@ -60,6 +60,7 @@ public class CustomMustacheFactory extends DefaultMustacheFactory {
     private static final String DEFAULT_MIME_TYPE = JSON_MIME_TYPE;
 
     private static final Map<String, Supplier<Encoder>> ENCODERS = Map.of(
+            V7_JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
             JSON_MIME_TYPE_WITH_CHARSET, JsonEscapeEncoder::new,
             JSON_MIME_TYPE, JsonEscapeEncoder::new,
             PLAIN_TEXT_MIME_TYPE, DefaultEncoder::new,

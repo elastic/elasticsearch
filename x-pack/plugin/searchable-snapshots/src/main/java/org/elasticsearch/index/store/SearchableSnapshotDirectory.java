@@ -44,6 +44,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
+import org.elasticsearch.index.store.cache.SharedCachedBlobContainerIndexInput;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -56,6 +57,8 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SearchableSnapshotsLFUCache;
+import org.elasticsearch.xpack.searchablesnapshots.cache.SearchableSnapshotsLFUCache.SharedCacheFile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -85,6 +88,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
@@ -126,6 +130,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final Path cacheDir;
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
+    private final boolean partial;
+    private final SearchableSnapshotsLFUCache sharedLfuCache;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
@@ -146,8 +152,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         CacheService cacheService,
         Path cacheDir,
         ShardPath shardPath,
-        ThreadPool threadPool
-    ) {
+        ThreadPool threadPool,
+        boolean partial,
+        SearchableSnapshotsLFUCache sharedLfuCache) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
         this.blobContainerSupplier = Objects.requireNonNull(blobContainer);
@@ -169,6 +176,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.blobStoreCachePath = String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
         this.threadPool = threadPool;
         this.loaded = false;
+        this.partial = partial;
+        this.sharedLfuCache = sharedLfuCache;
         assert invariant();
     }
 
@@ -374,14 +383,25 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
-            return new CachedBlobContainerIndexInput(
-                this,
-                fileInfo,
-                context,
-                inputStats,
-                cacheService.getRangeSize(),
-                cacheService.getRecoveryRangeSize()
-            );
+            if (partial) {
+                return new SharedCachedBlobContainerIndexInput(
+                    this,
+                    fileInfo,
+                    context,
+                    inputStats,
+                    cacheService.getRangeSize(),
+                    cacheService.getRecoveryRangeSize()
+                );
+            } else {
+                return new CachedBlobContainerIndexInput(
+                    this,
+                    fileInfo,
+                    context,
+                    inputStats,
+                    cacheService.getRangeSize(),
+                    cacheService.getRecoveryRangeSize()
+                );
+            }
         } else {
             return new DirectBlobContainerIndexInput(
                 blobContainer(),
@@ -533,7 +553,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         ShardPath shardPath,
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
-        BlobStoreCacheService blobStoreCacheService
+        BlobStoreCacheService blobStoreCacheService,
+        SearchableSnapshotsLFUCache sharedLfuCache
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
@@ -605,7 +626,9 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cache,
                 cacheDir,
                 shardPath,
-                threadPool
+                threadPool,
+                SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings()),
+                sharedLfuCache
             )
         );
     }
@@ -634,6 +657,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
         blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
+    }
+
+    public SharedCacheFile getSharedCacheFile(String fileName, long length) {
+        return sharedLfuCache.getSharedCacheFile(createCacheKey(fileName), length);
     }
 
     /**

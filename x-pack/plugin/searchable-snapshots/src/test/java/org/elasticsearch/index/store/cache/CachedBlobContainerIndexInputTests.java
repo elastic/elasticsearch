@@ -109,8 +109,9 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                         cacheService,
                         cacheDir,
                         shardPath,
-                        threadPool
-                    )
+                        threadPool,
+                        false,
+                            null)
                 ) {
                     RecoveryState recoveryState = createRecoveryState(recoveryFinalizedDone);
                     final PlainActionFuture<Void> future = PlainActionFuture.newFuture();
@@ -202,8 +203,9 @@ public class CachedBlobContainerIndexInputTests extends AbstractSearchableSnapsh
                     cacheService,
                     cacheDir,
                     shardPath,
-                    threadPool
-                )
+                    threadPool,
+                    false,
+                        null)
             ) {
                 RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();

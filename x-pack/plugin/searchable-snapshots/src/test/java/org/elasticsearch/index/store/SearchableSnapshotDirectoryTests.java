@@ -600,8 +600,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         cacheService,
                         cacheDir,
                         shardPath,
-                        threadPool
-                    )
+                        threadPool,
+                        false,
+                        null)
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
                     final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, f);
@@ -700,8 +701,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     cacheService,
                     cacheDir,
                     shardPath,
-                    threadPool
-                )
+                    threadPool,
+                    false,
+                    null)
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
@@ -760,7 +762,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             final IndexSettings indexSettings = new IndexSettings(IndexMetadata.builder("test").settings(settings).build(), Settings.EMPTY);
             expectThrows(
                 IllegalArgumentException.class,
-                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null)
+                () -> SearchableSnapshotDirectory.create(null, null, indexSettings, null, null, null, null, null)
             );
         }
     }

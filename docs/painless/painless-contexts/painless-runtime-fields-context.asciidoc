@@ -1,0 +1,273 @@
+[[painless-runtime-fields-context]]
+=== Runtime fields context
+
+Use a Painless script to return a calculated value for a
+<<painless-runtime-fields,runtime field>>, defined either in the mappings or as
+part of a query. You can also use runtime fields to override values for indexed
+fields.
+
+See the {ref}/runtime.html[runtime field] documentation for more.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the specified document where each field is a
+        `List` of values.
+
+{ref}/mapping-source-field.html[`params['_source']`] (`Map`, read-only)::
+        Contains extracted JSON in a `Map` and `List` structure for the fields
+        existing in a stored document.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-field, Specialized Field API>> are available.
+
+
+*Example*
+
+To run this example, follow the steps in
+<<painless-context-examples, context examples>>. Let's break down each of those
+steps to understand how runtime fields work within the context of Painless.
+
+[[painless-runtime-fields-mapping]]
+==== Create the index mappings
+The following request creates the mappings for the sample data:
+
+[source,console]
+----
+PUT /seats
+{
+  "mappings": {
+    "properties": {
+      "theatre":  { "type": "keyword" },
+      "play":     { "type": "keyword" },
+      "actors":   { "type": "text"    },
+      "row":      { "type": "integer" },
+      "number":   { "type": "integer" },
+      "cost":     { "type": "double"  },
+      "sold":     { "type": "boolean" },
+      "datetime": { "type": "date"    },
+      "date":     { "type": "keyword" },
+      "time":     { "type": "keyword" }
+    }
+  }
+}
+----
+// TESTSETUP
+
+[[painless-runtime-fields-ingest]]
+==== Ingest some sample data
+You can ingest the full https://download.elastic.co/demos/painless/contexts/seats.json[seat sample data], but we'll only use a subset of that data:
+
+[source,console]
+----
+POST seats/_bulk?pipeline=seats
+{"create":{"_index":"seats","_id":"1"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":1,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"2"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":2,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"3"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":3,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"4"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":4,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"5"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":5,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"6"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":6,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"7"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":7,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"8"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":8,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"9"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":9,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"10"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":10,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"11"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":11,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"12"}}
+----
+// TEST[continued]
+
+[[painless-runtime-fields-processor]]
+==== Run the ingest processor
+The following request sets up a script ingest processor used on each document
+as the seat data is indexed:
+
+[source,console]
+----
+PUT _ingest/pipeline/seats
+{
+  "description": "use index:seats",
+  "processors": [
+    {
+      "script": {
+        "source": """
+          String[] dateSplit = ctx.date.splitOnToken("-");
+String year = dateSplit[0].trim();
+String month = dateSplit[1].trim();
+
+if (month.length() == 1) {
+    month = "0" + month;
+}
+
+String day = dateSplit[2].trim();
+
+if (day.length() == 1) {
+    day = "0" + day;
+}
+
+boolean pm = ctx.time.substring(ctx.time.length() - 2).equals("PM");
+String[] timeSplit = ctx.time.substring(0,
+        ctx.time.length() - 2).splitOnToken(":");
+int hours = Integer.parseInt(timeSplit[0].trim());
+int minutes = Integer.parseInt(timeSplit[1].trim());
+
+if (pm) {
+    hours += 12;
+}
+
+String dts = year + "-" + month + "-" + day + "T" +
+        (hours < 10 ? "0" + hours : "" + hours) + ":" +
+        (minutes < 10 ? "0" + minutes : "" + minutes) +
+        ":00+08:00";
+
+ZonedDateTime dt = ZonedDateTime.parse(
+         dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME);
+ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;
+        """
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+[[painless-runtime-fields-definition]]
+==== Define a runtime field with a Painless script
+The following request defines a runtime field named `day_of_week`. This field
+contains a script with the same source defined in
+<<painless-field-context,Field context>>, but also uses an `emit` function
+that runtime fields require when defining a Painless script.
+
+Because `day_of_week` is a runtime field, it isn't indexed, and the included
+script only runs at query time.
+
+[source,console]
+----
+PUT seats/_mapping
+{
+    "dynamic": "runtime",
+    "runtime": {
+      "day_of_week": {
+        "type": "date",
+        "script": {
+          "source": "emit(doc['datetime'].value.getDayOfWeek())"
+        }
+      }
+    }
+}
+----
+// TEST[continued]
+
+After defining the runtime field and script in the mappings, you can run a
+query that includes `day_of_week`. When the query runs, {es} evaluates the
+included Painless script and dynamically generates a value based on the script
+definition:
+
+[source,console]
+----
+GET seats/_search
+{
+  "fields": [
+    "@timestamp",
+    "day_of_week"
+  ],
+  "_source": false
+}
+----
+// TEST[continued]
+
+The response includes `day_of_week` for each hit. {es} calculates the value for
+this field dynamically at search time by operating on the `datetime` field
+defined in the mappings.
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 11,
+      "relation" : "eq"
+    },
+    "max_score" : 1.0,
+    "hits" : [
+      {
+        "_index" : "seats",
+        "_type" : "_doc",
+        "_id" : "1",
+        "_score" : 1.0,
+        "fields" : {
+          "time" : [
+            "3:00PM"
+          ],
+          "day_of_week" : [
+            "1970-01-01T00:00:00.007Z"
+          ]
+        }
+      },
+      {
+        "_index" : "seats",
+        "_type" : "_doc",
+        "_id" : "2",
+        "_score" : 1.0,
+        "fields" : {
+          "time" : [
+            "3:00PM"
+          ],
+          "day_of_week" : [
+            "1970-01-01T00:00:00.007Z"
+          ]
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"_id" : "1"/"_id": $body.hits.hits.0._id/]
+// TESTRESPONSE[s/"_id" : "2"/"_id": $body.hits.hits.1._id/]
+// TESTRESPONSE[s/"day_of_week" : "1970-01-01T00:00:00.007Z"/"day_of_week": $body.hits.hits.0.fields.day_of_week/]
+// TESTRESPONSE[s/"day_of_week" : "1970-01-01T00:00:00.007Z"/"day_of_week": $body.hits.hits.1.fields.day_of_week/]
+
+You can then use these two example scripts to compute custom information
+for each search hit and output it to two new fields.
+
+The first script gets the doc value for the `datetime` field and calls
+the `getDayOfWeek` function to determine the corresponding day of the week.
+
+[source,Painless]
+----
+doc['datetime'].value.getDayOfWeek();
+----
+
+The second script calculates the number of actors. Actors' names are stored
+as a text array in the `actors` field.
+
+[source,Painless]
+----
+params['_source']['actors'].length;                        <1>
+----
+
+<1> By default, doc values are not available for text fields. However,
+    you can still calculate the number of actors by extracting actors
+    from `_source`. Note that `params['_source']['actors']` is a list.

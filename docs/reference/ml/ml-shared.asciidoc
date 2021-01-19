@@ -575,16 +575,6 @@ The resulting frequency map for the field value. If the field value is missing
 from the `frequency_map`, the resulting value is `0`.
 end::dfas-feature-processors-frequency-map[]
 
-tag::dfas-feature-processors-multi[]
-The configuration information necessary to perform multi encoding. It allows 
-multiple processors to be changed together. This way the output of a processor 
-can then be passed to another as an input.
-end::dfas-feature-processors-multi[]
-
-tag::dfas-feature-processors-multi-proc[]
-The ordered array of custom processors to execute. Must be more than 1.
-end::dfas-feature-processors-multi-proc[]
-
 tag::dfas-feature-processors-ngram[]
 The configuration information necessary to perform ngram encoding. Features 
 written out by this encoder have the following name format: 

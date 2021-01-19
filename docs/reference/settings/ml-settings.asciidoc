@@ -25,9 +25,8 @@ hardware, you must disable {ml} (by setting `xpack.ml.enabled` to `false`).
 the node as a _{ml} node_. If you want to run {ml} jobs, there must be at least
 one {ml} node in your cluster. 
 +
-By default, every node is a {ml} node. If you set `node.roles`, however,
-you must explicitly specify all the required roles for the node. To learn more, 
-refer to <<modules-node>>.
+If you set `node.roles`, you must explicitly specify all the required roles for
+the node. To learn more, refer to <<modules-node>>.
 +
 [IMPORTANT]
 ====

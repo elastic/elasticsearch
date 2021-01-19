@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndi
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
@@ -307,17 +308,31 @@ public class DanglingIndicesIT extends ESIntegTestCase {
 
         isImporting.set(true);
 
-        while (isImporting.get()) {
+        final TimeValue timeout = TimeValue.timeValueSeconds(10);
+        final long endTimeMillis = System.currentTimeMillis() + timeout.millis();
+        while (isImporting.get() && System.currentTimeMillis() < endTimeMillis) {
             try {
-                client().admin().indices().prepareDelete(INDEX_NAME).get();
+                client().admin().indices().prepareDelete(INDEX_NAME).get(timeout);
                 isImporting.set(false);
             } catch (Exception e) {
                 // failures are expected
             }
         }
 
-        for (final Thread importThread : importThreads) {
-            importThread.join();
+        try {
+            if (isImporting.get()) {
+                isImporting.set(false);
+                try {
+                    client().admin().indices().prepareDelete(INDEX_NAME).get(timeout);
+                } catch (Exception e) {
+                    throw new AssertionError("delete index never succeeded", e);
+                }
+                throw new AssertionError("delete index succeeded but too late");
+            }
+        } finally {
+            for (final Thread importThread : importThreads) {
+                importThread.join();
+            }
         }
 
         final Metadata metadata = client().admin().cluster().prepareState().clear().setMetadata(true).get().getState().metadata();

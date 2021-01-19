@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ConstantIndexFieldData;
@@ -65,13 +66,13 @@ public final class TypeFieldType extends ConstantFieldType {
 
     @Override
     public Query existsQuery(SearchExecutionContext context) {
-        deprecationLogger.deprecate("typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.QUERIES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         return new MatchAllDocsQuery();
     }
 
     @Override
     public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        deprecationLogger.deprecate("typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.QUERIES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         return new ConstantIndexFieldData.Builder(type, name(), CoreValuesSourceType.KEYWORD);
     }
 
@@ -82,7 +83,7 @@ public final class TypeFieldType extends ConstantFieldType {
 
     @Override
     protected boolean matches(String pattern, boolean caseInsensitive, SearchExecutionContext context) {
-        deprecationLogger.deprecate("typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.QUERIES, "typefieldtype", TYPES_V7_DEPRECATION_MESSAGE);
         if (caseInsensitive) {
             return pattern.equalsIgnoreCase(type);
         }

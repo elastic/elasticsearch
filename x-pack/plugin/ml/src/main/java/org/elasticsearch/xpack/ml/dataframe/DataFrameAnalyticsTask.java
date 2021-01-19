@@ -287,7 +287,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
      * {@code FINISHED} means the job had finished.
      */
     public enum StartingState {
-        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, FINISHED
+        FIRST_TIME, RESUMING_REINDEXING, RESUMING_ANALYZING, RESUMING_INFERENCE, FINISHED
     }
 
     public StartingState determineStartingState() {
@@ -312,6 +312,9 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
 
         if (ProgressTracker.REINDEXING.equals(lastIncompletePhase.getPhase())) {
             return lastIncompletePhase.getProgressPercent() == 0 ? StartingState.FIRST_TIME : StartingState.RESUMING_REINDEXING;
+        }
+        if (ProgressTracker.INFERENCE.equals(lastIncompletePhase.getPhase())) {
+            return StartingState.RESUMING_INFERENCE;
         }
         return StartingState.RESUMING_ANALYZING;
     }

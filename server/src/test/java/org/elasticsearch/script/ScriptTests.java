@@ -89,7 +89,7 @@ public class ScriptTests extends ESTestCase {
         return createScript(Collections.singletonMap(Script.CONTENT_TYPE_OPTION, XContentType.JSON.mediaType()));
     }
 
-    private Script createScript(Map<String, String> stringStringMap) throws IOException {
+    private Script createScript(Map<String, String> options) throws IOException {
         final Map<String, Object> params = randomBoolean() ? Collections.emptyMap() : Collections.singletonMap("key", "value");
         ScriptType scriptType = randomFrom(ScriptType.values());
         String script;
@@ -107,8 +107,7 @@ public class ScriptTests extends ESTestCase {
             scriptType,
             scriptType == ScriptType.STORED ? null : randomFrom("_lang1", "_lang2", "_lang3"),
             script,
-            scriptType == ScriptType.INLINE ?
-                stringStringMap : null, params
+            scriptType == ScriptType.INLINE ? options : null, params
         );
     }
 

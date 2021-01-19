@@ -24,6 +24,7 @@ import org.elasticsearch.Assertions;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -70,6 +71,16 @@ public class Maps {
         assertImmutableMap(map, key, value);
         return Stream.concat(map.entrySet().stream().filter(k -> key.equals(k.getKey()) == false), Stream.of(entry(key, value)))
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    public static <K, V> Map<K, V> copyMapWithModifiedEntryWhenPresent(final Map<K, V> map, final K key, final Function<V,V> function) {
+        if(map.containsKey(key)){
+            V value = function.apply(map.get(key));
+            assertImmutableMap(map, key, value);
+            return copyMapWithAddedOrReplacedEntry(map,key,value);
+        }else {
+            return map;
+        }
     }
 
     /**

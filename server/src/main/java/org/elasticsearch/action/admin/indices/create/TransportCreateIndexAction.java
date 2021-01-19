@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.ActionFilters;
@@ -45,6 +47,7 @@ import java.util.Set;
  * Create index action.
  */
 public class TransportCreateIndexAction extends TransportMasterNodeAction<CreateIndexRequest, CreateIndexResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportCreateIndexAction.class);
 
     private final MetadataCreateIndexService createIndexService;
     private final SystemIndices systemIndices;
@@ -76,7 +79,16 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
         final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
 
         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-        final CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
+        final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
+
+        if (isSystemIndex && state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            final String message = "Cannot create system index [" + descriptor.getPrimaryIndex() + "] in a mixed-version cluster";
+            logger.warn(message);
+            listener.onFailure(new IllegalStateException(message));
+            return;
+        }
+
+        final CreateIndexClusterStateUpdateRequest updateRequest = isSystemIndex
             ? buildSystemIndexUpdateRequest(request, cause, descriptor)
             : buildUpdateRequest(request, cause, indexName);
 

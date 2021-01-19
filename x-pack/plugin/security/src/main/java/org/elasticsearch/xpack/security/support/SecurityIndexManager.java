@@ -11,8 +11,15 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -44,6 +51,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
 /**
  * Manages the lifecycle, mapping and data upgrades/migrations of the {@code RestrictedIndicesNames#SECURITY_MAIN_ALIAS}
@@ -61,36 +70,39 @@ public class SecurityIndexManager implements ClusterStateListener {
     private final String aliasName;
     private final String internalIndexName;
     private final int internalIndexFormat;
+    private final Client client;
 
     private final List<BiConsumer<State, State>> stateChangeListeners = new CopyOnWriteArrayList<>();
 
     private volatile State indexState;
 
-    public static SecurityIndexManager buildSecurityMainIndexManager(ClusterService clusterService) {
-        return new SecurityIndexManager(clusterService, RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+    public static SecurityIndexManager buildSecurityMainIndexManager(Client client, ClusterService clusterService) {
+        return new SecurityIndexManager(client, clusterService, RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
                 RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7, INTERNAL_MAIN_INDEX_FORMAT);
     }
 
-    public static SecurityIndexManager buildSecurityTokensIndexManager(ClusterService clusterService) {
-        return new SecurityIndexManager(clusterService, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS,
+    public static SecurityIndexManager buildSecurityTokensIndexManager(Client client, ClusterService clusterService) {
+        return new SecurityIndexManager(client, clusterService, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS,
                 RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7, INTERNAL_TOKENS_INDEX_FORMAT);
     }
 
-    private SecurityIndexManager(ClusterService clusterService, String aliasName, String internalIndexName, int internalIndexFormat) {
-        this(aliasName, internalIndexName, internalIndexFormat, State.UNRECOVERED_STATE);
+    private SecurityIndexManager(Client client, ClusterService clusterService, String aliasName, String internalIndexName,
+                                 int internalIndexFormat) {
+        this(client, aliasName, internalIndexName, internalIndexFormat, State.UNRECOVERED_STATE);
         clusterService.addListener(this);
     }
 
     // protected for testing
-    protected SecurityIndexManager(String aliasName, String internalIndexName, int internalIndexFormat, State indexState) {
+    protected SecurityIndexManager(Client client, String aliasName, String internalIndexName, int internalIndexFormat, State indexState) {
         this.aliasName = aliasName;
         this.internalIndexName = internalIndexName;
         this.internalIndexFormat = internalIndexFormat;
         this.indexState = indexState;
+        this.client = client;
     }
 
     public SecurityIndexManager freeze() {
-        return new SecurityIndexManager(aliasName, internalIndexName, internalIndexFormat, indexState);
+        return new SecurityIndexManager(null, aliasName, internalIndexName, internalIndexFormat, indexState);
     }
 
     public String aliasName() {
@@ -161,8 +173,8 @@ public class SecurityIndexManager implements ClusterStateListener {
         final State previousState = indexState;
         final IndexMetadata indexMetadata = resolveConcreteIndex(aliasName, event.state().metadata());
         final Instant creationTime = indexMetadata != null ? Instant.ofEpochMilli(indexMetadata.getCreationDate()) : null;
-        final boolean isIndexUpToDate = indexMetadata == null
-            || INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == internalIndexFormat;
+        final boolean isIndexUpToDate = indexMetadata == null ||
+            INDEX_FORMAT_SETTING.get(indexMetadata.getSettings()) == internalIndexFormat;
         final boolean indexAvailable = checkIndexAvailable(event.state());
         final boolean mappingIsUpToDate = indexMetadata == null || checkIndexMappingUpToDate(event.state());
         final Version mappingVersion = oldestIndexMappingVersion(event.state());
@@ -308,6 +320,40 @@ public class SecurityIndexManager implements ClusterStateListener {
             } else if (indexState.indexExists() && indexState.isIndexUpToDate == false) {
                 throw new IllegalStateException("Index [" + indexState.concreteIndexName + "] is not on the current version."
                         + "Security features relying on the index will not be available until the upgrade API is run on the index");
+            } else if (indexState.indexExists() == false) {
+                assert indexState.concreteIndexName != null;
+                logger.info("security index does not exist, creating [{}] with alias [{}]", indexState.concreteIndexName, this.aliasName);
+
+                // `TransportCreateIndexAction` will automatically apply the right mappings, settings and aliases, so none
+                // of that needs to be specified here.
+                CreateIndexRequest request = new CreateIndexRequest(indexState.concreteIndexName).waitForActiveShards(ActiveShardCount.ALL);
+
+                executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, request,
+                    new ActionListener<CreateIndexResponse>() {
+                        @Override
+                        public void onResponse(CreateIndexResponse createIndexResponse) {
+                            if (createIndexResponse.isAcknowledged()) {
+                                andThen.run();
+                            } else {
+                                consumer.accept(new ElasticsearchException("Failed to create security index"));
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            final Throwable cause = ExceptionsHelper.unwrapCause(e);
+                            if (cause instanceof ResourceAlreadyExistsException) {
+                                // the index already exists - it was probably just created so this
+                                // node hasn't yet received the cluster state update with the index
+                                andThen.run();
+                            } else {
+                                consumer.accept(e);
+                            }
+                        }
+                    }, client.admin().indices()::create);
+            } else if (indexState.mappingUpToDate == false) {
+                // Updating the mappings is the job of SystemIndexManager.
+                consumer.accept(new RuntimeException("security index mappings are not up-to-date yet"));
             } else {
                 andThen.run();
             }

@@ -75,12 +75,17 @@ public class SystemIndexManager implements ClusterStateListener {
         if (state.blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
             // wait until the gateway has recovered from disk, otherwise we may think we don't have some
             // indices but they may not have been restored from the cluster state on disk
-            logger.debug("system indices manager waiting until state has been recovered");
+            logger.debug("Waiting until state has been recovered");
             return;
         }
 
         // If this node is not a master node, exit.
         if (state.nodes().isLocalNodeElectedMaster() == false) {
+            return;
+        }
+
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            logger.debug("Skipping system indices up-to-date check as cluster has mixed versions");
             return;
         }
 
@@ -101,6 +106,8 @@ public class SystemIndexManager implements ClusterStateListener {
             } else {
                 isUpgradeInProgress.set(false);
             }
+        } else {
+            logger.trace("Update already in progress");
         }
     }
 

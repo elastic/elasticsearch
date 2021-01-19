@@ -100,14 +100,14 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
                 return;
             }
 
-            final List<String> violations = checkForSystemIndexViolations(concreteIndices, mappingSource);
+            final List<String> violations = checkForSystemIndexViolations(state, concreteIndices, mappingSource);
             if (violations.isEmpty() == false) {
                 final String message = "Cannot update mappings in "
                     + violations
                     + ": system indices can only use mappings from their descriptors, "
                     + "but the mappings in the request did not match those in the descriptors(s)";
                 logger.warn(message);
-                listener.onFailure(new IllegalArgumentException(message));
+                listener.onFailure(new IllegalStateException(message));
                 return;
             }
 
@@ -160,12 +160,19 @@ public class TransportPutMappingAction extends AcknowledgedTransportMasterNodeAc
         });
     }
 
-    private List<String> checkForSystemIndexViolations(Index[] concreteIndices, String requestMappings) {
+    private List<String> checkForSystemIndexViolations(ClusterState state, Index[] concreteIndices, String requestMappings) {
         List<String> violations = new ArrayList<>();
 
         for (Index index : concreteIndices) {
             final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(index.getName());
             if (descriptor != null && descriptor.isAutomaticallyManaged()) {
+                if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+                    violations.add(
+                        "Cannot update mappings for system index [" + descriptor.getPrimaryIndex() + "] in a mixed-version cluster"
+                    );
+                    continue;
+                }
+
                 final String descriptorMappings = descriptor.getMappings();
 
                 // Technically we could trip over a difference in whitespace here, but then again nobody should be trying to manually

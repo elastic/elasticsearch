@@ -76,7 +76,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         when(mockClient.settings()).thenReturn(Settings.EMPTY);
         final ClusterService clusterService = mock(ClusterService.class);
 
-        manager = SecurityIndexManager.buildSecurityMainIndexManager(clusterService);
+        manager = SecurityIndexManager.buildSecurityMainIndexManager(mockClient, clusterService);
 
     }
 

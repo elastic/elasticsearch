@@ -153,7 +153,17 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         }
 
                         final SystemIndexDescriptor descriptor = systemIndices.findMatchingDescriptor(indexName);
-                        CreateIndexClusterStateUpdateRequest updateRequest = descriptor != null && descriptor.isAutomaticallyManaged()
+                        final boolean isSystemIndex = descriptor != null && descriptor.isAutomaticallyManaged();
+
+                        if (isSystemIndex && state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+                            final String messsage = "Cannot auto-create system index ["
+                                + descriptor.getPrimaryIndex()
+                                + "] in a mixed-version cluster";
+                            logger.warn(messsage);
+                            throw new IllegalStateException(messsage);
+                        }
+
+                        CreateIndexClusterStateUpdateRequest updateRequest = isSystemIndex
                             ? buildSystemIndexUpdateRequest(descriptor)
                             : buildUpdateRequest(indexName);
 

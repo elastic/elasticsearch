@@ -28,7 +28,7 @@ public class FunctionDefinition {
     /**
      * Is this a datetime function compatible with {@code EXTRACT}.
      */
-    // TODO: needs refactoring
+    // TODO: needs refactoring so that specific function properties (per language) are isolated from QL
     private final boolean extractViable;
 
 

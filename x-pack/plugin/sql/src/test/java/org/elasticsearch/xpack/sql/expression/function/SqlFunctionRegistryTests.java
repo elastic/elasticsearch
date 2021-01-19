@@ -34,7 +34,6 @@ public class SqlFunctionRegistryTests extends ESTestCase {
         UnresolvedFunction ur = uf(DEFAULT);
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->
@@ -54,8 +53,6 @@ public class SqlFunctionRegistryTests extends ESTestCase {
             return new DummyFunction(l);
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertFalse(def.extractViable());
-        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // Distinct isn't supported
         ParsingException e = expectThrows(ParsingException.class, () ->

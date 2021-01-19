@@ -28,7 +28,7 @@ public interface FunctionResolutionStrategy {
     }
 
     /**
-     * The name of the kind of thing being resolved. Used when
+     * The kind of strategy being applied. Used when
      * building the error message sent back to the user when
      * they specify a function that doesn't exist.
      */

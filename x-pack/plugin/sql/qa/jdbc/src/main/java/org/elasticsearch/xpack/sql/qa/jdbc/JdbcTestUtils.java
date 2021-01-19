@@ -81,4 +81,8 @@ final class JdbcTestUtils {
 
         return convertedDateTime.toInstant().toEpochMilli();
     }
+
+    static boolean versionSupportsDateNanos() {
+        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_8_0_0);
+    }
 }

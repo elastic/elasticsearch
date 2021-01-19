@@ -5,26 +5,9 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.common.CheckedBiConsumer;
-import org.elasticsearch.common.CheckedBiFunction;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.elasticsearch.xpack.sql.proto.StringUtils;
-import org.junit.Before;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
-import java.math.BigDecimal;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
@@ -57,6 +40,20 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import org.elasticsearch.client.Request;
+import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.sql.jdbc.EsType;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+import org.junit.Before;
+
 import static java.lang.String.format;
 import static java.util.Calendar.DAY_OF_MONTH;
 import static java.util.Calendar.ERA;
@@ -67,11 +64,11 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 
 public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
@@ -2036,9 +2033,5 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     private static int extractNanosOnly(long nanos) {
         return (int) (nanos % 1_000_000_000);
-    }
-
-    private static boolean versionSupportsDateNanos() {
-        return JDBC_DRIVER_VERSION.onOrAfter(Version.V_8_0_0);
     }
 }

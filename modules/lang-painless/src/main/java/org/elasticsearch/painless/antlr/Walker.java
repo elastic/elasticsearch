@@ -864,11 +864,13 @@ public final class Walker extends PainlessParserBaseVisitor<ANode> {
     @Override
     public ANode visitRegex(RegexContext ctx) {
         String text = ctx.REGEX().getText();
+        int patternStart = text.indexOf('/') + 1;
         int lastSlash = text.lastIndexOf('/');
-        String pattern = text.substring(1, lastSlash);
+        String flavor = text.substring(0, patternStart - 1);
+        String pattern = text.substring(patternStart, lastSlash);
         String flags = text.substring(lastSlash + 1);
 
-        return new ERegex(nextIdentifier(), location(ctx), pattern, flags);
+        return new ERegex(nextIdentifier(), location(ctx), ERegex.Flavor.parse(flavor), patternStart, pattern, flags);
     }
 
     @Override

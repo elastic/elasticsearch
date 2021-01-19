@@ -19,16 +19,24 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.script.ScriptException;
 
 import java.nio.CharBuffer;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 import static java.util.Collections.singletonMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class RegexTests extends ScriptTestCase {
+    @Override
+    protected MatcherWatchdog grokWatchdog() {
+        return MatcherWatchdog.noop();
+    }
+
     public void testPatternAfterReturn() {
         assertEquals(true, exec("return 'foo' ==~ /foo/"));
         assertEquals(false, exec("return 'bar' ==~ /foo/"));
@@ -254,7 +262,10 @@ public class RegexTests extends ScriptTestCase {
         ScriptException e = expectThrows(ScriptException.class, () -> {
             exec("/\\ujjjj/"); // Invalid unicode
         });
-        assertEquals("invalid regular expression: could not compile regex constant [\\ujjjj] with flags []", e.getCause().getMessage());
+        assertEquals(
+            "Could not compile java regex constant [\\ujjjj] with flags []: Illegal Unicode escape sequence",
+            e.getCause().getMessage()
+        );
 
         // And make sure the location of the error points to the offset inside the pattern
         assertScriptStack(e,
@@ -274,5 +285,76 @@ public class RegexTests extends ScriptTestCase {
             exec("/asdf/b", false); // Not picky so we get a non-assertion error
         });
         assertEquals("unexpected token ['b'] was expecting one of [{<EOF>, ';'}].", e.getMessage());
+    }
+
+    public void testGrok() {
+        assertEquals("10", exec("return g/foo%{INT:n}/.map('foo10').n"));
+        assertEquals(10, exec("return g/foo%{INT:n:int}/.map('foo10').n"));
+        assertEquals(10L, exec("return g/foo%{INT:n:long}/.map('foo10').n"));
+        assertEquals(10F, exec("return g/foo%{INT:n:float}/.map('foo10').n"));
+        assertEquals(10.0, exec("return g/foo%{INT:n:double}/.map('foo10').n"));
+        assertEquals("foo", exec("return g/%{WORD:w} %{INT:n}/.map('foo 10').w"));
+        assertEquals(null, exec("return g/%{INT:n}/.map('foo 10').w"));
+        assertEquals(Map.of("w", "foo", "n", "10"), exec("return g/%{WORD:w} %{INT:n}/.map('foo 10')"));
+        assertEquals(null, exec("return g/bar %{INT:n}/.map('foo 10')"));
+        assertEquals(null, exec("return g/bar %{INT:n}/.map('foo 10')?.n"));
+    }
+    
+    public void testGrokWithoutNamedMatches() {
+        assertEquals(Map.of(), exec("return g/foo10/.map('foo10')"));
+        assertEquals(null, exec("return g/foo10/.map('foo11')"));
+    }
+
+    public void testBadGrokPattern() {
+        Map<String, String> options = Map.of("grok.pattern.N", "%{N}");
+        ScriptException e = expectThrows(ScriptException.class, () -> exec("return 'foo10' ==~ g/foo%{N}/", Map.of(), options, true));
+        assertThat(
+            e.getCause().getMessage(),
+            equalTo("Could not compile grok pattern constant [foo%{N}]: circular reference in pattern [N][%{N}]")
+        );
+        assertScriptStack(e,
+            "return 'foo10' ==~ g/foo%{N}/", // Comment to force the formatter to split the line here so the ^ is readable
+            "                     ^---- HERE");
+    }
+
+    public void testDissect() {
+        assertEquals("10", exec("return d/foo%{n}/.map('foo10').n"));
+        assertEquals("foo", exec("return d/%{w} %{n}/.map('foo 10').w"));
+        assertEquals(null, exec("return d/foo %{n}/.map('foo 10').w"));
+        assertEquals(Map.of("w", "foo", "n", "10"), exec("return d/%{w} %{n}/.map('foo 10')"));
+        assertEquals(null, exec("return d/bar %{INT:n}/.map('foo 10')"));
+        assertEquals(null, exec("return d/bar %{INT:n}/.map('foo 10')?.n"));
+    }
+
+    public void testDisectWithoutNamedMatches() {
+        ScriptException e = expectThrows(ScriptException.class, () -> exec("return d/foo10/.map('foo10')"));
+        assertThat(
+            e.getCause().getMessage(),
+            equalTo(
+                "Could not compile dissect pattern constant [foo10]: Unable to parse pattern: foo10 "
+                    + "Reason: Unable to find any keys or delimiters."
+            )
+        );
+        assertScriptStack(
+            e,
+            "return d/foo10/.map('foo10')",  // Comment to force the formatter to split the line here so the ^ is readable
+            "         ^---- HERE"
+        );        
+    }
+
+    public void testBadDissect() {
+        ScriptException e = expectThrows(ScriptException.class, () -> exec("return 'foo10' ==~ d/foo%{n->\\/1}/"));
+        assertThat(
+            e.getCause().getMessage(),
+            equalTo(
+                "Could not compile dissect pattern constant [foo%{n->\\/1}]: Unable to parse key: n->\\/1 "
+                    + "Reason: The key name could not be determined"
+            )
+        );
+        assertScriptStack(
+            e,
+            "return 'foo10' ==~ d/foo%{n->\\/1}/",  // Comment to force the formatter to split the line here so the ^ is readable
+            "                     ^---- HERE"
+        );
     }
 }

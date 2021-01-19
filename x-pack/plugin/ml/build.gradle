@@ -57,7 +57,7 @@ dependencies {
   testImplementation project(path: xpackModule('security'), configuration: 'testArtifacts')
 
   // ml deps
-  api project(':libs:elasticsearch-grok')
+  compileOnly project(':libs:elasticsearch-grok') // Extending painless gets us the grok runtime classes
   api "net.sf.supercsv:super-csv:${versions.supercsv}"
   nativeBundle("org.elasticsearch.ml:ml-cpp:${project.version}@zip") {
     changing = true

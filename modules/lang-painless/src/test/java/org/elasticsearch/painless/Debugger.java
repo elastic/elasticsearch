@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless;
 
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
 import org.elasticsearch.painless.spi.Whitelist;
@@ -41,7 +42,7 @@ final class Debugger {
         PrintWriter outputWriter = new PrintWriter(output);
         Textifier textifier = new Textifier();
         try {
-            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS))
+            new Compiler(iface, null, null, PainlessLookupBuilder.buildFromWhitelists(Whitelist.BASE_WHITELISTS), MatcherWatchdog::noop)
                     .compile("<debugging>", source, settings, textifier);
         } catch (RuntimeException e) {
             textifier.print(outputWriter);

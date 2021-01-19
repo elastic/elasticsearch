@@ -482,3 +482,24 @@
                         }]
     - match: { error.root_cause.0.type: "illegal_argument_exception" }
     - match: { error.root_cause.0.reason: "script score function must not produce negative scores, but got: [-9.0]"}
+
+---
+"grok":
+    - do:
+        index:
+            index: test
+            id: 1
+            refresh: true
+            body: { "message": "40.135.0.0 - - [1998-04-30T14:30:17-05:00] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736" }
+
+    - do:
+        search:
+            index: test
+            body:
+                script_fields:
+                    clientip:
+                        script: |
+                            g/^%{IP:clientip} - -/.map(doc['message.keyword'].value).clientip
+
+    - match: { hits.total.value: 1 }
+    - match: { hits.hits.0.fields.clientip.0: 40.135.0.0 }

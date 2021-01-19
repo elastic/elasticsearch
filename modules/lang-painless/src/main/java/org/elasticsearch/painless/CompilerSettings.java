@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.grok.Grok;
 import org.elasticsearch.painless.api.Augmentation;
 
 import java.util.HashMap;
@@ -77,6 +78,9 @@ public final class CompilerSettings {
      * For testing. Do not use.
      */
     private int initialCallSiteDepth = 0;
+
+    private Map<String, String> grokPatternBank = Grok.BUILTIN_PATTERNS;
+
     private int testInject0 = 2;
     private int testInject1 = 4;
     private int testInject2 = 6;
@@ -168,6 +172,20 @@ public final class CompilerSettings {
      */
     public int getRegexLimitFactor() {
         return regexLimitFactor;
+    }
+
+    /**
+     * Default grok "pattern bank". Mostly initialized here so 
+     */
+    public Map<String, String> getGrokPatternBank() {
+        return grokPatternBank;
+    }
+
+    public void addToGrokPatternBank(String name, String pattern) {
+        if (grokPatternBank == Grok.BUILTIN_PATTERNS) {
+            grokPatternBank = new HashMap<>(grokPatternBank);
+        }
+        grokPatternBank.put(name, pattern);
     }
 
     /**

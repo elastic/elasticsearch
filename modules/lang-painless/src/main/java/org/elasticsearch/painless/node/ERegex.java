@@ -29,14 +29,32 @@ import java.util.Objects;
  */
 public class ERegex extends AExpression {
 
+    private final Flavor flavor;
+    private final int patternStart;
     private final String pattern;
     private final String flags;
 
-    public ERegex(int identifier, Location location, String pattern, String flags) {
+    public ERegex(int identifier, Location location, Flavor flavor, int patternStart, String pattern, String flags) {
         super(identifier, location);
 
+        this.flavor = Objects.requireNonNull(flavor);
+        this.patternStart = patternStart;
         this.pattern = Objects.requireNonNull(pattern);
         this.flags = Objects.requireNonNull(flags);
+    }
+
+    /**
+     * The 
+     */
+    public Flavor getFlavor() {
+        return flavor;
+    }
+
+    /**
+     * Offset from {@link #getLocation()} where the pattern starts.
+     */
+    public int getPatternStart() {
+        return patternStart;
     }
 
     public String getPattern() {
@@ -55,5 +73,24 @@ public class ERegex extends AExpression {
     @Override
     public <Scope> void visitChildren(UserTreeVisitor<Scope> userTreeVisitor, Scope scope) {
         // terminal node; no children
+    }
+
+    public enum Flavor {
+        JAVA,
+        GROK,
+        DISECT;
+
+        public static Flavor parse(String flavor) {
+            switch (flavor) {
+                case "":
+                    return JAVA;
+                case "g":
+                    return GROK;
+                case "d":
+                    return DISECT;
+                default:
+                    throw new IllegalArgumentException("Unsupported regex flavor [" + flavor + "]. Must be unspecified or one of [dg]");
+            }
+        }
     }
 }

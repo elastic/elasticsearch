@@ -21,6 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.painless.Compiler.Loader;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupBuilder;
@@ -45,9 +46,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.painless.WriterConstants.OBJECT_TYPE;
 
@@ -79,7 +82,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
 
     /**
      * Default compiler settings to be used. Note that {@link CompilerSettings} is mutable but this instance shouldn't be mutated outside
-     * of {@link PainlessScriptEngine#PainlessScriptEngine(Settings, Map)}.
+     * of {@link PainlessScriptEngine#PainlessScriptEngine}.
      */
     private final CompilerSettings defaultCompilerSettings = new CompilerSettings();
 
@@ -90,7 +93,11 @@ public final class PainlessScriptEngine implements ScriptEngine {
      * Constructor.
      * @param settings The settings to initialize the engine with.
      */
-    public PainlessScriptEngine(Settings settings, Map<ScriptContext<?>, List<Whitelist>> contexts) {
+    public PainlessScriptEngine(
+        Settings settings,
+        Map<ScriptContext<?>, List<Whitelist>> contexts,
+        Supplier<MatcherWatchdog> grokWatchdog
+    ) {
         defaultCompilerSettings.setRegexesEnabled(CompilerSettings.REGEX_ENABLED.get(settings));
         defaultCompilerSettings.setRegexLimitFactor(CompilerSettings.REGEX_LIMIT_FACTOR.get(settings));
 
@@ -101,7 +108,7 @@ public final class PainlessScriptEngine implements ScriptEngine {
             ScriptContext<?> context = entry.getKey();
             PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue());
             contextsToCompilers.put(context,
-                    new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup));
+                    new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup, grokWatchdog));
             contextsToLookups.put(context, lookup);
         }
 
@@ -447,6 +454,15 @@ public final class PainlessScriptEngine implements ScriptEngine {
             value = copy.remove(CompilerSettings.INITIAL_CALL_SITE_DEPTH);
             if (value != null) {
                 compilerSettings.setInitialCallSiteDepth(Integer.parseInt(value));
+            }
+
+            for (Iterator<Map.Entry<String, String>> itr = copy.entrySet().iterator(); itr.hasNext();) {
+                Map.Entry<String, String> e = itr.next();
+                if (false == e.getKey().startsWith("grok.pattern.")) {
+                    continue;
+                }
+                itr.remove();
+                compilerSettings.addToGrokPatternBank(e.getKey().substring("grok.pattern.".length()), e.getValue());
             }
 
             value = copy.remove(CompilerSettings.REGEX_ENABLED.getKey());

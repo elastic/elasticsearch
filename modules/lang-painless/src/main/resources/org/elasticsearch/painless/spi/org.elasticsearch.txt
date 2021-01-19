@@ -57,6 +57,13 @@ class org.elasticsearch.painless.api.Debug {
   void explain(Object)
 }
 
+#### Pattern matching API
+
+class org.elasticsearch.painless.api.FlavoredPattern {
+  Map map(String)
+}
+
+
 #### ES Scripting API
 
 class org.elasticsearch.common.geo.GeoPoint {

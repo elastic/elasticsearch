@@ -20,7 +20,10 @@
 package org.elasticsearch.painless;
 
 import junit.framework.AssertionFailedError;
+
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.grok.MatcherWatchdog;
+import org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -35,7 +38,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.painless.action.PainlessExecuteAction.PainlessTestScript;
 import static org.hamcrest.Matchers.hasSize;
 
 /**
@@ -48,7 +50,11 @@ public abstract class ScriptTestCase extends ESTestCase {
 
     @Before
     public void setup() {
-        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts());
+        scriptEngine = new PainlessScriptEngine(scriptEngineSettings(), scriptContexts(), this::grokWatchdog);
+    }
+
+    protected MatcherWatchdog grokWatchdog() {
+        throw new AssertionError("Shouldn't need a grok watchdog");
     }
 
     /**

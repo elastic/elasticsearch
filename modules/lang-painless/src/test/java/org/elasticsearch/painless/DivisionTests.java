@@ -413,4 +413,10 @@ public class DivisionTests extends ScriptTestCase {
             exec("def x = 1; x /= 0; return x;");
         });
     }
+
+    public void testNoConflictWithRegex() {
+        assertEquals(1, exec("int d = 1; return d/1;"));
+        assertEquals(1, exec("int g = 1; return g/1;"));
+        assertEquals(1, exec("int j = 1; return j/1;"));
+    }
 }

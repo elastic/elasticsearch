@@ -38,7 +38,9 @@ public class DocFieldsPhaseTests extends ScriptTestCase {
         Compiler compiler = new Compiler(
             MockDocTestScript.CONTEXT.instanceClazz,
             MockDocTestScript.CONTEXT.factoryClazz,
-            MockDocTestScript.CONTEXT.statefulFactoryClazz, lookup
+            MockDocTestScript.CONTEXT.statefulFactoryClazz,
+            lookup,
+            this::grokWatchdog
         );
 
         // Create our loader (which loads compiled code with no permissions).

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.painless.symbol;
 
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -31,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * Stores information for use across the entirety of compilation.
@@ -42,6 +44,7 @@ public class ScriptScope extends Decorator {
     protected final ScriptClassInfo scriptClassInfo;
     protected final String scriptName;
     protected final String scriptSource;
+    private final Supplier<MatcherWatchdog> grokWatchdog;
 
     protected final FunctionTable functionTable = new FunctionTable();
     protected int syntheticCounter = 0;
@@ -51,9 +54,15 @@ public class ScriptScope extends Decorator {
     protected Set<String> usedVariables = Collections.emptySet();
     protected Map<String, Object> staticConstants = new HashMap<>();
 
-    public ScriptScope(PainlessLookup painlessLookup, CompilerSettings compilerSettings,
-                      ScriptClassInfo scriptClassInfo, String scriptName, String scriptSource, int nodeCount) {
-
+    public ScriptScope(
+        PainlessLookup painlessLookup,
+        CompilerSettings compilerSettings,
+        ScriptClassInfo scriptClassInfo,
+        String scriptName,
+        String scriptSource,
+        Supplier<MatcherWatchdog> grokWatchdog,
+        int nodeCount
+    ) {
         super(nodeCount);
 
         this.painlessLookup = Objects.requireNonNull(painlessLookup);
@@ -61,6 +70,7 @@ public class ScriptScope extends Decorator {
         this.scriptClassInfo = Objects.requireNonNull(scriptClassInfo);
         this.scriptName = Objects.requireNonNull(scriptName);
         this.scriptSource = Objects.requireNonNull(scriptName);
+        this.grokWatchdog = Objects.requireNonNull(grokWatchdog);
 
         staticConstants.put("$NAME", scriptName);
         staticConstants.put("$SOURCE", scriptSource);
@@ -169,5 +179,9 @@ public class ScriptScope extends Decorator {
 
     public boolean replicateCondition(ANode originalNode, ANode targetNode, Class<? extends Condition> type) {
         return replicate(originalNode.getIdentifier(), targetNode.getIdentifier(), type);
+    }
+
+    public MatcherWatchdog getGrokWatchdog() {
+        return grokWatchdog.get();
     }
 }

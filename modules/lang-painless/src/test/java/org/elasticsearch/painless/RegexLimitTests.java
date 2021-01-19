@@ -21,6 +21,12 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.grok.MatcherWatchdog;
+import org.joni.Matcher;
+
+import java.util.Locale;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class RegexLimitTests extends ScriptTestCase {
     // This regex has backtracking due to .*?
@@ -297,11 +303,40 @@ public class RegexLimitTests extends ScriptTestCase {
 
     private void setRegexLimitFactor(int factor) {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_LIMIT_FACTOR.getKey(), factor).build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), this::grokWatchdog);
     }
 
     private void setRegexEnabled() {
         Settings settings = Settings.builder().put(CompilerSettings.REGEX_ENABLED.getKey(), "true").build();
-        scriptEngine = new PainlessScriptEngine(settings, scriptContexts());
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), this::grokWatchdog);
+    }
+
+    public void testGrokWatchdog() {
+        String charSequence = "abcdef123456".repeat(100);
+        String script = String.format(Locale.ROOT, "g%s.map('%s')", pattern, charSequence);
+
+        timeoutGroksImmediately();
+        RuntimeException e = expectScriptThrows(RuntimeException.class, () -> exec(script));
+        assertThat(e.getMessage(), containsString("grok pattern matching was interrupted after [0] ms"));
+        // TODO this is the message that comes out of ingest but we might could do better.
+    }
+
+    private void timeoutGroksImmediately() {
+        Settings settings = Settings.builder().put(CompilerSettings.REGEX_ENABLED.getKey(), "true").build();
+        MatcherWatchdog watchdog = new MatcherWatchdog() {
+            @Override
+            public long maxExecutionTimeInMillis() {
+                return 0;
+            }
+
+            @Override
+            public void register(Matcher matcher) {
+                matcher.interrupt();
+            }
+
+            @Override
+            public void unregister(Matcher matcher) {}
+        };
+        scriptEngine = new PainlessScriptEngine(settings, scriptContexts(), () -> watchdog);
     }
 }

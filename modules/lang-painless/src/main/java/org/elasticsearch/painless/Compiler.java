@@ -20,6 +20,7 @@
 package org.elasticsearch.painless;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.painless.antlr.Walker;
 import org.elasticsearch.painless.ir.ClassNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
@@ -46,6 +47,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.painless.WriterConstants.CLASS_NAME;
 
@@ -166,15 +168,28 @@ final class Compiler {
     private final Map<String, Class<?>> additionalClasses;
 
     /**
+     * Suppliers the watchdog that prevents grok from running forever.
+     */
+    private final Supplier<MatcherWatchdog> grokWatchdog;
+
+    /**
      * Standard constructor.
      * @param scriptClass The class/interface the script will implement.
      * @param factoryClass An optional class/interface to create the {@code scriptClass} instance.
      * @param statefulFactoryClass An optional class/interface to create the {@code factoryClass} instance.
      * @param painlessLookup The whitelist the script will use.
+     * @param grokWatchdog Supplies the watchdog used to prevent grok from running forever
      */
-    Compiler(Class<?> scriptClass, Class<?> factoryClass, Class<?> statefulFactoryClass, PainlessLookup painlessLookup) {
+    Compiler(
+        Class<?> scriptClass,
+        Class<?> factoryClass,
+        Class<?> statefulFactoryClass,
+        PainlessLookup painlessLookup,
+        Supplier<MatcherWatchdog> grokWatchdog
+    ) {
         this.scriptClass = scriptClass;
         this.painlessLookup = painlessLookup;
+        this.grokWatchdog = grokWatchdog;
         Map<String, Class<?>> additionalClasses = new HashMap<>();
         additionalClasses.put(scriptClass.getName(), scriptClass);
         addFactoryMethod(additionalClasses, factoryClass, "newInstance");
@@ -218,7 +233,15 @@ final class Compiler {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
-        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        ScriptScope scriptScope = new ScriptScope(
+            painlessLookup,
+            settings,
+            scriptClassInfo,
+            scriptName,
+            source,
+            grokWatchdog,
+            root.getIdentifier() + 1
+        );
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         // TODO: Make this phase optional #60156
@@ -254,7 +277,15 @@ final class Compiler {
         String scriptName = Location.computeSourceName(name);
         ScriptClassInfo scriptClassInfo = new ScriptClassInfo(painlessLookup, scriptClass);
         SClass root = Walker.buildPainlessTree(scriptName, source, settings);
-        ScriptScope scriptScope = new ScriptScope(painlessLookup, settings, scriptClassInfo, scriptName, source, root.getIdentifier() + 1);
+        ScriptScope scriptScope = new ScriptScope(
+            painlessLookup,
+            settings,
+            scriptClassInfo,
+            scriptName,
+            source,
+            grokWatchdog,
+            root.getIdentifier() + 1
+        );
         new PainlessSemanticHeaderPhase().visitClass(root, scriptScope);
         new PainlessSemanticAnalysisPhase().visitClass(root, scriptScope);
         // TODO: Make this phase optional #60156

@@ -19,11 +19,16 @@
 
 package org.elasticsearch.painless.phase;
 
+import org.elasticsearch.dissect.DissectException;
+import org.elasticsearch.dissect.DissectParser;
+import org.elasticsearch.grok.Grok;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.painless.AnalyzerCaster;
 import org.elasticsearch.painless.CompilerSettings;
 import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.Operation;
+import org.elasticsearch.painless.api.FlavoredPattern;
 import org.elasticsearch.painless.lookup.PainlessCast;
 import org.elasticsearch.painless.lookup.PainlessClassBinding;
 import org.elasticsearch.painless.lookup.PainlessConstructor;
@@ -141,6 +146,8 @@ import org.elasticsearch.painless.symbol.SemanticScope.LambdaScope;
 import org.elasticsearch.painless.symbol.SemanticScope.Variable;
 
 import java.lang.reflect.Modifier;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -159,7 +166,6 @@ import static org.elasticsearch.painless.symbol.SemanticScope.newFunctionScope;
  * valid field resolution, and other specialized validation.
  */
 public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticScope> {
-
     /**
      * Decorates a user expression node with a PainlessCast.
      */
@@ -2055,58 +2061,165 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         }
 
         if (semanticScope.getScriptScope().getCompilerSettings().areRegexesEnabled() == CompilerSettings.RegexEnabled.FALSE) {
-            throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to [true] "
-                    + "in elasticsearch.yaml to allow them. Be careful though, regexes break out of Painless's protection against deep "
-                    + "recursion and long loops."));
+            throw userRegexNode.createError(new IllegalStateException("Regexes are disabled. Set [script.painless.regex.enabled] to "
+                    + "[limited] in elasticsearch.yaml to allow them with some protection against super long regexes. You can set it to "
+                    + "[true] to allow them without an protection against long backtracking but this usually a bad idea."));
         }
+        switch (userRegexNode.getFlavor()) {
+            case JAVA:
+                /*
+                 * It's important for backwards compatibility that `/foo/` is
+                 * a java.util.regex.Pattern. It's been that way for years and
+                 * that class has a zillion things on it.
+                 */
+                semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
+                semanticScope.putDecoration(userRegexNode, new StandardConstant(compileJavaPattern(userRegexNode)));
+                return;
+            case GROK:
+                FlavoredPattern grok = new FlavoredPattern.ForGrok(compileGrok(userRegexNode, semanticScope));
+                semanticScope.putDecoration(userRegexNode, new ValueType(FlavoredPattern.class));
+                semanticScope.putDecoration(userRegexNode, new StandardConstant(grok));
+                return;
+            case DISECT:
+                FlavoredPattern dissect = new FlavoredPattern.ForDissect(compileDissect(userRegexNode));
+                semanticScope.putDecoration(userRegexNode, new ValueType(FlavoredPattern.class));
+                semanticScope.putDecoration(userRegexNode, new StandardConstant(dissect));
+                return;
+            default:
+                throw userRegexNode.createError(
+                    new IllegalArgumentException("Unsupported regex flavor [" + userRegexNode.getFlavor() + "]")
+                );
+        }
+    }
 
-        Location location = userRegexNode.getLocation();
+    private Pattern compileJavaPattern(ERegex regex) {
+        String pattern = regex.getPattern();
+        String flags = regex.getFlags();
+        try {
+            return Pattern.compile(pattern, convertFlagsToJavaFlags(flags));
+        } catch (PatternSyntaxException pse) {
+            Location errorLocation = new Location(
+                regex.getLocation().getSourceName(),
+                regex.getLocation().getOffset() + regex.getPatternStart() + pse.getIndex()
+            );
+            throw errorLocation.createError(
+                new IllegalArgumentException(
+                    "Could not compile java regex constant [" + pattern + "] with flags [" + flags + "]: " + pse.getDescription(),
+                    pse
+                )
+            );
+        }
+    }
 
-        int constant = 0;
+    private int convertFlagsToJavaFlags(String flags) {
+        int javaFlags = 0;
 
         for (int i = 0; i < flags.length(); ++i) {
             char flag = flags.charAt(i);
 
             switch (flag) {
                 case 'c':
-                    constant |= Pattern.CANON_EQ;
+                    javaFlags |= Pattern.CANON_EQ;
                     break;
                 case 'i':
-                    constant |= Pattern.CASE_INSENSITIVE;
+                    javaFlags |= Pattern.CASE_INSENSITIVE;
                     break;
                 case 'l':
-                    constant |= Pattern.LITERAL;
+                    javaFlags |= Pattern.LITERAL;
                     break;
                 case 'm':
-                    constant |= Pattern.MULTILINE;
+                    javaFlags |= Pattern.MULTILINE;
                     break;
                 case 's':
-                    constant |= Pattern.DOTALL;
+                    javaFlags |= Pattern.DOTALL;
                     break;
                 case 'U':
-                    constant |= Pattern.UNICODE_CHARACTER_CLASS;
+                    javaFlags |= Pattern.UNICODE_CHARACTER_CLASS;
                     break;
                 case 'u':
-                    constant |= Pattern.UNICODE_CASE;
+                    javaFlags |= Pattern.UNICODE_CASE;
                     break;
                 case 'x':
-                    constant |= Pattern.COMMENTS;
+                    javaFlags |= Pattern.COMMENTS;
                     break;
                 default:
                     throw new IllegalArgumentException("invalid regular expression: unknown flag [" + flag + "]");
             }
         }
+        return javaFlags;
+    }
 
-        try {
-            Pattern.compile(pattern, constant);
-        } catch (PatternSyntaxException pse) {
-            throw new Location(location.getSourceName(), location.getOffset() + 1 + pse.getIndex()).createError(
-                    new IllegalArgumentException("invalid regular expression: " +
-                            "could not compile regex constant [" + pattern + "] with flags [" + flags + "]", pse));
+    private Grok compileGrok(ERegex regex, SemanticScope semanticScope) {
+        if (false == "".equals(regex.getFlags())) {
+            throw regex.createError(
+                new IllegalArgumentException("Grok doesn't support flags but got [" + regex.getFlags() + "]")
+            );
         }
+        try {
+            
+            Map<String, String> patternBank = semanticScope.getScriptScope().getCompilerSettings().getGrokPatternBank();
+            MatcherWatchdog watchdog = semanticScope.getScriptScope().getGrokWatchdog();
 
-        semanticScope.putDecoration(userRegexNode, new ValueType(Pattern.class));
-        semanticScope.putDecoration(userRegexNode, new StandardConstant(constant));
+            /*
+             * Shift from the "no permissions" compilation context to one that
+             * has permission to read stuff from the classpath so that jcodings,
+             * a dependency of grok, can read what it needs from the classpath. 
+             */
+            return AccessController.doPrivileged(new PrivilegedAction<Grok>() {
+                @Override
+                public Grok run() {
+                    // Try to collect warnings up front and refuse to compile the expression if there are any
+                    List<String> warnings = new ArrayList<>();
+                    new Grok(patternBank, regex.getPattern(), watchdog, warnings::add).match("___nomatch___");
+                    if (false == warnings.isEmpty()) {
+                        throw regex.createError(
+                            new IllegalArgumentException(
+                                "Compiled grok pattern constant [" + regex.getPattern() + "] but emitted warnings: " + warnings
+                            )
+                        );
+                    }
+
+                    return new Grok(
+                        patternBank,
+                        regex.getPattern(),
+                        watchdog,
+                        w -> {
+                            throw new IllegalArgumentException("grok [" + regex.getPattern() + "] emitted a warning: " + w);
+                        }
+                    );
+                }
+            });
+        } catch (IllegalArgumentException e) {
+            Location errorLocation = new Location(
+                regex.getLocation().getSourceName(),
+                regex.getLocation().getOffset() + regex.getPatternStart()
+            );
+            throw errorLocation.createError(
+                new IllegalArgumentException("Could not compile grok pattern constant [" + regex.getPattern() + "]: " + e.getMessage(), e)
+            );
+        }
+    }
+
+    private DissectParser compileDissect(ERegex regex) {
+        if (false == "".equals(regex.getFlags())) {
+            throw regex.createError(
+                new IllegalArgumentException("Dissect doesn't support flags but got [" + regex.getFlags() + "]")
+            );
+        }
+        try {
+            return new DissectParser(regex.getPattern(), null);
+        } catch (DissectException e) {
+            Location errorLocation = new Location(
+                regex.getLocation().getSourceName(),
+                regex.getLocation().getOffset() + regex.getPatternStart()
+            );
+            throw errorLocation.createError(
+                new IllegalArgumentException(
+                    "Could not compile dissect pattern constant [" + regex.getPattern() + "]: " + e.getMessage(),
+                    e
+                )
+            );
+        }
     }
 
     /**

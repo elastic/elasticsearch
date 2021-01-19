@@ -33,9 +33,12 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.painless.action.PainlessContextAction;
 import org.elasticsearch.painless.action.PainlessExecuteAction;
 import org.elasticsearch.painless.spi.PainlessExtension;
@@ -111,6 +114,8 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
     }
 
     private final SetOnce<PainlessScriptEngine> painlessScriptEngine = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+    private final Supplier<MatcherWatchdog> grokWatchdog = new LazyInitializable<>(this::initGrokWatchdog)::getOrCompute;
 
     @Override
     public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -123,7 +128,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
             }
             contextsWithWhitelists.put(context, contextWhitelists);
         }
-        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists));
+        painlessScriptEngine.set(new PainlessScriptEngine(settings, contextsWithWhitelists, grokWatchdog));
         return painlessScriptEngine.get();
     }
 
@@ -136,6 +141,7 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
                                                Supplier<RepositoriesService> repositoriesServiceSupplier) {
         // this is a hack to bind the painless script engine in guice (all components are added to guice), so that
         // the painless context api. this is a temporary measure until transport actions do no require guice
+        this.threadPool.set(threadPool);
         return Collections.singletonList(painlessScriptEngine.get());
     }
 
@@ -177,5 +183,14 @@ public final class PainlessPlugin extends Plugin implements ScriptPlugin, Extens
         handlers.add(new PainlessExecuteAction.RestAction());
         handlers.add(new PainlessContextAction.RestAction());
         return handlers;
+    }
+
+    private MatcherWatchdog initGrokWatchdog() {
+        // TODO this is fairly unpleasant
+        ThreadPool threadPool = this.threadPool.get();
+        return MatcherWatchdog.newInstance(1000, 1000, threadPool::relativeTimeInMillis,
+            (delay, command) -> threadPool.schedule(
+                command, TimeValue.timeValueMillis(delay), ThreadPool.Names.GENERIC
+            ));
     }
 }

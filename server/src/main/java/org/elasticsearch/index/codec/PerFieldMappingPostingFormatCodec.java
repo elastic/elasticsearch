@@ -41,7 +41,8 @@ import org.elasticsearch.index.mapper.MapperService;
 public class PerFieldMappingPostingFormatCodec extends Lucene87Codec {
     private final Logger logger;
     private final MapperService mapperService;
-    private final DocValuesFormat dvFormat;
+    // Always enable compression on binary doc values
+    private final DocValuesFormat docValuesFormat = new Lucene80DocValuesFormat(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION);
 
     static {
         assert Codec.forName(Lucene.LATEST_CODEC).getClass().isAssignableFrom(PerFieldMappingPostingFormatCodec.class) :
@@ -52,7 +53,6 @@ public class PerFieldMappingPostingFormatCodec extends Lucene87Codec {
         super(compressionMode);
         this.mapperService = mapperService;
         this.logger = logger;
-        this.dvFormat = new Lucene80DocValuesFormat(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION);
     }
 
     @Override
@@ -68,6 +68,6 @@ public class PerFieldMappingPostingFormatCodec extends Lucene87Codec {
 
     @Override
     public DocValuesFormat getDocValuesFormatForField(String field) {
-        return dvFormat;
+        return docValuesFormat;
     }
 }

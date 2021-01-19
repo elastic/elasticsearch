@@ -45,9 +45,9 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile << "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
     }
 
-    def addSubProject(String subProject){
-        def subProjectBuild = file(subProject.replace(":", "/") + "/build.gradle")
-        settingsFile << "include \"${subProject}\"\n"
+    File addSubProject(String subProjectPath){
+        def subProjectBuild = file(subProjectPath.replace(":", "/") + "/build.gradle")
+        settingsFile << "include \"${subProjectPath}\"\n"
         subProjectBuild
     }
 

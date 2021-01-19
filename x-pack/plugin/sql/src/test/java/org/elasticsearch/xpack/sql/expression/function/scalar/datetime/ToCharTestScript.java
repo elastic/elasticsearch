@@ -59,7 +59,7 @@ public class ToCharTestScript {
     private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
     // timezones that are valid both in Java and in Postgres
     public static final List<String> TIMEZONES_TO_TEST =
-            readAllLinesWithoutComment(ToCharTestScript.class.getResource("tochar-test_timezones.txt"));
+            readAllLinesWithoutComment(ToCharTestScript.class.getResource("tochar-test-timezones.txt"));
 
     private final List<TestRecord> testRecords = new ArrayList<>();
     private final List<BigDecimal> testEpochSeconds = new ArrayList<>();

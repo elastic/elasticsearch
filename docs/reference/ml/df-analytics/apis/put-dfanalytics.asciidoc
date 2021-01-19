@@ -142,18 +142,6 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency-map]
 =======
 
-`multi_encoding`::::
-(object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi]
-+
-.Properties of `multi_encoding`
-[%collapsible%open]
-=======
-`processors`::::
-(Required, array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi-proc]
-=======
-
 `ngram_encoding`::::
 (object)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]

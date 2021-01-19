@@ -62,8 +62,8 @@ public class TransformCheckpointingInfoTests extends ESTestCase {
         if (info.getChangesLastDetectedAt() != null) {
             builder.field(TransformCheckpointingInfo.CHANGES_LAST_DETECTED_AT.getPreferredName(), info.getChangesLastDetectedAt());
         }
-        if (info.getChangesLastSearchedAt() != null) {
-            builder.field(TransformCheckpointingInfo.CHANGES_LAST_SEARCHED_AT.getPreferredName(), info.getChangesLastSearchedAt());
+        if (info.getLastSearchTime() != null) {
+            builder.field(TransformCheckpointingInfo.LAST_SEARCH_TIME.getPreferredName(), info.getLastSearchTime());
         }
         builder.endObject();
     }

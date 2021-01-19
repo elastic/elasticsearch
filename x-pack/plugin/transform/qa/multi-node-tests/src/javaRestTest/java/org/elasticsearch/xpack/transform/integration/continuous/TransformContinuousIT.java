@@ -512,7 +512,7 @@ public class TransformContinuousIT extends ESRestTestCase {
                         + stats.getState()
                         + ", reason: "
                         + stats.getReason(),
-                    stats.getCheckpointingInfo().getChangesLastSearchedAt(),
+                    stats.getCheckpointingInfo().getLastSearchTime(),
                     greaterThan(waitUntil)
                 );
             }, 20, TimeUnit.SECONDS);

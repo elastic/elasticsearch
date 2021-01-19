@@ -41,7 +41,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         private TransformCheckpoint nextCheckpoint;
         private TransformCheckpoint sourceCheckpoint;
         private Instant changesLastDetectedAt;
-        private Instant changesLastSearchedAt;
+        private Instant lastSearchTime;
         private long operationsBehind;
 
         public TransformCheckpointingInfoBuilder() {}
@@ -78,7 +78,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
                 ),
                 operationsBehind,
                 changesLastDetectedAt,
-                changesLastSearchedAt
+                lastSearchTime
             );
         }
 
@@ -124,8 +124,8 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             return this;
         }
 
-        public TransformCheckpointingInfoBuilder setChangesLastSearchedAt(Instant changesLastSearchedAt) {
-            this.changesLastSearchedAt = changesLastSearchedAt;
+        public TransformCheckpointingInfoBuilder setLastSearchTime(Instant lastSearchTime) {
+            this.lastSearchTime = lastSearchTime;
             return this;
         }
 
@@ -148,12 +148,12 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
     public static final ParseField NEXT_CHECKPOINT = new ParseField("next");
     public static final ParseField OPERATIONS_BEHIND = new ParseField("operations_behind");
     public static final ParseField CHANGES_LAST_DETECTED_AT = new ParseField("changes_last_detected_at");
-    public static final ParseField CHANGES_LAST_SEARCHED_AT = new ParseField("changes_last_searched_at");
+    public static final ParseField LAST_SEARCH_TIME = new ParseField("last_search_time");
     private final TransformCheckpointStats last;
     private final TransformCheckpointStats next;
     private final long operationsBehind;
     private final Instant changesLastDetectedAt;
-    private final Instant changesLastSearchedAt;
+    private final Instant lastSearchTime;
 
     private static final ConstructingObjectParser<TransformCheckpointingInfo, Void> LENIENT_PARSER = new ConstructingObjectParser<>(
         "data_frame_transform_checkpointing_info",
@@ -192,8 +192,8 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         );
         LENIENT_PARSER.declareField(
             ConstructingObjectParser.optionalConstructorArg(),
-            p -> TimeUtils.parseTimeFieldToInstant(p, CHANGES_LAST_SEARCHED_AT.getPreferredName()),
-            CHANGES_LAST_SEARCHED_AT,
+            p -> TimeUtils.parseTimeFieldToInstant(p, LAST_SEARCH_TIME.getPreferredName()),
+            LAST_SEARCH_TIME,
             ObjectParser.ValueType.VALUE
         );
     }
@@ -206,21 +206,20 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
      * @param next stats of the next checkpoint
      * @param operationsBehind counter of operations the current checkpoint is behind source
      * @param changesLastDetectedAt the last time the source indices changes have been found
-     * @param changesLastSearchedAt the last time the source indices were checked for changes
+     * @param lastSearchTime the last time the source indices were searched
      */
     public TransformCheckpointingInfo(
         TransformCheckpointStats last,
         TransformCheckpointStats next,
         long operationsBehind,
         Instant changesLastDetectedAt,
-        Instant changesLastSearchedAt
+        Instant lastSearchTime
     ) {
         this.last = Objects.requireNonNull(last);
         this.next = Objects.requireNonNull(next);
         this.operationsBehind = operationsBehind;
-        // todo: Instant is immutable, so a copy does not seem necessary
-        this.changesLastDetectedAt = changesLastDetectedAt == null ? null : Instant.ofEpochMilli(changesLastDetectedAt.toEpochMilli());
-        this.changesLastSearchedAt = changesLastSearchedAt == null ? null : Instant.ofEpochMilli(changesLastSearchedAt.toEpochMilli());
+        this.changesLastDetectedAt = changesLastDetectedAt;
+        this.lastSearchTime = lastSearchTime;
     }
 
     public TransformCheckpointingInfo(StreamInput in) throws IOException {
@@ -233,9 +232,9 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             changesLastDetectedAt = null;
         }
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
-            changesLastSearchedAt = in.readOptionalInstant();
+            lastSearchTime = in.readOptionalInstant();
         } else {
-            changesLastSearchedAt = null;
+            lastSearchTime = null;
         }
     }
 
@@ -255,8 +254,8 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         return changesLastDetectedAt;
     }
 
-    public Instant getChangesLastSearchedAt() {
-        return changesLastSearchedAt;
+    public Instant getLastSearchTime() {
+        return lastSearchTime;
     }
 
     @Override
@@ -276,11 +275,11 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
                 changesLastDetectedAt.toEpochMilli()
             );
         }
-        if (changesLastSearchedAt != null) {
+        if (lastSearchTime != null) {
             builder.timeField(
-                CHANGES_LAST_SEARCHED_AT.getPreferredName(),
-                CHANGES_LAST_SEARCHED_AT.getPreferredName() + "_string",
-                changesLastSearchedAt.toEpochMilli()
+                LAST_SEARCH_TIME.getPreferredName(),
+                LAST_SEARCH_TIME.getPreferredName() + "_string",
+                lastSearchTime.toEpochMilli()
             );
         }
         builder.endObject();
@@ -296,7 +295,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             out.writeOptionalInstant(changesLastDetectedAt);
         }
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
-            out.writeOptionalInstant(changesLastSearchedAt);
+            out.writeOptionalInstant(lastSearchTime);
         }
     }
 
@@ -306,7 +305,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        return Objects.hash(last, next, operationsBehind, changesLastDetectedAt, changesLastSearchedAt);
+        return Objects.hash(last, next, operationsBehind, changesLastDetectedAt, lastSearchTime);
     }
 
     @Override
@@ -325,7 +324,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
             && Objects.equals(this.next, that.next)
             && this.operationsBehind == that.operationsBehind
             && Objects.equals(this.changesLastDetectedAt, that.changesLastDetectedAt)
-            && Objects.equals(this.changesLastSearchedAt, that.changesLastSearchedAt);
+            && Objects.equals(this.lastSearchTime, that.lastSearchTime);
     }
 
     @Override

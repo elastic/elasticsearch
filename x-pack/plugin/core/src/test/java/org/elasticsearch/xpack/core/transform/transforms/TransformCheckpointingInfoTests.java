@@ -47,7 +47,7 @@ public class TransformCheckpointingInfoTests extends AbstractSerializingTransfor
             TransformCheckpointStats.EMPTY,
             TransformCheckpointStats.EMPTY,
             randomNonNegativeLong(),
-            // changesLastDetectedAt, changesLastSearchedAt is not serialized to past values, so when it is pulled back in, it will be null
+            // changesLastDetectedAt, lastSearchTime is not serialized to past values, so when it is pulled back in, it will be null
             null,
             null
         );

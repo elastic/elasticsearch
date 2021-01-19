@@ -273,6 +273,7 @@ public class TransportStartDataFrameAnalyticsAction
                         break;
                     case RESUMING_REINDEXING:
                     case RESUMING_ANALYZING:
+                    case RESUMING_INFERENCE:
                         toValidateMappingsListener.onResponse(startContext);
                         break;
                     case FINISHED:

@@ -6,7 +6,7 @@
 <titleabbrev>Find file structure</titleabbrev>
 ++++
 
-experimental[]
+deprecated::[7.12.0,Replaced by <<find-structure>>]
 
 Finds the structure of a text file. The text file must contain data that is
 suitable to be ingested into {es}.
@@ -320,7 +320,7 @@ If the request does not encounter errors, you receive the following result:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "date" : {
@@ -685,7 +685,7 @@ If the request does not encounter errors, you receive the following result:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "csv" : {
@@ -1578,7 +1578,7 @@ this:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "grok" : {
@@ -1746,7 +1746,7 @@ this:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "grok" : {

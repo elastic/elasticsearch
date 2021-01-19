@@ -49,6 +49,8 @@ class YamlRestCompatTestPluginFuncTest  extends AbstractGradleFuncTest {
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
         result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
         buildFile << """
@@ -58,7 +60,9 @@ class YamlRestCompatTestPluginFuncTest  extends AbstractGradleFuncTest {
 
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':checkRestCompat') == null
-        result.task(':yamlRestCompatTest') == null
+        result.task(':checkRestCompat').outcome == TaskOutcome.SKIPPED
+        result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SKIPPED
     }
 }

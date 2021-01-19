@@ -28,6 +28,7 @@ import org.elasticsearch.gradle.testclusters.TestDistribution;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.provider.Provider;
@@ -37,6 +38,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.createTestCluster;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
@@ -64,6 +66,16 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(RestResourcesPlugin.class);
         project.getPluginManager().apply(YamlRestTestPlugin.class);
         project.getPluginManager().apply(CheckRestCompatPlugin.class);
+
+        final Consumer<Task> enabledFunction = task -> {
+            // marry the enablement of these tasks to the enablement of the lifecycle task
+            final boolean enabled = project.getTasks()
+                .named(CheckRestCompatPlugin.CHECK_TASK_NAME)
+                .forUseAtConfigurationTime()
+                .get()
+                .getEnabled();
+            task.setEnabled(enabled);
+        };
 
         RestResourcesExtension extension = project.getExtensions().getByType(RestResourcesExtension.class);
 
@@ -102,6 +114,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
                         .resolve(RELATIVE_API_PATH)
                 );
+                enabledFunction.accept(task);
             });
 
         // copy compatible rest tests
@@ -125,6 +138,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                         .resolve(RELATIVE_TEST_PATH)
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
+                enabledFunction.accept(task);
             });
 
         // setup the yamlRestTest task
@@ -143,6 +157,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyCompatYamlTestTask);
+            enabledFunction.accept(testTask);
         });
 
         // setup the dependencies

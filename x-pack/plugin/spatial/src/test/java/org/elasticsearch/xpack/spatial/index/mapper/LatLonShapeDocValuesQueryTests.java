@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.query;
+package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.LatLonShape;
@@ -30,7 +30,6 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.spatial.index.mapper.BinaryGeoShapeDocValuesField;
 
 import java.io.IOException;
 import java.util.List;

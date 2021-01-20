@@ -365,7 +365,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         assertThat(nativeMemoryCapacity.get().getNode(),
             lessThanOrEqualTo(NativeMemoryCalculator.allowedBytesForMl(DEFAULT_NODE_SIZE, 20, true)));
         assertThat(nativeMemoryCapacity.get().getTier(),
-            greaterThanOrEqualTo(DEFAULT_JOB_SIZE * (assignedAnomalyJobs.size() + batchAnomalyJobs.size())));
+            greaterThanOrEqualTo(DEFAULT_JOB_SIZE * (assignedAnalyticsJobs.size() + batchAnomalyJobs.size())));
         assertThat(nativeMemoryCapacity.get().getTier(),
             lessThanOrEqualTo(3 * (NativeMemoryCalculator.allowedBytesForMl(DEFAULT_NODE_SIZE, 20, true))));
     }
@@ -389,7 +389,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
 
         Settings settings = Settings.builder()
             .put(MlAutoscalingDeciderService.NUM_ANALYTICS_JOBS_IN_QUEUE.getKey(), maxWaitingAnalytics)
-            .put(MlAutoscalingDeciderService.NUM_ANOMALY_JOBS_IN_QUEUE.getKey(), maxWaitingAnalytics)
+            .put(MlAutoscalingDeciderService.NUM_ANOMALY_JOBS_IN_QUEUE.getKey(), maxWaitingAnomaly)
             .build();
         AutoscalingCapacity autoscalingCapacity = new AutoscalingCapacity(
             new AutoscalingCapacity.AutoscalingResources(ByteSizeValue.ofGb(1), ByteSizeValue.ofGb(1)),

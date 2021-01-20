@@ -564,7 +564,7 @@ public class RestoreSnapshotRequest extends MasterNodeRequest<RestoreSnapshotReq
         if (renameReplacement != null) {
             builder.field("rename_replacement", renameReplacement);
         }
-        if (featureStates != null) {
+        if (featureStates != null && featureStates.length > 0) {
             builder.startArray("feature_states");
             for (String plugin : featureStates) {
                 builder.value(plugin);

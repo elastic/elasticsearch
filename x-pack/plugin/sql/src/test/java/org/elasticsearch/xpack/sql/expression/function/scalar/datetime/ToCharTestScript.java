@@ -55,6 +55,11 @@ public class ToCharTestScript {
     public static final Set<String> NOT_FULLY_MATCHABLE_PATTERNS = Set.of("TZ", "tz");
     private static final Set<String> UNSUPPORTED_PATTERN_MODIFIERS = Set.of("FX", "TM", "SP");
     private static final List<String> PATTERNS = new ArrayList<>(ToCharFormatter.FORMATTER_MAP.keySet());
+    private static final List<String> MATCHABLE_PATTERNS;
+    static {
+        MATCHABLE_PATTERNS = new ArrayList<>(PATTERNS);
+        MATCHABLE_PATTERNS.removeAll(NOT_FULLY_MATCHABLE_PATTERNS);
+    }
     private static final List<String> FILL_MODIFIERS = asList("FM", "fm", "");
     private static final List<String> ORDINAL_SUFFIX_MODIFIERS = asList("TH", "th", "");
     // timezones that are valid both in Java and in Postgres
@@ -71,7 +76,6 @@ public class ToCharTestScript {
         
         patternsOneByOne();
         allPatternsTogether();
-        lowercasePatterns();
         postgreSQLPatternParsingBehaviour();
         monthsAsRomanNumbers();
         randomizedPatternStrings();
@@ -91,7 +95,7 @@ public class ToCharTestScript {
     }
 
     private void patternsOneByOne() {
-        for (String pattern : PATTERNS) {
+        for (String pattern : MATCHABLE_PATTERNS) {
             testRecords.add(new TestRecord(
                 randomFromCollection(testEpochSeconds),
                 NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern) ?
@@ -104,18 +108,10 @@ public class ToCharTestScript {
         for (BigDecimal es : testEpochSeconds) {
             testRecords.add(new TestRecord(
                 es,
-                IntStream.range(0, PATTERNS.size())
-                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx)))
+                IntStream.range(0, MATCHABLE_PATTERNS.size())
+                    .mapToObj(idx -> idx + ":" + patternWithRandomModifiers(MATCHABLE_PATTERNS.get(idx)))
                     .collect(Collectors.joining(PATTERN_DELIMITER))));
         }
-    }
-
-    private void lowercasePatterns() {
-        testRecords.add(new TestRecord(
-            randomFromCollection(testEpochSeconds),
-            IntStream.range(0, PATTERNS.size())
-                .mapToObj(idx -> (idx + ":" + patternWithRandomModifiers(PATTERNS.get(idx))).toLowerCase(Locale.ROOT))
-                .collect(Collectors.joining(PATTERN_DELIMITER))));
     }
 
     private void postgreSQLPatternParsingBehaviour() {
@@ -176,9 +172,6 @@ public class ToCharTestScript {
     }
 
     private String patternWithRandomModifiers(String pattern) {
-        if (NOT_FULLY_MATCHABLE_PATTERNS.contains(pattern)) {
-            return pattern;
-        }
         return randomFromCollection(FILL_MODIFIERS) + pattern + randomFromCollection(ORDINAL_SUFFIX_MODIFIERS);
     }
 

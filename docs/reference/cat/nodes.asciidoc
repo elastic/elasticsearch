@@ -11,6 +11,12 @@ Returns information about a cluster's nodes.
 
 `GET /_cat/nodes`
 
+[[cat-nodes-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[cat-nodes-api-query-params]]
 ==== {api-query-parms-title}
 

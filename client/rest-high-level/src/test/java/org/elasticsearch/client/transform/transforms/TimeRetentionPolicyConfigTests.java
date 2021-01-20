@@ -1,0 +1,29 @@
+package org.elasticsearch.client.transform.transforms;
+
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.test.AbstractXContentTestCase;
+
+import java.io.IOException;
+
+public class TimeRetentionPolicyConfigTests extends AbstractXContentTestCase<TimeRetentionPolicyConfig> {
+
+    public static TimeRetentionPolicyConfig randomTimeRetentionPolicyConfig() {
+        return new TimeRetentionPolicyConfig(randomAlphaOfLengthBetween(1, 10), new TimeValue(randomNonNegativeLong()));
+    }
+
+    @Override
+    protected TimeRetentionPolicyConfig createTestInstance() {
+        return randomTimeRetentionPolicyConfig();
+    }
+
+    @Override
+    protected TimeRetentionPolicyConfig doParseInstance(XContentParser parser) throws IOException {
+        return TimeRetentionPolicyConfig.fromXContent(parser);
+    }
+
+    @Override
+    protected boolean supportsUnknownFields() {
+        return true;
+    }
+}

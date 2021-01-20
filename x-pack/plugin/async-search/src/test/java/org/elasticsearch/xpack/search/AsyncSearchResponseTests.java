@@ -48,7 +48,7 @@ public class AsyncSearchResponseTests extends ESTestCase {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, emptyList());
 
         List<NamedWriteableRegistry.Entry> namedWriteables = searchModule.getNamedWriteables();
-        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME_BASED_SYNC.getPreferredName(),
+        namedWriteables.add(new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(),
             TimeSyncConfig::new));
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();

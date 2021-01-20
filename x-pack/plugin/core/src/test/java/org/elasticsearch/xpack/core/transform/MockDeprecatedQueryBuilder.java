@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.transform.transforms;
+package org.elasticsearch.xpack.core.transform;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParsingException;

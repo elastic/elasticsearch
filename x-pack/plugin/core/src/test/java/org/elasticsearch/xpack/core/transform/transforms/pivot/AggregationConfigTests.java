@@ -20,8 +20,8 @@ import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-import org.elasticsearch.xpack.core.transform.transforms.AbstractSerializingTransformTestCase;
-import org.elasticsearch.xpack.core.transform.transforms.MockDeprecatedAggregationBuilder;
+import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
+import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.junit.Before;
 
 import java.io.IOException;

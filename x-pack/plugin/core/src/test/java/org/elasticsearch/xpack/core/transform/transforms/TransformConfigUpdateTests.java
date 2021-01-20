@@ -42,10 +42,6 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         );
     }
 
-    public static SyncConfig randomSyncConfig() {
-        return TimeSyncConfigTests.randomTimeSyncConfig();
-    }
-
     @Override
     protected TransformConfigUpdate createTestInstance() {
         return randomTransformConfigUpdate();
@@ -89,12 +85,13 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
-            TimeSyncConfigTests.randomTimeSyncConfig(),
+            randomSyncConfig(),
             Collections.singletonMap("key", "value"),
             PivotConfigTests.randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
@@ -129,12 +126,13 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
-            TimeSyncConfigTests.randomTimeSyncConfig(),
+            randomSyncConfig(),
             Collections.singletonMap("key", "value"),
             PivotConfigTests.randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.V_7_2_0.toString()
         );
@@ -183,6 +181,7 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -200,12 +199,13 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
             randomSourceConfig(),
             randomDestConfig(),
             TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
-            TimeSyncConfigTests.randomTimeSyncConfig(),
+            randomSyncConfig(),
             null,
             PivotConfigTests.randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             SettingsConfigTests.randomNonEmptySettingsConfig(),
+            randomRetentionPolicyConfig(),
             randomBoolean() ? null : Instant.now(),
             randomBoolean() ? null : Version.CURRENT.toString()
         );
@@ -252,6 +252,14 @@ public class TransformConfigUpdateTests extends AbstractWireSerializingTransform
         }
 
         builder.endObject();
+    }
+
+    private static SyncConfig randomSyncConfig() {
+        return TimeSyncConfigTests.randomTimeSyncConfig();
+    }
+
+    private static RetentionPolicyConfig randomRetentionPolicyConfig() {
+        return TimeRetentionPolicyConfigTests.randomTimeRetentionPolicyConfig();
     }
 
     static class FooSync implements SyncConfig {

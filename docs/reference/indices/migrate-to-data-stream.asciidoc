@@ -72,6 +72,12 @@ DELETE /_index_template/template
 
 `POST /_data_stream/_migrate/<alias>`
 
+[[indices-migrate-to-data-stream-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the index alias.
+
 [[indices-migrate-to-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 

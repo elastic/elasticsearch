@@ -6,10 +6,11 @@
 import org.elasticsearch.gradle.info.BuildParams
 
 apply plugin: 'elasticsearch.yaml-rest-test'
-
+apply plugin: 'elasticsearch.java-rest-test'
 
 dependencies {
   yamlRestTestImplementation project(path: xpackModule('rollup'))
+  javaRestTestImplementation project(path: xpackModule('rollup'))
 }
 
 restResources {
@@ -19,15 +20,16 @@ restResources {
   }
 }
 
-testClusters.all {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.license.self_generated.type', 'basic'
-  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
-}
-
 tasks.named("test").configure{enabled = false }
 
 if (BuildParams.inFipsJvm){
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("yamlRestTest").configure{enabled = false }
+  tasks.named("javaRestTest").configure{enabled = false }
+}
+
+testClusters.all {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'basic'
+  systemProperty 'es.rollup_v2_feature_flag_enabled', 'true'
 }

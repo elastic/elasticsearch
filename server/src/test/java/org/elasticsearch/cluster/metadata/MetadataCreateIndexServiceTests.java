@@ -607,12 +607,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
-    public void testXXX () {
+    public void testAliasNameWithMathExpression() {
 
         final String aliasName = "<date-math-based-{2021-01-19||/M{yyyy-MM-dd}}>";
 
         request.aliases(Set.of(new Alias(aliasName)));
-
 
         List<AliasMetadata> aliasMetadata = resolveAndValidateAliases(request.index(), request.aliases(), List.of(), Metadata.builder().build(),
             aliasValidator, xContentRegistry(), queryShardContext, indexNameExpressionResolver::resolveDateMathExpression);
@@ -697,6 +696,34 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         AliasMetadata alias = resolvedAliases.get(0);
         assertThat(alias.getSearchRouting(), equalTo("3"));
         assertThat(alias.writeIndex(), is(true));
+    }
+
+    public void testResolvedAliasInTemplate() {
+
+        List<IndexTemplateMetadata> templates = new ArrayList<>(3);
+        templates.add(addMatchingTemplate(builder -> builder
+            .order(3)
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+            .putAlias(AliasMetadata.builder("<jan-{2021-01-07||/M{yyyy-MM-dd}}>").build())
+        ));
+        templates.add(addMatchingTemplate(builder -> builder
+            .order(2)
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+            .putAlias(AliasMetadata.builder("<feb-{2021-02-28||/M{yyyy-MM-dd}}>").build())
+        ));
+        templates.add(addMatchingTemplate(builder -> builder
+            .order(1)
+            .settings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1))
+            .putAlias(AliasMetadata.builder("<mar-{2021-03-07||/M{yyyy-MM-dd}}>").build())
+        ));
+
+        List<AliasMetadata> resolvedAliases = resolveAndValidateAliases(request.index(), request.aliases(),
+            MetadataIndexTemplateService.resolveAliases(templates),
+            Metadata.builder().build(), aliasValidator, xContentRegistry(), queryShardContext, indexNameExpressionResolver::resolveDateMathExpression);
+
+        assertThat(resolvedAliases.get(0).alias(), equalTo("jan-2021-01-01"));
+        assertThat(resolvedAliases.get(1).alias(), equalTo("feb-2021-02-01"));
+        assertThat(resolvedAliases.get(2).alias(), equalTo("mar-2021-03-01"));
     }
 
     public void testAggregateIndexSettingsIgnoresTemplatesOnCreateFromSourceIndex() throws Exception {

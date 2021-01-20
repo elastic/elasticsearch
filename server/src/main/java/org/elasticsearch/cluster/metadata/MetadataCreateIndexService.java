@@ -838,7 +838,20 @@ public class MetadataCreateIndexService {
             dateMathExpressionResolvedAliases.add(alias.name(resolvedName));
         }
 
-        return resolveAndValidateAliases(index, dateMathExpressionResolvedAliases, templateAliases, metadata, aliasValidator, xContentRegistry, queryShardContext);
+
+        List<Map<String, AliasMetadata>> resolvedTemplateAliases = new ArrayList<>(templateAliases.size());
+
+        for (Map<String, AliasMetadata> templateAlias: templateAliases) {
+            Map<String, AliasMetadata> resolvedAliases = new HashMap<>();
+            for (Map.Entry<String, AliasMetadata> eachAlias : templateAlias.entrySet()) {
+                AliasMetadata fromTemplate = eachAlias.getValue();
+                String resolvedAlias = indexNameExpressionResolver.apply(fromTemplate.alias());
+
+                resolvedAliases.put(eachAlias.getKey(), AliasMetadata.newAliasMetadata(fromTemplate, resolvedAlias));
+            }
+            resolvedTemplateAliases.add(resolvedAliases);
+        }
+        return resolveAndValidateAliases(index, dateMathExpressionResolvedAliases, Collections.unmodifiableList(resolvedTemplateAliases), metadata, aliasValidator, xContentRegistry, queryShardContext);
     }
 
     /**

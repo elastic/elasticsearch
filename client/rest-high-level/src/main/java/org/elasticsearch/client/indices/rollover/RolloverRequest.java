@@ -105,6 +105,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
         this.conditions.put(maxDocsCondition.name(), maxDocsCondition);
         return this;
     }
+
     /**
      * Adds a size-based condition to check if the index size is at least <code>size</code>.
      */

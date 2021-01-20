@@ -205,7 +205,6 @@ public class TransportRolloverActionTests extends ESTestCase {
         results.forEach((k, v) -> assertFalse(v));
     }
 
-
     public void testConditionEvaluationWhenAliasToWriteAndReadIndicesConsidersOnlyPrimariesFromWriteIndex() throws Exception {
         final TransportService mockTransportService = mock(TransportService.class);
         final ClusterService mockClusterService = mock(ClusterService.class);
@@ -238,20 +237,20 @@ public class TransportRolloverActionTests extends ESTestCase {
         assert statsResponse.getTotal().getDocs().getCount() == (total + total);
 
         final IndexMetadata.Builder indexMetadata = IndexMetadata.builder("logs-index-000001")
-                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(false).build()).settings(settings(Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(1);
         final IndexMetadata.Builder indexMetadata2 = IndexMetadata.builder("logs-index-000002")
-                .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
-                .numberOfShards(1).numberOfReplicas(1);
+            .putAlias(AliasMetadata.builder("logs-alias").writeIndex(true).build()).settings(settings(Version.CURRENT))
+            .numberOfShards(1).numberOfReplicas(1);
         final ClusterState stateBefore = ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2)).build();
+            .metadata(Metadata.builder().put(indexMetadata).put(indexMetadata2)).build();
 
         when(mockCreateIndexService.applyCreateIndexRequest(any(), any(), anyBoolean())).thenReturn(stateBefore);
         when(mdIndexAliasesService.applyAliasActions(any(), any())).thenReturn(stateBefore);
         MetadataRolloverService rolloverService = new MetadataRolloverService(mockThreadPool, mockCreateIndexService,
             mdIndexAliasesService, mockIndexNameExpressionResolver);
         final TransportRolloverAction transportRolloverAction = new TransportRolloverAction(mockTransportService, mockClusterService,
-                mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
+            mockThreadPool, mockActionFilters, mockIndexNameExpressionResolver, rolloverService, mockClient);
 
         // For given alias, verify that condition evaluation fails when the condition doc count is greater than the primaries doc count
         // (primaries from only write index is considered)

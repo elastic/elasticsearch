@@ -58,12 +58,12 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     static {
         CONDITION_PARSER.declareString((conditions, s) ->
                 conditions.put(MaxAgeCondition.NAME, new MaxAgeCondition(TimeValue.parseTimeValue(s, MaxAgeCondition.NAME))),
-                MAX_AGE_CONDITION);
+            MAX_AGE_CONDITION);
         CONDITION_PARSER.declareLong((conditions, value) ->
-                conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
+            conditions.put(MaxDocsCondition.NAME, new MaxDocsCondition(value)), MAX_DOCS_CONDITION);
         CONDITION_PARSER.declareString((conditions, s) ->
                 conditions.put(MaxSizeCondition.NAME, new MaxSizeCondition(ByteSizeValue.parseBytesSizeValue(s, MaxSizeCondition.NAME))),
-                MAX_SIZE_CONDITION);
+            MAX_SIZE_CONDITION);
 
         PARSER.declareField((parser, request, context) -> CONDITION_PARSER.parse(parser, request.conditions, null),
             CONDITIONS, ObjectParser.ValueType.OBJECT);
@@ -155,6 +155,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     public void setNewIndexName(String newIndexName) {
         this.newIndexName = newIndexName;
     }
+
     /**
      * Sets if the rollover should not be executed when conditions are met
      */

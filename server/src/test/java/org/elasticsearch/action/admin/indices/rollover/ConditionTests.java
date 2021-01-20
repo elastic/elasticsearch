@@ -76,11 +76,11 @@ public class ConditionTests extends ESTestCase {
     public void testEqualsAndHashCode() {
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxDocsCondition, condition -> new MaxDocsCondition(condition.value),
-                condition -> new MaxDocsCondition(randomLong()));
+            condition -> new MaxDocsCondition(randomLong()));
 
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(randomByteSize());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value),
-                condition -> new MaxSizeCondition(randomByteSize()));
+            condition -> new MaxSizeCondition(randomByteSize()));
 
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value),

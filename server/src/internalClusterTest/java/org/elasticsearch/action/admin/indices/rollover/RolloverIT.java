@@ -197,7 +197,7 @@ public class RolloverIT extends ESIntegTestCase {
         indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final Settings settings = Settings.builder()
-            .put("number_of_shards", 1) 
+            .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")

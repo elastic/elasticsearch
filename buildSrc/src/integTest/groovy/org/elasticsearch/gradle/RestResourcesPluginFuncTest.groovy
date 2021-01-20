@@ -60,8 +60,7 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
-        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
-        new File(resourceDir, "/api/" + api).exists()
+        file("/build/resources/test/rest-api-spec/api/" + api).exists()
     }
 
     def "restResources copies all core API (but not x-pack) by default for projects with copied tests"() {
@@ -93,12 +92,11 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
-        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
-        new File(resourceDir, "/api/" + apiCore1).exists()
-        new File(resourceDir, "/api/" + apiCore2).exists()
-        new File(resourceDir, "/api/" + apiXpack).exists() == false //x-pack specs must be explicitly configured
-        new File(resourceDir, "/test/" + coreTest).exists()
-        new File(resourceDir, "/test/" + xpackTest).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiCore1).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiCore2).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiXpack).exists() == false //x-pack specs must be explicitly configured
+        file("/build/resources/test/rest-api-spec/test/" + coreTest).exists()
+        file("/build/resources/test/rest-api-spec/test/" + xpackTest).exists()
     }
 
     def "restResources copies API by configuration"() {
@@ -128,11 +126,10 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
-        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
-        new File(resourceDir, "/api/" + apiFoo).exists()
-        new File(resourceDir, "/api/" + apiXpackFoo).exists()
-        new File(resourceDir, "/api/" + apiBar).exists() == false
-        new File(resourceDir, "/api/" + apiXpackBar).exists() == false
+        file("/build/resources/test/rest-api-spec/api/" + apiFoo).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiXpackFoo).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiBar).exists() ==false
+        file("/build/resources/test/rest-api-spec/api/" + apiXpackBar).exists() == false
     }
 
     def "restResources copies Tests and API by configuration"() {
@@ -168,12 +165,11 @@ class RestResourcesPluginFuncTest extends AbstractRestResourcesFuncTest {
         then:
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.SUCCESS
-        File resourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
-        new File(resourceDir, "/api/" + apiCore1).exists()
-        new File(resourceDir, "/api/" + apiCore2).exists()
-        new File(resourceDir, "/api/" + apiXpack).exists()
-        new File(resourceDir, "/test/" + coreTest).exists()
-        new File(resourceDir, "/test/" + xpackTest).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiCore1).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiCore2).exists()
+        file("/build/resources/test/rest-api-spec/api/" + apiXpack).exists()
+        file("/build/resources/test/rest-api-spec/test/" + coreTest).exists()
+        file("/build/resources/test/rest-api-spec/test/" + xpackTest).exists()
 
         when:
         result = gradleRunner("copyRestApiSpecsTask").build()

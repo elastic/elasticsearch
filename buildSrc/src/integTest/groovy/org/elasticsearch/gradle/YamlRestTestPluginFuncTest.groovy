@@ -66,17 +66,15 @@ class YamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
-        File resourceDir = new File(testProjectDir.root, "build/resources/yamlRestTest/rest-api-spec")
-        File classDir = new File(testProjectDir.root, "build/classes/java/yamlRestTest")
-        new File(resourceDir, "/api/" + api).exists()
-        new File(resourceDir, "/test/10_basic.yml").exists()
-        new File(classDir, "/MockIT.class").exists()
 
-        File wrongResourceDir = new File(testProjectDir.root, "build/resources/test/rest-api-spec")
-        File wrongClassDir = new File(testProjectDir.root, "build/classes/java/test")
-        new File(wrongResourceDir, "/api/" + api).exists() == false
-        new File(wrongResourceDir, "/test/10_basic.yml").exists() == false
-        new File(wrongClassDir, "/MockIT.class").exists() == false
+        file("/build/resources/yamlRestTest/rest-api-spec/api/" + api).exists()
+        file("/build/resources/yamlRestTest/rest-api-spec/test/10_basic.yml").exists()
+        file("/build/classes/java/yamlRestTest/MockIT.class").exists()
+
+        //ensure we don't use the default test sourceset
+        file("/build/resources/test/rest-api-spec/api/" + api).exists() == false
+        file("/build/resources/test/rest-api-spec/test/10_basic.yml").exists() == false
+        file("/build/resources/test/rest-api-spec/MockIT.class").exists() == false
 
         when:
         result = gradleRunner("yamlRestTest").build()

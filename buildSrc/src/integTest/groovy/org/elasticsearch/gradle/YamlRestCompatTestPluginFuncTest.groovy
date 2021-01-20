@@ -79,8 +79,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
         String wrongApi = "wrong_version.json"
         String wrongTest = "wrong_version.yml"
+        String additionalTest = "additional_test.yml"
         setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
-        addRestTestsToProject(["additional_test.yml"], "yamlRestCompatTest")
+        addRestTestsToProject([additionalTest], "yamlRestCompatTest")
         //intentionally adding to yamlRestTest source set since the .classes are copied from there
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
@@ -98,15 +99,15 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SUCCESS
 
-        File resourceDir = new File(testProjectDir.root, "build/resources/yamlRestCompatTest/rest-api-spec")
-        File classDir = new File(testProjectDir.root, "build/classes/java/yamlRestTest")
-        new File(resourceDir, "/api/" + api).exists()
-        new File(resourceDir, "/test/" + test).exists()
-        new File(resourceDir, "/test/additional_test.yml").exists()
-        new File(classDir, "/MockIT.class").exists() //The "standard" runner is used to execute the compat test
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + api).exists()
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + test).exists()
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + additionalTest).exists()
 
-        new File(resourceDir, "/api/" + wrongApi).exists() == false
-        new File(resourceDir, "/test/" + wrongTest).exists() == false
+        file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
+
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/api/" + wrongApi).exists() == false
+        file("/build/resources/yamlRestCompatTest/rest-api-spec/test/" + wrongTest).exists() == false
+
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 

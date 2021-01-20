@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Before;
@@ -14,6 +15,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toMap;
 
@@ -22,10 +24,14 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     private boolean lenient;
 
     public static SourceConfig randomSourceConfig() {
+        return randomSourceConfig(Version.V_8_0_0);
+    }
+
+    public static SourceConfig randomSourceConfig(Version version) {
         return new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            randomRuntimeMappings());
+            version.onOrAfter(Version.V_8_0_0) ? randomRuntimeMappings() : emptyMap());
     }
 
     public static SourceConfig randomInvalidSourceConfig() {

@@ -48,7 +48,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     public static TransformConfig randomTransformConfigWithoutHeaders(Version version, String id) {
         return new TransformConfig(
             id,
-            randomSourceConfig(),
+            randomSourceConfig(version),
             randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),

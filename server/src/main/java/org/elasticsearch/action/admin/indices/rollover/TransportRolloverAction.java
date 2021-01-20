@@ -51,6 +51,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -106,7 +107,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 @Override
                 public void onResponse(IndicesStatsResponse statsResponse) {
                     final Map<String, Boolean> conditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
-                        metadata.index(sourceIndexName), statsResponse);
+                        buildStats(metadata.index(sourceIndexName), statsResponse));
 
                     if (rolloverRequest.isDryRun()) {
                         listener.onResponse(
@@ -167,30 +168,35 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   @Nullable final DocsStats docsStats,
-                                                   @Nullable final IndexMetadata metadata) {
-        if (metadata == null) {
-            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+                                                   @Nullable final Condition.Stats stats) {
+        Objects.requireNonNull(conditions, "conditions must not be null");
+
+        if (stats != null) {
+            return conditions.stream()
+                .map(condition -> condition.evaluate(stats))
+                .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
+        } else {
+            // no conditions matched
+            return conditions.stream()
+                .collect(Collectors.toMap(Condition::toString, cond -> false));
         }
-        final long numDocs = docsStats == null ? 0 : docsStats.getCount();
-        final long indexSize = docsStats == null ? 0 : docsStats.getTotalSizeInBytes();
-        final Condition.Stats stats = new Condition.Stats(numDocs, metadata.getCreationDate(), new ByteSizeValue(indexSize));
-        return conditions.stream()
-            .map(condition -> condition.evaluate(stats))
-            .collect(Collectors.toMap(result -> result.condition.toString(), result -> result.matched));
     }
 
-    static Map<String, Boolean> evaluateConditions(final Collection<Condition<?>> conditions,
-                                                   @Nullable final IndexMetadata metadata,
-                                                   @Nullable final IndicesStatsResponse statsResponse) {
+    static Condition.Stats buildStats(@Nullable final IndexMetadata metadata,
+                                      @Nullable final IndicesStatsResponse statsResponse) {
         if (metadata == null) {
-            return conditions.stream().collect(Collectors.toMap(Condition::toString, cond -> false));
+            return null;
         } else {
             final DocsStats docsStats = Optional.ofNullable(statsResponse)
                 .map(stats -> stats.getIndex(metadata.getIndex().getName()))
-                .map(indexStats -> indexStats.getPrimaries().getDocs())
+                .map(stats -> stats.getPrimaries().getDocs())
                 .orElse(null);
-            return evaluateConditions(conditions, docsStats, metadata);
+
+            return new Condition.Stats(
+                docsStats == null ? 0 : docsStats.getCount(),
+                metadata.getCreationDate(),
+                new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes())
+            );
         }
     }
 }

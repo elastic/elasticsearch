@@ -607,6 +607,19 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         );
     }
 
+    public void testXXX () {
+
+        final String aliasName = "<date-math-based-{2021-01-19||/M{yyyy-MM-dd}}>";
+
+        request.aliases(Set.of(new Alias(aliasName)));
+
+
+        List<AliasMetadata> aliasMetadata = resolveAndValidateAliases(request.index(), request.aliases(), List.of(), Metadata.builder().build(),
+            aliasValidator, xContentRegistry(), queryShardContext, indexNameExpressionResolver::resolveDateMathExpression);
+
+        assertEquals("date-math-based-2021-01-01", aliasMetadata.get(0).alias() );
+    }
+
     public void testRequestDataHavePriorityOverTemplateData() throws Exception {
         CompressedXContent templateMapping = createMapping("test", "text");
         CompressedXContent reqMapping = createMapping("test", "keyword");
@@ -656,7 +669,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(aggregatedIndexSettings.get(SETTING_NUMBER_OF_SHARDS), equalTo("15"));
     }
 
-    public void testTemplateOrder() throws Exception {
+    public void testTemplateOrder() throws  Exception {
         List<IndexTemplateMetadata> templates = new ArrayList<>(3);
         templates.add(addMatchingTemplate(builder -> builder
             .order(3)

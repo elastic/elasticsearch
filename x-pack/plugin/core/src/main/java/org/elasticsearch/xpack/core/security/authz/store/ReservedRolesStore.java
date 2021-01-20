@@ -164,7 +164,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                     .privileges("read", "write").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-actions-results")
-                                    .privileges("read", "write").build(),
+                                    .privileges("read").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-enrollment-api-keys")
                                     .privileges("read", "write").build(),
@@ -173,7 +173,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                     .privileges("read", "write").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-servers")
-                                    .privileges("read", "write").build(),
+                                    .privileges("read").build(),
                         },
                         null,
                         new ConfigurableClusterPrivilege[] { new ManageApplicationPrivileges(Collections.singleton("kibana-*")) },

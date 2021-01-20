@@ -118,7 +118,6 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertThat("Expected to recover 100% of files", recoveryState.getIndex().recoveredBytesPercent(), equalTo(100.0f));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67795")
     public void testFilesStoredInThePersistentCacheAreMarkedAsReusedInRecoveryState() throws Exception {
         final String fsRepoName = randomAlphaOfLength(10);
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);

@@ -1479,7 +1479,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
     public void testRollupIndex() throws Exception {
         createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
-        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
+        String rollupIndex = RollupStep.getRollupIndexName(index);
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
@@ -1490,6 +1490,23 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
 
         assertBusy(() -> assertTrue(indexExists(rollupIndex)));
         assertBusy(() -> assertFalse(getOnlyIndexSettings(client(), rollupIndex).containsKey(LifecycleSettings.LIFECYCLE_NAME)));
+        assertBusy(() -> assertTrue(indexExists(index)));
+    }
+
+    public void testRollupIndexAndSetNewRollupPolicy() throws Exception {
+        createIndexWithSettings(client(), index, alias, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0));
+        String rollupIndex = RollupStep.ROLLUP_INDEX_NAME_PREFIX + index;
+        index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
+        RollupActionConfig rollupConfig = new RollupActionConfig(
+            new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
+
+        createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
+        updatePolicy(index, policy);
+
+        assertBusy(() -> assertTrue(indexExists(rollupIndex)));
+        assertBusy(() -> assertThat(getOnlyIndexSettings(client(), rollupIndex).get(LifecycleSettings.LIFECYCLE_NAME), equalTo(policy)));
         assertBusy(() -> assertTrue(indexExists(index)));
     }
 

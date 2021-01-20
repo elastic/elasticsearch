@@ -29,6 +29,10 @@ public class RollupStep extends AsyncActionStep {
         this.config = config;
     }
 
+    public static String getRollupIndexName(String index) {
+        return ROLLUP_INDEX_NAME_PREFIX + index;
+    }
+
     @Override
     public boolean isRetryable() {
         return true;
@@ -37,8 +41,7 @@ public class RollupStep extends AsyncActionStep {
     @Override
     public void performAction(IndexMetadata indexMetadata, ClusterState currentState, ClusterStateObserver observer, Listener listener) {
         String originalIndex = indexMetadata.getIndex().getName();
-        String rollupIndex = ROLLUP_INDEX_NAME_PREFIX + originalIndex;
-        RollupAction.Request request = new RollupAction.Request(originalIndex, rollupIndex, config);
+        RollupAction.Request request = new RollupAction.Request(originalIndex, getRollupIndexName(originalIndex), config);
         getClient().execute(RollupAction.INSTANCE, request,
             ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
     }

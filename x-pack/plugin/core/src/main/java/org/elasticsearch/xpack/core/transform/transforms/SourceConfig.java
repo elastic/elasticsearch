@@ -89,7 +89,9 @@ public class SourceConfig implements Writeable, ToXContentObject {
         }
         this.index = index;
         this.queryConfig = ExceptionsHelper.requireNonNull(queryConfig, QUERY.getPreferredName());
-        this.runtimeMappings = Collections.unmodifiableMap(runtimeMappings);
+        this.runtimeMappings =
+            Collections.unmodifiableMap(
+                ExceptionsHelper.requireNonNull(runtimeMappings, SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD.getPreferredName()));
     }
 
     public SourceConfig(final StreamInput in) throws IOException {

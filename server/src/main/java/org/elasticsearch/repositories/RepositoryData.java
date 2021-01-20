@@ -22,6 +22,7 @@ package org.elasticsearch.repositories;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -70,8 +71,14 @@ public final class RepositoryData {
     /**
      * An instance initialized for an empty repository.
      */
-    public static final RepositoryData EMPTY = new RepositoryData(EMPTY_REPO_GEN, Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), ShardGenerations.EMPTY,
+    public static final RepositoryData EMPTY = new RepositoryData(
+            EMPTY_REPO_GEN,
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            Collections.emptyMap(),
+            ShardGenerations.EMPTY,
             IndexMetaDataGenerations.EMPTY);
 
     /**
@@ -107,19 +114,34 @@ public final class RepositoryData {
      */
     private final ShardGenerations shardGenerations;
 
-    public RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                          Map<String, Version> snapshotVersions, Map<IndexId, List<SnapshotId>> indexSnapshots,
-                          ShardGenerations shardGenerations, IndexMetaDataGenerations indexMetaDataGenerations) {
-        this(genId, Collections.unmodifiableMap(snapshotIds), Collections.unmodifiableMap(snapshotStates),
+    public RepositoryData(
+            long genId,
+            Map<String, SnapshotId> snapshotIds,
+            Map<String, SnapshotState> snapshotStates,
+            Map<String, Version> snapshotVersions,
+            Map<IndexId, List<SnapshotId>> indexSnapshots,
+            ShardGenerations shardGenerations,
+            IndexMetaDataGenerations indexMetaDataGenerations) {
+        this(
+                genId,
+                Collections.unmodifiableMap(snapshotIds),
+                Collections.unmodifiableMap(snapshotStates),
                 Collections.unmodifiableMap(snapshotVersions),
                 indexSnapshots.keySet().stream().collect(Collectors.toUnmodifiableMap(IndexId::getName, Function.identity())),
-                Collections.unmodifiableMap(indexSnapshots), shardGenerations, indexMetaDataGenerations);
+                Collections.unmodifiableMap(indexSnapshots),
+                shardGenerations,
+                indexMetaDataGenerations);
     }
 
-    private RepositoryData(long genId, Map<String, SnapshotId> snapshotIds, Map<String, SnapshotState> snapshotStates,
-                           Map<String, Version> snapshotVersions, Map<String, IndexId> indices,
-                           Map<IndexId, List<SnapshotId>> indexSnapshots, ShardGenerations shardGenerations,
-                           IndexMetaDataGenerations indexMetaDataGenerations) {
+    private RepositoryData(
+            long genId,
+            Map<String, SnapshotId> snapshotIds,
+            Map<String, SnapshotState> snapshotStates,
+            Map<String, Version> snapshotVersions,
+            Map<String, IndexId> indices,
+            Map<IndexId, List<SnapshotId>> indexSnapshots,
+            ShardGenerations shardGenerations,
+            IndexMetaDataGenerations indexMetaDataGenerations) {
         this.genId = genId;
         this.snapshotIds = snapshotIds;
         this.snapshotStates = snapshotStates;
@@ -129,14 +151,21 @@ public final class RepositoryData {
         this.indexMetaDataGenerations = indexMetaDataGenerations;
         this.snapshotVersions = snapshotVersions;
         assert indices.values().containsAll(shardGenerations.indices()) : "ShardGenerations contained indices "
-            + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
+                + shardGenerations.indices() + " but snapshots only reference indices " + indices.values();
         assert indexSnapshots.values().stream().noneMatch(snapshotIdList -> Set.copyOf(snapshotIdList).size() != snapshotIdList.size()) :
                 "Found duplicate snapshot ids per index in [" + indexSnapshots + "]";
     }
 
     protected RepositoryData copy() {
         return new RepositoryData(
-            genId, snapshotIds, snapshotStates, snapshotVersions, indexSnapshots, shardGenerations, indexMetaDataGenerations);
+                genId,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations);
     }
 
     /**
@@ -151,7 +180,14 @@ public final class RepositoryData {
         final Map<String, Version> newVersions = new HashMap<>(snapshotVersions);
         versions.forEach((id, version) -> newVersions.put(id.getUUID(), version));
         return new RepositoryData(
-            genId, snapshotIds, snapshotStates, newVersions, indexSnapshots, shardGenerations, indexMetaDataGenerations);
+                genId,
+                snapshotIds,
+                snapshotStates,
+                newVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations);
     }
 
     public ShardGenerations shardGenerations() {
@@ -221,8 +257,7 @@ public final class RepositoryData {
 
     /**
      * Returns a map of {@link IndexId} to a collection of {@link String} containing all the {@link IndexId} and the
-     * {@link org.elasticsearch.cluster.metadata.IndexMetadata} blob name in it that can be removed after removing the given snapshot from
-     * the repository.
+     * {@link IndexMetadata} blob name in it that can be removed after removing the given snapshot from the repository.
      * NOTE: Does not return a mapping for {@link IndexId} values that will be removed completely from the repository.
      *
      * @param snapshotIds SnapshotIds to remove
@@ -255,7 +290,7 @@ public final class RepositoryData {
      *                         generations indexed by the shard id they correspond to must be supplied.
      * @param indexMetaBlobs   Map of index metadata blob uuids
      * @param newIdentifiers   Map of new index metadata blob uuids keyed by the identifiers of the
-     *                         {@link org.elasticsearch.cluster.metadata.IndexMetadata} in them
+     *                         {@link IndexMetadata} in them
      */
     public RepositoryData addSnapshot(final SnapshotId snapshotId,
                                       final SnapshotState snapshotState,
@@ -298,9 +333,14 @@ public final class RepositoryData {
             newIndexMetaGenerations = indexMetaDataGenerations.withAddedSnapshot(snapshotId, indexMetaBlobs, newIdentifiers);
         }
 
-        return new RepositoryData(genId, snapshots, newSnapshotStates, newSnapshotVersions, allIndexSnapshots,
-            ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build(),
-            newIndexMetaGenerations);
+        return new RepositoryData(
+                genId,
+                snapshots,
+                newSnapshotStates,
+                newSnapshotVersions,
+                allIndexSnapshots,
+                ShardGenerations.builder().putAll(this.shardGenerations).putAll(shardGenerations).build(),
+                newIndexMetaGenerations);
     }
 
     /**
@@ -313,7 +353,14 @@ public final class RepositoryData {
         if (newGeneration == genId) {
             return this;
         }
-        return new RepositoryData(newGeneration, snapshotIds, snapshotStates, snapshotVersions, indices, indexSnapshots, shardGenerations,
+        return new RepositoryData(
+                newGeneration,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
                 indexMetaDataGenerations);
     }
 
@@ -354,10 +401,15 @@ public final class RepositoryData {
             }
         }
 
-        return new RepositoryData(genId, newSnapshotIds, newSnapshotStates, newSnapshotVersions, indexSnapshots,
-            ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
-                .retainIndicesAndPruneDeletes(indexSnapshots.keySet()).build(),
-            indexMetaDataGenerations.withRemovedSnapshots(snapshots)
+        return new RepositoryData(
+                genId,
+                newSnapshotIds,
+                newSnapshotStates,
+                newSnapshotVersions,
+                indexSnapshots,
+                ShardGenerations.builder().putAll(shardGenerations).putAll(updatedShardGenerations)
+                        .retainIndicesAndPruneDeletes(indexSnapshots.keySet()).build(),
+                indexMetaDataGenerations.withRemovedSnapshots(snapshots)
         );
     }
 
@@ -455,6 +507,7 @@ public final class RepositoryData {
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
         builder.startObject();
         // write the snapshots list
+
         builder.startArray(SNAPSHOTS);
         final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
         final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
@@ -482,6 +535,7 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endArray();
+
         // write the indices map
         builder.startObject(INDICES);
         for (final IndexId indexId : getIndices().values()) {
@@ -504,6 +558,7 @@ public final class RepositoryData {
             builder.endObject();
         }
         builder.endObject();
+
         if (shouldWriteIndexGens) {
             builder.field(MIN_VERSION, SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION.toString());
             builder.field(INDEX_METADATA_IDENTIFIERS, indexMetaDataGenerations.identifiers);
@@ -511,6 +566,7 @@ public final class RepositoryData {
             // Add min version field to make it impossible for older ES versions to deserialize this object
             builder.field(MIN_VERSION, SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION.toString());
         }
+
         builder.endObject();
         return builder;
     }
@@ -563,7 +619,13 @@ public final class RepositoryData {
         // ensure we drained the stream completely
         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
 
-        return new RepositoryData(genId, snapshots, snapshotStates, snapshotVersions, indexSnapshots, shardGenerations.build(),
+        return new RepositoryData(
+                genId,
+                snapshots,
+                snapshotStates,
+                snapshotVersions,
+                indexSnapshots,
+                shardGenerations.build(),
                 buildIndexMetaGenerations(indexMetaLookup, indexLookup, indexMetaIdentifiers));
     }
 
@@ -741,4 +803,5 @@ public final class RepositoryData {
         }
         return uuid;
     }
+
 }

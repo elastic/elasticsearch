@@ -27,6 +27,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -135,7 +136,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     /** Get the current interval in milliseconds that is set on this builder. */
     @Deprecated
     public long interval() {
-        DEPRECATION_LOGGER.deprecate("date-interval-getter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_INTERVAL)) {
             return TimeValue.parseTimeValue(dateHistogramInterval.toString(), "interval").getMillis();
         }
@@ -156,14 +157,14 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[interval] must be 1 or greater for aggregation [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_INTERVAL);
-        DEPRECATION_LOGGER.deprecate("date-interval-setter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-interval-setter", DEPRECATION_TEXT);
         this.dateHistogramInterval = new DateHistogramInterval(interval + "ms");
     }
 
     /** Get the current date interval that is set on this builder. */
     @Deprecated
     public DateHistogramInterval dateHistogramInterval() {
-        DEPRECATION_LOGGER.deprecate("date-histogram-interval-getter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-histogram-interval-getter", DEPRECATION_TEXT);
         if (intervalType.equals(IntervalTypeEnum.LEGACY_DATE_HISTO)) {
             return dateHistogramInterval;
         }
@@ -184,7 +185,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("[dateHistogramInterval] must not be null: [date_histogram]");
         }
         setIntervalType(IntervalTypeEnum.LEGACY_DATE_HISTO);
-        DEPRECATION_LOGGER.deprecate("date-histogram-interval-setter", DEPRECATION_TEXT);
+        DEPRECATION_LOGGER.deprecate(DeprecationCategory.AGGREGATIONS, "date-histogram-interval-setter", DEPRECATION_TEXT);
         this.dateHistogramInterval = dateHistogramInterval;
     }
 

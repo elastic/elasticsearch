@@ -23,18 +23,22 @@ public class FunctionDefinition {
     private final String name;
     private final List<String> aliases;
     private final Class<? extends Function> clazz;
+    private final Builder builder;
+
     /**
      * Is this a datetime function compatible with {@code EXTRACT}.
      */
+    // TODO: needs refactoring so that specific function properties (per language) are isolated from QL
     private final boolean extractViable;
-    private final Builder builder;
 
-    FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, boolean datetime, Builder builder) {
+
+    protected FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, boolean dateTime, Builder builder) {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
-        this.extractViable = datetime;
         this.builder = builder;
+
+        this.extractViable = dateTime;
     }
 
     public String name() {
@@ -49,14 +53,14 @@ public class FunctionDefinition {
         return clazz;
     }
 
-    Builder builder() {
+    public Builder builder() {
         return builder;
     }
 
     /**
      * Is this a datetime function compatible with {@code EXTRACT}.
      */
-    boolean extractViable() {
+    public boolean extractViable() {
         return extractViable;
     }
 

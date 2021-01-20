@@ -84,7 +84,6 @@ import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbers;
-import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.translog.Translog;
@@ -1898,7 +1897,6 @@ public class InternalEngine extends Engine {
 
     @Override
     public void forceMerge(final boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           final boolean upgrade, final boolean upgradeOnlyAncientSegments,
                            final String forceMergeUUID) throws EngineException, IOException {
         if (onlyExpungeDeletes && maxNumSegments >= 0) {
             throw new IllegalArgumentException("only_expunge_deletes and max_num_segments are mutually exclusive");
@@ -1907,30 +1905,15 @@ public class InternalEngine extends Engine {
          * We do NOT acquire the readlock here since we are waiting on the merges to finish
          * that's fine since the IW.rollback should stop all the threads and trigger an IOException
          * causing us to fail the forceMerge
-         *
-         * The way we implement upgrades is a bit hackish in the sense that we set an instance
-         * variable and that this setting will thus apply to the next forced merge that will be run.
-         * This is ok because (1) this is the only place we call forceMerge, (2) we have a single
-         * thread for optimize, and the 'optimizeLock' guarding this code, and (3) ConcurrentMergeScheduler
-         * syncs calls to findForcedMerges.
          */
-        assert indexWriter.getConfig().getMergePolicy() instanceof ElasticsearchMergePolicy : "MergePolicy is " +
-            indexWriter.getConfig().getMergePolicy().getClass().getName();
-        ElasticsearchMergePolicy mp = (ElasticsearchMergePolicy) indexWriter.getConfig().getMergePolicy();
         optimizeLock.lock();
         try {
             ensureOpen();
-            if (upgrade) {
-                logger.info("starting segment upgrade upgradeOnlyAncientSegments={}", upgradeOnlyAncientSegments);
-                mp.setUpgradeInProgress(true, upgradeOnlyAncientSegments);
-            }
             store.incRef(); // increment the ref just to ensure nobody closes the store while we optimize
             try {
                 if (onlyExpungeDeletes) {
-                    assert upgrade == false;
                     indexWriter.forceMergeDeletes(true /* blocks and waits for merges*/);
                 } else if (maxNumSegments <= 0) {
-                    assert upgrade == false;
                     indexWriter.maybeMerge();
                 } else {
                     indexWriter.forceMerge(maxNumSegments, true /* blocks and waits for merges*/);
@@ -1938,9 +1921,6 @@ public class InternalEngine extends Engine {
                 }
                 if (flush) {
                     flush(false, true);
-                }
-                if (upgrade) {
-                    logger.info("finished segment upgrade");
                 }
             } finally {
                 store.decRef();
@@ -1961,12 +1941,7 @@ public class InternalEngine extends Engine {
             }
             throw e;
         } finally {
-            try {
-                // reset it just to make sure we reset it in a case of an error
-                mp.setUpgradeInProgress(false, false);
-            } finally {
-                optimizeLock.unlock();
-            }
+            optimizeLock.unlock();
         }
     }
 
@@ -2201,7 +2176,7 @@ public class InternalEngine extends Engine {
             // to enable it.
             mergePolicy = new ShuffleForcedMergePolicy(mergePolicy);
         }
-        iwc.setMergePolicy(new ElasticsearchMergePolicy(mergePolicy));
+        iwc.setMergePolicy(mergePolicy);
         iwc.setSimilarity(engineConfig.getSimilarity());
         iwc.setRAMBufferSizeMB(engineConfig.getIndexingBufferSize().getMbFrac());
         iwc.setCodec(engineConfig.getCodec());

@@ -20,6 +20,7 @@
 package org.elasticsearch.gradle.test.rest;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.internal.CheckRestCompatPlugin;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
@@ -28,7 +29,6 @@ import org.elasticsearch.gradle.testclusters.TestDistribution;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.provider.Provider;
@@ -38,7 +38,6 @@ import org.gradle.api.tasks.SourceSetContainer;
 import java.io.File;
 import java.nio.file.Path;
 import java.util.Map;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.createTestCluster;
 import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;

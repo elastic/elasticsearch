@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.test.rest;
+package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.gradle.api.Plugin;

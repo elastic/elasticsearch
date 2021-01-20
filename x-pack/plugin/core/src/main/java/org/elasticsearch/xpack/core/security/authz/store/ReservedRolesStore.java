@@ -155,7 +155,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".logs-endpoint.diagnostic.collection-*")
                                     .privileges("read").build(),
-                                // Fleet Server indices Kibana read and write to these indices to manage Elastic Agents
+                                // Fleet Server indices. Kibana read and write from these indices to manage Elastic Agents (add actions, reassign policies, ...)
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-agents")
                                     .privileges("read", "write").build(),
@@ -163,16 +163,17 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                                     .indices(".fleet-actions")
                                     .privileges("read", "write").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
-                                    .indices(".fleet-actions-results")
-                                    .privileges("read").build(),
-                                RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-enrollment-api-keys")
                                     .privileges("read", "write").build(),
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-policies")
                                     .privileges("read", "write").build(),
+                                // Fleet Server indices. Kibana read from these indices to manage Elastic Agents
                                 RoleDescriptor.IndicesPrivileges.builder()
                                     .indices(".fleet-servers")
+                                    .privileges("read").build(),
+                                RoleDescriptor.IndicesPrivileges.builder()
+                                    .indices(".fleet-actions-results")
                                     .privileges("read").build(),
                         },
                         null,

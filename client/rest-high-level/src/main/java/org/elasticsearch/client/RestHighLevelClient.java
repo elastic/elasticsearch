@@ -1777,6 +1777,7 @@ public class RestHighLevelClient implements Closeable {
             return Cancellable.NO_OP;
         }
         req.setOptions(options);
+        options.getParameters().forEach(req::addParameter);
 
         ResponseListener responseListener = wrapResponseListener(responseConverter, listener, ignores);
         return client.performRequestAsync(req, responseListener);

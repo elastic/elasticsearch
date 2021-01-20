@@ -256,7 +256,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
     }
 
-    public void testUnFollowDataStream() throws Exception {
+    public void testUnPromoteAndFollowDataStream() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;
         }
@@ -273,7 +273,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         {
             try (var leaderClient = buildLeaderClient()) {
                 for (var i = 0; i < numDocs; i++) {
-                    Request indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
+                    var indexRequest = new Request("POST", "/" + dataStreamName + "/_doc");
                     indexRequest.addParameter("refresh", "true");
                     indexRequest.setJsonEntity("{\"@timestamp\": \"" + dateFormat.format(new Date()) + "\",\"message\":\"abc\"}");
                     assertOK(leaderClient.performRequest(indexRequest));

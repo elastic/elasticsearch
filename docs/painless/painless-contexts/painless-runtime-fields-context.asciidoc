@@ -116,6 +116,14 @@ POST seats/_bulk?pipeline=seats
 ----
 // TEST[continued]
 
+Refresh the `seats` index:
+
+[source,console]
+----
+POST seats/_refresh
+----
+// TEST[continued]
+
 [[painless-runtime-fields-definition]]
 ==== Define a runtime field with a Painless script
 Run the following request to define a runtime field named `day_of_week`. This
@@ -208,6 +216,7 @@ defined in the mappings.
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"value" : "11"/"value": $body.hits.total.value/]
 
 This is just one example of how you can use runtime fields. You can include
 Painless scripts in the context of runtime fields to override values for

@@ -1,6 +1,6 @@
 [[painless-runtime-fields-context]]
 === Runtime fields context
-
+beta::[]
 Use a Painless script to return a calculated value for a
 <<painless-runtime-fields,runtime field>>, defined either in the mappings or as
 part of a query. You can also use runtime fields to override values for indexed
@@ -38,7 +38,7 @@ To run this example, follow the steps in
 <<painless-context-examples, context examples>>. Let's break down each of those
 steps to understand how runtime fields work within the context of Painless.
 
-[[painless-runtime-fields-mapping]]
+[[painless-runtime-fields-mappings]]
 ==== Create the index mappings
 The following request creates the mappings for the sample data:
 
@@ -62,7 +62,6 @@ PUT /seats
   }
 }
 ----
-// TESTSETUP
 
 [[painless-runtime-fields-ingest]]
 ==== Ingest some sample data

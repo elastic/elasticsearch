@@ -348,6 +348,25 @@ public class RepositoryDataTests extends ESTestCase {
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(otherSnapshotId)), removeFromOther);
     }
 
+    public void testFailsIfMinVersionNotSatisfied() throws IOException {
+        final Version futureVersion = Version.fromString((Version.CURRENT.major + 1) + ".0.0");
+
+        final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
+        builder.startObject();
+        {
+            builder.field("min_version", futureVersion);
+            builder.field("junk", "should not get this far");
+        }
+        builder.endObject();
+
+        try (XContentParser xParser = createParser(builder)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+                    RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean()));
+            assertThat(e.getMessage(), equalTo(
+                    "this snapshot repository format requires Elasticsearch version [" + futureVersion + "] or later"));
+        }
+    }
+
     public static RepositoryData generateRandomRepoData() {
         final int numIndices = randomIntBetween(1, 30);
         final List<IndexId> indices = new ArrayList<>(numIndices);

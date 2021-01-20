@@ -31,6 +31,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_C
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_UPGRADED;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.snapshots.SnapshotUtils.filterIndices;
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -694,18 +695,34 @@ public class RestoreService implements ClusterStateApplier {
         final Map<String, List<String>> snapshotFeatureStates = snapshotInfo.featureStates().stream()
             .collect(Collectors.toMap(SnapshotFeatureInfo::getPluginName, SnapshotFeatureInfo::getIndices));
 
-        final Map<String, List<String>> featureStatesToRestore = new HashMap<>(snapshotFeatureStates);
-        if (request.featureStates() != null) {
-            final Set<String> requestedStates = Set.of(request.featureStates());
+        final Map<String, List<String>> featureStatesToRestore;
+        final String[] requestedFeatureStates = request.featureStates();
+
+        if (requestedFeatureStates == null || requestedFeatureStates.length == 0) {
+            // Handle the default cases - defer to the global state value
+            if (request.includeGlobalState()) {
+                featureStatesToRestore = new HashMap<>(snapshotFeatureStates);
+            } else {
+                featureStatesToRestore = Collections.emptyMap();
+            }
+        } else if (requestedFeatureStates.length == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedFeatureStates[0])) {
+            // If there's exactly one value and it's "none", include no states
+            featureStatesToRestore = Collections.emptyMap();
+        } else {
+            // Otherwise, handle the list of requested feature states
+            final Set<String> requestedStates = Set.of(requestedFeatureStates);
+            if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
+                throw new SnapshotRestoreException(snapshot, "the feature_states value [" + NO_FEATURE_STATES_VALUE +
+                    "] indicates that no feature states should be restored, but other feature states were requested: " + requestedStates);
+            }
             if (snapshotFeatureStates.keySet().containsAll(requestedStates) == false) {
                 Set<String> nonExistingRequestedStates = new HashSet<>(requestedStates);
                 nonExistingRequestedStates.removeAll(snapshotFeatureStates.keySet());
                 throw new SnapshotRestoreException(snapshot, "requested feature states [" + nonExistingRequestedStates +
                     "] are not present in snapshot");
             }
+            featureStatesToRestore = new HashMap<>(snapshotFeatureStates);
             featureStatesToRestore.keySet().retainAll(requestedStates);
-        } else if (request.includeGlobalState() == false) {
-            featureStatesToRestore.clear();
         }
 
         final List<String> featuresNotOnThisNode = featureStatesToRestore.keySet().stream()

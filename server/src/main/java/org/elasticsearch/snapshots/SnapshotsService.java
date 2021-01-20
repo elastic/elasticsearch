@@ -19,8 +19,37 @@
 
 package org.elasticsearch.snapshots;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
+import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
+import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
+import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -92,36 +121,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Optional;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
-
-import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableList;
-import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED;
-import static org.elasticsearch.action.support.IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN;
-import static org.elasticsearch.cluster.SnapshotsInProgress.completed;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 /**
  * Service responsible for creating snapshots. This service runs all the steps executed on the master node during snapshot creation and
@@ -141,6 +142,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
 
     public static final String UPDATE_SNAPSHOT_STATUS_ACTION_NAME = "internal:cluster/snapshot/update_snapshot_status";
+
+    public static final String NO_FEATURE_STATES_VALUE = "none";
 
     private final ClusterService clusterService;
 
@@ -261,12 +264,23 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 List<String> indices = Arrays.asList(indexNameExpressionResolver.concreteIndexNames(currentState, request));
 
                 List<SnapshotFeatureInfo> featureStates = Collections.emptyList();
-                if (request.includeGlobalState() || request.featureStates().length > 0) {
-                    final Set<String> featureStatesSet = new HashSet<>();
-                    if (request.includeGlobalState() && request.featureStates().length == 0) {
-                        featureStatesSet.addAll(systemIndexDescriptorMap.keySet());
+                final List<String> requestedStates = Arrays.asList(request.featureStates());
+                if (request.includeGlobalState() || requestedStates.isEmpty() == false) {
+                    final Set<String> featureStatesSet;
+                    if (request.includeGlobalState() && requestedStates.isEmpty()) {
+                        // If we're including global state and feature states aren't specified, include all of them
+                        featureStatesSet = new HashSet<>(systemIndexDescriptorMap.keySet());
+                    } else if (requestedStates.size() == 1 && NO_FEATURE_STATES_VALUE.equalsIgnoreCase(requestedStates.get(0))) {
+                        // If there's exactly one value and it's "none", include no states
+                        featureStatesSet = Collections.emptySet();
                     } else {
-                        featureStatesSet.addAll(Arrays.asList(request.featureStates()));
+                        // Otherwise, check for "none" then use the list of requested states
+                        if (requestedStates.contains(NO_FEATURE_STATES_VALUE)) {
+                            throw new IllegalArgumentException("the feature_states value [" + SnapshotsService.NO_FEATURE_STATES_VALUE +
+                                "] indicates that no feature states should be snapshotted, but other feature states were requested: " +
+                                requestedStates);
+                        }
+                        featureStatesSet = new HashSet<>(requestedStates);
                     }
 
                     featureStates = systemIndexDescriptorMap.keySet().stream()

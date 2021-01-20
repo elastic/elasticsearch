@@ -20,11 +20,13 @@
 package org.elasticsearch.snapshots;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.not;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -401,10 +403,10 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * If the list of feature states to restore is null and we are restoring global state,
+     * If the list of feature states to restore is left unspecified and we are restoring global state,
      * all feature states should be restored.
      */
-    public void testRestoreSystemIndicesAsGlobalStateWithNullFeatureStateList() {
+    public void testRestoreSystemIndicesAsGlobalStateWithDefaultFeatureStateList() {
         indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
         refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
 
@@ -425,7 +427,6 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)
-            .setFeatureStates((String[]) null)
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -434,7 +435,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * If the list of feature states to restore is an empty list and we are restoring global state,
+     * If the list of feature states to restore contains only "none" and we are restoring global state,
      * no feature states should be restored.
      *
      * In this test, we explicitly request a regular index to avoid any confusion over the meaning of
@@ -465,7 +466,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setIndices(regularIndex)
             .setWaitForCompletion(true)
             .setRestoreGlobalState(true)
-            .setFeatureStates(new String[]{})
+            .setFeatureStates(new String[]{ randomFrom("none", "NONE") })
             .get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
@@ -474,7 +475,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * If the list of feature states to restore is an empty list and we are restoring global state,
+     * If the list of feature states to restore contains only "none" and we are restoring global state,
      * no feature states should be restored. However, for backwards compatibility, if no index is
      * specified, system indices are included in "all indices." In this edge case, we get an error
      * saying that the system index must be closed, because here it is included in "all indices."
@@ -496,7 +497,7 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
             () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
                 .setWaitForCompletion(true)
                 .setRestoreGlobalState(true)
-                .setFeatureStates(new String[]{})
+                .setFeatureStates(new String[]{ randomFrom("none", "NONE") })
                 .get());
 
         assertThat(exception.getMessage(), containsString("cannot restore index [" + SystemIndexTestPlugin.SYSTEM_INDEX_NAME
@@ -603,6 +604,119 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertTrue(indexExists(systemIndexAlias));
         assertThat(getDocCount(systemIndexAlias), equalTo(1L));
 
+    }
+
+    /**
+     * Tests that the special "none" feature state name cannot be combined with other
+     * feature state names, and an error occurs if it's tried.
+     */
+    public void testNoneFeatureStateMustBeAlone() {
+        // put a document in a system index
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        // run a snapshot including global state
+        IllegalArgumentException createEx = expectThrows(
+            IllegalArgumentException.class,
+            () -> clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+                .setWaitForCompletion(true)
+                .setIncludeGlobalState(randomBoolean())
+                .setFeatureStates("SystemIndexTestPlugin", "none", "AnotherSystemIndexTestPlugin")
+                .get()
+        );
+        assertThat(createEx.getMessage(), equalTo("the feature_states value [none] indicates that no feature states should be " +
+            "snapshotted, but other feature states were requested: [SystemIndexTestPlugin, none, AnotherSystemIndexTestPlugin]"));
+
+        // create a successful snapshot with global state/all features
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        SnapshotRestoreException restoreEx = expectThrows(
+            SnapshotRestoreException.class,
+            () -> clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+                .setWaitForCompletion(true)
+                .setRestoreGlobalState(randomBoolean())
+                .setFeatureStates("SystemIndexTestPlugin", "none")
+                .get()
+        );
+        assertThat(
+            restoreEx.getMessage(),
+            allOf( // the order of the requested feature states is non-deterministic so just check that it includes most of the right stuff
+                containsString(
+                    "the feature_states value [none] indicates that no feature states should be restored, but other feature states were "
+                        + "requested:"
+                ),
+                containsString("SystemIndexTestPlugin")
+            )
+        );
+    }
+
+    /**
+     * Tests that using the special "none" feature state value creates a snapshot with no feature states included
+     */
+    public void testNoneFeatureStateOnCreation() {
+        final String regularIndex = "test-idx";
+
+        indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setIndices(regularIndex)
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .setFeatureStates(randomFrom("none", "NONE"))
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // Verify that the system index was not included
+        Set<String> snapshottedIndices = clusterAdmin().prepareGetSnapshots(REPO_NAME).get()
+            .getSnapshots(REPO_NAME).stream()
+            .map(SnapshotInfo::indices)
+            .flatMap(Collection::stream)
+            .collect(Collectors.toSet());
+
+        assertThat(snapshottedIndices, allOf(hasItem(regularIndex), not(hasItem(SystemIndexTestPlugin.SYSTEM_INDEX_NAME))));
+    }
+
+    public void testNoneFeatureStateOnRestore() {
+        final String regularIndex = "test-idx";
+
+        indexDoc(regularIndex, "1", "purpose", "create an index that can be restored");
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(regularIndex, SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        // Create a snapshot
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setIndices(regularIndex)
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(true)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // Index another doc into the system index
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "2", "purpose", "post-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+        assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+        // And delete the regular index so we can restore it
+        assertAcked(cluster().client().admin().indices().prepareDelete(regularIndex));
+
+        // Restore the snapshot specifying the regular index and "none" for feature states
+        RestoreSnapshotResponse restoreSnapshotResponse = clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            .setIndices(regularIndex)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(randomBoolean())
+            .setFeatureStates(randomFrom("none", "NONE"))
+            .get();
+        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
+
+        // The regular index should only have one doc
+        assertThat(getDocCount(regularIndex), equalTo(1L));
+        // But the system index shouldn't have been touched
+        assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

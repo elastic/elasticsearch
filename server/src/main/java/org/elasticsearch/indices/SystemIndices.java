@@ -19,14 +19,9 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.util.automaton.Automata;
-import org.apache.lucene.util.automaton.Automaton;
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
-import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.index.Index;
+import static java.util.stream.Collectors.toUnmodifiableList;
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
+import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -37,9 +32,15 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
-import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
-import static org.elasticsearch.tasks.TaskResultsService.TASK_INDEX;
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.lucene.util.automaton.MinimizationOperations;
+import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.snapshots.SnapshotsService;
 
 /**
  * This class holds the {@link SystemIndexDescriptor} objects that represent system indices the
@@ -199,6 +200,13 @@ public class SystemIndices {
         return this.featureDescriptors.values().stream()
             .flatMap(f -> f.getIndexDescriptors().stream())
             .collect(Collectors.toList());
+    }
+
+    public static void validateFeatureName(String name, String plugin) {
+        if (SnapshotsService.NO_FEATURE_STATES_VALUE.equalsIgnoreCase(name)) {
+            throw new IllegalArgumentException("feature name cannot be reserved name [\"" + SnapshotsService.NO_FEATURE_STATES_VALUE +
+                "\"], but was for plugin [" + plugin + "]");
+        }
     }
 
     public static class Feature {

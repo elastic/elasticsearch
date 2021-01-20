@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.List;
 
 import static org.elasticsearch.geo.GeometryTestUtils.randomLine;
 import static org.elasticsearch.geo.GeometryTestUtils.randomMultiLine;

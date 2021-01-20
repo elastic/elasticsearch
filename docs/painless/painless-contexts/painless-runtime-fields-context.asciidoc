@@ -89,7 +89,7 @@ can ingest the full https://download.elastic.co/demos/painless/contexts/seats.js
 
 [source,console]
 ----
-POST seats/_bulk?pipeline=seats
+POST seats/_bulk?pipeline=seats&refresh=true
 {"create":{"_index":"seats","_id":"1"}}
 {"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":1,"cost":30,"sold":false}
 {"create":{"_index":"seats","_id":"2"}}
@@ -113,14 +113,6 @@ POST seats/_bulk?pipeline=seats
 {"create":{"_index":"seats","_id":"11"}}
 {"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":11,"cost":30,"sold":false}
 {"create":{"_index":"seats","_id":"12"}}
-----
-// TEST[continued]
-
-Refresh the `seats` index:
-
-[source,console]
-----
-POST seats/_refresh
 ----
 // TEST[continued]
 

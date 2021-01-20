@@ -103,7 +103,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
                         .resolve(RELATIVE_API_PATH)
                 );
-                task.onlyIf( t -> isEnabled(project));
+                task.onlyIf(t -> isEnabled(project));
             });
 
         // copy compatible rest tests
@@ -127,7 +127,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                         .resolve(RELATIVE_TEST_PATH)
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                task.onlyIf( t -> isEnabled(project));
+                task.onlyIf(t -> isEnabled(project));
             });
 
         // setup the yamlRestTest task
@@ -146,7 +146,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyCompatYamlTestTask);
-            testTask.onlyIf( t -> isEnabled(project));
+            testTask.onlyIf(t -> isEnabled(project));
         });
 
         // setup the dependencies

@@ -179,7 +179,7 @@ public class RolloverStepTests extends AbstractStepMasterTimeoutTestCase<Rollove
                 Metadata.builder().put(firstGenerationIndex, true)
                     .put(writeIndex, true)
                     .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
-                        List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+                        org.elasticsearch.common.collect.List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
             )
             .build();
         step.performAction(firstGenerationIndex, clusterState, null, new AsyncActionStep.Listener() {

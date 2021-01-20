@@ -112,18 +112,8 @@ public final class AutoExpandReplicas {
                 }
             }
 
-            final int min = getMinReplicas();
-            final int max = getMaxReplicas(numMatchingDataNodes);
             int numberOfReplicas = numMatchingDataNodes - 1;
-            if (numberOfReplicas < min) {
-                numberOfReplicas = min;
-            } else if (numberOfReplicas > max) {
-                numberOfReplicas = max;
-            }
-
-            if (numberOfReplicas >= min && numberOfReplicas <= max) {
-                return OptionalInt.of(numberOfReplicas);
-            }
+            return OptionalInt.of(Math.min(Math.max(minReplicas, numberOfReplicas), maxReplicas));
         }
         return OptionalInt.empty();
     }

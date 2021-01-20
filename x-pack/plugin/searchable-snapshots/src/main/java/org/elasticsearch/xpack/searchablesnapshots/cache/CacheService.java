@@ -703,8 +703,8 @@ public class CacheService extends AbstractLifecycleComponent {
 
     private static boolean assertGenericThreadPool() {
         final String threadName = Thread.currentThread().getName();
-        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
-            || threadName.startsWith("TEST-") : "expected generic thread pool but got " + threadName;
+        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']') || threadName.startsWith("TEST-")
+            : "expected generic thread pool but got " + threadName;
         return true;
     }
 }

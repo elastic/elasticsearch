@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.security;
 
 import org.apache.http.HttpHost;
 import org.apache.http.util.EntityUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ObjectPath;
 import org.elasticsearch.xpack.security.authc.InternalRealms;
+import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -102,13 +104,13 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         Response response = client().performRequest(request);
         List<String> warningHeaders = response.getWarnings();
         if (securityEnabled) {
-            assertThat (warningHeaders.isEmpty(), equalTo(true));
+            assertThat (warningHeaders, Matchers.empty());
         } else {
-            assertThat (warningHeaders.size(), equalTo(1));
+            assertThat (warningHeaders, Matchers.hasSize(1));
             assertThat (warningHeaders.get(0),
                 containsString("Elasticsearch security features are not enabled, anyone can access your cluster without " +
-                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/<autodetected version number>/" +
-                "get-started-enable-security.html for more information."));
+                "authentication. Read https://www.elastic.co/guide/en/elasticsearch/reference/" + Version.CURRENT.major + "." +
+                Version.CURRENT.minor + "/get-started-enable-security.html for more information."));
         }
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.client;
 
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
+import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -28,6 +30,7 @@ import static org.hamcrest.Matchers.notNullValue;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.elasticsearch.ElasticsearchException;
@@ -164,6 +167,14 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         }
         request.partial(randomBoolean());
         request.includeGlobalState(randomBoolean());
+        final List<String> featureStates = randomFrom(
+            List.of(
+                Collections.emptyList(),
+                Collections.singletonList(TASKS_FEATURE_NAME),
+                Collections.singletonList(NO_FEATURE_STATES_VALUE)
+            )
+        );
+        request.featureStates(featureStates);
 
         CreateSnapshotResponse response = createTestSnapshot(request);
         assertEquals(waitForCompletion ? RestStatus.OK : RestStatus.ACCEPTED, response.status());
@@ -280,6 +291,10 @@ public class SnapshotIT extends ESRestHighLevelClientTestCase {
         request.waitForCompletion(true);
         request.renamePattern(testIndex);
         request.renameReplacement(restoredIndex);
+        if (randomBoolean()) {
+            request.includeGlobalState(true);
+            request.featureStates(Collections.singletonList(NO_FEATURE_STATES_VALUE));
+        }
 
         RestoreSnapshotResponse response = execute(request, highLevelClient().snapshot()::restore,
                 highLevelClient().snapshot()::restoreAsync);

@@ -17,12 +17,17 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.test.rest;
+package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.internal.CheckRestCompatPlugin;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.test.rest.CopyRestApiTask;
+import org.elasticsearch.gradle.test.rest.CopyRestTestsTask;
+import org.elasticsearch.gradle.test.rest.RestResourcesExtension;
+import org.elasticsearch.gradle.test.rest.RestResourcesPlugin;
+import org.elasticsearch.gradle.test.rest.RestTestUtil;
+import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.testclusters.TestDistribution;
@@ -86,22 +91,28 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestApiCompatSpecsTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
-                task.coreConfig = bwcMinorConfig;
-                task.xpackConfig = bwcMinorConfig;
-                task.additionalConfig = bwcMinorConfig;
-                task.includeCore.set(extension.restApi.getIncludeCore());
-                task.includeXpack.set(extension.restApi.getIncludeXpack());
-                task.sourceSetName = SOURCE_SET_NAME;
-                task.skipHasRestTestCheck = true;
-                task.coreConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
+                task.setCoreConfig(bwcMinorConfig);
+                task.setXpackConfig(bwcMinorConfig);
+                task.setAdditionalConfig(bwcMinorConfig);
+                task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
+                task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
+                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setSkipHasRestTestCheck(true);
+                task.setCoreConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
+                    )
                 );
-                task.xpackConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_API_PATH)
+                task.setXpackConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_API_PATH)
+                    )
                 );
-                task.additionalConfigToFileTree = config -> project.fileTree(
-                    getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                        .resolve(RELATIVE_API_PATH)
+                task.setAdditionalConfigToFileTree(
+                    config -> project.fileTree(
+                        getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                            .resolve(RELATIVE_API_PATH)
+                    )
                 );
                 task.onlyIf(t -> isEnabled(project));
             });
@@ -110,21 +121,27 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         Provider<CopyRestTestsTask> copyCompatYamlTestTask = project.getTasks()
             .register("copyRestApiCompatTestTask", CopyRestTestsTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
-                task.coreConfig = bwcMinorConfig;
-                task.xpackConfig = bwcMinorConfig;
-                task.additionalConfig = bwcMinorConfig;
-                task.includeCore.set(extension.restTests.getIncludeCore());
-                task.includeXpack.set(extension.restTests.getIncludeXpack());
-                task.sourceSetName = SOURCE_SET_NAME;
-                task.coreConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                task.setCoreConfig(bwcMinorConfig);
+                task.setXpackConfig(bwcMinorConfig);
+                task.setAdditionalConfig(bwcMinorConfig);
+                task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
+                task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
+                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setCoreConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                    )
                 );
-                task.xpackConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                task.setXpackConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                    )
                 );
-                task.additionalConfigToFileTree = config -> project.fileTree(
-                    getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                        .resolve(RELATIVE_TEST_PATH)
+                task.setAdditionalConfigToFileTree(
+                    config -> project.fileTree(
+                        getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                            .resolve(RELATIVE_TEST_PATH)
+                    )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
                 task.onlyIf(t -> isEnabled(project));

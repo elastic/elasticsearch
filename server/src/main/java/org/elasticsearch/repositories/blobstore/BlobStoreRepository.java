@@ -1344,12 +1344,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        // RepositoryData is the responsibility of the elected master: we shouldn't be loading it on other nodes as we don't have good
-        // consistency guarantees there, but electedness is too ephemeral to assert. We can say for sure that this node should be
-        // master-eligible, which is almost as strong since all other snapshot-related activity happens on data nodes whether they be
-        // master-eligible or not.
-        assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
-
         if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
             listener.onFailure(corruptedStateException(null));
             return;

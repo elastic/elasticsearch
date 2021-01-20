@@ -39,10 +39,6 @@ public class CheckRestCompatPlugin implements Plugin<Project> {
         TaskProvider<Task> checkRestCompatTask = project.getTasks().register(CHECK_TASK_NAME, (thisCheckTask) -> {
             thisCheckTask.setDescription("Runs all REST compatibility checks.");
             thisCheckTask.setGroup("verification");
-            Object bwcEnabled = project.getExtensions().getExtraProperties().getProperties().get("bwc_tests_enabled");
-            final boolean enabled = bwcEnabled == null || (Boolean) bwcEnabled;
-            thisCheckTask.setEnabled(enabled);
-
         });
 
         project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(checkRestCompatTask));

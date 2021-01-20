@@ -67,16 +67,6 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(YamlRestTestPlugin.class);
         project.getPluginManager().apply(CheckRestCompatPlugin.class);
 
-        final Consumer<Task> enabledFunction = task -> {
-            // marry the enablement of these tasks to the enablement of the lifecycle task
-            final boolean enabled = project.getTasks()
-                .named(CheckRestCompatPlugin.CHECK_TASK_NAME)
-                .forUseAtConfigurationTime()
-                .get()
-                .getEnabled();
-            task.setEnabled(enabled);
-        };
-
         RestResourcesExtension extension = project.getExtensions().getByType(RestResourcesExtension.class);
 
         // create source set
@@ -114,7 +104,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
                         .resolve(RELATIVE_API_PATH)
                 );
-                enabledFunction.accept(task);
+                task.onlyIf( t -> isEnabled(project));
             });
 
         // copy compatible rest tests
@@ -138,7 +128,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                         .resolve(RELATIVE_TEST_PATH)
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
-                enabledFunction.accept(task);
+                task.onlyIf( t -> isEnabled(project));
             });
 
         // setup the yamlRestTest task
@@ -157,7 +147,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyCompatYamlTestTask);
-            enabledFunction.accept(testTask);
+            testTask.onlyIf( t -> isEnabled(project));
         });
 
         // setup the dependencies
@@ -168,6 +158,11 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // wire this task into the custom check task
         project.getTasks().named(CheckRestCompatPlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestCompatTestTask));
+    }
+
+    private boolean isEnabled(Project project) {
+        Object bwcEnabled = project.getExtensions().getExtraProperties().getProperties().get("bwc_tests_enabled");
+        return bwcEnabled == null || (Boolean) bwcEnabled;
     }
 
     // TODO: implement custom extension that allows us move around of the projects between major versions and still find them

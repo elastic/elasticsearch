@@ -60,7 +60,7 @@ class YamlRestCompatTestPluginFuncTest  extends AbstractGradleFuncTest {
 
         then:
         result.task(':check').outcome == TaskOutcome.UP_TO_DATE
-        result.task(':checkRestCompat').outcome == TaskOutcome.SKIPPED
+        result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SKIPPED

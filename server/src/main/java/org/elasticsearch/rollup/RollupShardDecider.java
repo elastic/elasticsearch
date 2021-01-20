@@ -21,20 +21,14 @@ package org.elasticsearch.rollup;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryVisitor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.RollupGroup;
 import org.elasticsearch.cluster.metadata.RollupMetadata;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-//import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
-//import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
@@ -44,9 +38,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-//import org.elasticsearch.search.aggregations.support.AggregationContext;
 
-//import java.io.IOException;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Map;
@@ -54,7 +46,6 @@ import java.util.Set;
 import java.util.SortedMap;
 
 public class RollupShardDecider {
-
     private static final Logger logger = LogManager.getLogger(RollupShardDecider.class);
 
     public static final Set<String> SUPPORTED_AGGS = Set.of(
@@ -71,7 +62,7 @@ public class RollupShardDecider {
      * Decide if index can be matched considering rollup indices
      */
     public static boolean canMatch(ShardSearchRequest request,
-                                   QueryShardContext context,
+                                   SearchExecutionContext context,
                                    IndexMetadata requestIndexMetadata, RollupMetadata rollupMetadata,
                                    String[] indices,
                                    SortedMap<String, IndexAbstraction> indexLookup) {
@@ -94,41 +85,14 @@ public class RollupShardDecider {
                 return false;
             }
 
-            //TODO(csoulios): Ask Tal what does this do?
-//            try {
-//                AggregatorFactory[] factories = aggregations
-//                    .build(new AggregationContext.ProductionAggregationContext(context, query), null)
-//                    .factories();
-//            } catch (IOException e) {
-//                throw new AggregationInitializationException("Failed to create aggregators, shard not supported", e);
-//            }
-
             Map<String, String> indexRollupMetadata = requestIndexMetadata.getCustomData(RollupMetadata.TYPE);
-            //TODO: What if a rollup index has been rolled up (rollups of rollups use case)
             final String originalIndexName = indexRollupMetadata.get(RollupMetadata.SOURCE_INDEX_NAME_META_FIELD);
             final RollupGroup rollupGroup = rollupMetadata.rollupGroups().get(originalIndexName);
 
             String optimalIndex = findOptimalIndex(originalIndexName, rollupGroup, aggregations);
             logger.info("Requested index: " + requestIndexName + " - Optimal index: " + optimalIndex);
 
-            if (requestIndexName.equals(optimalIndex)) {
-                QueryBuilder queryBuilder = request.source() != null ? request.source().query() : null;
-
-                if (queryBuilder != null) {
-                    //TODO(csoulios): Ask Tal what does this do?
-                    Query query = context.toQuery(queryBuilder).query();
-                    // Do something with query?
-                    query.visit(new QueryVisitor() {
-                        @Override
-                        public void consumeTerms(Query query, Term... terms) {
-                            super.consumeTerms(query, terms);
-                        }
-                    });
-                }
-                return true;
-            } else {
-                return false;
-            }
+            return requestIndexName.equals(optimalIndex);
         } else if (rollupMetadata.contains(requestIndexName) && checkRollupConditions(request)) { // There are rollup indices for this index
             final RollupGroup rollupGroup = rollupMetadata.rollupGroups().get(requestIndexName);
             String optimalIndex = findOptimalIndex(requestIndexName, rollupGroup, aggregations);

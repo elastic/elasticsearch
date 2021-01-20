@@ -30,12 +30,12 @@ import static org.elasticsearch.test.AbstractXContentTestCase.xContentTester;
 public class TransformCheckpointingInfoTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
-        xContentTester(this::createParser,
+        xContentTester(
+            this::createParser,
             TransformCheckpointingInfoTests::randomTransformCheckpointingInfo,
             TransformCheckpointingInfoTests::toXContent,
-            TransformCheckpointingInfo::fromXContent)
-                .supportsUnknownFields(false)
-                .test();
+            TransformCheckpointingInfo::fromXContent
+        ).supportsUnknownFields(false).test();
     }
 
     public static TransformCheckpointingInfo randomTransformCheckpointingInfo() {
@@ -43,7 +43,9 @@ public class TransformCheckpointingInfoTests extends ESTestCase {
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomLongBetween(0, 10000),
-            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong())
+        );
     }
 
     public static void toXContent(TransformCheckpointingInfo info, XContentBuilder builder) throws IOException {
@@ -59,6 +61,9 @@ public class TransformCheckpointingInfoTests extends ESTestCase {
         builder.field(TransformCheckpointingInfo.OPERATIONS_BEHIND.getPreferredName(), info.getOperationsBehind());
         if (info.getChangesLastDetectedAt() != null) {
             builder.field(TransformCheckpointingInfo.CHANGES_LAST_DETECTED_AT.getPreferredName(), info.getChangesLastDetectedAt());
+        }
+        if (info.getLastSearchTime() != null) {
+            builder.field(TransformCheckpointingInfo.LAST_SEARCH_TIME.getPreferredName(), info.getLastSearchTime());
         }
         builder.endObject();
     }

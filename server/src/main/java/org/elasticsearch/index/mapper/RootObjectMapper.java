@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -447,7 +448,7 @@ public class RootObjectMapper extends ObjectMapper {
                 } else {
                     deprecationMessage = message;
                 }
-                DEPRECATION_LOGGER.deprecate("invalid_dynamic_template", deprecationMessage);
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.TEMPLATES, "invalid_dynamic_template", deprecationMessage);
             }
         }
     }

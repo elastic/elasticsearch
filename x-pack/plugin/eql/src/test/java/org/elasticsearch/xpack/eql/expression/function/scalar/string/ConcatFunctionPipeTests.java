@@ -68,8 +68,8 @@ public class ConcatFunctionPipeTests extends AbstractNodeTestCase<ConcatFunction
         List<Pipe> newValues = mutateOneValue(b.values());
 
         ConcatFunctionPipe newB = new ConcatFunctionPipe(b.source(), b.expression(), b.values());
-        ConcatFunctionPipe transformed = newB.replaceChildren(newValues);
-
+        ConcatFunctionPipe transformed = (ConcatFunctionPipe) newB.replaceChildrenSameSize(newValues);
+        
         assertEquals(transformed.values(), newValues);
         assertEquals(transformed.source(), b.source());
         assertEquals(transformed.expression(), b.expression());

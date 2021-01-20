@@ -34,15 +34,30 @@ public class StatsHolder {
         progressTracker = new ProgressTracker(progress);
     }
 
+    /**
+     * Updates the progress tracker with potentially new in-between phases
+     * that were introduced in a later version while making sure progress indicators
+     * are correct.
+     * @param analysisPhases the full set of phases of the analysis in current version
+     * @param hasInferencePhase whether the analysis supports inference
+     */
     public void adjustProgressTracker(List<String> analysisPhases, boolean hasInferencePhase) {
         int reindexingProgressPercent = progressTracker.getReindexingProgressPercent();
+        boolean areAllPhasesBeforeInferenceComplete = progressTracker.areAllPhasesExceptInferenceComplete();
         progressTracker = ProgressTracker.fromZeroes(analysisPhases, hasInferencePhase);
 
         // If reindexing progress was more than 0 and less than 100 (ie not complete) we reset it to 1
         // as we will have to do reindexing from scratch and at the same time we want
         // to differentiate from a job that has never started before.
-        progressTracker.updateReindexingProgress(
-            (reindexingProgressPercent > 0 && reindexingProgressPercent < 100) ? 1 : reindexingProgressPercent);
+        if (reindexingProgressPercent > 0 && reindexingProgressPercent < 100) {
+            progressTracker.updateReindexingProgress(1);
+        } else {
+            progressTracker.updateReindexingProgress(reindexingProgressPercent);
+        }
+
+        if (hasInferencePhase && areAllPhasesBeforeInferenceComplete) {
+            progressTracker.resetForInference();
+        }
     }
 
     public void resetProgressTracker(List<String> analysisPhases, boolean hasInferencePhase) {

@@ -58,7 +58,7 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
     public final void execute(ActionListener<StepResponse> listener) {
         logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
         if (task.isStopping()) {
-            logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}]", config.getId(), name()));
+            logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
         }

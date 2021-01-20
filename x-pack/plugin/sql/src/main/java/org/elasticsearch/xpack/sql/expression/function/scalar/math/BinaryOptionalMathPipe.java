@@ -31,11 +31,7 @@ public class BinaryOptionalMathPipe extends Pipe {
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        int childrenSize = newChildren.size();
-        if (childrenSize > 2 || childrenSize < 1) {
-            throw new IllegalArgumentException("expected [1 or 2] children but received [" + newChildren.size() + "]");
-        }
-        return replaceChildren(newChildren.get(0), childrenSize == 1 ? null : newChildren.get(1));
+        return replaceChildren(newChildren.get(0), newChildren.size() == 1 ? null : newChildren.get(1));
     }
 
     @Override

@@ -26,6 +26,32 @@ POST _bulk
 
 `POST /<target>/_bulk`
 
+[[docs-bulk-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
+
+** To use the `create` action, you must have the `create_doc`, `create`,
+`index`, or `write` index privilege. Data streams support only the `create`
+action.
+
+** To use the `index` action, you must have the `create`, `index`, or `write`
+index privilege.
+
+** To use the `delete` action, you must have the `delete` or `write` index
+privilege.
+
+** To use the `update` action, you must have the `index` or `write` index
+privilege.
+
+** To automatically create a data stream or index with a bulk API request, you
+must have the `auto_configure`, `create_index`, or `manage` index privilege.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
 [[docs-bulk-api-desc]]
 ==== {api-description-title}
 

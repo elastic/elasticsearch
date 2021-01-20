@@ -11,6 +11,13 @@ Updates a document using the specified script.
 
 `POST /<index>/_update/<_id>`
 
+[[docs-update-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `index` or
+`write` <<privileges-list-indices,index privilege>> for the target index or
+index alias.
+
 [[update-api-desc]]
 ==== {api-description-title}
 

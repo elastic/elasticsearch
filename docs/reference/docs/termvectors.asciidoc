@@ -17,6 +17,12 @@ GET /my-index-000001/_termvectors/1
 
 `GET /<index>/_termvectors/<_id>`
 
+[[docs-termvectors-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-termvectors-api-desc]]
 ==== {api-description-title}
 

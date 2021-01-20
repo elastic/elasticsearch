@@ -30,6 +30,27 @@ IMPORTANT: You cannot add new documents to a data stream using the
 `PUT /<target>/_create/<_id>` format instead. See
 <<add-documents-to-a-data-stream>>.
 
+[[docs-index-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the following
+<<privileges-list-indices,index privileges>> for the target data stream, index,
+or index alias:
+
+** To add or overwrite a document using the `PUT /<target>/_doc/<_id>` request
+format, you must have the `create`, `index`, or `write` index privilege.
+
+** To add a document using the `POST /<target>/_doc/`,
+`PUT /<target>/_create/<_id>`, or `POST /<target>/_create/<_id>` request
+formats, you must have the `create_doc`, `create`, `index`, or `write` index
+privilege.
+
+** To automatically create a data stream or index with an index API request, you
+must have the `auto_configure`, `create_index`, or `manage` index privilege.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
 [[docs-index-api-path-params]]
 ==== {api-path-parms-title}
 

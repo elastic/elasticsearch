@@ -23,6 +23,12 @@ GET my-index-000001/_doc/0
 
 `HEAD <index>/_source/<_id>`
 
+[[docs-get-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-get-api-desc]]
 ==== {api-description-title}
 You use GET to retrieve a document and its source or stored fields from a

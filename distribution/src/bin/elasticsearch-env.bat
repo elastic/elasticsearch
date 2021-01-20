@@ -45,7 +45,7 @@ rem and allows to effectively force use of the bundled jdk when launching ES
 rem by setting JAVA_HOME=
 if "%JAVA_HOME%" == "" (
   set JAVA="%ES_HOME%\jdk\bin\java.exe"
-  set JAVA_HOME="%ES_HOME%\jdk"
+  set "JAVA_HOME=%ES_HOME%\jdk"
   set JAVA_TYPE=bundled jdk
 ) else (
   set JAVA="%JAVA_HOME%\bin\java.exe"

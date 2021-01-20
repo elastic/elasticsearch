@@ -27,9 +27,6 @@ public class TestCompoundAggregate extends AggregateFunction implements Compound
 
     @Override
     public TestCompoundAggregate replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new TestCompoundAggregate(source(), newChildren.get(0));
     }
 

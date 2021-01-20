@@ -118,18 +118,21 @@ public class FunctionRegistry {
         // It is worth double checking if we need this copy. These are immutable anyway.
         Pattern p = Strings.hasText(pattern) ? Pattern.compile(normalize(pattern)) : null;
         return defs.entrySet().stream()
-                .filter(e -> p == null || p.matcher(e.getKey()).matches())
-                .map(e -> new FunctionDefinition(e.getKey(), emptyList(),
-                        e.getValue().clazz(), e.getValue().extractViable(), e.getValue().builder()))
-                .collect(toList());
+            .filter(e -> p == null || p.matcher(e.getKey()).matches())
+            .map(e -> cloneDefinition(e.getKey(), e.getValue()))
+            .collect(toList());
+    }
+
+    protected FunctionDefinition cloneDefinition(String name, FunctionDefinition definition) {
+        return new FunctionDefinition(name, emptyList(), definition.clazz(), definition.extractViable(), definition.builder());
     }
 
     /**
      * Build a {@linkplain FunctionDefinition} for a no-argument function that
      * is not aware of time zone and does not support {@code DISTINCT}.
      */
-    protected static <T extends Function> FunctionDefinition def(Class<T> function,
-            java.util.function.Function<Source, T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              java.util.function.Function<Source, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (false == children.isEmpty()) {
                 throw new QlIllegalArgumentException("expects no arguments");
@@ -197,8 +200,8 @@ public class FunctionRegistry {
      * aware of time zone and does not support {@code DISTINCT}.
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
-    protected static <T extends Function> FunctionDefinition def(Class<T> function,
-            BiFunction<Source, Expression, T> ctorRef, String... names) {
+    public static <T extends Function> FunctionDefinition def(Class<T> function,
+                                                              BiFunction<Source, Expression, T> ctorRef, String... names) {
         FunctionBuilder builder = (source, children, distinct, cfg) -> {
             if (children.size() != 1) {
                 throw new QlIllegalArgumentException("expects exactly one argument");
@@ -247,7 +250,7 @@ public class FunctionRegistry {
         return def(function, builder, false, names);
     }
 
-    protected interface DistinctAwareUnaryFunctionBuilder<T> {
+    public interface DistinctAwareUnaryFunctionBuilder<T> {
         T build(Source source, Expression target, boolean distinct);
     }
 
@@ -270,7 +273,7 @@ public class FunctionRegistry {
         return def(function, builder, true, names);
     }
 
-    protected interface DatetimeUnaryFunctionBuilder<T> {
+    public interface DatetimeUnaryFunctionBuilder<T> {
         T build(Source source, Expression target, ZoneId zi);
     }
 
@@ -350,7 +353,6 @@ public class FunctionRegistry {
     /**
      * Main method to register a function/
      * @param names Must always have at least one entry which is the method's primary name
-     *
      */
     @SuppressWarnings("overloads")
     public static FunctionDefinition def(Class<? extends Function> function, FunctionBuilder builder,
@@ -434,7 +436,7 @@ public class FunctionRegistry {
             if (distinct) {
                 throw new QlIllegalArgumentException("does not support DISTINCT yet it was specified");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), 
+            return ctorRef.build(source, children.get(0), children.get(1),
                 children.size() > 2 ? children.get(2) : null,
                 children.size() > 3 ? children.get(3) : null);
         };

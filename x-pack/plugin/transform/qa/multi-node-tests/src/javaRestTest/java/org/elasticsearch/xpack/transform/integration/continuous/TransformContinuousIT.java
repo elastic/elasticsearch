@@ -273,8 +273,6 @@ public class TransformContinuousIT extends ESRestTestCase {
             // start all transforms, wait until the processed all data and stop them
             startTransforms();
 
-            // at random we added between 0 and 999_999ns == (1ms - 1ns) to every data point, so we add 1ms, so every data point is before
-            // the checkpoint
             waitUntilTransformsProcessedNewData(ContinuousTestCase.SYNC_DELAY, run);
             stopTransforms();
 

@@ -31,8 +31,12 @@ import static org.hamcrest.Matchers.equalTo;
 public class TransformConfigUpdateTests extends AbstractWireSerializingTransformTestCase<TransformConfigUpdate> {
 
     public static TransformConfigUpdate randomTransformConfigUpdate() {
+        return randomTransformConfigUpdate(Version.V_8_0_0);
+    }
+
+    public static TransformConfigUpdate randomTransformConfigUpdate(Version version) {
         return new TransformConfigUpdate(
-            randomBoolean() ? null : randomSourceConfig(),
+            randomBoolean() ? null : randomSourceConfig(version),
             randomBoolean() ? null : randomDestConfig(),
             randomBoolean() ? null : TimeValue.timeValueMillis(randomIntBetween(1_000, 3_600_000)),
             randomBoolean() ? null : randomSyncConfig(),

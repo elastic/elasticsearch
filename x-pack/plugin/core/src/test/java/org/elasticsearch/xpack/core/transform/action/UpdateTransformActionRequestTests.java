@@ -25,8 +25,11 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean());
+        return createTestInstance(Version.V_8_0_0);
+    }
 
+    private Request createTestInstance(Version version) {
+        Request request = new Request(randomTransformConfigUpdate(version), randomAlphaOfLength(10), randomBoolean());
         if (randomBoolean()) {
             request.setConfig(TransformConfigTests.randomTransformConfig());
         }
@@ -34,7 +37,7 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
     }
 
     public void testBWCPre78() throws IOException {
-        Request newRequest = createTestInstance();
+        Request newRequest = createTestInstance(Version.V_7_8_0);
         UpdateTransformActionPre78.Request oldRequest = writeAndReadBWCObject(
             newRequest,
             getNamedWriteableRegistry(),
@@ -65,5 +68,4 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         assertEquals(newRequest.getUpdate().getSyncConfig(), newRequestFromOld.getUpdate().getSyncConfig());
         assertEquals(newRequest.isDeferValidation(), newRequestFromOld.isDeferValidation());
     }
-
 }

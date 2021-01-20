@@ -22,7 +22,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -58,8 +58,8 @@ class PhraseSuggestionContext extends SuggestionContext {
     private Map<String, Object> collateScriptParams = new HashMap<>(1);
     private WordScorer.WordScorerFactory scorer = DEFAULT_SCORER;
 
-    PhraseSuggestionContext(QueryShardContext shardContext) {
-        super(PhraseSuggester.INSTANCE, shardContext);
+    PhraseSuggestionContext(SearchExecutionContext searchExecutionContext) {
+        super(PhraseSuggester.INSTANCE, searchExecutionContext);
     }
 
     public float maxErrors() {

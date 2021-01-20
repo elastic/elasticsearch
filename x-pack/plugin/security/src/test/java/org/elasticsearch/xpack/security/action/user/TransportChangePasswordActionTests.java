@@ -29,6 +29,7 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
+import java.util.Locale;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
@@ -168,8 +169,10 @@ public class TransportChangePasswordActionTests extends ESTestCase {
         final AtomicReference<ActionResponse.Empty> responseRef = new AtomicReference<>();
         TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), null,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR, x -> null, null, Collections.emptySet());
-        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(),
-            randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt")).build();
+        final String systemHash = randomValueOtherThan(
+            hasher.name().toLowerCase(Locale.ROOT),
+            () -> randomFrom("pbkdf2_50000", "pbkdf2_100000", "bcrypt11", "bcrypt8", "bcrypt"));
+        Settings passwordHashingSettings = Settings.builder().put(XPackSettings.PASSWORD_HASHING_ALGORITHM.getKey(), systemHash).build();
         TransportChangePasswordAction action = new TransportChangePasswordAction(passwordHashingSettings, transportService,
             mock(ActionFilters.class), usersStore);
         action.doExecute(mock(Task.class), request, new ActionListener<>() {

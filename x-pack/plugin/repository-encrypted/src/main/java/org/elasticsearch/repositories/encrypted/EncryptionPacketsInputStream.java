@@ -138,12 +138,6 @@ public final class EncryptionPacketsInputStream extends ChainingInputStream {
         return new CountingInputStream(encryptionInputStream, false);
     }
 
-    // remove after https://github.com/elastic/elasticsearch/pull/66769 is merged in
-    @Override
-    public int available() throws IOException {
-        return 0;
-    }
-
     @Override
     public boolean markSupported() {
         return source.markSupported();

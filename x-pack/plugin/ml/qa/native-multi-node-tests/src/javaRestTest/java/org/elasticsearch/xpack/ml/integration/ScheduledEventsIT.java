@@ -195,6 +195,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * Test an open job picks up changes to scheduled events/calendars
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/issues/1253")
     public void testAddEventsToOpenJob() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         Job.Builder job = createJob("scheduled-events-add-events-to-open-job", bucketSpan);
@@ -263,6 +264,7 @@ public class ScheduledEventsIT extends MlNativeAutodetectIntegTestCase {
     /**
      * An open job that later gets added to a calendar, should take the scheduled events into account
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/issues/1253")
     public void testAddOpenedJobToGroupWithCalendar() throws Exception {
         TimeValue bucketSpan = TimeValue.timeValueMinutes(30);
         String groupName = "opened-calendar-job-group";

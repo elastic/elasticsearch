@@ -80,6 +80,13 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         return List.of(ENCRYPTION_PASSWORD_SETTING);
     }
 
+    // public for testing
+    // Checks if the plugin is currently disabled because we're running a release build or the feature flag is turned off
+    public static boolean isDisabled() {
+        return false == Build.CURRENT.isSnapshot()
+            && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false);
+    }
+
     @Override
     public Map<String, Repository.Factory> getRepositories(
         Environment env,
@@ -88,6 +95,10 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
         BigArrays bigArrays,
         RecoverySettings recoverySettings
     ) {
+        if (isDisabled()) {
+            return Map.of();
+        }
+
         // load all the passwords from the keystore in memory because the keystore is not readable when the repository is created
         final Map<String, SecureString> repositoryPasswordsMapBuilder = new HashMap<>();
         for (String passwordName : ENCRYPTION_PASSWORD_SETTING.getNamespaces(env.settings())) {
@@ -96,12 +107,6 @@ public class EncryptedRepositoryPlugin extends Plugin implements RepositoryPlugi
             logger.debug("Loaded repository password [{}] from the node keystore", passwordName);
         }
         final Map<String, SecureString> repositoryPasswordsMap = Map.copyOf(repositoryPasswordsMapBuilder);
-
-        if (false == Build.CURRENT.isSnapshot()
-            && (ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == null || ENCRYPTED_REPOSITORY_FEATURE_FLAG_REGISTERED == false)) {
-            return Map.of();
-        }
-
         return Collections.singletonMap(REPOSITORY_TYPE_NAME, new Repository.Factory() {
 
             @Override

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.ilm.UnfollowAction.OPEN_FOLLOWER_INDEX_STEP_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -47,8 +48,8 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         StepKey expectedSecondStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForFollowShardTasksStep.NAME);
         StepKey expectedThirdStepKey = new StepKey(phase, UnfollowAction.NAME, PauseFollowerIndexStep.NAME);
         StepKey expectedFourthStepKey = new StepKey(phase, UnfollowAction.NAME, CloseFollowerIndexStep.NAME);
-        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowIndexStep.NAME);
-        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OpenFollowerIndexStep.NAME);
+        StepKey expectedFifthStepKey = new StepKey(phase, UnfollowAction.NAME, UnfollowFollowerIndexStep.NAME);
+        StepKey expectedSixthStepKey = new StepKey(phase, UnfollowAction.NAME, OPEN_FOLLOWER_INDEX_STEP_NAME);
         StepKey expectedSeventhStepKey = new StepKey(phase, UnfollowAction.NAME, WaitForIndexColorStep.NAME);
 
         WaitForIndexingCompleteStep firstStep = (WaitForIndexingCompleteStep) steps.get(0);
@@ -67,11 +68,11 @@ public class UnfollowActionTests extends AbstractActionTestCase<UnfollowAction> 
         assertThat(fourthStep.getKey(), equalTo(expectedFourthStepKey));
         assertThat(fourthStep.getNextStepKey(), equalTo(expectedFifthStepKey));
 
-        UnfollowFollowIndexStep fifthStep = (UnfollowFollowIndexStep) steps.get(4);
+        UnfollowFollowerIndexStep fifthStep = (UnfollowFollowerIndexStep) steps.get(4);
         assertThat(fifthStep.getKey(), equalTo(expectedFifthStepKey));
         assertThat(fifthStep.getNextStepKey(), equalTo(expectedSixthStepKey));
 
-        OpenFollowerIndexStep sixthStep = (OpenFollowerIndexStep) steps.get(5);
+        OpenIndexStep sixthStep = (OpenIndexStep) steps.get(5);
         assertThat(sixthStep.getKey(), equalTo(expectedSixthStepKey));
         assertThat(sixthStep.getNextStepKey(), equalTo(expectedSeventhStepKey));
 

@@ -19,19 +19,16 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-
 import java.io.IOException;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class PathMapperTests extends ESSingleNodeTestCase {
+public class PathMapperTests extends MapperServiceTestCase {
     public void testPathMapping() throws IOException {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/path/test-mapping.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().parse("person", new CompressedXContent(mapping));
+        DocumentMapper docMapper = createDocumentMapper(mapping);
 
         // test full name
         assertThat(docMapper.mappers().getMapper("first1"), nullValue());

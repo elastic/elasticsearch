@@ -114,7 +114,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=cat-v]
 
 [source,console]
 --------------------------------------------------
-GET /_cat/segments?v
+GET /_cat/segments?v=true
 --------------------------------------------------
 // TEST[s/^/PUT \/test\/_doc\/1?refresh\n{"test":"test"}\nPUT \/test1\/_doc\/1?refresh\n{"test":"test"}\n/]
 

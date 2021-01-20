@@ -15,6 +15,11 @@ Returns information about the tasks currently executing in the cluster.
 
 `GET /_tasks`
 
+[[tasks-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[tasks-api-desc]]
 ==== {api-description-title}

@@ -288,21 +288,17 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 + (position + length)
                 + "] vs "
                 + rangeToWrite;
-            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(rangeToWrite, rangeToRead, channel -> {
-                final int read;
-                if ((rangeToRead.v2() - rangeToRead.v1()) < b.remaining()) {
-                    final ByteBuffer duplicate = b.duplicate();
-                    duplicate.limit(duplicate.position() + toIntBytes(rangeToRead.v2() - rangeToRead.v1()));
-                    read = readCacheFile(channel, position, duplicate);
-                    assert duplicate.position() <= b.limit();
-                    b.position(duplicate.position());
-                } else {
-                    read = readCacheFile(channel, position, b);
-                }
-                return read;
-            }, this::writeCacheFile, directory.cacheFetchAsyncExecutor());
+            final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
+            assert rangeToRead.v2() - rangeToRead.v1() == b.remaining() : b.remaining() + " vs " + rangeToRead;
+
+            final Future<Integer> populateCacheFuture = cacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
+                channel -> readCacheFile(channel, position, b),
+                this::writeCacheFile,
+                directory.cacheFetchAsyncExecutor()
+            );
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
@@ -435,8 +431,9 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
 
     /**
      * Prefetches a complete part and writes it in cache. This method is used to prewarm the cache.
+     * @return a tuple with {@code Tuple<Persistent Cache Length, Prefetched Length>} values
      */
-    public void prefetchPart(final int part) throws IOException {
+    public Tuple<Long, Long> prefetchPart(final int part) throws IOException {
         ensureContext(ctx -> ctx == CACHE_WARMING_CONTEXT);
         if (part >= fileInfo.numberOfParts()) {
             throw new IllegalArgumentException("Unexpected part number [" + part + "]");
@@ -456,7 +453,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                     partRange.v2(),
                     cacheFileReference
                 );
-                return;
+                return Tuple.tuple(cacheFile.getInitialLength(), 0L);
             }
 
             final long rangeStart = range.v1();
@@ -511,6 +508,7 @@ public class CachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexIn
                 stats.addCachedBytesWritten(totalBytesWritten.get(), endTimeNanos - startTimeNanos);
             }
             assert totalBytesRead == rangeLength;
+            return Tuple.tuple(cacheFile.getInitialLength(), rangeLength);
         } catch (final Exception e) {
             throw new IOException("Failed to prefetch file part in cache", e);
         }

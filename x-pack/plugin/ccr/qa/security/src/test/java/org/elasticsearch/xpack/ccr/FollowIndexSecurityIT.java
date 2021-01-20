@@ -256,7 +256,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         }
     }
 
-    public void testFollowDataStream() throws Exception {
+    public void testUnFollowDataStream() throws Exception {
         if ("follow".equals(targetCluster) == false) {
             return;
         }
@@ -265,6 +265,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         var dataStreamName = "logs-eu-monitor1";
         var dateFormat = new SimpleDateFormat("yyyy-MM-dd'T'hh:mm:ss", Locale.ROOT);
 
+        // Setup
         {
             createAutoFollowPattern(adminClient(), "test_pattern", "logs-eu*", "leader_cluster");
         }

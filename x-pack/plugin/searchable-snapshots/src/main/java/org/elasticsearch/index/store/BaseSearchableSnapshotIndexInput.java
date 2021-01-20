@@ -42,11 +42,8 @@ public abstract class BaseSearchableSnapshotIndexInput extends BufferedIndexInpu
         this.blobContainer = Objects.requireNonNull(blobContainer);
         this.fileInfo = Objects.requireNonNull(fileInfo);
         this.context = Objects.requireNonNull(context);
-        assert fileInfo.metadata()
-            .hashEqualsContents() == false : "this method should only be used with blobs that are NOT stored in metadata's hash field "
-                + "(fileInfo: "
-                + fileInfo
-                + ')';
+        assert fileInfo.metadata().hashEqualsContents() == false
+            : "this method should only be used with blobs that are NOT stored in metadata's hash field " + "(fileInfo: " + fileInfo + ')';
         this.stats = Objects.requireNonNull(stats);
         this.offset = offset;
         this.length = length;

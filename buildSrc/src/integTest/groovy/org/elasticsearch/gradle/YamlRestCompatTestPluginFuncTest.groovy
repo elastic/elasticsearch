@@ -19,11 +19,10 @@
 
 package org.elasticsearch.gradle
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome
-import spock.lang.IgnoreIf
 
-class YamlRestCompatTestPluginFuncTest extends AbstractGradleFuncTest {
+class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestCompatTest does nothing when there are no tests"() {
         given:

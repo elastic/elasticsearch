@@ -19,10 +19,10 @@
 
 package org.elasticsearch.gradle
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
-class YamlRestTestPluginFuncTest extends AbstractGradleFuncTest {
+class YamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest does nothing when there are no tests"() {
         given:

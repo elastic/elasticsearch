@@ -255,11 +255,22 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
             .get();
     }
 
-    protected void assertInferenceModelPersisted(String jobId) {
+    protected void assertExactlyOneInferenceModelPersisted(String jobId) {
+        assertInferenceModelPersisted(jobId, equalTo(1));
+    }
+
+    protected void assertAtLeastOneInferenceModelPersisted(String jobId) {
+        assertInferenceModelPersisted(jobId, greaterThanOrEqualTo(1));
+    }
+
+    private void assertInferenceModelPersisted(String jobId, Matcher<? super Integer> modelHitsArraySizeMatcher) {
         SearchResponse searchResponse = client().prepareSearch(InferenceIndexConstants.LATEST_INDEX_NAME)
             .setQuery(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(TrainedModelConfig.TAGS.getPreferredName(), jobId)))
             .get();
-        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(), arrayWithSize(1));
+        // If the job is stopped during writing_results phase and it is then restarted, there is a chance two trained models
+        // were persisted as there is no way currently for the process to be certain the model was persisted.
+        assertThat("Hits were: " + Strings.toString(searchResponse.getHits()), searchResponse.getHits().getHits(),
+            is(arrayWithSize(modelHitsArraySizeMatcher)));
     }
 
     protected Collection<PersistentTasksCustomMetadata.PersistentTask<?>> analyticsTaskList() {

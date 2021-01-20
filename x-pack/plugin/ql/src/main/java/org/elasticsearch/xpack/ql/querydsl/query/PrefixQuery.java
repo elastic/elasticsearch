@@ -15,11 +15,13 @@ import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 public class PrefixQuery extends LeafQuery {
 
     private final String field, query;
+    private final boolean caseInsensitive;
 
-    public PrefixQuery(Source source, String field, String query) {
+    public PrefixQuery(Source source, String field, String query, boolean caseInsensitive) {
         super(source);
         this.field = field;
         this.query = query;
+        this.caseInsensitive = caseInsensitive;
     }
 
     public String field() {
@@ -32,12 +34,12 @@ public class PrefixQuery extends LeafQuery {
 
     @Override
     public QueryBuilder asBuilder() {
-        return prefixQuery(field, query);
+        return prefixQuery(field, query).caseInsensitive(caseInsensitive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(field, query);
+        return Objects.hash(field, query, caseInsensitive);
     }
 
     @Override
@@ -51,8 +53,9 @@ public class PrefixQuery extends LeafQuery {
         }
 
         PrefixQuery other = (PrefixQuery) obj;
-        return Objects.equals(field, other.field)
-                && Objects.equals(query, other.query);
+        return caseInsensitive == other.caseInsensitive
+            && Objects.equals(field, other.field)
+            && Objects.equals(query, other.query);
     }
 
     @Override

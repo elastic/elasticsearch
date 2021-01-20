@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -103,7 +104,7 @@ final class QueryTranslator {
             new StringQueries(),
             new Matches(),
             new MultiMatches(),
-            new Scalars()
+        new CaseInsensitiveScalars()
             );
 
     private static final List<AggTranslator<?>> AGG_TRANSLATORS = Arrays.asList(
@@ -461,10 +462,10 @@ final class QueryTranslator {
         }
     }
 
-    static class Scalars extends SqlExpressionTranslator<ScalarFunction> {
+    static class CaseInsensitiveScalars extends SqlExpressionTranslator<CaseInsensitiveScalarFunction> {
 
         @Override
-        protected QueryTranslation asQuery(ScalarFunction f, boolean onAggs, TranslatorHandler handler) {
+        protected QueryTranslation asQuery(CaseInsensitiveScalarFunction f, boolean onAggs, TranslatorHandler handler) {
 
             Query query = null;
             AggFilter aggFilter = null;
@@ -472,7 +473,7 @@ final class QueryTranslator {
             if (onAggs) {
                 aggFilter = new AggFilter(id(f), f.asScript());
             } else {
-                query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.Scalars.doTranslate(f, handler);
+                query = ExpressionTranslators.CaseInsensitiveScalars.doTranslate(f, handler);
             }
 
             return new QueryTranslation(query, aggFilter);

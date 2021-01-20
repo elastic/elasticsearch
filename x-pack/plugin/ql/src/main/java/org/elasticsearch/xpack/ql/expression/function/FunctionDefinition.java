@@ -29,7 +29,7 @@ public class FunctionDefinition {
     private final Class<? extends Function> clazz;
     private final Builder builder;
 
-    protected FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, Builder builder) {
+    public FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, Builder builder) {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;

@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
@@ -34,9 +33,9 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
 
     public static EndsWithFunctionPipe randomEndsWithFunctionPipe() {
         return (EndsWithFunctionPipe) (new EndsWith(randomSource(),
-                randomStringLiteral(),
-                randomStringLiteral(),
-                EqlTestUtils.randomConfiguration())
+            randomStringLiteral(),
+            randomStringLiteral(),
+            randomBoolean())
             .makePipe());
     }
 
@@ -45,13 +44,13 @@ public class EndsWithFunctionPipeTests extends AbstractNodeTestCase<EndsWithFunc
         // test transforming only the properties (source, expression),
         // skipping the children (input and pattern) which are tested separately
         EndsWithFunctionPipe b1 = randomInstance();
-        Expression newExpression = randomValueOtherThan(b1.expression(), () -> randomEndsWithFunctionExpression());
+        Expression newExpression = randomValueOtherThan(b1.expression(), this::randomEndsWithFunctionExpression);
         EndsWithFunctionPipe newB = new EndsWithFunctionPipe(
-                b1.source(),
-                newExpression,
-                b1.input(),
-                b1.pattern(),
-                b1.isCaseSensitive());
+            b1.source(),
+            newExpression,
+            b1.input(),
+            b1.pattern(),
+            b1.isCaseSensitive());
         assertEquals(newB, b1.transformPropertiesOnly(Expression.class, v -> Objects.equals(v, b1.expression()) ? newExpression : v));
 
         EndsWithFunctionPipe b2 = randomInstance();

@@ -148,7 +148,7 @@ public class InternalQlScriptUtils {
     //
     // String
     //
-    public static Boolean startsWith(String s, String pattern, Boolean isCaseSensitive) {
-        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, isCaseSensitive);
+    public static Boolean startsWith(String s, String pattern, Boolean caseInsensitive) {
+        return (Boolean) StartsWithFunctionProcessor.doProcess(s, pattern, caseInsensitive);
     }
 }

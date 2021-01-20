@@ -6,7 +6,6 @@
 
 package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
-import org.elasticsearch.xpack.eql.EqlTestUtils;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.tree.AbstractNodeTestCase;
@@ -34,9 +33,9 @@ public class StringContainsFunctionPipeTests extends AbstractNodeTestCase<String
 
     public static StringContainsFunctionPipe randomStringContainsFunctionPipe() {
         return (StringContainsFunctionPipe) (new StringContains(randomSource(),
-                                    randomStringLiteral(),
-                                    randomStringLiteral(),
-                                    EqlTestUtils.randomConfiguration())
+            randomStringLiteral(),
+            randomStringLiteral(),
+            randomBoolean())
             .makePipe());
     }
 

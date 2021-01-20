@@ -20,33 +20,33 @@ public class EndsWithFunctionProcessor implements Processor {
 
     private final Processor input;
     private final Processor pattern;
-    private final boolean isCaseSensitive;
+    private final boolean isCaseInsensitive;
 
-    public EndsWithFunctionProcessor(Processor input, Processor pattern, boolean isCaseSensitive) {
+    public EndsWithFunctionProcessor(Processor input, Processor pattern, boolean isCaseInsensitive) {
         this.input = input;
         this.pattern = pattern;
-        this.isCaseSensitive = isCaseSensitive;
+        this.isCaseInsensitive = isCaseInsensitive;
     }
 
     public EndsWithFunctionProcessor(StreamInput in) throws IOException {
         input = in.readNamedWriteable(Processor.class);
         pattern = in.readNamedWriteable(Processor.class);
-        isCaseSensitive = in.readBoolean();
+        isCaseInsensitive = in.readBoolean();
     }
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(input);
         out.writeNamedWriteable(pattern);
-        out.writeBoolean(isCaseSensitive);
+        out.writeBoolean(isCaseInsensitive);
     }
 
     @Override
     public Object process(Object o) {
-        return doProcess(input.process(o), pattern.process(o), isCaseSensitive());
+        return doProcess(input.process(o), pattern.process(o), isCaseInsensitive());
     }
 
-    public static Object doProcess(Object input, Object pattern, boolean isCaseSensitive) {
+    public static Object doProcess(Object input, Object pattern, boolean isCaseInsensitive) {
         if (input == null) {
             return null;
         }
@@ -60,13 +60,13 @@ public class EndsWithFunctionProcessor implements Processor {
             throw new EqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 
-        if (isCaseSensitive) {
+        if (isCaseInsensitive == false) {
             return input.toString().endsWith(pattern.toString());
         } else {
             return input.toString().toLowerCase(Locale.ROOT).endsWith(pattern.toString().toLowerCase(Locale.ROOT));
         }
     }
-    
+
     protected Processor input() {
         return input;
     }
@@ -75,8 +75,8 @@ public class EndsWithFunctionProcessor implements Processor {
         return pattern;
     }
 
-    protected boolean isCaseSensitive() {
-        return isCaseSensitive;
+    protected boolean isCaseInsensitive() {
+        return isCaseInsensitive;
     }
 
     @Override
@@ -84,22 +84,22 @@ public class EndsWithFunctionProcessor implements Processor {
         if (this == obj) {
             return true;
         }
-        
+
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        
+
         EndsWithFunctionProcessor other = (EndsWithFunctionProcessor) obj;
         return Objects.equals(input(), other.input())
-                && Objects.equals(pattern(), other.pattern())
-                && Objects.equals(isCaseSensitive(), other.isCaseSensitive());
+            && Objects.equals(pattern(), other.pattern())
+            && Objects.equals(isCaseInsensitive(), other.isCaseInsensitive());
     }
-    
+
     @Override
     public int hashCode() {
-        return Objects.hash(input(), pattern(), isCaseSensitive());
+        return Objects.hash(input(), pattern(), isCaseInsensitive());
     }
-    
+
 
     @Override
     public String getWriteableName() {

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.expression.function;
 
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -14,12 +13,10 @@ import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.function.aggregate.Count;
-import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.util.Check;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.First;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Kurtosis;
@@ -40,7 +37,6 @@ import org.elasticsearch.xpack.sql.expression.function.grouping.Histogram;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Database;
 import org.elasticsearch.xpack.sql.expression.function.scalar.User;
-import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToChar;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDate;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentDateTime;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.CurrentTime;
@@ -66,6 +62,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.MonthOfYe
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Quarter;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.SecondOfMinute;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.TimeParse;
+import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.ToChar;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.WeekOfYear;
 import org.elasticsearch.xpack.sql.expression.function.scalar.datetime.Year;
 import org.elasticsearch.xpack.sql.expression.function.scalar.geo.StAswkt;
@@ -121,6 +118,7 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.string.Repeat;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Replace;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Right;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Space;
+import org.elasticsearch.xpack.sql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Substring;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.sql.expression.function.scalar.string.UCase;
@@ -145,10 +143,9 @@ public class SqlFunctionRegistry extends FunctionRegistry {
         register(functions());
     }
 
-    protected SqlFunctionRegistry(FunctionDefinition... functions) {
+    SqlFunctionRegistry(FunctionDefinition... functions) {
         register(functions);
     }
-
 
     private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][]{
@@ -307,7 +304,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
 
     /**
      * Builder for creating SQL-specific functions.
-     * All other definitions defined here end up being translated to this form.
+     * All other methods defined here end up being translated to this form.
      */
     protected interface SqlFunctionBuilder {
         Function build(Source source, List<Expression> children, Configuration cfg, Boolean distinct);
@@ -332,16 +329,6 @@ public class SqlFunctionRegistry extends FunctionRegistry {
             }
         };
         return new SqlFunctionDefinition(primaryName, unmodifiableList(aliases), function, datetime, realBuilder);
-    }
-
-    private static Boolean asBool(Object[] extras) {
-        if (CollectionUtils.isEmpty(extras)) {
-            return null;
-        }
-        if (extras.length != 1 || (extras[0] instanceof Boolean) == false) {
-            throw new SqlIllegalArgumentException("Expected exactly one bool argument, found [{}], entry [{}]", extras.length, extras[0]);
-        }
-        return (Boolean) extras[0];
     }
 
     /**

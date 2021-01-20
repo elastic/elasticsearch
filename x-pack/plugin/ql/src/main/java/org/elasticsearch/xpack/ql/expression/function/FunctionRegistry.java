@@ -405,4 +405,18 @@ public class FunctionRegistry {
     protected interface TernaryConfigurationAwareBuilder<T> {
         T build(Source source, Expression one, Expression two, Expression three, Configuration configuration);
     }
+
+    //
+    // Utility method for extra argument extraction.
+    //
+    protected static Boolean asBool(Object[] extras) {
+        if (CollectionUtils.isEmpty(extras)) {
+            return null;
+        }
+        if (extras.length != 1 || (extras[0] instanceof Boolean) == false) {
+            throw new QlIllegalArgumentException("Invalid number and types of arguments given to function definition");
+        }
+        return (Boolean) extras[0];
+    }
+
 }

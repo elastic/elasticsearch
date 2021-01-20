@@ -35,21 +35,23 @@ public class Wildcard extends BaseSurrogateFunction {
 
     private final Expression field;
     private final List<Expression> patterns;
+    private final boolean caseInsensitive;
 
-    public Wildcard(Source source, Expression field, List<Expression> patterns) {
+    public Wildcard(Source source, Expression field, List<Expression> patterns, boolean caseInsensitive) {
         super(source, CollectionUtils.combine(Collections.singletonList(field), patterns));
         this.field = field;
         this.patterns = patterns;
+        this.caseInsensitive = caseInsensitive;
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Wildcard::new, field, patterns);
+        return NodeInfo.create(this, Wildcard::new, field, patterns, caseInsensitive);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Wildcard(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+        return new Wildcard(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), caseInsensitive);
     }
 
     @Override
@@ -92,7 +94,7 @@ public class Wildcard extends BaseSurrogateFunction {
     public ScalarFunction makeSubstitute() {
         return (ScalarFunction) Predicates.combineOr(
             patterns.stream()
-            .map(e -> new Like(source(), field, StringUtils.toLikePattern(e.fold().toString())))
-            .collect(toList()));
+                .map(e -> new Like(source(), field, StringUtils.toLikePattern(e.fold().toString()), caseInsensitive))
+                .collect(toList()));
     }
 }

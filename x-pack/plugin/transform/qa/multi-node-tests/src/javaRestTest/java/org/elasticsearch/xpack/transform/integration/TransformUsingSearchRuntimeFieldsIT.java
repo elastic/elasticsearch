@@ -66,19 +66,19 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
     }
 
     private static Map<String, Object> createRuntimeMappings() {
-        return new HashMap<>() {{
-            put("user-upper", new HashMap<>() {{
+        return new HashMap<String, Object>() {{
+            put("user-upper", new HashMap<String, Object>() {{
                 put("type", "keyword");
                 put("script", singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUpperCase())}"));
             }});
-            put("stars", new HashMap<>() {{
+            put("stars", new HashMap<String, Object>() {{
                 put("type", "long");
             }});
-            put("stars-x2", new HashMap<>() {{
+            put("stars-x2", new HashMap<String, Object>() {{
                 put("type", "long");
                 put("script", singletonMap("source", "if (params._source.stars != null) {emit(2 * params._source.stars)}"));
             }});
-            put("timestamp-5m", new HashMap<>() {{
+            put("timestamp-5m", new HashMap<String, Object>() {{
                 put("type", "date");
                 put("script", singletonMap(
                     "source", "emit(doc['timestamp'].value.toInstant().minus(5, ChronoUnit.MINUTES).toEpochMilli())"));
@@ -166,8 +166,8 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
     public void testPivotTransform_BadRuntimeFieldScript() throws Exception {
         String destIndexName = "reviews-by-user-pivot";
         String transformId = "transform-with-st-rt-fields-pivot";
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
-            put("user-upper", new HashMap<>() {{
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
+            put("user-upper", new HashMap<String, Object>() {{
                 put("type", "keyword");
                 // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
                 put("script", singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}"));
@@ -276,8 +276,8 @@ public class TransformUsingSearchRuntimeFieldsIT extends TransformIntegTestCase 
     public void testLatestTransform_BadRuntimeFieldScript() throws Exception {
         String destIndexName = "reviews-by-user-latest";
         String transformId = "transform-with-st-rt-fields-latest";
-        Map<String, Object> runtimeMappings = new HashMap<>() {{
-            put("user-upper", new HashMap<>() {{
+        Map<String, Object> runtimeMappings = new HashMap<String, Object>() {{
+            put("user-upper", new HashMap<String, Object>() {{
                 put("type", "keyword");
                 // Method name used in the script is misspelled, i.e.: "toUperCase" instead of "toUpperCase"
                 put("script", singletonMap("source", "if (params._source.user_id != null) {emit(params._source.user_id.toUperCase())}"));

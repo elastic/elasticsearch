@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.expression.function;
 
+import org.elasticsearch.xpack.ql.ParsingException;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
@@ -20,7 +21,10 @@ public enum SqlFunctionResolution implements FunctionResolutionStrategy {
     DISTINCT {
         @Override
         public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-            return def.builder().build(uf, true, cfg);
+            if (def instanceof SqlFunctionDefinition) {
+                return ((SqlFunctionDefinition) def).builder().build(uf, cfg, true);
+            }
+            throw new ParsingException(uf.source(), "Cannot use {} on non-SQL function {}", name(), def);
         }
 
         @Override
@@ -34,15 +38,15 @@ public enum SqlFunctionResolution implements FunctionResolutionStrategy {
     EXTRACT {
         @Override
         public Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-            if (def.extractViable()) {
-                return def.builder().build(uf, false, cfg);
+            if (isValidAlternative(def)) {
+                return ((SqlFunctionDefinition) def).builder().build(uf, cfg);
             }
             return uf.withMessage("Invalid datetime field [" + uf.name() + "]. Use any datetime function.");
         }
 
         @Override
         public boolean isValidAlternative(FunctionDefinition def) {
-            return def.extractViable();
+            return (def instanceof SqlFunctionDefinition) && ((SqlFunctionDefinition) def).extractViable();
         }
 
         @Override

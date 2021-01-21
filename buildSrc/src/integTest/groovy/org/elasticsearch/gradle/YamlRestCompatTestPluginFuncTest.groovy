@@ -119,4 +119,45 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
     }
+    
+    def "yamlRestCompatTest is wired into check and checkRestCompat"() {
+        given:
+
+        addSubProject(":distribution:bwc:minor") << """
+        configurations { checkout }
+        artifacts {
+            checkout(new File(projectDir, "checkoutDir"))
+        }
+        """
+
+        buildFile << """
+        plugins {
+          id 'elasticsearch.yaml-rest-compat-test'
+        }
+
+        """
+
+        when:
+        def result = gradleRunner("check").build()
+
+        then:
+        result.task(':check').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':yamlRestCompatTest').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.NO_SOURCE
+
+        when:
+        buildFile << """
+         ext.bwc_tests_enabled = false
+        """
+        result = gradleRunner("check").build()
+
+        then:
+        result.task(':check').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':checkRestCompat').outcome == TaskOutcome.UP_TO_DATE
+        result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.SKIPPED
+    }
 }

@@ -28,6 +28,7 @@ import com.github.javaparser.ast.body.MethodDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.visitor.VoidVisitorAdapter;
 import com.github.javaparser.javadoc.Javadoc;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.painless.action.PainlessContextMethodInfo;
 
 import java.io.File;
@@ -46,6 +47,7 @@ public class StdlibJavadocExtractor {
         this.root = root;
     }
 
+    @SuppressForbidden(reason = "resolve class file from java src directory with environment")
     private File openClassFile(String className) {
         int dollarPosition = className.indexOf("$");
         if (dollarPosition >= 0) {

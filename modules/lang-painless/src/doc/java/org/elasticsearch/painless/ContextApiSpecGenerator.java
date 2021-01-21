@@ -39,9 +39,9 @@ public class ContextApiSpecGenerator {
         List<PainlessContextInfo> contexts = ContextGeneratorCommon.getContextInfos();
         Path rootDir = resetRootDir();
         ContextGeneratorCommon.PainlessInfos infos;
-        String jdksrc = System.getProperty("jdksrc");
-        if (jdksrc != null && "".equals(jdksrc) == false) {
-            infos = new ContextGeneratorCommon.PainlessInfos(contexts, new StdlibJavadocExtractor(PathUtils.get(jdksrc)));
+        Path jdksrc = getJdkSrc();
+        if (jdksrc != null) {
+            infos = new ContextGeneratorCommon.PainlessInfos(contexts, new StdlibJavadocExtractor(jdksrc));
         } else {
             infos = new ContextGeneratorCommon.PainlessInfos(contexts);
         }
@@ -78,5 +78,14 @@ public class ContextApiSpecGenerator {
         Files.createDirectories(rootDir);
 
         return rootDir;
+    }
+
+    @SuppressForbidden(reason = "resolve jdk src directory with environment")
+    private static Path getJdkSrc() {
+        String jdksrc = System.getProperty("jdksrc");
+        if (jdksrc == null || "".equals(jdksrc)) {
+            return null;
+        }
+        return PathUtils.get(jdksrc);
     }
 }

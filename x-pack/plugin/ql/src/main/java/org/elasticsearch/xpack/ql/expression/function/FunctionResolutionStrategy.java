@@ -24,7 +24,7 @@ public interface FunctionResolutionStrategy {
      * Build the real function from this one and resolution metadata.
      */
     default Function buildResolved(UnresolvedFunction uf, Configuration cfg, FunctionDefinition def) {
-        return def.builder().build(uf, false, cfg);
+        return def.builder().build(uf, cfg);
     }
 
     /**

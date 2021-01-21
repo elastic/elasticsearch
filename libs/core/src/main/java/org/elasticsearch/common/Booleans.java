@@ -128,7 +128,16 @@ public final class Booleans {
         if (value == null) {
             return defaultValue;
         }
-        return (value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no")) == false;
+        switch (value) {
+            case "false":
+            case "0":
+            case "off":
+            case "no":
+                return false;
+
+            default:
+                return true;
+        }
     }
 
     /**

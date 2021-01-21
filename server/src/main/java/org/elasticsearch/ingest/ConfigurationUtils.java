@@ -49,7 +49,7 @@ public final class ConfigurationUtils {
 
     public static final String TAG_KEY = "tag";
     public static final String DESCRIPTION_KEY = "description";
-    public static final String[] VALID_MIME_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
+    public static final String[] VALID_MEDIA_TYPES = {"application/json", "text/plain", "application/x-www-form-urlencoded"};
 
     private ConfigurationUtils() {
     }
@@ -306,16 +306,16 @@ public final class ConfigurationUtils {
         return value;
     }
 
-    public static String readMimeTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
+    public static String readMediaTypeProperty(String processorType, String processorTag, Map<String, Object> configuration,
         String propertyName, String defaultValue) {
-        String mimeType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
+        String mediaType = readStringProperty(processorType, processorTag, configuration, propertyName, defaultValue);
 
-        if (Arrays.asList(VALID_MIME_TYPES).contains(mimeType) == false) {
+        if (Arrays.asList(VALID_MEDIA_TYPES).contains(mediaType) == false) {
             throw newConfigurationException(processorType, processorTag, propertyName,
-                "property does not contain a supported MIME type [" + mimeType + "]");
+                "property does not contain a supported media type [" + mediaType + "]");
         }
 
-        return mimeType;
+        return mediaType;
     }
 
     public static ElasticsearchException newConfigurationException(String processorType, String processorTag,

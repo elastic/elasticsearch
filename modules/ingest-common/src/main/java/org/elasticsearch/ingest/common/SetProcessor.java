@@ -111,11 +111,11 @@ public final class SetProcessor extends AbstractProcessor {
                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");
-            String mimeType = ConfigurationUtils.readMimeTypeProperty(TYPE, processorTag, config, "mime_type", "application/json");
+            String mediaType = ConfigurationUtils.readMediaTypeProperty(TYPE, processorTag, config, "media_type", "application/json");
             ValueSource valueSource = null;
             if (copyFrom == null) {
                 Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
-                valueSource = ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mimeType));
+                valueSource = ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mediaType));
             } else {
                 Object value = config.remove("value");
                 if (value != null) {

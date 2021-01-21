@@ -139,7 +139,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
 
     public void testMimeType() throws Exception {
         // valid mime type
-        String expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
+        String expectedMimeType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", "value1");
@@ -149,7 +149,7 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(setProcessor.getTag(), equalTo(processorTag));
 
         // invalid mime type
-        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
+        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9));
         final Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "field1");

@@ -17,7 +17,7 @@ its value will be replaced with the provided one.
 | `copy_from` | no       | -       | The origin field which will be copied to `field`, cannot set `value` simultaneously. Supported data types are `boolean`, `number`, `array`, `object`, `string`, `date`, etc.
 | `override`  | no       | `true`  | If processor will update fields with pre-existing non-null-valued field. When set to `false`, such fields will not be touched.
 | `ignore_empty_value` | no | `false` | If `true` and `value` is a <<accessing-template-fields,template snippet>> that evaluates to `null` or the empty string, the processor quietly exits without modifying the document
-| `mime_type` | no       | `application/json` | The MIME type for encoding `value`. Applies only when `value` is a <<accessing-template-fields,template snippet>>. Must be one of `application/json`, `text/plain`, or `application/x-www-form-urlencoded`.
+| `media_type` | no       | `application/json` | The media type for encoding `value`. Applies only when `value` is a <<accessing-template-fields,template snippet>>. Must be one of `application/json`, `text/plain`, or `application/x-www-form-urlencoded`.
 include::common-options.asciidoc[]
 |======
 

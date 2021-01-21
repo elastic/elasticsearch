@@ -177,14 +177,15 @@ public abstract class AbstractNativeProcess implements NativeProcess {
                 processInStream().close();
             }
 
-            consumeAndCloseOutputStream();
-
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
             if (stateProcessorFuture != null) {
                 stateProcessorFuture.get(MachineLearningField.STATE_PERSIST_RESTORE_TIMEOUT.getMinutes(), TimeUnit.MINUTES);
             }
+
+            consumeAndCloseOutputStream();
+
             // the log processor should have stopped by now too - assume processing the logs will
             // take no more than 5 seconds longer than processing the state (usually it should
             // finish first)

@@ -42,9 +42,7 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
     }
 
     public void testBWCPre78() throws IOException {
-        Response newResponse = new Response(
-            TransformConfigTests.randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10))
-        );
+        Response newResponse = new Response(TransformConfigTests.randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10)));
         UpdateTransformActionPre78.Response oldResponse = writeAndReadBWCObject(
             newResponse,
             getNamedWriteableRegistry(),
@@ -59,12 +57,19 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
         assertEquals(newResponse.getConfig().getFrequency(), oldResponse.getConfig().getFrequency());
         assertEquals(
             newResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().keySet(),
-            oldResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().keySet());
-        for (Map.Entry<String, SingleGroupSource> oldResponseGroupEntry
-                : oldResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().entrySet()) {
+            oldResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().keySet()
+        );
+        for (Map.Entry<String, SingleGroupSource> oldResponseGroupEntry : oldResponse.getConfig()
+            .getPivotConfig()
+            .getGroupConfig()
+            .getGroups()
+            .entrySet()) {
             SingleGroupSource oldResponseGroup = oldResponseGroupEntry.getValue();
-            SingleGroupSource newResponseGroup =
-                newResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().get(oldResponseGroupEntry.getKey());
+            SingleGroupSource newResponseGroup = newResponse.getConfig()
+                .getPivotConfig()
+                .getGroupConfig()
+                .getGroups()
+                .get(oldResponseGroupEntry.getKey());
             assertThat(oldResponseGroup.getField(), is(equalTo(newResponseGroup.getField())));
             assertThat(oldResponseGroup.getScriptConfig(), is(equalTo(newResponseGroup.getScriptConfig())));
             // missing_bucket was added in 7.10 so it is always false after deserializing from 7.7
@@ -72,15 +77,18 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
         }
         assertEquals(
             newResponse.getConfig().getPivotConfig().getAggregationConfig(),
-            oldResponse.getConfig().getPivotConfig().getAggregationConfig());
+            oldResponse.getConfig().getPivotConfig().getAggregationConfig()
+        );
         assertEquals(
             newResponse.getConfig().getPivotConfig().getMaxPageSearchSize(),
-            oldResponse.getConfig().getPivotConfig().getMaxPageSearchSize());
+            oldResponse.getConfig().getPivotConfig().getMaxPageSearchSize()
+        );
         if (newResponse.getConfig().getSource() != null) {
             assertThat(newResponse.getConfig().getSource().getIndex(), is(equalTo(newResponse.getConfig().getSource().getIndex())));
             assertThat(
                 newResponse.getConfig().getSource().getQueryConfig(),
-                is(equalTo(newResponse.getConfig().getSource().getQueryConfig())));
+                is(equalTo(newResponse.getConfig().getSource().getQueryConfig()))
+            );
             // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
             assertThat(oldResponse.getConfig().getSource().getRuntimeMappings(), is(anEmptyMap()));
         }
@@ -103,12 +111,19 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
         assertEquals(newResponse.getConfig().getFrequency(), newRequestFromOld.getConfig().getFrequency());
         assertEquals(
             newResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().keySet(),
-            newRequestFromOld.getConfig().getPivotConfig().getGroupConfig().getGroups().keySet());
-        for (Map.Entry<String, SingleGroupSource> newRequestFromOldGroupEntry
-                : newRequestFromOld.getConfig().getPivotConfig().getGroupConfig().getGroups().entrySet()) {
+            newRequestFromOld.getConfig().getPivotConfig().getGroupConfig().getGroups().keySet()
+        );
+        for (Map.Entry<String, SingleGroupSource> newRequestFromOldGroupEntry : newRequestFromOld.getConfig()
+            .getPivotConfig()
+            .getGroupConfig()
+            .getGroups()
+            .entrySet()) {
             SingleGroupSource newRequestFromOldGroup = newRequestFromOldGroupEntry.getValue();
-            SingleGroupSource newResponseGroup =
-                newResponse.getConfig().getPivotConfig().getGroupConfig().getGroups().get(newRequestFromOldGroupEntry.getKey());
+            SingleGroupSource newResponseGroup = newResponse.getConfig()
+                .getPivotConfig()
+                .getGroupConfig()
+                .getGroups()
+                .get(newRequestFromOldGroupEntry.getKey());
             assertThat(newRequestFromOldGroup.getField(), is(equalTo(newResponseGroup.getField())));
             assertThat(newRequestFromOldGroup.getScriptConfig(), is(equalTo(newResponseGroup.getScriptConfig())));
             // missing_bucket was added in 7.10 so it is always false after deserializing from 7.7
@@ -116,15 +131,18 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
         }
         assertEquals(
             newResponse.getConfig().getPivotConfig().getAggregationConfig(),
-            newRequestFromOld.getConfig().getPivotConfig().getAggregationConfig());
+            newRequestFromOld.getConfig().getPivotConfig().getAggregationConfig()
+        );
         assertEquals(
             newResponse.getConfig().getPivotConfig().getMaxPageSearchSize(),
-            newRequestFromOld.getConfig().getPivotConfig().getMaxPageSearchSize());
+            newRequestFromOld.getConfig().getPivotConfig().getMaxPageSearchSize()
+        );
         if (newResponse.getConfig().getSource() != null) {
             assertThat(newRequestFromOld.getConfig().getSource().getIndex(), is(equalTo(newResponse.getConfig().getSource().getIndex())));
             assertThat(
                 newRequestFromOld.getConfig().getSource().getQueryConfig(),
-                is(equalTo(newResponse.getConfig().getSource().getQueryConfig())));
+                is(equalTo(newResponse.getConfig().getSource().getQueryConfig()))
+            );
             // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
             assertThat(newRequestFromOld.getConfig().getSource().getRuntimeMappings(), is(anEmptyMap()));
         }

@@ -40,7 +40,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         try (XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()) {
             XContentBuilder content = queryBuilder.toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
             source = (LinkedHashMap<String, Object>) XContentHelper.convertToMap(BytesReference.bytes(content), true, XContentType.JSON)
-                    .v2();
+                .v2();
         } catch (IOException e) {
             // should not happen
             fail("failed to create random query config");

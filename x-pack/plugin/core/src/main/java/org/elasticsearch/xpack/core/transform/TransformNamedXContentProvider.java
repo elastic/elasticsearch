@@ -22,12 +22,8 @@ public class TransformNamedXContentProvider implements NamedXContentProvider {
     @Override
     public List<NamedXContentRegistry.Entry> getNamedXContentParsers() {
         return Arrays.asList(
-                new NamedXContentRegistry.Entry(SyncConfig.class,
-                        TransformField.TIME,
-                        TimeSyncConfig::parse),
-                new NamedXContentRegistry.Entry(RetentionPolicyConfig.class,
-                    TransformField.TIME,
-                    TimeRetentionPolicyConfig::parse)
-            );
+            new NamedXContentRegistry.Entry(SyncConfig.class, TransformField.TIME, TimeSyncConfig::parse),
+            new NamedXContentRegistry.Entry(RetentionPolicyConfig.class, TransformField.TIME, TimeRetentionPolicyConfig::parse)
+        );
     }
 }

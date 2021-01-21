@@ -32,7 +32,8 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         return new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomQueryConfig(),
-            randomRuntimeMappings());
+            randomRuntimeMappings()
+        );
     }
 
     public static SourceConfig randomInvalidSourceConfig() {
@@ -40,7 +41,8 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
         return new SourceConfig(
             generateRandomStringArray(10, 10, false, false),
             QueryConfigTests.randomInvalidQueryConfig(),
-            randomRuntimeMappings());
+            randomRuntimeMappings()
+        );
     }
 
     private static Map<String, Object> randomRuntimeMappings() {
@@ -112,19 +114,38 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     }
 
     public void testRequiresRemoteCluster() {
-        assertFalse(new SourceConfig(new String [] {"index1", "index2", "index3"},
-                QueryConfigTests.randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster());
+        assertFalse(
+            new SourceConfig(new String[] { "index1", "index2", "index3" }, QueryConfigTests.randomQueryConfig(), randomRuntimeMappings())
+                .requiresRemoteCluster()
+        );
 
-        assertTrue(new SourceConfig(new String [] {"index1", "remote2:index2", "index3"},
-                QueryConfigTests.randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster());
+        assertTrue(
+            new SourceConfig(
+                new String[] { "index1", "remote2:index2", "index3" },
+                QueryConfigTests.randomQueryConfig(),
+                randomRuntimeMappings()
+            ).requiresRemoteCluster()
+        );
 
-        assertTrue(new SourceConfig(new String [] {"index1", "index2", "remote3:index3"},
-                QueryConfigTests.randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster());
+        assertTrue(
+            new SourceConfig(
+                new String[] { "index1", "index2", "remote3:index3" },
+                QueryConfigTests.randomQueryConfig(),
+                randomRuntimeMappings()
+            ).requiresRemoteCluster()
+        );
 
-        assertTrue(new SourceConfig(new String [] {"index1", "remote2:index2", "remote3:index3"},
-                QueryConfigTests.randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster());
+        assertTrue(
+            new SourceConfig(
+                new String[] { "index1", "remote2:index2", "remote3:index3" },
+                QueryConfigTests.randomQueryConfig(),
+                randomRuntimeMappings()
+            ).requiresRemoteCluster()
+        );
 
-        assertTrue(new SourceConfig(new String [] {"remote1:index1"},
-                QueryConfigTests.randomQueryConfig(), randomRuntimeMappings()).requiresRemoteCluster());
+        assertTrue(
+            new SourceConfig(new String[] { "remote1:index1" }, QueryConfigTests.randomQueryConfig(), randomRuntimeMappings())
+                .requiresRemoteCluster()
+        );
     }
 }

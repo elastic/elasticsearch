@@ -19,8 +19,7 @@ public class DestConfigTests extends AbstractSerializingTransformTestCase<DestCo
     private boolean lenient;
 
     public static DestConfig randomDestConfig() {
-        return new DestConfig(randomAlphaOfLength(10),
-            randomBoolean() ? null : randomAlphaOfLength(10));
+        return new DestConfig(randomAlphaOfLength(10), randomBoolean() ? null : randomAlphaOfLength(10));
     }
 
     @Before

@@ -46,7 +46,11 @@ public abstract class AbstractWireSerializingTransformTestCase<T extends Writeab
             new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new)
         );
         namedWriteables.add(
-            new NamedWriteableRegistry.Entry(RetentionPolicyConfig.class, TransformField.TIME.getPreferredName(), TimeRetentionPolicyConfig::new)
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                TransformField.TIME.getPreferredName(),
+                TimeRetentionPolicyConfig::new
+            )
         );
 
         List<NamedXContentRegistry.Entry> namedXContents = searchModule.getNamedXContents();

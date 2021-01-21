@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.util.Objects;
 
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class TimeRetentionPolicyConfig implements RetentionPolicyConfig {
 

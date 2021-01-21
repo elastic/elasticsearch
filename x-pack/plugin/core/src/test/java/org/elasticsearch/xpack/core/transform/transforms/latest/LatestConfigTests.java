@@ -49,10 +49,7 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_ValidConfig() throws IOException {
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
-            + " \"sort\": \"timestamp\""
-            + "}";
+        String json = "{" + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ]," + " \"sort\": \"timestamp\"" + "}";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null), is(nullValue()));
@@ -62,59 +59,47 @@ public class LatestConfigTests extends AbstractSerializingTransformTestCase<Late
     }
 
     public void testValidate_EmptyUniqueKey() throws IOException {
-        String json = "{"
-            + " \"unique_key\": [],"
-            + " \"sort\": \"timestamp\""
-            + "}";
+        String json = "{" + " \"unique_key\": []," + " \"sort\": \"timestamp\"" + "}";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.unique_key must be non-empty"));
     }
 
     public void testValidate_EmptyUniqueKeyElement() throws IOException {
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"\", \"event2\", \"\", \"event3\" ],"
-            + " \"sort\": \"timestamp\""
-            + "}";
+        String json = "{" + " \"unique_key\": [ \"event1\", \"\", \"event2\", \"\", \"event3\" ]," + " \"sort\": \"timestamp\"" + "}";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
             config.validate(null).validationErrors(),
-            containsInAnyOrder("latest.unique_key[1] element must be non-empty", "latest.unique_key[3] element must be non-empty"));
+            containsInAnyOrder("latest.unique_key[1] element must be non-empty", "latest.unique_key[3] element must be non-empty")
+        );
     }
 
     public void testValidate_DuplicateUniqueKeyElement() throws IOException {
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"event2\", \"event1\" ],"
-            + " \"sort\": \"timestamp\""
-            + "}";
+        String json = "{" + " \"unique_key\": [ \"event1\", \"event2\", \"event1\" ]," + " \"sort\": \"timestamp\"" + "}";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
             config.validate(null).validationErrors(),
-            containsInAnyOrder("latest.unique_key elements must be unique, found duplicate element [event1]"));
+            containsInAnyOrder("latest.unique_key elements must be unique, found duplicate element [event1]")
+        );
     }
 
     public void testValidate_EmptySort() throws IOException {
-        String json = "{"
-            + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ],"
-            + " \"sort\": \"\""
-            + "}";
+        String json = "{" + " \"unique_key\": [ \"event1\", \"event2\", \"event3\" ]," + " \"sort\": \"\"" + "}";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(config.validate(null).validationErrors(), contains("latest.sort must be non-empty"));
     }
 
     public void testValidate_EmptyUniqueKeyAndSort() throws IOException {
-        String json = "{"
-            + " \"unique_key\": [],"
-            + " \"sort\": \"\""
-            + "}";
+        String json = "{" + " \"unique_key\": []," + " \"sort\": \"\"" + "}";
 
         LatestConfig config = createLatestConfigFromString(json);
         assertThat(
             config.validate(null).validationErrors(),
-            containsInAnyOrder("latest.unique_key must be non-empty", "latest.sort must be non-empty"));
+            containsInAnyOrder("latest.unique_key must be non-empty", "latest.sort must be non-empty")
+        );
     }
 
     private LatestConfig createLatestConfigFromString(String json) throws IOException {

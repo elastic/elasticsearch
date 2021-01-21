@@ -38,7 +38,8 @@ import static java.util.Collections.emptyList;
 public abstract class AbstractSerializingTransformTestCase<T extends ToXContent & Writeable> extends AbstractSerializingTestCase<T> {
 
     protected static Params TO_XCONTENT_PARAMS = new ToXContent.MapParams(
-        Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true"));
+        Collections.singletonMap(TransformField.FOR_INTERNAL_STORAGE, "true")
+    );
 
     private NamedWriteableRegistry namedWriteableRegistry;
     private NamedXContentRegistry namedXContentRegistry;

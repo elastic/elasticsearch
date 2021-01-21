@@ -337,7 +337,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
             return null;
         }
         if (extras.length != 1 || (extras[0] instanceof Boolean) == false) {
-            throw new SqlIllegalArgumentException("Invalid number and types of arguments given to function definition");
+            throw new SqlIllegalArgumentException("Expected exactly one bool argument, found [{}], entry [{}]", extras.length, extras[0]);
         }
         return (Boolean) extras[0];
     }
@@ -403,7 +403,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
      */
     @SuppressWarnings("overloads") // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function,
-                                                                 TertiaryZoneIdAwareBuilder<T> ctorRef,
+                                                                 TernaryZoneIdAwareBuilder<T> ctorRef,
                                                                  String... names) {
         SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
             if (children.size() != 3) {
@@ -415,7 +415,7 @@ public class SqlFunctionRegistry extends FunctionRegistry {
         return def(function, builder, true, names);
     }
 
-    protected interface TertiaryZoneIdAwareBuilder<T> {
+    protected interface TernaryZoneIdAwareBuilder<T> {
         T build(Source source, Expression first, Expression second, Expression third, ZoneId zi);
     }
 
@@ -425,8 +425,10 @@ public class SqlFunctionRegistry extends FunctionRegistry {
      */
     @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
     protected static <T extends Function> FunctionDefinition def(Class<T> function, CastBuilder<T> ctorRef, String... names) {
-        SqlFunctionBuilder builder = (source, children, cfg, distinct) ->
-            ctorRef.build(source, children.get(0), children.get(0).dataType());
+        SqlFunctionBuilder builder = (source, children, cfg, distinct) -> {
+            forbidDistinct(source, distinct);
+            return ctorRef.build(source, children.get(0), children.get(0).dataType());
+        };
         return def(function, builder, false, names);
     }
 

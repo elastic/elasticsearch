@@ -212,7 +212,7 @@ public class FunctionRegistry {
             boolean isBinaryOptionalParamFunction = OptionalArgument.class.isAssignableFrom(function);
             if (isBinaryOptionalParamFunction && (children.size() > 2 || children.size() < 1)) {
                 throw new QlIllegalArgumentException("expects one or two arguments");
-            } else if (!isBinaryOptionalParamFunction && children.size() != 2) {
+            } else if (isBinaryOptionalParamFunction == false && children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
             }
 
@@ -234,7 +234,7 @@ public class FunctionRegistry {
             boolean hasMinimumTwo = OptionalArgument.class.isAssignableFrom(function);
             if (hasMinimumTwo && (children.size() > 3 || children.size() < 2)) {
                 throw new QlIllegalArgumentException("expects two or three arguments");
-            } else if (!hasMinimumTwo && children.size() != 3) {
+            } else if (hasMinimumTwo == false && children.size() != 3) {
                 throw new QlIllegalArgumentException("expects exactly three arguments");
             }
             return ctorRef.build(source, children.get(0), children.get(1), children.size() == 3 ? children.get(2) : null);

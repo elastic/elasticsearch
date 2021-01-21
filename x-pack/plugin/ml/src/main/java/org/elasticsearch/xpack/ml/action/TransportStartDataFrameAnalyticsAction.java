@@ -96,6 +96,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction.findMlNode;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -113,6 +114,7 @@ public class TransportStartDataFrameAnalyticsAction
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private volatile int numLazyMLNodes;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
@@ -120,7 +122,7 @@ public class TransportStartDataFrameAnalyticsAction
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   PersistentTasksService persistentTasksService,
                                                   DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker,
-                                                  DataFrameAnalyticsAuditor auditor) {
+                                                  DataFrameAnalyticsAuditor auditor, Settings settings) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
@@ -129,7 +131,7 @@ public class TransportStartDataFrameAnalyticsAction
         this.configProvider = configProvider;
         this.memoryTracker = memoryTracker;
         this.auditor = Objects.requireNonNull(auditor);
-
+        this.numLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
@@ -138,6 +140,11 @@ public class TransportStartDataFrameAnalyticsAction
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setNumLazyMLNodes);
+    }
+
+    private void setNumLazyMLNodes(int value) {
+        this.numLazyMLNodes = value;
     }
 
     @Override
@@ -237,14 +244,29 @@ public class TransportStartDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
-        ClientHelper.executeAsyncWithOrigin(
-            client,
-            ClientHelper.ML_ORIGIN,
-            ExplainDataFrameAnalyticsAction.INSTANCE,
-            explainRequest,
-            explainListener);
-
+        Optional<DiscoveryNode> node = findMlNode(clusterService.state());
+        if (node.isPresent()) {
+            PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
+            ClientHelper.executeAsyncWithOrigin(
+                client,
+                ClientHelper.ML_ORIGIN,
+                ExplainDataFrameAnalyticsAction.INSTANCE,
+                explainRequest,
+                explainListener);
+        } else if (startContext.config.isAllowLazyStart() || numLazyMLNodes > 0) {
+            String warning =  Messages.getMessage(
+                Messages.DATA_FRAME_ANALYTICS_AUDIT_UNABLE_TO_ESTIMATE_MEMORY_USAGE,
+                startContext.config.getModelMemoryLimit());
+            auditor.warning(jobId, warning);
+            logger.warn("[{}] {}", jobId, warning);
+            HeaderWarning.addWarning(warning);
+            // Refresh memory requirement for jobs
+            memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
+                jobId, startContext.config.getModelMemoryLimit().getBytes(), ActionListener.wrap(
+                    aVoid -> listener.onResponse(startContext), listener::onFailure));
+        } else {
+            listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
+        }
     }
 
     private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {

@@ -60,6 +60,7 @@ public class TransportExplainDataFrameAnalyticsAction
     private final MemoryUsageEstimationProcessManager processManager;
     private final SecurityContext securityContext;
     private final ThreadPool threadPool;
+    private volatile int numLazyMLNodes;
 
     @Inject
     public TransportExplainDataFrameAnalyticsAction(TransportService transportService,
@@ -77,9 +78,15 @@ public class TransportExplainDataFrameAnalyticsAction
         this.licenseState = licenseState;
         this.processManager = Objects.requireNonNull(processManager);
         this.threadPool = threadPool;
+        this.numLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) :
             null;
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setNumLazyMLNodes);
+    }
+
+    private void setNumLazyMLNodes(int value) {
+        this.numLazyMLNodes = value;
     }
 
     @Override
@@ -93,13 +100,15 @@ public class TransportExplainDataFrameAnalyticsAction
 
         DiscoveryNode localNode = clusterService.localNode();
         if (MachineLearning.isMlNode(localNode)) {
-            explain(task, request, listener);
+            explain(task, request, true, listener);
         } else {
-            redirectToMlNode(request, listener);
+            redirectToMlNode(task, request, listener);
         }
     }
 
-    private void explain(Task task, PutDataFrameAnalyticsAction.Request request,
+    private void explain(Task task,
+                         PutDataFrameAnalyticsAction.Request request,
+                         boolean shouldEstimateMemory,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
 
         final ExtractedFieldsDetectorFactory extractedFieldsDetectorFactory = new ExtractedFieldsDetectorFactory(
@@ -115,7 +124,7 @@ public class TransportExplainDataFrameAnalyticsAction
                 extractedFieldsDetectorFactory.createFromSource(
                     config,
                     ActionListener.wrap(
-                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, listener),
+                        extractedFieldsDetector -> explain(task, config, extractedFieldsDetector, shouldEstimateMemory, listener),
                         listener::onFailure
                     )
                 );
@@ -124,7 +133,7 @@ public class TransportExplainDataFrameAnalyticsAction
             extractedFieldsDetectorFactory.createFromSource(
                 request.getConfig(),
                 ActionListener.wrap(
-                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, listener),
+                    extractedFieldsDetector -> explain(task, request.getConfig(), extractedFieldsDetector, shouldEstimateMemory, listener),
                     listener::onFailure
                 )
             );
@@ -132,9 +141,16 @@ public class TransportExplainDataFrameAnalyticsAction
 
     }
 
-    private void explain(Task task, DataFrameAnalyticsConfig config, ExtractedFieldsDetector extractedFieldsDetector,
+    private void explain(Task task,
+                         DataFrameAnalyticsConfig config,
+                         ExtractedFieldsDetector extractedFieldsDetector,
+                         boolean shouldEstimateMemory,
                          ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Tuple<ExtractedFields, List<FieldSelection>> fieldExtraction = extractedFieldsDetector.detect();
+        if (shouldEstimateMemory == false) {
+            listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), new MemoryEstimation(null, null)));
+            return;
+        }
 
         ActionListener<MemoryEstimation> memoryEstimationListener = ActionListener.wrap(
             memoryEstimation -> listener.onResponse(new ExplainDataFrameAnalyticsAction.Response(fieldExtraction.v2(), memoryEstimation)),
@@ -176,12 +192,15 @@ public class TransportExplainDataFrameAnalyticsAction
     /**
      * Finds the first available ML node in the cluster and redirects the request to this node.
      */
-    private void redirectToMlNode(PutDataFrameAnalyticsAction.Request request,
+    private void redirectToMlNode(Task task,
+                                  PutDataFrameAnalyticsAction.Request request,
                                   ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
         Optional<DiscoveryNode> node = findMlNode(clusterService.state());
         if (node.isPresent()) {
             transportService.sendRequest(node.get(), actionName, request,
                 new ActionListenerResponseHandler<>(listener, ExplainDataFrameAnalyticsAction.Response::new));
+        } else if (numLazyMLNodes > 0 || request.getConfig().isAllowLazyStart()) {
+            explain(task, request, false, listener);
         } else {
             listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
         }
@@ -190,7 +209,7 @@ public class TransportExplainDataFrameAnalyticsAction
     /**
      * Finds the first available ML node in the cluster state.
      */
-    private static Optional<DiscoveryNode> findMlNode(ClusterState clusterState) {
+    static Optional<DiscoveryNode> findMlNode(ClusterState clusterState) {
         for (DiscoveryNode node : clusterState.getNodes()) {
             if (MachineLearning.isMlNode(node)) {
                 return Optional.of(node);

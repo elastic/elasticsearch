@@ -71,20 +71,14 @@ public class SqlFunctionRegistryTests extends ESTestCase {
     public void testUnaryDistinctAwareFunction() {
         boolean urIsDistinct = randomBoolean();
         UnresolvedFunction ur = uf(urIsDistinct ? DISTINCT : DEFAULT, mock(Expression.class));
-        FunctionRegistry r = new SqlFunctionRegistry(
-            def(DummyFunction.class, (Source l, Expression e, Boolean distinct) -> {
-                assertEquals(urIsDistinct, distinct != null);
-                assertSame(e, ur.children().get(0));
-                return new DummyFunction(l);
-            }, "DUMMY_FUNCTION"));
+        FunctionDefinition definition = def(DummyFunction.class, (Source l, Expression e, Boolean distinct) -> {
+            assertEquals(urIsDistinct, distinct);
+            assertSame(e, ur.children().get(0));
+            return new DummyFunction(l);
+        }, "DUMMY_FUNCTION");
+        FunctionRegistry r = new SqlFunctionRegistry(definition);
         FunctionDefinition def = r.resolveFunction(ur.name());
-        if (urIsDistinct) {
-            assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-        } else {
-            ParsingException e = expectThrows(ParsingException.class, () ->
-                ur.buildResolved(randomConfiguration(), def));
-            assertThat(e.getMessage(), endsWith("DISTINCT required but not specified"));
-        }
+        assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         assertEquals(SqlFunctionDefinition.class, def.getClass());
         assertFalse(((SqlFunctionDefinition) def).extractViable());

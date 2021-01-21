@@ -115,7 +115,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
         Optional<String> apply(String tierPreference, DiscoveryNodes nodes);
     }
 
-    public Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles, PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
+    public Decision shouldFilter(IndexMetadata indexMd, Set<DiscoveryNodeRole> roles,
+                                 PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Decision decision = shouldClusterFilter(roles, allocation);
         if (decision != null) {
             return decision;
@@ -134,7 +135,8 @@ public class DataTierAllocationDecider extends AllocationDecider {
         return allocation.decision(Decision.YES, NAME, "node passes include/exclude/require/prefer tier filters");
     }
 
-    private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles, PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
+    private Decision shouldIndexPreferTier(IndexMetadata indexMetadata, Set<DiscoveryNodeRole> roles,
+                                           PreferredTierFunction preferredTierFunction, RoutingAllocation allocation) {
         Settings indexSettings = indexMetadata.getSettings();
         String tierPreference = INDEX_ROUTING_PREFER_SETTING.get(indexSettings);
 

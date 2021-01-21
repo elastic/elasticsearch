@@ -51,12 +51,14 @@ This request returns the following response:
 {
   "my_backup": {
     "type": "fs",
+    "uuid": "0JLknrXbSUiVPuLakHjBrQ",
     "settings": {
       "location": "my_backup_location"
     }
   }
 }
 -----------------------------------
+// TESTRESPONSE[s/"uuid": "0JLknrXbSUiVPuLakHjBrQ"/"uuid": $body.my_backup.uuid/]
 
 To retrieve information about multiple repositories, specify a comma-delimited
 list of repositories. You can also use a wildcard (`*`) when

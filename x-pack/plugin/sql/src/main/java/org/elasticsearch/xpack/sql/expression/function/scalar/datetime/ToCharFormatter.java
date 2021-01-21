@@ -95,7 +95,7 @@ class ToCharFormatter {
                 (t.get(WeekFields.ISO.weekOfWeekBasedYear()) - 1) * 7 + t.get(ChronoField.DAY_OF_WEEK))
             ).numeric(),
             of("DD").formatFn("d", x -> String.format(Locale.ROOT, "%02d", parseInt(x))).numeric(),
-            of("ID").formatFn("e").numeric(),
+            of("ID").formatFn(t -> String.valueOf(t.get(ChronoField.DAY_OF_WEEK))).numeric(),
             of("D").formatFn(t -> String.valueOf(t.get(WeekFields.SUNDAY_START.dayOfWeek()))).numeric(),
             of("W").formatFn(t -> String.valueOf(t.get(ChronoField.ALIGNED_WEEK_OF_MONTH))).numeric(),
             of("WW").formatFn(t -> String.format(Locale.ROOT, "%02d", t.get(ChronoField.ALIGNED_WEEK_OF_YEAR))).numeric(),

@@ -183,7 +183,7 @@ public class TransportSimulateIndexTemplateAction
                 resolvedAliases, tempClusterState.metadata(), aliasValidator, xContentRegistry,
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
-                tempIndexService.newQueryShardContext(0, 0, null, () -> 0L, null, emptyMap())));
+                tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap())));
         Map<String, AliasMetadata> aliasesByName = aliases.stream().collect(
             Collectors.toMap(AliasMetadata::getAlias, Function.identity()));
 

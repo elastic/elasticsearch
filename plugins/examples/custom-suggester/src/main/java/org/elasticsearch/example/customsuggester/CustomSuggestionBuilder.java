@@ -26,7 +26,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.suggest.SuggestionBuilder;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
@@ -129,7 +129,7 @@ public class CustomSuggestionBuilder extends SuggestionBuilder<CustomSuggestionB
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext build(QueryShardContext context) throws IOException {
+    public SuggestionSearchContext.SuggestionContext build(SearchExecutionContext context) throws IOException {
         Map<String, Object> options = new HashMap<>();
         options.put(FIELDNAME_FIELD.getPreferredName(), field());
         options.put(RANDOM_SUFFIX_FIELD.getPreferredName(), randomSuffix);

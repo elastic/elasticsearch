@@ -41,7 +41,7 @@ public class RestTestUtil {
 
     private RestTestUtil() {}
 
-    static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
+    public static ElasticsearchCluster createTestCluster(Project project, SourceSet sourceSet) {
         // eagerly create the testCluster container so it is easily available for configuration
         @SuppressWarnings("unchecked")
         NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project
@@ -53,7 +53,7 @@ public class RestTestUtil {
     /**
      * Creates a task with the source set name of type {@link RestIntegTestTask}
      */
-    static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
+    public static Provider<RestIntegTestTask> registerTask(Project project, SourceSet sourceSet) {
         // lazily create the test task
         Provider<RestIntegTestTask> testProvider = project.getTasks().register(sourceSet.getName(), RestIntegTestTask.class, testTask -> {
             testTask.setGroup(JavaBasePlugin.VERIFICATION_GROUP);
@@ -79,7 +79,7 @@ public class RestTestUtil {
     /**
      * Setup the dependencies needed for the REST tests.
      */
-    static void setupDependencies(Project project, SourceSet sourceSet) {
+    public static void setupDependencies(Project project, SourceSet sourceSet) {
         BuildParams.withInternalBuild(
             () -> { project.getDependencies().add(sourceSet.getImplementationConfigurationName(), project.project(":test:framework")); }
         ).orElse(() -> {

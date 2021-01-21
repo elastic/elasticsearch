@@ -147,7 +147,7 @@ public class SpanContainingQueryBuilder extends AbstractQueryBuilder<SpanContain
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Query innerBig = big.toQuery(context);
         assert innerBig instanceof SpanQuery;
         Query innerLittle = little.toQuery(context);

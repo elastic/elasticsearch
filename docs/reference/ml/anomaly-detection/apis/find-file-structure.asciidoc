@@ -320,7 +320,7 @@ If the request does not encounter errors, you receive the following result:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "date" : {
@@ -685,7 +685,7 @@ If the request does not encounter errors, you receive the following result:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "csv" : {
@@ -1578,7 +1578,7 @@ this:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "grok" : {
@@ -1746,7 +1746,7 @@ this:
     }
   },
   "ingest_pipeline" : {
-    "description" : "Ingest pipeline created by file structure finder",
+    "description" : "Ingest pipeline created by text structure finder",
     "processors" : [
       {
         "grok" : {

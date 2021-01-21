@@ -14,6 +14,7 @@ import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.transform.transforms.DestConfig;
@@ -34,6 +35,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -63,6 +65,17 @@ public class TransformIT extends TransformIntegTestCase {
         return "2017-01-" + (day < 10 ? "0" + day : day) + "T" + hour + ":" + min + ":" + sec + "Z";
     }
 
+    @Before
+    public void setClusterSettings() throws IOException {
+        Request settingsRequest = new Request("PUT", "/_cluster/settings");
+        settingsRequest.setJsonEntity(
+            "{\"transient\": {"
+                + "\"logger.org.elasticsearch.xpack.core.indexing.AsyncTwoPhaseIndexer\": \"debug\","
+                + "\"logger.org.elasticsearch.xpack.transform\": \"debug\"}}"
+        );
+        client().performRequest(settingsRequest);
+    }
+
     @After
     public void cleanTransforms() throws IOException {
         cleanUp();
@@ -83,7 +96,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), null, indexName)
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .build();
 
@@ -119,7 +132,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), null, indexName)
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
                 .build();
@@ -167,7 +180,7 @@ public class TransformIT extends TransformIntegTestCase {
         String id = "transform-to-update";
         String dest = "reviews-by-user-business-day-to-update";
         TransformConfig config =
-            createTransformConfigBuilder(id, dest, QueryBuilders.matchAllQuery(), null, indexName)
+            createTransformConfigBuilder(id, dest, QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
                 .build();
@@ -253,7 +266,7 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config =
-            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), null, indexName)
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
                 .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
                 .build();
@@ -319,15 +332,12 @@ public class TransformIT extends TransformIntegTestCase {
             .addAggregator(AggregationBuilders.max("timestamp").field("timestamp"));
 
         TransformConfig config =
-            createTransformConfigBuilder(
-                    transformId,
-                    "reviews-by-user-business-day",
-                    QueryBuilders.matchAllQuery(),
-                    // set requests per second and page size low enough to fail the test if update does not succeed
-                    SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10),
-                    indexName)
+            createTransformConfigBuilder(transformId, "reviews-by-user-business-day", QueryBuilders.matchAllQuery(), indexName)
                 .setPivotConfig(createPivotConfig(groups, aggs))
-                .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1))).build();
+                .setSyncConfig(new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(1)))
+                // set requests per second and page size low enough to fail the test if update does not succeed,
+                .setSettings(SettingsConfig.builder().setRequestsPerSecond(1F).setMaxPageSearchSize(10).build())
+                .build();
 
         assertTrue(putTransform(config, RequestOptions.DEFAULT).isAcknowledged());
         assertTrue(startTransform(config.getId(), RequestOptions.DEFAULT).isAcknowledged());

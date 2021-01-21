@@ -123,6 +123,10 @@ The analytics job would then supply a default field map entry for
 +
 Any field map described in the inference configuration takes precedence.
 
+`description`:::
+(string)
+The free-text description of the trained model.
+
 `estimated_heap_memory_usage_bytes`:::
 (integer)
 The estimated heap usage in bytes to keep the trained model in memory.
@@ -130,6 +134,71 @@ The estimated heap usage in bytes to keep the trained model in memory.
 `estimated_operations`:::
 (integer)
 The estimated number of operations to use the trained model.
+
+`inference_config`:::
+(object)
+The default configuration for inference. This can be either a `regression`
+or `classification` configuration. It must match the underlying
+`definition.trained_model`'s `target_type`.
++
+.Properties of `inference_config`
+[%collapsible%open]
+=====
+`classification`::::
+(object)
+Classification configuration for inference.
++
+.Properties of classification inference
+[%collapsible%open]
+======
+`num_top_classes`:::
+(integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-classes]
+
+`num_top_feature_importance_values`:::
+(integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-num-top-feature-importance-values]
+
+`prediction_field_type`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-prediction-field-type]
+
+`results_field`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+
+`top_classes_results_field`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-classification-top-classes-results-field]
+======
+`regression`::::
+(object)
+Regression configuration for inference.
++
+.Properties of regression inference
+[%collapsible%open]
+======
+`num_top_feature_importance_values`:::
+(integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-regression-num-top-feature-importance-values]
+
+`results_field`:::
+(string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=inference-config-results-field]
+======
+=====
+
+`input`:::
+(object)
+The input field names for the model definition.+
++
+.Properties of `input`
+[%collapsible%open]
+=====
+`field_names`::::
+(string)
+An array of input field names for the model.
+=====
 
 `license_level`:::
 (string)
@@ -272,6 +341,7 @@ A comma delimited string of tags. A trained model can have many tags, or none.
 `version`:::
 (string)
 The {es} version number in which the trained model was created.
+
 ====
 
 

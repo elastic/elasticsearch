@@ -135,8 +135,7 @@ final class StoreRecovery {
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
-                    indexShard.getEngine().forceMerge(false, -1, false,
-                        false, false, UUIDs.randomBase64UUID());
+                    indexShard.getEngine().forceMerge(false, -1, false, UUIDs.randomBase64UUID());
                     return true;
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);

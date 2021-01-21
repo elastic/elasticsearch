@@ -95,6 +95,12 @@ testClusters.matching { it.name == "integTest"}.configureEach {
   }
 }
 
+tasks.named("integTest").configure {
+  doFirst {
+    delete("${buildDir}/cluster/shared/repo")
+  }
+}
+
 ext.docsFileTree = fileTree(projectDir) {
   // No snippets in here!
   exclude 'build.gradle'

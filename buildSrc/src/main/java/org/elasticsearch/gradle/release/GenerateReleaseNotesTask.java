@@ -34,20 +34,19 @@ import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class GenerateReleaseNotesTask extends DefaultTask {
     private static final Logger LOGGER = Logging.getLogger(GenerateReleaseNotesTask.class);
-    public static final String REPOSITORY_NAME = "elastic/elasticsearch";
 
     private final ConfigurableFileCollection changelogs = getProject().getObjects().fileCollection();
     private final RegularFileProperty releaseNotesFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty releaseHighlightsFile = getProject().getObjects().fileProperty();
     private final RegularFileProperty breakingChangesFile = getProject().getObjects().fileProperty();
-    private final Version version;
 
     public GenerateReleaseNotesTask() {
-        this.version = VersionProperties.getElasticsearchVersion();
+        final Version version = VersionProperties.getElasticsearchVersion();
 
         this.changelogs.setFrom(
             getProject().getLayout()
@@ -59,7 +58,9 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         );
 
         this.releaseNotesFile.set(
-            getProject().getLayout().getProjectDirectory().file("docs/reference/release-notes/" + version + ".asciidoc")
+            getProject().getLayout()
+                .getProjectDirectory()
+                .file(String.format("docs/reference/release-notes/%d.%d.asciidoc", version.getMajor(), version.getMinor()))
         );
 
         this.releaseHighlightsFile.set(
@@ -69,7 +70,7 @@ public class GenerateReleaseNotesTask extends DefaultTask {
         this.breakingChangesFile.set(
             getProject().getLayout()
                 .getProjectDirectory()
-                .file("docs/reference/migration/migrate_" + version.getMajor() + "_" + version.getMinor() + ".asciidoc")
+                .file(String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor()))
         );
     }
 
@@ -103,12 +104,31 @@ public class GenerateReleaseNotesTask extends DefaultTask {
             .stream()
             .map(ChangelogEntry::parseChangelog)
             .filter(
-                // If this change was released in an earlier version of Elasticsearch, do not
+                // Only process changelogs that are included in this minor version series of ES.
+                // If this change was released in an earlier major or minor version of Elasticsearch, do not
                 // include it in the notes. An absence of versions indicates that this change is only
-                // for the current release
-                each -> each.getVersions() == null
-                    || each.getVersions().isEmpty()
-                    || each.getVersions().stream().map(v -> v.replaceFirst("^v", "")).allMatch(elasticsearchVersion::onOrBefore)
+                // for the current release. An earlier patch version is OK, the release notes include changes
+                // for every patch release in a minor series.
+                log -> {
+                    final List<Version> changelogVersions = log.getVersions()
+                        .stream()
+                        .map(v -> Version.fromString(v, Version.Mode.RELAXED))
+                        .collect(Collectors.toList());
+
+                    final Predicate<Version> includedInSameMinor = v -> v.getMajor() == elasticsearchVersion.getMajor()
+                        && v.getMinor() == elasticsearchVersion.getMinor();
+
+                    final Predicate<Version> includedInEarlierMajorOrMinor = v -> v.getMajor() < elasticsearchVersion.getMajor()
+                        || v.getMinor() < elasticsearchVersion.getMinor();
+
+                    boolean includedInThisMinor = changelogVersions.stream().anyMatch(includedInSameMinor);
+
+                    if (includedInThisMinor) {
+                        return false == changelogVersions.stream().anyMatch(includedInEarlierMajorOrMinor);
+                    } else {
+                        return false;
+                    }
+                }
             )
             .collect(Collectors.toList());
 

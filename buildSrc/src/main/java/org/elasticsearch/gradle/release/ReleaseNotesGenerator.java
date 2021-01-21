@@ -27,10 +27,13 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class ReleaseNotesGenerator implements Closeable {
@@ -62,6 +65,35 @@ public class ReleaseNotesGenerator implements Closeable {
     }
 
     public void generate(List<ChangelogEntry> changelogs) {
+        final Version elasticsearchVersion = VersionProperties.getElasticsearchVersion();
+
+        final Predicate<Version> includedInSameMinor = v -> v.getMajor() == elasticsearchVersion.getMajor()
+            && v.getMinor() == elasticsearchVersion.getMinor();
+
+        final Map<Version, List<ChangelogEntry>> changelogsByVersion = changelogs.stream()
+            .collect(
+                Collectors.groupingBy(
+                    entry -> entry.getVersions()
+                        .stream()
+                        .map(v -> Version.fromString(v.replaceFirst("^v", "")))
+                        .filter(includedInSameMinor)
+                        .sorted()
+                        .findFirst()
+                        .get(),
+                    Collectors.toList()
+                )
+            );
+
+        final List<Version> changelogVersions = new ArrayList<>(changelogsByVersion.keySet());
+        changelogVersions.sort(Version::compareTo);
+        Collections.reverse(changelogVersions);
+
+        for (Version version : changelogVersions) {
+            generateForVersion(version, changelogsByVersion.get(version));
+        }
+    }
+
+    private void generateForVersion(Version version, List<ChangelogEntry> changelogs) {
         Map<String, List<ChangelogEntry>> groupedChangelogs = changelogs.stream()
             .collect(
                 Collectors.groupingBy(
@@ -72,10 +104,10 @@ public class ReleaseNotesGenerator implements Closeable {
                 )
             );
 
-        generateHeader();
+        generateHeader(version);
 
         groupedChangelogs.forEach((type, changelogsByType) -> {
-            generateGroupHeader(type);
+            generateGroupHeader(version, type);
 
             final TreeMap<String, List<ChangelogEntry>> changelogsByArea = changelogsByType.stream()
                 .collect(Collectors.groupingBy(ChangelogEntry::getArea, TreeMap::new, Collectors.toList()));
@@ -104,14 +136,13 @@ public class ReleaseNotesGenerator implements Closeable {
         });
     }
 
-    private void generateHeader() {
-        final Version version = VersionProperties.getElasticsearchVersion();
+    private void generateHeader(Version version) {
         String branch = version.getMajor() + "." + version.getMinor();
 
         out.println("[[release-notes-" + version + "]]");
         out.println("== {es} version " + version);
 
-        if (VersionProperties.isElasticsearchSnapshot()) {
+        if (version.getLabels().contains("SNAPSHOT")) {
             out.println();
             out.println("coming[" + version + "]");
         }
@@ -121,8 +152,8 @@ public class ReleaseNotesGenerator implements Closeable {
         out.println();
     }
 
-    private void generateGroupHeader(String type) {
-        out.println("[[" + type + "-" + VersionProperties.getElasticsearchVersion() + "]]");
+    private void generateGroupHeader(Version version, String type) {
+        out.println("[[" + type + "-" + version + "]]");
         out.println("[float]");
         out.println("=== " + TYPE_LABELS.get(type));
         out.println();

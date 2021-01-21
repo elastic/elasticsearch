@@ -19,6 +19,7 @@
 
 package org.elasticsearch.gradle.release;
 
+import org.elasticsearch.gradle.Version;
 import org.gradle.api.GradleException;
 import org.yaml.snakeyaml.Yaml;
 
@@ -202,6 +203,11 @@ public class ChangelogEntry {
 
         if (this.versions == null || this.versions.isEmpty()) {
             throw new IllegalArgumentException("At least one version must be supplied");
+        }
+
+        for (String version : this.versions) {
+            // Allow exceptions to bubble up
+            Version.fromString(version, Version.Mode.RELAXED);
         }
 
         if (this.highlight != null) {
@@ -397,7 +403,7 @@ public class ChangelogEntry {
     }
 
     private static void required(String value, String error) {
-        if (value == null || value.isBlank()) {
+        if (value == null || value.trim().isEmpty()) {
             throw new IllegalArgumentException(error);
         }
     }
@@ -407,7 +413,7 @@ public class ChangelogEntry {
 
         try {
             Yaml yaml = new Yaml();
-            final String source = Files.readString(file.toPath());
+            final String source = new String(Files.readAllBytes(file.toPath()));
             changelogEntry = yaml.loadAs(source, ChangelogEntry.class);
         } catch (Exception e) {
             throw new GradleException("Failed to load changelog [" + file + "]: " + e.getMessage(), e);

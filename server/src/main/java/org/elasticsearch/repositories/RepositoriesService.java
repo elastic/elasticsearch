@@ -160,13 +160,15 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))), listener::onFailure);
 
             // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
-            final StepListener<Void> updateRepositoryUuidStep = new StepListener<>();
-            getRepositoryDataStep.whenComplete(repositoryData ->
-                    updateRepositoryUuidInMetadata(request.name(), repositoryData, updateRepositoryUuidStep), listener::onFailure);
+            final StepListener<Void> updateRepoUuidStep = new StepListener<>();
+            getRepositoryDataStep.whenComplete(
+                    repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
+                    listener::onFailure);
 
             // Finally respond to the outer listener with the response from the original cluster state update
-            updateRepositoryUuidStep.whenComplete(ignored ->
-                    acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure), listener::onFailure);
+            updateRepoUuidStep.whenComplete(
+                    ignored -> acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure),
+                    listener::onFailure);
 
         } else {
             acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure);
@@ -226,7 +228,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             });
     }
 
-    public void updateRepositoryUuidInMetadata(final String repositoryName, RepositoryData repositoryData, ActionListener<Void> listener) {
+    public static void updateRepositoryUuidInMetadata(
+            ClusterService clusterService,
+            final String repositoryName,
+            RepositoryData repositoryData,
+            ActionListener<Void> listener) {
 
         final String repositoryUuid = repositoryData.getUuid();
         if (repositoryUuid.equals(RepositoryData.MISSING_UUID)) {

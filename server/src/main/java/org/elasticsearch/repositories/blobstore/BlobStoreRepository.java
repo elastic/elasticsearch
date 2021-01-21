@@ -103,6 +103,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.IndexMetaDataGenerations;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryCleanupResult;
 import org.elasticsearch.repositories.RepositoryData;
@@ -1488,12 +1489,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             }
             try {
                 final CachedRepositoryData cached = latestKnownRepositoryData.get();
-                final RepositoryData loaded;
                 // Caching is not used with #bestEffortConsistency see docs on #cacheRepositoryData for details
                 if (bestEffortConsistency == false && cached.generation() == genToLoad && cached.hasData()) {
-                    loaded = cached.repositoryData();
+                    listener.onResponse(cached.repositoryData());
                 } else {
-                    loaded = getRepositoryData(genToLoad);
+                    final RepositoryData loaded = getRepositoryData(genToLoad);
                     if (cached == null || cached.generation() < genToLoad) {
                         // We can cache serialized in the most recent version here without regard to the actual repository metadata version
                         // since we're only caching the information that we just wrote and thus won't accidentally cache any information
@@ -1501,8 +1501,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         cacheRepositoryData(compressRepoDataForCache(BytesReference.bytes(
                                 loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT, true))), genToLoad);
                     }
+                    if (loaded.getUuid().equals(metadata.uuid())) {
+                        listener.onResponse(loaded);
+                    } else {
+                        // someone switched the repo contents out from under us
+                        RepositoriesService.updateRepositoryUuidInMetadata(
+                                clusterService, metadata.name(), loaded, listener.map(v -> loaded));
+                    }
                 }
-                listener.onResponse(loaded);
                 return;
             } catch (RepositoryException e) {
                 // If the generation to load changed concurrently and we didn't just try loading the same generation before we retry

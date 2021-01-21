@@ -89,6 +89,6 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible) {
 tasks.withType(Test).configureEach {
   onlyIf { BuildParams.inFipsJvm == false}
 }
-tasks.getByName("testingConventions") {
+tasks.named("testingConventions").configure {
   onlyIf { BuildParams.inFipsJvm == false }
 }

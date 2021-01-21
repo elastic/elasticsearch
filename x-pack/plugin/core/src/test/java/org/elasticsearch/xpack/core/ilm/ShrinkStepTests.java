@@ -32,14 +32,14 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey stepKey = randomStepKey();
         StepKey nextStepKey = randomStepKey();
         Integer numberOfShards = null;
-        ByteSizeValue maxSinglePrimaryShardSize = null;
+        ByteSizeValue maxSingleShardSize = null;
         if (randomBoolean()) {
             numberOfShards = randomIntBetween(1, 20);
         } else {
-            maxSinglePrimaryShardSize = new ByteSizeValue(between(1,100));
+            maxSingleShardSize = new ByteSizeValue(between(1,100));
         }
         String shrunkIndexPrefix = randomAlphaOfLength(10);
-        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxSinglePrimaryShardSize, shrunkIndexPrefix);
+        return new ShrinkStep(stepKey, nextStepKey, client, numberOfShards, maxSingleShardSize, shrunkIndexPrefix);
     }
 
     @Override
@@ -47,7 +47,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         StepKey key = instance.getKey();
         StepKey nextKey = instance.getNextStepKey();
         Integer numberOfShards = instance.getNumberOfShards();
-        ByteSizeValue maxSinglePrimaryShardSize = instance.getMaxSinglePrimaryShardSize();
+        ByteSizeValue maxSingleShardSize = instance.getMaxSingleShardSize();
         String shrunkIndexPrefix = instance.getShrunkIndexPrefix();
 
         switch (between(0, 3)) {
@@ -61,8 +61,8 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             if (numberOfShards != null) {
                 numberOfShards = numberOfShards + 1;
             }
-            if (maxSinglePrimaryShardSize != null) {
-                maxSinglePrimaryShardSize = new ByteSizeValue(maxSinglePrimaryShardSize.getBytes() + 1);
+            if (maxSingleShardSize != null) {
+                maxSingleShardSize = new ByteSizeValue(maxSingleShardSize.getBytes() + 1);
             }
             break;
         case 3:
@@ -72,13 +72,13 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             throw new AssertionError("Illegal randomisation branch");
         }
 
-        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxSinglePrimaryShardSize, shrunkIndexPrefix);
+        return new ShrinkStep(key, nextKey, instance.getClient(), numberOfShards, maxSingleShardSize, shrunkIndexPrefix);
     }
 
     @Override
     public ShrinkStep copyInstance(ShrinkStep instance) {
         return new ShrinkStep(instance.getKey(), instance.getNextStepKey(), instance.getClient(), instance.getNumberOfShards(),
-            instance.getMaxSinglePrimaryShardSize(), instance.getShrunkIndexPrefix());
+            instance.getMaxSingleShardSize(), instance.getShrunkIndexPrefix());
     }
 
     public void testPerformAction() throws Exception {
@@ -117,7 +117,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 assertThat(request.getTargetIndexRequest().settings()
                     .getAsInt(IndexMetadata.SETTING_NUMBER_OF_SHARDS, -1), equalTo(step.getNumberOfShards()));
             }
-            request.setMaxSinglePrimaryShardSize(step.getMaxSinglePrimaryShardSize());
+            request.setMaxSingleShardSize(step.getMaxSingleShardSize());
             listener.onResponse(new ResizeResponse(true, true, sourceIndexMetadata.getIndex().getName()));
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());

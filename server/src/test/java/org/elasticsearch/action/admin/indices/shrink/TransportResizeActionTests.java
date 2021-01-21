@@ -241,27 +241,27 @@ public class TransportResizeActionTests extends ESTestCase {
         assertEquals(TransportResizeAction.calTargetShardsNum(60, 31), 60);
     }
 
-    public void testShrinkWithMaxSinglePrimaryShardSize() {
+    public void testShrinkWithMaxSingleShardSize() {
         int sourceIndexShardsNum = randomIntBetween(2, 42);
         IndexMetadata state = createClusterState("source", sourceIndexShardsNum, randomIntBetween(0, 10),
             Settings.builder().put("index.blocks.write", true).build()).metadata().index("source");
         ResizeRequest resizeRequest1 = new ResizeRequest("target", "source");
-        resizeRequest1.setMaxSinglePrimaryShardSize(new ByteSizeValue(10));
+        resizeRequest1.setMaxSingleShardSize(new ByteSizeValue(10));
         resizeRequest1.getTargetIndexRequest()
             .settings(Settings.builder().put("index.number_of_shards", 2).build());
         assertTrue(
             expectThrows(IllegalArgumentException.class, () ->
                 TransportResizeAction.prepareCreateIndexRequest(resizeRequest1, state, new StoreStats(between(1, 100), between(1, 100)),
                     (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), "target")
-            ).getMessage().startsWith("Cannot set both index.number_of_shards and max_single_primary_shard_size for the target index"));
+            ).getMessage().startsWith("Cannot set both index.number_of_shards and max_single_shard_size for the target index"));
 
         ResizeRequest resizeRequest2 = new ResizeRequest("target", "source");
-        resizeRequest2.setMaxSinglePrimaryShardSize(new ByteSizeValue(1));
+        resizeRequest2.setMaxSingleShardSize(new ByteSizeValue(1));
         assertTrue(
             expectThrows(IllegalArgumentException.class, () ->
                 TransportResizeAction.prepareCreateIndexRequest(resizeRequest2, state, new StoreStats(100, between(1, 100)),
                     (i) -> new DocsStats(Integer.MAX_VALUE, between(1, 1000), between(1, 100)), "target")
-            ).getMessage().startsWith("The target index's shards number[100] is greater than the source index's shards number[" +
+            ).getMessage().startsWith("The target index's shards number [100] is greater than the source index's shards number [" +
                 sourceIndexShardsNum + "]"));
 
         // create one that won't fail
@@ -284,7 +284,7 @@ public class TransportResizeActionTests extends ESTestCase {
         DocsStats stats = new DocsStats(between(0, (IndexWriter.MAX_DOCS) / numSourceShards), between(1, 1000), between(1, 10000));
 
         ResizeRequest target = new ResizeRequest("target", "source");
-        target.setMaxSinglePrimaryShardSize(new ByteSizeValue(2));
+        target.setMaxSingleShardSize(new ByteSizeValue(2));
         StoreStats storeStats = new StoreStats(10, between(1, 100));
         final int targetIndexShardsNum = 5;
         final ActiveShardCount activeShardCount = ActiveShardCount.from(targetIndexShardsNum);

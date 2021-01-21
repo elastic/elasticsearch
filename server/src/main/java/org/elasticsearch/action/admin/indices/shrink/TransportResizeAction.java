@@ -134,27 +134,27 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
-        ByteSizeValue maxSinglePrimaryShardSize = resizeRequest.getMaxSinglePrimaryShardSize();
+        ByteSizeValue maxSingleShardSize = resizeRequest.getMaxSingleShardSize();
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxSinglePrimaryShardSize != null) {
-                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_single_primary_shard_size" +
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxSingleShardSize != null) {
+                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_single_shard_size" +
                     " for the target index");
             }
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                if (maxSinglePrimaryShardSize != null) {
+                if (maxSingleShardSize != null) {
                     int sourceIndexShardsNum = sourceMetadata.getNumberOfShards();
                     long sourceIndexStorageBytes = indexStoreStats.getSizeInBytes();
-                    long maxSingleShardSizeBytes = maxSinglePrimaryShardSize.getBytes();
+                    long maxSingleShardSizeBytes = maxSingleShardSize.getBytes();
                     long minShardsNum = sourceIndexStorageBytes / maxSingleShardSizeBytes;
                     if (minShardsNum * maxSingleShardSizeBytes < sourceIndexStorageBytes) {
                         minShardsNum = minShardsNum + 1;
                     }
                     if (minShardsNum > sourceIndexShardsNum) {
-                        throw new IllegalArgumentException("The target index's shards number[" + minShardsNum +
-                            "] is greater than the source index's shards number[" + sourceIndexShardsNum + "]");
+                        throw new IllegalArgumentException("The target index's shards number [" + minShardsNum +
+                            "] is greater than the source index's shards number [" + sourceIndexShardsNum + "]");
                     }
 
                     numShards = calTargetShardsNum(sourceIndexShardsNum, (int)minShardsNum);

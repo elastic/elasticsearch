@@ -1618,9 +1618,9 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
         } else {
             request.getTargetIndexRequest().settings(Settings.builder()
                 .putNull("index.routing.allocation.require._name"));
-            // tag::shrink-index-request-maxSinglePrimaryShardSize
-            request.setMaxSinglePrimaryShardSize(new ByteSizeValue(50, ByteSizeUnit.GB)); // <1>
-            // end::shrink-index-request-maxSinglePrimaryShardSize
+            // tag::shrink-index-request-maxSingleShardSize
+            request.setMaxSingleShardSize(new ByteSizeValue(50, ByteSizeUnit.GB)); // <1>
+            // end::shrink-index-request-maxSingleShardSize
         }
         // tag::shrink-index-request-aliases
         request.getTargetIndexRequest().alias(new Alias("target_alias")); // <1>

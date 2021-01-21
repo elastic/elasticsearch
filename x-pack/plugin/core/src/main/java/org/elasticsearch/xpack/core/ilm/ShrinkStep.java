@@ -23,14 +23,14 @@ public class ShrinkStep extends AsyncActionStep {
     public static final String NAME = "shrink";
 
     private Integer numberOfShards;
-    private ByteSizeValue maxSinglePrimaryShardSize;
+    private ByteSizeValue maxSingleShardSize;
     private String shrunkIndexPrefix;
 
     public ShrinkStep(StepKey key, StepKey nextStepKey, Client client, Integer numberOfShards,
-                      ByteSizeValue maxSinglePrimaryShardSize, String shrunkIndexPrefix) {
+                      ByteSizeValue maxSingleShardSize, String shrunkIndexPrefix) {
         super(key, nextStepKey, client);
         this.numberOfShards = numberOfShards;
-        this.maxSinglePrimaryShardSize = maxSinglePrimaryShardSize;
+        this.maxSingleShardSize = maxSingleShardSize;
         this.shrunkIndexPrefix = shrunkIndexPrefix;
     }
 
@@ -38,7 +38,9 @@ public class ShrinkStep extends AsyncActionStep {
         return numberOfShards;
     }
 
-    public ByteSizeValue getMaxSinglePrimaryShardSize() {return maxSinglePrimaryShardSize;}
+    public ByteSizeValue getMaxSingleShardSize() {
+        return maxSingleShardSize;
+    }
 
     String getShrunkIndexPrefix() {
         return shrunkIndexPrefix;
@@ -67,7 +69,7 @@ public class ShrinkStep extends AsyncActionStep {
         String shrunkenIndexName = shrunkIndexPrefix + indexMetadata.getIndex().getName();
         ResizeRequest resizeRequest = new ResizeRequest(shrunkenIndexName, indexMetadata.getIndex().getName())
             .masterNodeTimeout(getMasterTimeout(currentState));
-        resizeRequest.setMaxSinglePrimaryShardSize(maxSinglePrimaryShardSize);
+        resizeRequest.setMaxSingleShardSize(maxSingleShardSize);
         resizeRequest.getTargetIndexRequest().settings(relevantTargetSettings);
 
         getClient().admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(response -> {
@@ -81,7 +83,7 @@ public class ShrinkStep extends AsyncActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), numberOfShards, maxSinglePrimaryShardSize, shrunkIndexPrefix);
+        return Objects.hash(super.hashCode(), numberOfShards, maxSingleShardSize, shrunkIndexPrefix);
     }
 
     @Override
@@ -95,7 +97,7 @@ public class ShrinkStep extends AsyncActionStep {
         ShrinkStep other = (ShrinkStep) obj;
         return super.equals(obj) &&
                 Objects.equals(numberOfShards, other.numberOfShards) &&
-                Objects.equals(maxSinglePrimaryShardSize, other.maxSinglePrimaryShardSize) &&
+                Objects.equals(maxSingleShardSize, other.maxSingleShardSize) &&
                 Objects.equals(shrunkIndexPrefix, other.shrunkIndexPrefix);
     }
 

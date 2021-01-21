@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.core.ilm;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -37,7 +38,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
-    private static final ParseField MAX_SINGLE_PRIMARY_SHARD_SIZE = new ParseField("max_single_primary_shard_size");
+    private static final ParseField MAX_SINGLE_SHARD_SIZE = new ParseField("max_single_shard_size");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
@@ -47,29 +48,29 @@ public class ShrinkAction implements LifecycleAction {
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_SHARDS_FIELD);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SHARD_SIZE.getPreferredName()),
-            MAX_SINGLE_PRIMARY_SHARD_SIZE, ObjectParser.ValueType.STRING);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_SHARD_SIZE.getPreferredName()),
+            MAX_SINGLE_SHARD_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private Integer numberOfShards;
-    private ByteSizeValue maxSinglePrimaryShardSize;
+    private ByteSizeValue maxSingleShardSize;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxSinglePrimaryShardSize) {
-        if (numberOfShards != null && maxSinglePrimaryShardSize != null) {
-            throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_single_primary_shard_size]");
+    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxSingleShardSize) {
+        if (numberOfShards != null && maxSingleShardSize != null) {
+            throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_single_shard_size]");
         }
-        if (numberOfShards == null && maxSinglePrimaryShardSize == null) {
-            throw new IllegalArgumentException("Either [number_of_shards] or [max_single_primary_shard_size] must be set");
+        if (numberOfShards == null && maxSingleShardSize == null) {
+            throw new IllegalArgumentException("Either [number_of_shards] or [max_single_shard_size] must be set");
         }
-        if (maxSinglePrimaryShardSize != null) {
-            if (maxSinglePrimaryShardSize.getBytes() <= 0) {
-                throw new IllegalArgumentException("[max_single_primary_shard_size] must be greater than 0");
+        if (maxSingleShardSize != null) {
+            if (maxSingleShardSize.getBytes() <= 0) {
+                throw new IllegalArgumentException("[max_single_shard_size] must be greater than 0");
             }
-            this.maxSinglePrimaryShardSize = maxSinglePrimaryShardSize;
+            this.maxSingleShardSize = maxSingleShardSize;
         } else {
             if (numberOfShards <= 0) {
                 throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
@@ -79,15 +80,17 @@ public class ShrinkAction implements LifecycleAction {
     }
 
     public ShrinkAction(StreamInput in) throws IOException {
-        if (in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            if (in.readBoolean()) {
+                this.numberOfShards = in.readVInt();
+                this.maxSingleShardSize = null;
+            } else {
+                this.maxSingleShardSize = new ByteSizeValue(in);
+                this.maxSingleShardSize = null;
+            }
+        } else {
             this.numberOfShards = in.readVInt();
-        } else {
-            this.numberOfShards = null;
-        }
-        if (in.readBoolean()) {
-            this.maxSinglePrimaryShardSize = new ByteSizeValue(in);
-        } else {
-            this.maxSinglePrimaryShardSize = null;
+            this.maxSingleShardSize = null;
         }
     }
 
@@ -95,21 +98,22 @@ public class ShrinkAction implements LifecycleAction {
         return numberOfShards;
     }
 
-    ByteSizeValue getMaxSinglePrimaryShardSize() {
-        return maxSinglePrimaryShardSize;
+    ByteSizeValue getMaxSingleShardSize() {
+        return maxSingleShardSize;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        boolean hasNumberOfShards = numberOfShards != null;
-        out.writeBoolean(hasNumberOfShards);
-        if (hasNumberOfShards) {
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            boolean hasNumberOfShards = numberOfShards != null;
+            out.writeBoolean(hasNumberOfShards);
+            if (hasNumberOfShards) {
+                out.writeVInt(numberOfShards);
+            } else {
+                maxSingleShardSize.writeTo(out);
+            }
+        } else {
             out.writeVInt(numberOfShards);
-        }
-        boolean hasSinglePrimaryShardSize = maxSinglePrimaryShardSize != null;
-        out.writeBoolean(hasSinglePrimaryShardSize);
-        if (hasSinglePrimaryShardSize) {
-            maxSinglePrimaryShardSize.writeTo(out);
         }
     }
 
@@ -124,8 +128,8 @@ public class ShrinkAction implements LifecycleAction {
         if (numberOfShards != null) {
             builder.field(NUMBER_OF_SHARDS_FIELD.getPreferredName(), numberOfShards);
         }
-        if (maxSinglePrimaryShardSize != null) {
-            builder.field(MAX_SINGLE_PRIMARY_SHARD_SIZE.getPreferredName(), maxSinglePrimaryShardSize);
+        if (maxSingleShardSize != null) {
+            builder.field(MAX_SINGLE_SHARD_SIZE.getPreferredName(), maxSingleShardSize);
         }
         builder.endObject();
         return builder;
@@ -175,7 +179,7 @@ public class ShrinkAction implements LifecycleAction {
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, setSingleNodeKey, client, readOnlySettings);
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
         CheckShrinkReadyStep checkShrinkReadyStep = new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey);
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxSinglePrimaryShardSize,
+        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxSingleShardSize,
             SHRUNKEN_INDEX_PREFIX);
         ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey,
@@ -207,12 +211,12 @@ public class ShrinkAction implements LifecycleAction {
         if (o == null || getClass() != o.getClass()) return false;
         ShrinkAction that = (ShrinkAction) o;
         return Objects.equals(numberOfShards, that.numberOfShards) &&
-            Objects.equals(maxSinglePrimaryShardSize, that.maxSinglePrimaryShardSize);
+            Objects.equals(maxSingleShardSize, that.maxSingleShardSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfShards, maxSinglePrimaryShardSize);
+        return Objects.hash(numberOfShards, maxSingleShardSize);
     }
 
     @Override

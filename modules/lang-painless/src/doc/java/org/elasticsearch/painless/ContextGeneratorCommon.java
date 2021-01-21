@@ -203,9 +203,14 @@ public class ContextGeneratorCommon {
         public final List<PainlessInfoJson.Context> contexts;
 
         public final Map<String, String> javaNamesToDisplayNames;
+        public final Map<String, String> javaNamesToJavadoc;
+        public final Map<String, List<String>> javaNamesToArgs;
 
         public PainlessInfos(List<PainlessContextInfo> contextInfos) {
             javaNamesToDisplayNames = getDisplayNames(contextInfos);
+
+            javaNamesToJavadoc = new HashMap<>();
+            javaNamesToArgs = new HashMap<>();
 
             Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
             common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames);
@@ -219,6 +224,27 @@ public class ContextGeneratorCommon {
             contexts = contextInfos.stream()
                 .map(ctx -> new PainlessInfoJson.Context(ctx, commonClassInfos, javaNamesToDisplayNames))
                 .collect(Collectors.toList());
+        }
+
+        public PainlessInfos(List<PainlessContextInfo> contextInfos, StdlibJavadocExtractor extractor) throws IOException {
+            javaNamesToDisplayNames = getDisplayNames(contextInfos);
+
+            javaNamesToJavadoc = new HashMap<>();
+            javaNamesToArgs = new HashMap<>();
+
+            Set<PainlessContextClassInfo> commonClassInfos = getCommon(contextInfos, PainlessContextInfo::getClasses);
+            common = PainlessInfoJson.Class.fromInfos(sortClassInfos(commonClassInfos), javaNamesToDisplayNames, extractor);
+
+            importedMethods = getCommon(contextInfos, PainlessContextInfo::getImportedMethods);
+
+            classBindings = getCommon(contextInfos, PainlessContextInfo::getClassBindings);
+
+            instanceBindings = getCommon(contextInfos, PainlessContextInfo::getInstanceBindings);
+
+            contexts = new ArrayList<>(contextInfos.size());
+            for (PainlessContextInfo contextInfo : contextInfos) {
+                contexts.add(new PainlessInfoJson.Context(contextInfo, commonClassInfos, javaNamesToDisplayNames, extractor));
+            }
         }
 
         private <T> Set<T> getCommon(List<PainlessContextInfo> contexts, Function<PainlessContextInfo,List<T>> getter) {

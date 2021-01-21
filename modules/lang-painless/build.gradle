@@ -40,6 +40,7 @@ dependencies {
   api 'org.ow2.asm:asm-commons:7.2'
   api 'org.ow2.asm:asm-analysis:7.2'
   api 'org.ow2.asm:asm:7.2'
+  api 'com.github.javaparser:javaparser-core:3.18.0'
   api project('spi')
 }
 
@@ -123,6 +124,7 @@ tasks.register("generateContextApiSpec", DefaultTestClustersTask) {
       main = 'org.elasticsearch.painless.ContextApiSpecGenerator'
       classpath = sourceSets.doc.runtimeClasspath
       systemProperty "cluster.uri", "${-> testClusters.generateContextApiSpecCluster.singleNode().getAllHttpSocketURI().get(0)}"
+      systemProperty "jdksrc", System.getProperty("jdksrc")
     }.assertNormalExitValue()
   }
 }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.autoscaling.capacity;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Set;
@@ -29,6 +30,11 @@ public interface AutoscalingDeciderContext {
      * Return the nodes governed by the policy.
      */
     Set<DiscoveryNode> nodes();
+
+    /**
+     * Return the set of roles required for nodes governed by the policy.
+     */
+    Set<DiscoveryNodeRole> roles();
 
     /**
      * The cluster info to use when calculating a capacity. This represents the storage use on nodes including per shard usage.

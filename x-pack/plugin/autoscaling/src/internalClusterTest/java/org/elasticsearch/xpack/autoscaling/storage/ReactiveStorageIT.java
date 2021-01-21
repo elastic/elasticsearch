@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -17,8 +19,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.xpack.autoscaling.action.GetAutoscalingCapacityAction;
 import org.elasticsearch.xpack.autoscaling.action.PutAutoscalingPolicyAction;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
+import org.elasticsearch.xpack.core.DataTier;
 import org.hamcrest.Matchers;
 
 import java.util.Arrays;
@@ -40,7 +46,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
         final String policyName = "test";
-        putAutoscalingPolicy(policyName);
+        putAutoscalingPolicy(policyName, "data");
 
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(
@@ -91,6 +97,54 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(response.results().get(policyName).requiredCapacity().node().storage().getBytes(), Matchers.equalTo(maxShardSize));
     }
 
+    public void testScaleFromEmptyWarmMove() throws Exception {
+        testScaleFromEmptyWarm(true);
+    }
+
+    public void testScaleFromEmptyWarmUnassigned() throws Exception {
+        testScaleFromEmptyWarm(false);
+    }
+
+    private void testScaleFromEmptyWarm(boolean allocatable) throws Exception {
+        internalCluster().startMasterOnlyNode();
+        internalCluster().startNode(NodeRoles.onlyRole(DataTier.DATA_HOT_NODE_ROLE));
+        putAutoscalingPolicy("hot", DataTier.DATA_HOT);
+        putAutoscalingPolicy("warm", DataTier.DATA_WARM);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        assertAcked(
+            prepareCreate(indexName).setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 6)
+                    .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
+                    .put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, allocatable ? "data_hot" : "data_content")
+                    .build()
+            ).setWaitForActiveShards(allocatable ? ActiveShardCount.DEFAULT : ActiveShardCount.NONE)
+        );
+        if (allocatable) {
+            refresh();
+        }
+        assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.equalTo(0L));
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .updateSettings(
+                    new UpdateSettingsRequest(indexName).settings(
+                        Settings.builder().put(DataTierAllocationDecider.INDEX_ROUTING_PREFER, "data_warm,data_hot")
+                    )
+                )
+                .actionGet()
+        );
+        if (allocatable == false) {
+            refresh();
+        }
+
+        assertThat(capacity().results().get("warm").requiredCapacity().total().storage().getBytes(), Matchers.greaterThan(0L));
+
+    }
+
     /**
      * Verify that the list of roles includes all data roles to ensure we consider adding future data roles.
      */
@@ -99,7 +153,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         internalCluster().startMasterOnlyNode();
         ReactiveStorageDeciderService service = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
             null
         );
         assertThat(
@@ -122,10 +176,10 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         return response;
     }
 
-    private void putAutoscalingPolicy(String policyName) {
+    private void putAutoscalingPolicy(String policyName, String role) {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
             policyName,
-            new TreeSet<>(Set.of("data")),
+            new TreeSet<>(Set.of(role)),
             new TreeMap<>(Map.of("reactive_storage", Settings.EMPTY))
         );
         assertAcked(client().execute(PutAutoscalingPolicyAction.INSTANCE, request).actionGet());

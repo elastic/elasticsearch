@@ -69,6 +69,9 @@ public class QueryCacheStats implements Writeable, ToXContentFragment {
         missCount += stats.missCount;
         cacheCount += stats.cacheCount;
         cacheSize += stats.cacheSize;
+
+        // log only the first time a negative value is encountered for query cache size
+        // see: https://github.com/elastic/elasticsearch/issues/55434
         if (ramBytesUsed < -1 && (ramBytesUsed + stats.ramBytesUsed >= 0)) {
             logger.debug(() -> new ParameterizedMessage(
                 "negative query cache size [{}] on thread [{}] with stats [{}] and stack trace:\n{}",

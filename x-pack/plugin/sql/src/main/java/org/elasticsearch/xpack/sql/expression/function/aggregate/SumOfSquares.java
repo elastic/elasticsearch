@@ -24,9 +24,6 @@ public class SumOfSquares extends NumericAggregate implements ExtendedStatsEnclo
 
     @Override
     public SumOfSquares replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new SumOfSquares(source(), newChildren.get(0));
     }
 

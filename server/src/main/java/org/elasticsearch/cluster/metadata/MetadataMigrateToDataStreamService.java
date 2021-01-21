@@ -142,14 +142,12 @@ public class MetadataMigrateToDataStreamService {
         if (ia == null || ia.getType() != IndexAbstraction.Type.ALIAS) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] does not exist");
         }
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) ia;
-
-        if (alias.getWriteIndex() == null) {
+        if (ia.getWriteIndex() == null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] must specify a write index");
         }
 
         // check for "clean" alias without routing or filter query
-        AliasMetadata aliasMetadata = alias.getFirstAliasMetadata();
+        AliasMetadata aliasMetadata = AliasMetadata.getFirstAliasMetadata(ia);
         assert aliasMetadata != null : "alias metadata may not be null";
         if (aliasMetadata.filteringRequired() || aliasMetadata.getIndexRouting() != null || aliasMetadata.getSearchRouting() != null) {
             throw new IllegalArgumentException("alias [" + request.aliasName + "] may not have custom filtering or routing");

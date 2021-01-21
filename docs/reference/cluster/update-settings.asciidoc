@@ -12,6 +12,11 @@ Updates cluster-wide settings.
 
 `PUT /_cluster/settings`
 
+[[cluster-update-settings-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cluster-update-settings-api-desc]]
 ==== {api-description-title}

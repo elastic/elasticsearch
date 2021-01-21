@@ -28,11 +28,7 @@ public class LocateFunctionPipe extends Pipe {
 
     @Override
     public final Pipe replaceChildren(List<Pipe> newChildren) {
-        int childrenSize = newChildren.size();
-        if (childrenSize > 3 || childrenSize < 2) {
-            throw new IllegalArgumentException("expected [2 or 3] children but received [" + newChildren.size() + "]");
-        }
-        return replaceChildren(newChildren.get(0), newChildren.get(1), childrenSize == 2 ? null : newChildren.get(2));
+        return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.size() == 2 ? null : newChildren.get(2));
     }
 
     @Override

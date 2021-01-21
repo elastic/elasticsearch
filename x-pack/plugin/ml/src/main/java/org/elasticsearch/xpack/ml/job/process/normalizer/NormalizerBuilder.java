@@ -24,6 +24,7 @@ public class NormalizerBuilder {
      */
     public static final String NORMALIZE = "normalize";
     static final String NORMALIZE_PATH = "./" + NORMALIZE;
+    public static final String BUCKET_SPAN_ARG = "--bucketspan=";
 
     private final Environment env;
     private final String jobId;
@@ -44,7 +45,7 @@ public class NormalizerBuilder {
 
         List<String> command = new ArrayList<>();
         command.add(NORMALIZE_PATH);
-        addIfNotNull(bucketSpan, AutodetectBuilder.BUCKET_SPAN_ARG, command);
+        addIfNotNull(bucketSpan, BUCKET_SPAN_ARG, command);
         command.add(AutodetectBuilder.LENGTH_ENCODED_INPUT_ARG);
 
         if (quantilesState != null) {

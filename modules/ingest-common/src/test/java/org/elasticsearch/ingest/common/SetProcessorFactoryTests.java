@@ -21,15 +21,18 @@ package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.TestTemplateService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.Matchers.containsString;
 
 public class SetProcessorFactoryTests extends ESTestCase {
 
@@ -132,5 +135,27 @@ public class SetProcessorFactoryTests extends ESTestCase {
         ElasticsearchException exception = expectThrows(ElasticsearchException.class,
             () -> factory.create(null, processorTag, null, config));
         assertThat(exception.getMessage(), equalTo("[copy_from] cannot set both `copy_from` and `value` in the same processor"));
+    }
+
+    public void testMimeType() throws Exception {
+        // valid mime type
+        String expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", "value1");
+        config.put("mime_type", expectedMimeType);
+        String processorTag = randomAlphaOfLength(10);
+        SetProcessor setProcessor = factory.create(null, processorTag, null, config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+
+        // invalid mime type
+        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9));
+        final Map<String, Object> config2 = new HashMap<>();
+        config2.put("field", "field1");
+        config2.put("value", "value1");
+        config2.put("mime_type", expectedMimeType);
+        ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config2));
+        assertThat(e.getMessage(), containsString("property does not contain a supported MIME type [" + expectedMimeType + "]"));
     }
 }

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -102,7 +103,8 @@ public class TypeParsers {
                 // For indices created prior to 8.0, we only emit a deprecation warning and do not fail type parsing. This is to
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
-                    deprecationLogger.deprecate("multifield_within_multifield", "At least one multi-field, [" + name + "], " +
+                    deprecationLogger.deprecate(DeprecationCategory.INDICES,
+                        "multifield_within_multifield", "At least one multi-field, [" + name + "], " +
                         "was encountered that itself contains a multi-field. Defining multi-fields within a multi-field is deprecated " +
                         "and is not supported for indices created in 8.0 and later. To migrate the mappings, all instances of [fields] " +
                         "that occur within a [fields] block should be removed from the mappings, either by flattening the chained " +

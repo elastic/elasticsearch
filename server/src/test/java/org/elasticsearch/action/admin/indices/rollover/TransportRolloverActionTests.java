@@ -46,10 +46,8 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
 import org.elasticsearch.index.engine.SegmentsStats;
@@ -101,7 +99,7 @@ public class TransportRolloverActionTests extends ESTestCase {
 
         final Condition<?> condition = createTestCondition();
         String indexName = randomAlphaOfLengthBetween(5, 7);
-        evaluateConditions(Sets.newHashSet(condition),
+        evaluateConditions(Set.of(condition),
             buildStats(createMetadata(indexName), createIndicesStatResponse(indexName, docsInShards, docsInPrimaryShards)));
         final ArgumentCaptor<Condition.Stats> argument = ArgumentCaptor.forClass(Condition.Stats.class);
         verify(condition).evaluate(argument.capture());
@@ -112,36 +110,43 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testEvaluateConditions() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxAgeCondition, maxDocsCondition, maxSizeCondition);
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
+            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
-        ByteSizeValue notMatchMaxSize = new ByteSizeValue(randomIntBetween(0, 9), ByteSizeUnit.MB);
+        ByteSizeValue notMatchMaxSize = ByteSizeValue.ofMb(randomIntBetween(0, 9));
         long indexCreated = TimeValue.timeValueHours(3).getMillis();
 
-        expectThrows(NullPointerException.class, () -> evaluateConditions(null, new Condition.Stats(0, 0, ByteSizeValue.ofMb(0))));
+        expectThrows(NullPointerException.class, () -> evaluateConditions(null,
+            new Condition.Stats(0, 0, ByteSizeValue.ofMb(0), ByteSizeValue.ofMb(0))));
 
         Map<String, Boolean> results = evaluateConditions(conditions, null);
-        assertThat(results.size(), equalTo(3));
+        assertThat(results.size(), equalTo(4));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(false));
         }
 
-        results = evaluateConditions(conditions, new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120)));
-        assertThat(results.size(), equalTo(3));
+        results = evaluateConditions(conditions,
+            new Condition.Stats(matchMaxDocs, indexCreated, ByteSizeValue.ofMb(120), ByteSizeValue.ofMb(120)));
+        assertThat(results.size(), equalTo(4));
         for (Boolean matched : results.values()) {
             assertThat(matched, equalTo(true));
         }
 
-        results = evaluateConditions(conditions, new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize));
-        assertThat(results.size(), equalTo(3));
+        results = evaluateConditions(conditions,
+            new Condition.Stats(notMatchMaxDocs, indexCreated, notMatchMaxSize, ByteSizeValue.ofMb(0)));
+        assertThat(results.size(), equalTo(4));
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(true));
             } else if (entry.getKey().equals(maxDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSinglePrimarySizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -153,7 +158,9 @@ public class TransportRolloverActionTests extends ESTestCase {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxAgeCondition, maxDocsCondition, maxSizeCondition);
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
+            new MaxSinglePrimarySizeCondition(new ByteSizeValue(randomNonNegativeLong()));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -167,7 +174,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .settings(settings)
             .build();
         Map<String, Boolean> results = evaluateConditions(conditions, buildStats(metadata, null));
-        assertThat(results.size(), equalTo(3));
+        assertThat(results.size(), equalTo(4));
 
         for (Map.Entry<String, Boolean> entry : results.entrySet()) {
             if (entry.getKey().equals(maxAgeCondition.toString())) {
@@ -175,6 +182,8 @@ public class TransportRolloverActionTests extends ESTestCase {
             } else if (entry.getKey().equals(maxDocsCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else if (entry.getKey().equals(maxSizeCondition.toString())) {
+                assertThat(entry.getValue(), equalTo(false));
+            } else if (entry.getKey().equals(maxSinglePrimarySizeCondition.toString())) {
                 assertThat(entry.getValue(), equalTo(false));
             } else {
                 fail("unknown condition result found " + entry.getKey());
@@ -185,8 +194,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     public void testEvaluateWithoutMetadata() {
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
-        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxAgeCondition, maxDocsCondition, maxSizeCondition);
+        MaxSizeCondition maxSizeCondition = new MaxSizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition =
+            new MaxSinglePrimarySizeCondition(ByteSizeValue.ofMb(randomIntBetween(10, 100)));
+        final Set<Condition<?>> conditions = Set.of(maxAgeCondition, maxDocsCondition, maxSizeCondition, maxSinglePrimarySizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -201,7 +212,7 @@ public class TransportRolloverActionTests extends ESTestCase {
             .build();
         IndicesStatsResponse indicesStats = randomIndicesStatsResponse(new IndexMetadata[]{metadata});
         Map<String, Boolean> results = evaluateConditions(conditions, buildStats(null, indicesStats));
-        assertThat(results.size(), equalTo(3));
+        assertThat(results.size(), equalTo(4));
         results.forEach((k, v) -> assertFalse(v));
     }
 

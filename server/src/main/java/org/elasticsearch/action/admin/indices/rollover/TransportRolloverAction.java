@@ -23,9 +23,11 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardsObserver;
 import org.elasticsearch.action.support.IndicesOptions;
@@ -47,6 +49,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -187,15 +190,27 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
         if (metadata == null) {
             return null;
         } else {
-            final DocsStats docsStats = Optional.ofNullable(statsResponse)
-                .map(stats -> stats.getIndex(metadata.getIndex().getName()))
+            final Optional<IndexStats> indexStats = Optional.ofNullable(statsResponse)
+                .map(stats -> stats.getIndex(metadata.getIndex().getName()));
+
+            final DocsStats docsStats = indexStats
                 .map(stats -> stats.getPrimaries().getDocs())
                 .orElse(null);
+
+            final long maxSinglePrimarySize = indexStats.stream()
+                .map(IndexStats::getShards)
+                .filter(Objects::nonNull)
+                .flatMap(Arrays::stream)
+                .filter(shard -> shard.getShardRouting().primary())
+                .map(ShardStats::getStats)
+                .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
+                .max().orElse(-1);
 
             return new Condition.Stats(
                 docsStats == null ? 0 : docsStats.getCount(),
                 metadata.getCreationDate(),
-                new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes())
+                new ByteSizeValue(docsStats == null ? 0 : docsStats.getTotalSizeInBytes()),
+                new ByteSizeValue(maxSinglePrimarySize)
             );
         }
     }

@@ -38,6 +38,7 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -100,7 +101,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
     }
 
     @Override
-    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(TermsSetQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.getValues().isEmpty()) {
             assertThat(query, instanceOf(MatchNoDocsQuery.class));
             MatchNoDocsQuery matchNoDocsQuery = (MatchNoDocsQuery) query;
@@ -118,8 +119,8 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         TermsSetQueryBuilder queryBuilder = createTestQueryBuilder();
         boolean isCacheable = queryBuilder.getMinimumShouldMatchField() != null ||
                 (queryBuilder.getMinimumShouldMatchScript() != null && queryBuilder.getValues().isEmpty());
-        QueryShardContext context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        SearchExecutionContext context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertEquals("query should " + (isCacheable ? "" : "not") + " be cacheable: " + queryBuilder.toString(), isCacheable,
                 context.isCacheable());
@@ -127,23 +128,23 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         // specifically trigger the two cases where query is cacheable
         queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchField("m_s_m");
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.emptyList());
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertTrue("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
 
         // also test one case where query is not cacheable
         queryBuilder = new TermsSetQueryBuilder(TEXT_FIELD_NAME, Collections.singletonList("foo"));
         queryBuilder.setMinimumShouldMatchScript(new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap()));
-        context = createShardContext();
-        rewriteQuery(queryBuilder, new QueryShardContext(context));
+        context = createSearchExecutionContext();
+        rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(queryBuilder.doToQuery(context));
         assertFalse("query should be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }
@@ -231,7 +232,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             }
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                QueryShardContext context = createShardContext();
+                SearchExecutionContext context = createSearchExecutionContext();
                 Query query = new TermsSetQueryBuilder("message", Arrays.asList("c", "d"))
                         .setMinimumShouldMatchField("m_s_m").doToQuery(context);
                 IndexSearcher searcher = new IndexSearcher(ir);
@@ -276,7 +277,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
             }
 
             try (IndexReader ir = DirectoryReader.open(directory)) {
-                QueryShardContext context = createShardContext();
+                SearchExecutionContext context = createSearchExecutionContext();
                 Script script = new Script(ScriptType.INLINE, MockScriptEngine.NAME, "_script", emptyMap());
                 Query query = new TermsSetQueryBuilder("message", Arrays.asList("a", "b", "c", "d"))
                         .setMinimumShouldMatchScript(script).doToQuery(context);
@@ -295,7 +296,7 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
         TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(TEXT_ALIAS_FIELD_NAME, randomTerms)
             .setMinimumShouldMatchField("m_s_m");
 
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         List<Query> termQueries = queryBuilder.createTermQueries(context);
         assertEquals(randomTerms.size(), termQueries.size());
 
@@ -330,6 +331,28 @@ public class TermsSetQueryBuilderTests extends AbstractQueryTestCase<TermsSetQue
                 }
             });
         }
+    }
+
+    public void testConversion() {
+        List<Object> list = Arrays.asList();
+        assertSame(Collections.emptyList(), TermsSetQueryBuilder.convert(list));
+        assertEquals(list, TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
+
+        list = Arrays.asList("abc");
+        assertEquals(Arrays.asList(new BytesRef("abc")), TermsSetQueryBuilder.convert(list));
+        assertEquals(list, TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
+
+        list = Arrays.asList("abc", new BytesRef("def"));
+        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsSetQueryBuilder.convert(list));
+        assertEquals(Arrays.asList("abc", "def"), TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
+
+        list = Arrays.asList(5, 42L);
+        assertEquals(Arrays.asList(5L, 42L), TermsSetQueryBuilder.convert(list));
+        assertEquals(Arrays.asList(5L, 42L), TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
+
+        list = Arrays.asList(5, 42d);
+        assertEquals(Arrays.asList(5, 42d), TermsSetQueryBuilder.convert(list));
+        assertEquals(Arrays.asList(5, 42d), TermsSetQueryBuilder.convertBack(TermsSetQueryBuilder.convert(list)));
     }
 
 }

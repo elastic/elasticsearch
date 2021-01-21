@@ -270,6 +270,7 @@ public enum XContentType implements MediaType {
         .register(XContentType.values());
     public static final String VENDOR_APPLICATION_PREFIX = "application/vnd.elasticsearch+";
 
+    private final ParsedMediaType mediaType = ParsedMediaType.parseMediaType(mediaTypeWithoutParameters());
     /**
      * Accepts a format string, which is most of the time is equivalent to MediaType's subtype i.e. <code>application/<b>json</b></code>
      * and attempts to match the value to an {@link XContentType}.
@@ -323,6 +324,10 @@ public enum XContentType implements MediaType {
     public abstract XContent xContent();
 
     public abstract String mediaTypeWithoutParameters();
+
+    public ParsedMediaType toParsedMediaType() {
+        return mediaType;
+    }
 
     /**
      * Returns a canonical XContentType for this XContentType.

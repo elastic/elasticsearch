@@ -53,7 +53,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
@@ -252,24 +252,24 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     }
 
     /**
-     * @return a new {@link QueryShardContext} with the provided searcher
+     * @return a new {@link SearchExecutionContext} with the provided searcher
      */
-    protected static QueryShardContext createShardContext(IndexSearcher searcher) {
+    protected static SearchExecutionContext createSearchExecutionContext(IndexSearcher searcher) {
         return serviceHolder.createShardContext(searcher);
     }
 
     /**
-     * @return a new {@link QueryShardContext} based on an index with no type registered
+     * @return a new {@link SearchExecutionContext} based on an index with no type registered
      */
-    protected static QueryShardContext createShardContextWithNoType() {
+    protected static SearchExecutionContext createShardContextWithNoType() {
         return serviceHolderWithNoType.createShardContext(null);
     }
 
     /**
-     * @return a new {@link QueryShardContext} based on the base test index and queryParserService
+     * @return a new {@link SearchExecutionContext} based on the base test index and queryParserService
      */
-    protected static QueryShardContext createShardContext() {
-        return createShardContext(null);
+    protected static SearchExecutionContext createSearchExecutionContext() {
+        return createSearchExecutionContext(null);
     }
 
     private static class ClientInvocationHandler implements InvocationHandler {
@@ -410,8 +410,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         public void close() throws IOException {
         }
 
-        QueryShardContext createShardContext(IndexSearcher searcher) {
-            return new QueryShardContext(
+        SearchExecutionContext createShardContext(IndexSearcher searcher) {
+            return new SearchExecutionContext(
                 0,
                 0,
                 idxSettings,

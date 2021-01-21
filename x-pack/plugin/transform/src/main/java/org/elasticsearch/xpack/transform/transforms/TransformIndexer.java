@@ -333,13 +333,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }
         }, listener::onFailure);
 
+        Instant instantOfTrigger = Instant.ofEpochMilli(now);
         // If we are not on the initial batch checkpoint and its the first pass of whatever continuous checkpoint we are on,
         // we should verify if there are local changes based on the sync config. If not, do not proceed further and exit.
         if (context.getCheckpoint() > 0 && initialRun()) {
             sourceHasChanged(ActionListener.wrap(hasChanged -> {
+                context.setLastSearchTime(instantOfTrigger);
                 hasSourceChanged = hasChanged;
                 if (hasChanged) {
-                    context.setChangesLastDetectedAt(Instant.now());
+                    context.setChangesLastDetectedAt(instantOfTrigger);
                     logger.debug("[{}] source has changed, triggering new indexer run.", getJobId());
                     changedSourceListener.onResponse(null);
                 } else {
@@ -355,6 +357,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             }));
         } else {
             hasSourceChanged = true;
+            context.setLastSearchTime(instantOfTrigger);
+            context.setChangesLastDetectedAt(instantOfTrigger);
             changedSourceListener.onResponse(null);
         }
     }
@@ -876,15 +880,15 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         QueryBuilder queryBuilder = config.getSource().getQueryConfig().getQuery();
 
         if (isContinuous()) {
-            BoolQueryBuilder filteredQuery =
-                new BoolQueryBuilder()
-                    .filter(queryBuilder)
-                    .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
+            BoolQueryBuilder filteredQuery = new BoolQueryBuilder().filter(queryBuilder)
+                .filter(config.getSyncConfig().getRangeQuery(nextCheckpoint));
 
             // Only apply extra filter if it is the subsequent run of the continuous transform
             if (nextCheckpoint.getCheckpoint() > 1 && changeCollector != null) {
-                QueryBuilder filter =
-                    changeCollector.buildFilterQuery(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
+                QueryBuilder filter = changeCollector.buildFilterQuery(
+                    lastCheckpoint.getTimeUpperBound(),
+                    nextCheckpoint.getTimeUpperBound()
+                );
                 if (filter != null) {
                     filteredQuery.filter(filter);
                 }

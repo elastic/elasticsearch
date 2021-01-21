@@ -9,38 +9,26 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheFile;
-import org.elasticsearch.index.store.cache.CacheKey;
-import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.xpack.searchablesnapshots.AbstractSearchableSnapshotsTestCase;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCacheFileEquals;
-import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache.createCacheIndexWriter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache.resolveCacheIndexFolder;
@@ -140,20 +128,18 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         cacheService.setCacheSyncInterval(TimeValue.ZERO);
         cacheService.start();
 
-        final List<CacheFile> cacheFiles = generateRandomCacheFiles(cacheService);
+        final List<CacheFile> cacheFiles = randomCacheFiles(cacheService);
         cacheService.synchronizeCache();
 
-        if (cacheFiles.isEmpty() == false) {
-            final List<CacheFile> removedCacheFiles = randomSubsetOf(cacheFiles);
-            for (CacheFile removedCacheFile : removedCacheFiles) {
-                if (randomBoolean()) {
-                    // evict cache file from the cache
-                    cacheService.removeFromCache(removedCacheFile.getCacheKey());
-                } else {
-                    IOUtils.rm(removedCacheFile.getFile());
-                }
-                cacheFiles.remove(removedCacheFile);
+        final List<CacheFile> removedCacheFiles = randomSubsetOf(cacheFiles);
+        for (CacheFile removedCacheFile : removedCacheFiles) {
+            if (randomBoolean()) {
+                // evict cache file from the cache
+                cacheService.removeFromCache(removedCacheFile.getCacheKey());
+            } else {
+                IOUtils.rm(removedCacheFile.getFile());
             }
+            cacheFiles.remove(removedCacheFile);
         }
         cacheService.stop();
 
@@ -172,7 +158,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         final List<Path> cacheFiles;
         try (CacheService cacheService = defaultCacheService()) {
             cacheService.start();
-            cacheFiles = generateRandomCacheFiles(cacheService).stream().map(CacheFile::getFile).collect(Collectors.toList());
+            cacheFiles = randomCacheFiles(cacheService).stream().map(CacheFile::getFile).collect(Collectors.toList());
             if (randomBoolean()) {
                 cacheService.synchronizeCache();
             }
@@ -185,51 +171,5 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
         assertTrue(cacheFiles.stream().allMatch(Files::exists));
         PersistentCache.cleanUp(nodeSettings, nodeEnvironment);
         assertTrue(cacheFiles.stream().noneMatch(Files::exists));
-    }
-
-    /**
-     * Generates 1 or more cache files using the specified {@link CacheService}.
-     */
-    private List<CacheFile> generateRandomCacheFiles(CacheService cacheService) throws Exception {
-        final byte[] buffer = new byte[1024];
-        Arrays.fill(buffer, (byte) 0xff);
-
-        final List<CacheFile> cacheFiles = new ArrayList<>();
-        for (int snapshots = 0; snapshots < between(1, 2); snapshots++) {
-            final String snapshotUUID = UUIDs.randomBase64UUID(random());
-            for (int indices = 0; indices < between(1, 2); indices++) {
-                IndexId indexId = new IndexId(randomAlphaOfLength(5).toLowerCase(Locale.ROOT), UUIDs.randomBase64UUID(random()));
-                for (int shards = 0; shards < between(1, 2); shards++) {
-                    ShardId shardId = new ShardId(indexId.getName(), indexId.getId(), shards);
-
-                    final Path cacheDir = Files.createDirectories(
-                        CacheService.resolveSnapshotCache(randomShardPath(shardId)).resolve(snapshotUUID)
-                    );
-
-                    for (int files = 0; files < between(1, 2); files++) {
-                        final CacheKey cacheKey = new CacheKey(snapshotUUID, indexId.getName(), shardId, "file_" + files);
-                        final CacheFile cacheFile = cacheService.get(cacheKey, randomLongBetween(0L, buffer.length), cacheDir);
-
-                        final CacheFile.EvictionListener listener = evictedCacheFile -> {};
-                        cacheFile.acquire(listener);
-                        try {
-                            SortedSet<Tuple<Long, Long>> ranges = randomPopulateAndReads(cacheFile, (channel, from, to) -> {
-                                try {
-                                    channel.write(ByteBuffer.wrap(buffer, Math.toIntExact(from), Math.toIntExact(to)));
-                                } catch (IOException e) {
-                                    throw new AssertionError(e);
-                                }
-                            });
-                            if (ranges.isEmpty() == false) {
-                                cacheFiles.add(cacheFile);
-                            }
-                        } finally {
-                            cacheFile.release(listener);
-                        }
-                    }
-                }
-            }
-        }
-        return cacheFiles;
     }
 }

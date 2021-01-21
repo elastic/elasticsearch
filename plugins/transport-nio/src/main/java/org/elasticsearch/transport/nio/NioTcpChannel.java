@@ -77,6 +77,7 @@ public class NioTcpChannel extends NioSocketChannel implements TcpChannel {
         return "TcpNioSocketChannel{" +
             "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + getRemoteAddress() +
+            ", profile=" + profile +
             '}';
     }
 }

@@ -559,8 +559,87 @@ A collection of feature preprocessors that modify one or more included fields.
 The analysis uses the resulting one or more features instead of the
 original document field. Multiple `feature_processors` entries can refer to the
 same document fields.
-Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] still occurs.
+Note, automatic categorical {ml-docs}/ml-feature-encoding.html[feature encoding] 
+still occurs.
 end::dfas-feature-processors[]
+
+tag::dfas-feature-processors-feat-name[]
+The resulting feature name.
+end::dfas-feature-processors-feat-name[]
+
+tag::dfas-feature-processors-field[]
+The name of the field to encode.
+end::dfas-feature-processors-field[]
+
+tag::dfas-feature-processors-frequency[]
+The configuration information necessary to perform frequency encoding.
+end::dfas-feature-processors-frequency[]
+
+tag::dfas-feature-processors-frequency-map[]
+The resulting frequency map for the field value. If the field value is missing 
+from the `frequency_map`, the resulting value is `0`.
+end::dfas-feature-processors-frequency-map[]
+
+tag::dfas-feature-processors-multi[]
+The configuration information necessary to perform multi encoding. It allows 
+multiple processors to be changed together. This way the output of a processor 
+can then be passed to another as an input.
+end::dfas-feature-processors-multi[]
+
+tag::dfas-feature-processors-multi-proc[]
+The ordered array of custom processors to execute. Must be more than 1.
+end::dfas-feature-processors-multi-proc[]
+
+tag::dfas-feature-processors-ngram[]
+The configuration information necessary to perform ngram encoding. Features 
+written out by this encoder have the following name format: 
+`<feature_prefix>.<ngram><string position>`. For example, if the 
+`feature_prefix` is `f`, the feature name for the second unigram in a string is 
+`f.11`.
+end::dfas-feature-processors-ngram[]
+
+tag::dfas-feature-processors-ngram-feat-pref[]
+The feature name prefix. Defaults to `ngram_<start>_<length>`.
+end::dfas-feature-processors-ngram-feat-pref[]
+
+tag::dfas-feature-processors-ngram-field[]
+The name of the text field to encode.
+end::dfas-feature-processors-ngram-field[]
+
+tag::dfas-feature-processors-ngram-length[]
+Specifies the length of the ngram substring. Defaults to `50`. Must be greater 
+than `0`.
+end::dfas-feature-processors-ngram-length[]
+
+tag::dfas-feature-processors-ngram-ngrams[]
+Specifies which ngrams to gather. It’s an array of integer values where the 
+minimum value is 1, and a maximum value is 5.
+end::dfas-feature-processors-ngram-ngrams[]
+
+tag::dfas-feature-processors-ngram-start[]
+Specifies the zero-indexed start of the ngram substring. Negative values are 
+allowed for encoding ngram of string suffixes. Defaults to `0`.
+end::dfas-feature-processors-ngram-start[]
+
+tag::dfas-feature-processors-one-hot[]
+The configuration information necessary to perform one hot encoding.
+end::dfas-feature-processors-one-hot[]
+
+tag::dfas-feature-processors-one-hot-map[]
+The one hot map mapping the field value with the column name.
+end::dfas-feature-processors-one-hot-map[]
+
+tag::dfas-feature-processors-target-mean[]
+The configuration information necessary to perform target mean encoding.
+end::dfas-feature-processors-target-mean[]
+
+tag::dfas-feature-processors-target-mean-default[]
+The default value if field value is not found in the `target_map`.
+end::dfas-feature-processors-target-mean-default[]
+
+tag::dfas-feature-processors-target-mean-map[]
+The field value to target mean transition map.
+end::dfas-feature-processors-target-mean-map[]
 
 tag::dfas-iteration[]
 The number of iterations on the analysis.

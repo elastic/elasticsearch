@@ -43,11 +43,13 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.TermsSetQueryScript;
 
 import java.io.IOException;
+import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQueryBuilder> {
 
@@ -64,8 +66,17 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     private Script minimumShouldMatchScript;
 
     public TermsSetQueryBuilder(String fieldName, List<?> values) {
+        this(fieldName, values, true);
+    }
+
+    private TermsSetQueryBuilder(String fieldName, List<?> values, boolean convert) {
         this.fieldName = Objects.requireNonNull(fieldName);
-        this.values = TermsQueryBuilder.convert(Objects.requireNonNull(values));
+        Objects.requireNonNull(values);
+        if (convert) {
+            this.values = values.stream().map(AbstractQueryBuilder::maybeConvertToBytesRef).collect(Collectors.toList());
+        } else {
+            this.values = values;
+        }
     }
 
     public TermsSetQueryBuilder(StreamInput in) throws IOException {
@@ -139,7 +150,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field(TERMS_FIELD.getPreferredName(), TermsQueryBuilder.convertBack(values));
+        builder.field(TERMS_FIELD.getPreferredName(), convertBack(values));
         if (minimumShouldMatchField != null) {
             builder.field(MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatchField);
         }
@@ -209,7 +220,7 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             throw new ParsingException(parser.getTokenLocation(), "[" + NAME + "] unknown token [" + token + "]");
         }
 
-        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values)
+        TermsSetQueryBuilder queryBuilder = new TermsSetQueryBuilder(fieldName, values, false)
                 .queryName(queryName).boost(boost);
         if (minimumShouldMatchField != null) {
             queryBuilder.setMinimumShouldMatchField(minimumShouldMatchField);
@@ -340,6 +351,22 @@ public final class TermsSetQueryBuilder extends AbstractQueryBuilder<TermsSetQue
             return this;
         }
 
+    }
+
+    /**
+     * Convert the internal {@link List} of values back to a user-friendly list.
+     */
+    private static List<Object> convertBack(List<?> list) {
+        return new AbstractList<Object>() {
+            @Override
+            public int size() {
+                return list.size();
+            }
+            @Override
+            public Object get(int index) {
+                return maybeConvertToString(list.get(index));
+            }
+        };
     }
 
     // Forked from LongValuesSource.FieldValuesSource and changed getValues() method to always use sorted numeric

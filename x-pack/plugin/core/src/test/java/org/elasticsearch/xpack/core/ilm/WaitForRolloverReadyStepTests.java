@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyZeroInteractions;
 
 public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForRolloverReadyStep> {
 
@@ -172,6 +173,43 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         verify(client, Mockito.only()).admin();
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
+    }
+
+    public void testSkipRolloverIfDataStreamIsAlreadyRolledOver() {
+        String dataStreamName = "test-datastream";
+        IndexMetadata firstGenerationIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 1))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+
+        IndexMetadata writeIndex = IndexMetadata.builder(DataStream.getDefaultBackingIndexName(dataStreamName, 2))
+            .settings(settings(Version.CURRENT))
+            .numberOfShards(randomIntBetween(1, 5)).numberOfReplicas(randomIntBetween(0, 5)).build();
+        WaitForRolloverReadyStep step = createRandomInstance();
+
+        SetOnce<Boolean> conditionsMet = new SetOnce<>();
+        Metadata metadata = Metadata.builder().put(firstGenerationIndex, true)
+            .put(writeIndex, true)
+            .put(new DataStream(dataStreamName, createTimestampField("@timestamp"),
+                List.of(firstGenerationIndex.getIndex(), writeIndex.getIndex())))
+            .build();
+        step.evaluateCondition(metadata, firstGenerationIndex.getIndex(), new AsyncWaitStep.Listener() {
+
+            @Override
+            public void onResponse(boolean complete, ToXContentObject infomationContext) {
+                conditionsMet.set(complete);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("Unexpected method call", e);
+            }
+        }, MASTER_TIMEOUT);
+
+        assertEquals(true, conditionsMet.get());
+
+        verifyZeroInteractions(client);
+        verifyZeroInteractions(adminClient);
+        verifyZeroInteractions(indicesClient);
     }
 
     private void mockRolloverIndexCall(String rolloverTarget, WaitForRolloverReadyStep step) {

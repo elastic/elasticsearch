@@ -32,7 +32,7 @@ POST /_data_stream/_promote/my-data-stream
 [[promote-data-stream-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the `manage`
+* If the {es} {security-features} are enabled, you must have the `manage_follow_index`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[promote-data-stream-api-path-params]]

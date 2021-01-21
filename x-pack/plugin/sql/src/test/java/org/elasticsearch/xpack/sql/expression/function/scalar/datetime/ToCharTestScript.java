@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.sql.expression.function.scalar.datetime;
 
 import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.util.set.Sets;
 
 import java.io.BufferedWriter;
-import java.io.FileWriter;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
@@ -190,7 +190,7 @@ public class ToCharTestScript {
     static List<String> readAllLinesWithoutComment(URL url) {
         try {
             URI uri = url.toURI();
-            return Files.readAllLines(Paths.get(uri))
+            return Files.readAllLines(PathUtils.get(uri))
                 .stream()
                 .filter(s -> s.startsWith("#") == false)
                 .filter(s -> s.trim().isEmpty() == false)
@@ -237,7 +237,7 @@ public class ToCharTestScript {
 
     public static void main(String[] args) throws Exception {
         String scriptFilename = args.length < 1 ? "postgresql-tochar-test.sql" : args[0];
-        try (BufferedWriter writer = new BufferedWriter(new FileWriter(scriptFilename, true))) {
+        try (BufferedWriter writer = Files.newBufferedWriter(PathUtils.get(scriptFilename), StandardCharsets.UTF_8)) {
             writer.append(new ToCharTestScript(rnd()).unitTestExporterScript());
         }
     }

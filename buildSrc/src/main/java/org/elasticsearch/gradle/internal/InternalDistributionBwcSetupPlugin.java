@@ -143,7 +143,8 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         String artifactName = artifactFileName.contains("oss") ? "elasticsearch-oss" : "elasticsearch";
 
         String suffix = artifactFileName.endsWith("tar.gz") ? "tar.gz" : artifactFileName.substring(artifactFileName.length() - 3);
-        int archIndex = artifactFileName.indexOf("x86_64");
+        int x86ArchIndex = artifactFileName.indexOf("x86_64");
+        int aarch64ArchIndex = artifactFileName.indexOf("aarch64");
 
         bwcProject.getConfigurations().create(distributionProject.name);
         bwcProject.getArtifacts().add(distributionProject.name, distFile, artifact -> {
@@ -152,9 +153,12 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
             artifact.setType(suffix);
 
             String classifier = "";
-            if (archIndex != -1) {
-                int osIndex = artifactFileName.lastIndexOf('-', archIndex - 2);
-                classifier = "-" + artifactFileName.substring(osIndex + 1, archIndex - 1) + "-x86_64";
+            if (x86ArchIndex != -1) {
+                int osIndex = artifactFileName.lastIndexOf('-', x86ArchIndex - 2);
+                classifier = "-" + artifactFileName.substring(osIndex + 1, x86ArchIndex - 1) + "-x86_64";
+            } else if (aarch64ArchIndex != -1) {
+                int osIndex = artifactFileName.lastIndexOf('-', aarch64ArchIndex - 2);
+                classifier = "-" + artifactFileName.substring(osIndex + 1, aarch64ArchIndex - 1) + "-aarch64";
             }
             artifact.setClassifier(classifier);
         });
@@ -166,7 +170,18 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
         projects.addAll(asList("deb", "rpm", "oss-deb", "oss-rpm"));
 
         if (bwcVersion.onOrAfter("7.0.0")) { // starting with 7.0 we bundle a jdk which means we have platform-specific archives
-            projects.addAll(asList("oss-windows-zip", "windows-zip", "oss-darwin-tar", "darwin-tar", "oss-linux-tar", "linux-tar"));
+            projects.addAll(
+                asList(
+                    "oss-windows-zip",
+                    "windows-zip",
+                    "oss-darwin-tar",
+                    "oss-darwin-aarch64-tar",
+                    "darwin-tar",
+                    "darwin-aarch64-tar",
+                    "oss-linux-tar",
+                    "linux-tar"
+                )
+            );
         } else { // prior to 7.0 we published only a single zip and tar archives for oss and default distributions
             projects.addAll(asList("oss-zip", "zip", "tar", "oss-tar"));
         }
@@ -179,7 +194,7 @@ public class InternalDistributionBwcSetupPlugin implements InternalPlugin {
                 if (name.contains("zip") || name.contains("tar")) {
                     int index = name.lastIndexOf('-');
                     String baseName = name.startsWith("oss-") ? name.substring(4, index) : name.substring(0, index);
-                    classifier = "-" + baseName + "-x86_64";
+                    classifier = "-" + baseName + (name.contains("aarch64") ? "-aarch64" : "-x86_64");
                     extension = name.substring(index + 1);
                     if (extension.equals("tar")) {
                         extension += ".gz";

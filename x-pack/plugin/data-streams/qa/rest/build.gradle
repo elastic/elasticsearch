@@ -1,3 +1,5 @@
+import org.elasticsearch.gradle.info.BuildParams
+
 apply plugin: 'elasticsearch.yaml-rest-test'
 apply plugin: 'elasticsearch.java-rest-test'
 
@@ -17,4 +19,10 @@ testClusters.all {
   setting 'xpack.license.self_generated.type', 'trial'
   // disable ILM history, since it disturbs tests using _all
   setting 'indices.lifecycle.history_index_enabled', 'false'
+}
+if (BuildParams.inFipsJvm){
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in :
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
 }

@@ -25,6 +25,7 @@ dependencies {
   api project(":client:rest")
   api project(":client:sniffer")
   api project(':libs:elasticsearch-nio')
+  api project(':libs:elasticsearch-ssl-config')
   api project(":server")
   api project(":libs:elasticsearch-cli")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"

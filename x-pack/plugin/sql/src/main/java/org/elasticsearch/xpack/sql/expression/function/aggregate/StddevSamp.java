@@ -24,9 +24,6 @@ public class StddevSamp extends NumericAggregate implements ExtendedStatsEnclose
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new StddevSamp(source(), newChildren.get(0));
     }
 

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 /**
  * A raw result of parsing media types from Accept or Content-Type headers.
@@ -44,7 +44,7 @@ public class ParsedMediaType {
         this.originalHeaderValue = originalHeaderValue;
         this.type = type;
         this.subType = subType;
-        this.parameters = Collections.unmodifiableMap(parameters);
+        this.parameters = Map.copyOf(parameters);
     }
 
     /**
@@ -81,7 +81,7 @@ public class ParsedMediaType {
                 throw new IllegalArgumentException("invalid media-type [" + headerValue + "]");
             }
             if (elements.length == 1) {
-                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), Collections.emptyMap());
+                return new ParsedMediaType(headerValue, splitMediaType[0].trim(), splitMediaType[1].trim(), new HashMap<>());
             } else {
                 Map<String, String> parameters = new HashMap<>();
                 for (int i = 1; i < elements.length; i++) {
@@ -103,6 +103,13 @@ public class ParsedMediaType {
             }
         }
         return null;
+    }
+
+    public static ParsedMediaType parseMediaType(XContentType requestContentType, Map<String, String> parameters) {
+        ParsedMediaType parsedMediaType = requestContentType.toParsedMediaType();
+
+        return new ParsedMediaType(parsedMediaType.originalHeaderValue,
+            parsedMediaType.type, parsedMediaType.subType, parameters);
     }
 
     // simplistic check for media ranges. do not validate if this is a correct header
@@ -151,4 +158,21 @@ public class ParsedMediaType {
     public String toString() {
         return originalHeaderValue;
     }
+
+    public String responseContentTypeHeader() {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    //used in testing
+    public String responseContentTypeHeader(Map<String,String> parameters) {
+        return mediaTypeWithoutParameters() + formatParameters(parameters);
+    }
+
+    private String formatParameters(Map<String, String> parameters) {
+        String joined = parameters.entrySet().stream()
+            .map(e -> e.getKey() + "=" + e.getValue())
+            .collect(Collectors.joining(";"));
+        return joined.isEmpty() ? "" : ";" + joined;
+    }
+
 }

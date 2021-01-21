@@ -28,7 +28,7 @@ import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateFormatter;
@@ -322,7 +322,7 @@ public class IndexNameExpressionResolver {
                 .sorted() // reliable order for testing
                 .collect(Collectors.toList());
             if (resolvedSystemIndices.isEmpty() == false) {
-                deprecationLogger.deprecate("open_system_index_access",
+                deprecationLogger.deprecate(DeprecationCategory.API, "open_system_index_access",
                     "this request accesses system indices: {}, but in a future major version, direct access to system " +
                         "indices will be prevented by default", resolvedSystemIndices);
             }
@@ -563,10 +563,9 @@ public class IndexNameExpressionResolver {
         for (String expression : resolvedExpressions) {
             IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
             if (indexAbstraction != null && indexAbstraction.getType() == IndexAbstraction.Type.ALIAS) {
-                IndexAbstraction.Alias alias = (IndexAbstraction.Alias) indexAbstraction;
-                for (Tuple<String, AliasMetadata> item : alias.getConcreteIndexAndAliasMetadatas()) {
-                    String concreteIndex = item.v1();
-                    AliasMetadata aliasMetadata = item.v2();
+                for (IndexMetadata index : indexAbstraction.getIndices()) {
+                    String concreteIndex = index.getIndex().getName();
+                    AliasMetadata aliasMetadata = index.getAliases().get(indexAbstraction.getName());
                     if (!norouting.contains(concreteIndex)) {
                         if (!aliasMetadata.searchRoutingValues().isEmpty()) {
                             // Routing alias

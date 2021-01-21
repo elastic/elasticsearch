@@ -35,11 +35,20 @@ abstract class AbstractGradleFuncTest extends Specification {
 
     File settingsFile
     File buildFile
+    File propertiesFile
 
     def setup() {
         settingsFile = testProjectDir.newFile('settings.gradle')
         settingsFile << "rootProject.name = 'hello-world'\n"
         buildFile = testProjectDir.newFile('build.gradle')
+        propertiesFile = testProjectDir.newFile('gradle.properties')
+        propertiesFile << "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
+    }
+
+    File addSubProject(String subProjectPath){
+        def subProjectBuild = file(subProjectPath.replace(":", "/") + "/build.gradle")
+        settingsFile << "include \"${subProjectPath}\"\n"
+        subProjectBuild
     }
 
     GradleRunner gradleRunner(String... arguments) {
@@ -60,6 +69,10 @@ abstract class AbstractGradleFuncTest extends Specification {
         true
     }
 
+    def assertOutputMissing(String givenOutput, String expected) {
+        assert normalized(givenOutput).contains(normalized(expected)) == false
+        true
+    }
     String normalized(String input) {
         String normalizedPathPrefix = testProjectDir.root.canonicalPath.replace('\\', '/')
         return input.readLines()
@@ -107,7 +120,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                versionList.addAll(
             Arrays.asList(Version.fromString("$major"), Version.fromString("$minor"), Version.fromString("$bugfix"), currentVersion)
         )
-        
+
         BwcVersions versions = new BwcVersions(new TreeSet<>(versionList), currentVersion)
         BuildParams.init { it.setBwcVersions(versions) }
         """

@@ -6,12 +6,12 @@
 <titleabbrev>Rollup</titleabbrev>
 ++++
 
-Aggregates an index's time series data and stores the results in a new index.
-For example, you can roll up hourly data into daily or weekly summaries.
+Aggregates an index's time series data and stores the results in a new read-only
+index. For example, you can roll up hourly data into daily or weekly summaries.
 
 [source,console]
 ----
-POST /my-index-000001/_rollup/my-rollup-index
+POST /my-index-000001/_rollup/rollup-my-index-000001
 {
   "groups": {
     "date_histogram": {
@@ -38,6 +38,9 @@ POST /my-index-000001/_rollup/my-rollup-index
 }
 ----
 // TEST[setup:my_index]
+// TEST[s/my-keyword-field/http.request.method/]
+// TEST[s/my-other-keyword-field/user.id/]
+// TEST[s/my-numeric-field/http.response.bytes/]
 
 
 [[rollup-api-request]]
@@ -66,7 +69,7 @@ New index that stores the rollup results. Cannot be an existing index,
 a <<data-streams,data stream>>, or an <<indices-aliases,index alias>>.
 +
 The request creates this index with
-<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the original
+<<index-modules-blocks,`index.blocks.write`>> set to `true`. If the source
 `<index>` is a backing index for a data stream, this index is a backing index
 for the same stream.
 
@@ -174,9 +177,11 @@ Array of metrics to collect. Each value corresponds to a
 specify at least one value. If you specify a `metrics` object, this property is
 required.
 +
-NOTE: The `avg` metric stores both the `sum` and `value_count` values. This lets
-you accurately average rollups over larger time intervals. For example, you can
-accurately roll up hourly averages into daily averages.
+NOTE: The rollup index stores these metrics in an
+<<aggregate-metric-double,`aggregate_metric_double`>> field. The `avg` metric
+stores both the `sum` and `value_count` values. This lets you accurately average
+rollups over larger time intervals. For example, you can accurately roll up
+hourly averages into daily averages.
 =====
 
 `page_size`::

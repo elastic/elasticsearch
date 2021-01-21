@@ -62,7 +62,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     private static final MigrateAction TEST_MIGRATE_ACTION = new MigrateAction(false);
     private static final RollupILMAction TEST_ROLLUP_ACTION =new RollupILMAction(new RollupActionConfig(
         new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("field", DateHistogramInterval.DAY)),
-        Collections.emptyList(), null), null);
+        Collections.emptyList()), null);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();

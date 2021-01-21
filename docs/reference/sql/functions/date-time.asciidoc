@@ -791,15 +791,12 @@ If any of the two arguments is `null` or the pattern is an empty string `null` i
 
 [NOTE]
 If the 1st argument is of type `time`, then pattern specified by the 2nd argument cannot contain date related units
-(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned.
-
-*Special Cases*
-
-- Format specifier `F` will be working similar to format specifier `f`.
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned. +
+Format specifier `F` will be working similar to format specifier `f`.
 It will return the fractional part of seconds, and the number of digits will be same as of the number of `Fs` provided as input (up to 9 digits).
 Result will contain `0` appended in the end to match with number of `F` provided.
-e.g.: for a time part `10:20:30.1234` and pattern `HH:mm:ss.FFFFFF`, the output string of the function would be: `10:20:30.123400`.
-- Format Specifier `y` will return year-of-era instead of one/two low-order digits.
+e.g.: for a time part `10:20:30.1234` and pattern `HH:mm:ss.FFFFFF`, the output string of the function would be: `10:20:30.123400`. +
+Format specifier `y` will return year-of-era instead of one/two low-order digits.
 eg.: For year `2009`, `y` will be returning `2009` instead of `9`. For year `43`, `y` format specifier will return `43`.
 - Special characters like `"` , `\` and `%` will be returned as it is without any change. eg.: formatting date `17-sep-2020` with `%M` will return `%9`
 
@@ -816,6 +813,55 @@ include-tagged::{sql-specs}/docs/docs.csv-spec[formatDateTime]
 [source, sql]
 --------------------------------------------------
 include-tagged::{sql-specs}/docs/docs.csv-spec[formatTime]
+--------------------------------------------------
+
+
+[[sql-functions-datetime-to_char]]
+==== `TO_CHAR`
+
+.Synopsis:
+[source, sql]
+--------------------------------------------------
+TO_CHAR(
+    date_exp/datetime_exp/time_exp, <1>
+    string_exp) <2>
+--------------------------------------------------
+
+*Input*:
+
+<1> date/datetime/time expression
+<2> format pattern
+
+*Output*: string
+
+*Description*: Returns the date/datetime/time as a string using the format specified in the 2nd argument. The formatting
+pattern conforms to
+https://www.postgresql.org/docs/13/functions-formatting.html[PostgreSQL Template Patterns for Date/Time Formatting].
+If any of the two arguments is `null` or the pattern is an empty string `null` is returned.
+
+[NOTE]
+If the 1st argument is of type `time`, then the pattern specified by the 2nd argument cannot contain date related units
+(e.g. 'dd', 'MM', 'YYYY', etc.). If it contains such units an error is returned. +
+The result of the patterns `TZ` and `tz` (time zone abbreviations) in some cases differ from the results returned by the `TO_CHAR`
+in PostgreSQL. The reason is that the time zone abbreviations specified by the JDK are different from the ones specified by PostgreSQL. 
+This function might show an actual time zone abbreviation instead of the generic `LMT` or empty string or offset returned by the PostgreSQL 
+implementation. The summer/daylight markers might also differ between the two implementations (e.g. will show `HT` instead of `HST` 
+for Hawaii). +
+The `FX`, `TM`, `SP` pattern modifiers are not supported and will show up as `FX`, `TM`, `SP` literals in the output.
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[toCharDate]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[toCharDateTime]
+--------------------------------------------------
+
+[source, sql]
+--------------------------------------------------
+include-tagged::{sql-specs}/docs/docs.csv-spec[toCharTime]
 --------------------------------------------------
 
 [[sql-functions-datetime-day]]

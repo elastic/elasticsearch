@@ -292,7 +292,7 @@ public class DoSection implements ExecutableSection {
             checkWarningHeaders(response.getWarningHeaders(), executionContext.masterVersion());
         } catch(ClientYamlTestResponseException e) {
             ClientYamlTestResponse restTestResponse = e.getRestTestResponse();
-            if (!Strings.hasLength(catchParam)) {
+            if (Strings.hasLength(catchParam) == false) {
                 fail(formatStatusCodeMessage(restTestResponse, "2xx"));
             } else if (catches.containsKey(catchParam)) {
                 assertStatusCode(restTestResponse);

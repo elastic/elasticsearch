@@ -19,6 +19,9 @@
 
 package org.elasticsearch.index.analysis.phonetic;
 
+import org.apache.commons.codec.EncoderException;
+import org.apache.commons.codec.StringEncoder;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
@@ -27,9 +30,6 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-
-import org.apache.commons.codec.EncoderException;
-import org.apache.commons.codec.StringEncoder;
 
 /**
  * K&ouml;lner Phonetik
@@ -141,14 +141,14 @@ public class KoelnerPhonetik implements StringEncoder {
         String primaryForm = str;
         List<String> parts = new ArrayList<>();
         parts.add(primaryForm.replaceAll("[^\\p{L}\\p{N}]", ""));
-        if (!primary) {
+        if (primary == false) {
             List<String> tmpParts = new ArrayList<>(Arrays.asList(str.split("[\\p{Z}\\p{C}\\p{P}]")));
             int numberOfParts = tmpParts.size();
             while (tmpParts.size() > 0) {
                 StringBuilder part = new StringBuilder();
                 for (int i = 0; i < tmpParts.size(); i++) {
                     part.append(tmpParts.get(i));
-                    if (!(i + 1 == numberOfParts)) {
+                    if ((i + 1 == numberOfParts) == false) {
                         parts.add(part.toString());
                     }
                 }

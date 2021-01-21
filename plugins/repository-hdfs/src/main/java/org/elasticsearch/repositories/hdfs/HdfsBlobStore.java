@@ -50,7 +50,7 @@ final class HdfsBlobStore implements BlobStore {
         this.bufferSize = bufferSize;
         this.root = execute(fileContext1 -> fileContext1.makeQualified(new Path(path)));
         this.readOnly = readOnly;
-        if (!readOnly) {
+        if (readOnly == false) {
             try {
                 mkdirs(root);
             } catch (FileAlreadyExistsException ok) {
@@ -78,7 +78,7 @@ final class HdfsBlobStore implements BlobStore {
 
     private Path buildHdfsPath(BlobPath blobPath) {
         final Path path = translateToHdfsPath(blobPath);
-        if (!readOnly) {
+        if (readOnly == false) {
             try {
                 mkdirs(path);
             } catch (FileAlreadyExistsException ok) {

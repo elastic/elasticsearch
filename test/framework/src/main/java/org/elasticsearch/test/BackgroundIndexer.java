@@ -134,13 +134,13 @@ public class BackgroundIndexer implements AutoCloseable {
                     try {
                         startLatch.await();
                         logger.info("**** starting indexing thread {}", indexerId);
-                        while (!stop.get()) {
+                        while (stop.get() == false) {
                             if (batch) {
                                 int batchSize = threadRandom.nextInt(20) + 1;
                                 if (hasBudget.get()) {
                                     // always try to get at least one
                                     batchSize = Math.max(Math.min(batchSize, availableBudget.availablePermits()), 1);
-                                    if (!availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS)) {
+                                    if (availableBudget.tryAcquire(batchSize, 250, TimeUnit.MILLISECONDS) == false) {
                                         // time out -> check if we have to stop.
                                         continue;
                                     }
@@ -173,7 +173,7 @@ public class BackgroundIndexer implements AutoCloseable {
                                 }
                             } else {
 
-                                if (hasBudget.get() && !availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS)) {
+                                if (hasBudget.get() && availableBudget.tryAcquire(250, TimeUnit.MILLISECONDS) == false) {
                                     // time out -> check if we have to stop.
                                     continue;
                                 }
@@ -278,7 +278,7 @@ public class BackgroundIndexer implements AutoCloseable {
      * @param numOfDocs number of document to index before pausing. Set to -1 to have no limit.
      */
     public void start(int numOfDocs) {
-        assert !stop.get() : "background indexer can not be started after it has stopped";
+        assert stop.get() == false : "background indexer can not be started after it has stopped";
         setBudget(numOfDocs);
         startLatch.countDown();
     }

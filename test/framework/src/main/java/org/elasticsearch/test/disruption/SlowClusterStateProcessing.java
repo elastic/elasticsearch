@@ -109,7 +109,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
                     for (; count > 0 && !stopped.get(); count--) {
                         Thread.sleep(200);
                     }
-                    if (!stopped.get()) {
+                    if (stopped.get() == false) {
                         Thread.sleep(duration.millis() % 200);
                     }
                     countDownLatch.countDown();
@@ -146,7 +146,7 @@ public class SlowClusterStateProcessing extends SingleNodeDisruption {
             while (disrupting && disruptedNode != null) {
                 try {
                     TimeValue duration = new TimeValue(delayDurationMin + random.nextInt((int) (delayDurationMax - delayDurationMin)));
-                    if (!interruptClusterStateProcessing(duration)) {
+                    if (interruptClusterStateProcessing(duration) == false) {
                         continue;
                     }
                     if (intervalBetweenDelaysMax > 0) {

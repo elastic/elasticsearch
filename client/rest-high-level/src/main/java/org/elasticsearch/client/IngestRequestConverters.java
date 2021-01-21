@@ -78,7 +78,7 @@ final class IngestRequestConverters {
 
     static Request simulatePipeline(SimulatePipelineRequest simulatePipelineRequest) throws IOException {
         RequestConverters.EndpointBuilder builder = new RequestConverters.EndpointBuilder().addPathPartAsIs("_ingest/pipeline");
-        if (simulatePipelineRequest.getId() != null && !simulatePipelineRequest.getId().isEmpty()) {
+        if (simulatePipelineRequest.getId() != null && simulatePipelineRequest.getId().isEmpty() == false) {
             builder.addPathPart(simulatePipelineRequest.getId());
         }
         builder.addPathPartAsIs("_simulate");

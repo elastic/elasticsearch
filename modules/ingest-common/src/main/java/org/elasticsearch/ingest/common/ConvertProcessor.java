@@ -102,7 +102,7 @@ public final class ConvertProcessor extends AbstractProcessor {
         }, AUTO {
             @Override
             public Object convert(Object value) {
-                if (!(value instanceof String)) {
+                if ((value instanceof String) == false) {
                    return value;
                 }
                 try {

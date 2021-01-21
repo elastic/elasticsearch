@@ -445,7 +445,7 @@ public class ExpressionScriptEngine implements ScriptEngine {
                     dateAccessor = true;
                 }
             }
-            if (!dateAccessor) {
+            if (dateAccessor == false) {
                 throw new IllegalArgumentException(
                     "Variable [" + variable + "] does not follow an allowed format of either doc['field'] or doc['field'].method()"
                 );

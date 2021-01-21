@@ -78,7 +78,7 @@ public class TaskId {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TaskId)) return false;
+        if ((o instanceof TaskId) == false) return false;
         TaskId taskId = (TaskId) o;
         return getId() == taskId.getId() &&
             Objects.equals(getNodeId(), taskId.getNodeId());

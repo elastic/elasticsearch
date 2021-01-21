@@ -48,7 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class AzureSeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(AzureSeedHostsProvider.class);
 
     public enum HostType {
@@ -182,7 +182,7 @@ public class AzureSeedHostsProvider implements SeedHostsProvider {
             }
 
             // If provided, we check the deployment name
-            if (Strings.hasLength(deploymentName) && !deploymentName.equals(deployment.getName())) {
+            if (Strings.hasLength(deploymentName) && deploymentName.equals(deployment.getName()) == false) {
                 logger.debug("current deployment name [{}] different from [{}]. skipping...",
                         deployment.getName(), deploymentName);
                 continue;

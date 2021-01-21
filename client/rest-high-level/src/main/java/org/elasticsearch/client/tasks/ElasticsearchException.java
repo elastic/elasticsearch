@@ -200,7 +200,7 @@ public class ElasticsearchException {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ElasticsearchException)) return false;
+        if ((o instanceof ElasticsearchException) == false) return false;
         ElasticsearchException that = (ElasticsearchException) o;
         return Objects.equals(getMsg(), that.getMsg()) &&
             Objects.equals(getCause(), that.getCause()) &&

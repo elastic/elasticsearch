@@ -39,13 +39,13 @@ public final class FileUtils {
             return;
         }
 
-        if (dir.exists() && !dir.isDirectory()) {
+        if (dir.exists() && dir.isDirectory() == false) {
             throw new UncheckedIOException(String.format("Cannot create directory '%s' as it already exists, but is not a directory", dir));
         }
 
         List<File> toCreate = new LinkedList<File>();
         File parent = dir.getParentFile();
-        while (!parent.exists()) {
+        while (parent.exists() == false) {
             toCreate.add(parent);
             parent = parent.getParentFile();
         }
@@ -55,7 +55,7 @@ public final class FileUtils {
                 continue;
             }
             File parentDirToCreateParent = parentDirToCreate.getParentFile();
-            if (!parentDirToCreateParent.isDirectory()) {
+            if (parentDirToCreateParent.isDirectory() == false) {
                 throw new UncheckedIOException(
                     String.format(
                         "Cannot create parent directory '%s' when creating directory '%s' as '%s' is not a directory",
@@ -65,13 +65,13 @@ public final class FileUtils {
                     )
                 );
             }
-            if (!parentDirToCreate.mkdir() && !parentDirToCreate.isDirectory()) {
+            if (parentDirToCreate.mkdir() == false && parentDirToCreate.isDirectory() == false) {
                 throw new UncheckedIOException(
                     String.format("Failed to create parent directory '%s' when creating directory '%s'", parentDirToCreate, dir)
                 );
             }
         }
-        if (!dir.mkdir() && !dir.isDirectory()) {
+        if (dir.mkdir() == false && dir.isDirectory() == false) {
             throw new UncheckedIOException(String.format("Failed to create directory '%s'", dir));
         }
     }

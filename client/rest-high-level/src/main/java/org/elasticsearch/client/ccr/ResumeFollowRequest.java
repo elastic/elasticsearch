@@ -50,7 +50,7 @@ public final class ResumeFollowRequest extends FollowConfig implements Validatab
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         ResumeFollowRequest that = (ResumeFollowRequest) o;
         return Objects.equals(followerIndex, that.followerIndex);
     }

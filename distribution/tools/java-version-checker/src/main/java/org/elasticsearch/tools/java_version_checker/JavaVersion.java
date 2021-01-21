@@ -29,7 +29,7 @@ public class JavaVersion {
     public static final List<Integer> JAVA_11 = parse("11");
 
     static List<Integer> parse(final String value) {
-        if (!value.matches("^0*[0-9]+(\\.[0-9]+)*$")) {
+        if (value.matches("^0*[0-9]+(\\.[0-9]+)*$") == false) {
             throw new IllegalArgumentException(value);
         }
 

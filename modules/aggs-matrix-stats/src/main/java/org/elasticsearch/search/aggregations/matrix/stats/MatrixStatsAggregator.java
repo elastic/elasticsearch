@@ -49,7 +49,7 @@ final class MatrixStatsAggregator extends MetricsAggregator {
     MatrixStatsAggregator(String name, Map<String, ValuesSource.Numeric> valuesSources, AggregationContext context,
                                  Aggregator parent, MultiValueMode multiValueMode, Map<String,Object> metadata) throws IOException {
         super(name, context, parent, metadata);
-        if (valuesSources != null && !valuesSources.isEmpty()) {
+        if (valuesSources != null && valuesSources.isEmpty() == false) {
             this.valuesSources = new NumericArrayValuesSource(valuesSources, multiValueMode);
             stats = context.bigArrays().newObjectArray(1);
         } else {

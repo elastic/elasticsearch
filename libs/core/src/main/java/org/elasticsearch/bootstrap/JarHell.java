@@ -138,7 +138,7 @@ public class JarHell {
                     // Eclipse adds this to the classpath when running unit tests...
                     continue;
                 }
-                URL url = PathUtils.get(element).toUri().toURL();               
+                URL url = PathUtils.get(element).toUri().toURL();
                 // junit4.childvm.count
                 if (urlElements.add(url) == false && element.endsWith(".jar")) {
                     throw new IllegalStateException("jar hell!" + System.lineSeparator() +
@@ -175,7 +175,7 @@ public class JarHell {
                 continue;
             }
             if (path.toString().endsWith(".jar")) {
-                if (!seenJars.add(path)) {
+                if (seenJars.add(path) == false) {
                     throw new IllegalStateException("jar hell!" + System.lineSeparator() +
                                                     "duplicate jar on classpath: " + path);
                 }
@@ -233,7 +233,7 @@ public class JarHell {
     }
 
     public static void checkVersionFormat(String targetVersion) {
-        if (!JavaVersion.isValid(targetVersion)) {
+        if (JavaVersion.isValid(targetVersion) == false) {
             throw new IllegalStateException(
                     String.format(
                             Locale.ROOT,

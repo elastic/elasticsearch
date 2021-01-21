@@ -406,9 +406,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
             if (minChildren != that.minChildren) return false;
             if (maxChildren != that.maxChildren) return false;
-            if (!toQuery.equals(that.toQuery)) return false;
-            if (!innerQuery.equals(that.innerQuery)) return false;
-            if (!joinField.equals(that.joinField)) return false;
+            if (toQuery.equals(that.toQuery) == false) return false;
+            if (innerQuery.equals(that.innerQuery) == false) return false;
+            if (joinField.equals(that.joinField) == false) return false;
             return scoreMode == that.scoreMode;
         }
 

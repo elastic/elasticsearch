@@ -93,7 +93,7 @@ public final class Def {
         static int getArrayLength(final Object[] array)  { return array.length; }
 
         static MethodHandle arrayLengthGetter(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -622,7 +622,7 @@ public final class Def {
         }
 
         static MethodHandle newIterator(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?
@@ -1269,7 +1269,7 @@ public final class Def {
         static int normalizeIndex(final Object[] array, final int index) { return index >= 0 ? index : index + array.length; }
 
         static MethodHandle arrayIndexNormalizer(Class<?> arrayType) {
-            if (!arrayType.isArray()) {
+            if (arrayType.isArray() == false) {
                 throw new IllegalArgumentException("type must be an array");
             }
             return (ARRAY_TYPE_MH_MAPPING.containsKey(arrayType)) ?

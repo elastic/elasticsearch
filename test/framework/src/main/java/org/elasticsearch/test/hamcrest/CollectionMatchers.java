@@ -71,7 +71,7 @@ public class CollectionMatchers {
         @Override
         protected boolean matchesSafely(ImmutableOpenMap item) {
             for (String key: keys) {
-                if (!item.containsKey(key)) {
+                if (item.containsKey(key) == false) {
                     missingKey = key;
                     return false;
                 }

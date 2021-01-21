@@ -73,7 +73,7 @@ public final class PreferHasAttributeNodeSelector implements NodeSelector {
 
                 List<String> values = attributes.get(key);
 
-                if (values == null || !values.contains(value)) {
+                if (values == null || values.contains(value) == false) {
                     nodeIterator.remove();
                 }
             }

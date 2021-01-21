@@ -52,7 +52,7 @@ public class Netty4TransportPublishAddressIT extends ESNetty4IntegTestCase {
     }
 
     public void testDifferentPorts() throws Exception {
-        if (!NetworkUtils.SUPPORTS_V6) {
+        if (NetworkUtils.SUPPORTS_V6 == false) {
             return;
         }
         logger.info("--> starting a node on ipv4 only");

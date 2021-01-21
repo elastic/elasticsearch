@@ -37,7 +37,7 @@ public final class MetricsCalculator {
         Map<String, List<Sample>> samplesPerOperation = new HashMap<>();
 
         for (Sample sample : samples) {
-            if (!samplesPerOperation.containsKey(sample.getOperation())) {
+            if (samplesPerOperation.containsKey(sample.getOperation()) == false) {
                 samplesPerOperation.put(sample.getOperation(), new ArrayList<>());
             }
             samplesPerOperation.get(sample.getOperation()).add(sample);

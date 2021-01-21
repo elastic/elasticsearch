@@ -64,7 +64,7 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
         if (disruptedNode == null) {
             return;
         }
-        if (!node.equals(disruptedNode)) {
+        if (node.equals(disruptedNode) == false) {
             return;
         }
         stopDisrupting();

@@ -57,7 +57,7 @@ public class AckWatchRequest implements Validatable {
             }
         }
 
-        if (!exception.validationErrors().isEmpty()) {
+        if (exception.validationErrors().isEmpty() == false) {
             throw exception;
         }
     }

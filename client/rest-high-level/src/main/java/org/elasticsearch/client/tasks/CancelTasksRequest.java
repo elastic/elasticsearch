@@ -88,7 +88,7 @@ public class CancelTasksRequest implements Validatable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof CancelTasksRequest)) return false;
+        if ((o instanceof CancelTasksRequest) == false) return false;
         CancelTasksRequest that = (CancelTasksRequest) o;
         return Objects.equals(getNodes(), that.getNodes()) &&
             Objects.equals(getActions(), that.getActions()) &&

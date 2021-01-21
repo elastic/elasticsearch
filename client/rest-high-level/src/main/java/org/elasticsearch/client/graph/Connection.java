@@ -34,7 +34,7 @@ import java.util.Objects;
 import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
- * A Connection links exactly two {@link Vertex} objects. The basis of a 
+ * A Connection links exactly two {@link Vertex} objects. The basis of a
  * connection is one or more documents have been found that contain
  * this pair of terms and the strength of the connection is recorded
  * as a weight.
@@ -75,13 +75,13 @@ public class Connection {
     }
 
     /**
-     * @return the number of documents in the sampled set that contained this 
+     * @return the number of documents in the sampled set that contained this
      * pair of {@link Vertex} objects.
      */
     public long getDocCount() {
         return docCount;
     }
-    
+
     @Override
     public boolean equals(Object obj) {
         if (this == obj)
@@ -107,7 +107,7 @@ public class Connection {
     private static final ParseField TARGET = new ParseField("target");
     private static final ParseField WEIGHT = new ParseField("weight");
     private static final ParseField DOC_COUNT = new ParseField("doc_count");
-    
+
 
     void toXContent(XContentBuilder builder, Params params, ObjectIntHashMap<Vertex> vertexNumbers) throws IOException {
         builder.field(SOURCE.getPreferredName(), vertexNumbers.get(from));
@@ -131,10 +131,10 @@ public class Connection {
             this.weight = weight;
             this.docCount = docCount;
         }
-        public Connection resolve(List<Vertex> vertices) {            
+        public Connection resolve(List<Vertex> vertices) {
             return new Connection(vertices.get(fromIndex), vertices.get(toIndex), weight, docCount);
         }
-        
+
         private static final ConstructingObjectParser<UnresolvedConnection, Void> PARSER = new ConstructingObjectParser<>(
                 "ConnectionParser", true,
                 args -> {
@@ -150,13 +150,13 @@ public class Connection {
             PARSER.declareInt(constructorArg(), TARGET);
             PARSER.declareDouble(constructorArg(), WEIGHT);
             PARSER.declareLong(constructorArg(), DOC_COUNT);
-        }        
+        }
         static UnresolvedConnection fromXContent(XContentParser parser) throws IOException {
             return PARSER.apply(parser, null);
-        }         
+        }
     }
-       
-    
+
+
     /**
      * An identifier (implements hashcode and equals) that represents a
      * unique key for a {@link Connection}
@@ -179,9 +179,9 @@ public class Connection {
 
             ConnectionId vertexId = (ConnectionId) o;
 
-            if (source != null ? !source.equals(vertexId.source) : vertexId.source != null)
+            if (source != null ? source.equals(vertexId.source) == false : vertexId.source != null)
                 return false;
-            if (target != null ? !target.equals(vertexId.target) : vertexId.target != null)
+            if (target != null ? target.equals(vertexId.target) == false : vertexId.target != null)
                 return false;
 
             return true;
@@ -206,5 +206,5 @@ public class Connection {
         public String toString() {
             return getSource() + "->" + getTarget();
         }
-    }    
+    }
 }

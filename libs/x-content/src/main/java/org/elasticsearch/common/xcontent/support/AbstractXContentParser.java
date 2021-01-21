@@ -48,7 +48,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     public static final boolean DEFAULT_NUMBER_COERCE_POLICY = true;
 
     private static void checkCoerceString(boolean coerce, Class<? extends Number> clazz) {
-        if (!coerce) {
+        if (coerce == false) {
             //Need to throw type IllegalArgumentException as current catch logic in
             //NumberFieldMapper.parseCreateField relies on this for "malformed" value detection
             throw new IllegalArgumentException(clazz.getSimpleName() + " value passed as String");
@@ -68,7 +68,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     // If this behaviour is flagged as undesirable and any truncation occurs
     // then this method is called to trigger the"malformed" handling logic
     void ensureNumberConversion(boolean coerce, long result, Class<? extends Number> clazz) throws IOException {
-        if (!coerce) {
+        if (coerce == false) {
             double fullVal = doDoubleValue();
             if (result != fullVal) {
                 // Need to throw type IllegalArgumentException as current catch

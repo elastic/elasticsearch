@@ -121,7 +121,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
         for (final Reservation reservation : descInstances.getReservations()) {
             for (final Instance instance : reservation.getInstances()) {
                 // lets see if we can filter based on groups
-                if (!groups.isEmpty()) {
+                if (groups.isEmpty() == false) {
                     final List<GroupIdentifier> instanceSecurityGroups = instance.getSecurityGroups();
                     final List<String> securityGroupNames = new ArrayList<>(instanceSecurityGroups.size());
                     final List<String> securityGroupIds = new ArrayList<>(instanceSecurityGroups.size());
@@ -140,7 +140,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
                         }
                     } else {
                         // We need tp match all group names or group ids, otherwise we ignore this instance
-                        if (!(securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups))) {
+                        if ((securityGroupNames.containsAll(groups) || securityGroupIds.containsAll(groups)) == false) {
                             logger.trace("filtering out instance {} based on groups {}, does not include all of {}",
                                     instance.getInstanceId(), instanceSecurityGroups, groups);
                             // continue to the next instance
@@ -209,7 +209,7 @@ class AwsEc2SeedHostsProvider implements SeedHostsProvider {
             );
         }
 
-        if (!availabilityZones.isEmpty()) {
+        if (availabilityZones.isEmpty() == false) {
             // OR relationship amongst multiple values of the availability-zone filter
             describeInstancesRequest.withFilters(
                 new Filter("availability-zone").withValues(availabilityZones)

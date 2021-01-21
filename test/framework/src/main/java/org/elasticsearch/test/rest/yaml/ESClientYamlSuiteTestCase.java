@@ -271,7 +271,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
 
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
-        if (!Strings.hasLength(property)) {
+        if (Strings.hasLength(property) == false) {
             return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
@@ -291,7 +291,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                     for (ClientYamlSuiteRestApi.Path path : restApi.getPaths()) {
                         List<String> methodsList = Arrays.asList(path.getMethods());
                         if (methodsList.contains("GET") && restApi.isBodySupported()) {
-                            if (!methodsList.contains("POST")) {
+                            if (methodsList.contains("POST") == false) {
                                 errorMessage.append("\n- ").append(restApi.getName())
                                     .append(" supports GET with a body but doesn't support POST");
                             }
@@ -378,7 +378,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: in fips 140 mode",
             inFipsJvm() && testCandidate.getTestSection().getSkipSection().getFeatures().contains("fips_140"));
 
-        if (!testCandidate.getSetupSection().isEmpty()) {
+        if (testCandidate.getSetupSection().isEmpty() == false) {
             logger.debug("start setup test [{}]", testCandidate.getTestPath());
             for (ExecutableSection executableSection : testCandidate.getSetupSection().getExecutableSections()) {
                 executeSection(executableSection);

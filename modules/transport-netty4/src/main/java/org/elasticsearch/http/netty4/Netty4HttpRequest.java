@@ -162,7 +162,7 @@ public class Netty4HttpRequest implements HttpRequest {
         String cookieString = request.headers().get(HttpHeaderNames.COOKIE);
         if (cookieString != null) {
             Set<Cookie> cookies = ServerCookieDecoder.STRICT.decode(cookieString);
-            if (!cookies.isEmpty()) {
+            if (cookies.isEmpty() == false) {
                 return ServerCookieEncoder.STRICT.encode(cookies);
             }
         }

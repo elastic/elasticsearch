@@ -723,7 +723,7 @@ class InstallPluginCommand extends EnvironmentAwareCommand {
 
                 // be on the safe side: do not rely on that directories are always extracted
                 // before their children (although this makes sense, but is it guaranteed?)
-                if (!Files.isSymbolicLink(targetFile.getParent())) {
+                if (Files.isSymbolicLink(targetFile.getParent()) == false) {
                     Files.createDirectories(targetFile.getParent());
                 }
                 if (entry.isDirectory() == false) {

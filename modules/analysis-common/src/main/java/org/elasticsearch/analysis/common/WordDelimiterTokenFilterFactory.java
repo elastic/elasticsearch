@@ -126,8 +126,9 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
         SortedMap<Character, Byte> typeMap = new TreeMap<>();
         for (String rule : rules) {
             Matcher m = typePattern.matcher(rule);
-            if (!m.find())
+            if (m.find() == false) {
                 throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
+            }
             String lhs = parseString(m.group(1).trim());
             Byte rhs = parseType(m.group(2).trim());
             if (lhs.length() != 1)

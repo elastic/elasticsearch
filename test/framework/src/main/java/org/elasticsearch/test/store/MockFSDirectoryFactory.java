@@ -74,7 +74,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
             logger.info("start check index");
             try {
                 Directory dir = store.directory();
-                if (!Lucene.indexExists(dir)) {
+                if (Lucene.indexExists(dir) == false) {
                     return;
                 }
                 try {
@@ -82,7 +82,7 @@ public class MockFSDirectoryFactory implements IndexStorePlugin.DirectoryFactory
                     PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                     CheckIndex.Status status = store.checkIndex(out);
                     out.flush();
-                    if (!status.clean) {
+                    if (status.clean == false) {
                         IOException failure = new IOException("failed to check index for shard " + shardId +
                             ";index files [" + Arrays.toString(dir.listAll()) + "] os [" + os.bytes().utf8ToString() + "]");
                         ESTestCase.checkIndexFailures.add(failure);

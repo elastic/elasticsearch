@@ -71,7 +71,7 @@ class UniqueTokenFilter extends TokenFilter {
             System.arraycopy(term, 0, saved, 0, length);
             previous.add(saved);
 
-            if (!duplicate) {
+            if (duplicate == false) {
                 return true;
             }
         }

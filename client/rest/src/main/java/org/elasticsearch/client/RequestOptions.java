@@ -208,7 +208,7 @@ public final class RequestOptions {
         public Builder addParameter(String key, String value) {
             Objects.requireNonNull(key, "parameter key cannot be null");
             Objects.requireNonNull(value, "parameter value cannot be null");
-            this.parameters.put(key, value);
+            this.parameters.merge(key, value, (existingValue, newValue) -> String.join(",", existingValue, newValue));
             return this;
         }
 

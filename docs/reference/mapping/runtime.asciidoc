@@ -1,5 +1,6 @@
 [[runtime]]
 == Runtime fields
+
 A _runtime field_ is a field that is evaluated at query time. Runtime fields
 enable you to:
 

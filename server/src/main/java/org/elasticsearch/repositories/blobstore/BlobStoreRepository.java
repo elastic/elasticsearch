@@ -146,6 +146,7 @@ import java.util.stream.LongStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.canonicalName;
+import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 
 /**
  * BlobStore - based implementation of Snapshot Repository
@@ -1498,7 +1499,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                         // since we're only caching the information that we just wrote and thus won't accidentally cache any information
                         // that isn't safe
                         cacheRepositoryData(compressRepoDataForCache(BytesReference.bytes(
-                                loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT))), genToLoad);
+                                loaded.snapshotsToXContent(XContentFactory.jsonBuilder(), Version.CURRENT, true))), genToLoad);
                     }
                 }
                 listener.onResponse(loaded);
@@ -1779,7 +1780,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         })), listener::onFailure);
         filterRepositoryDataStep.whenComplete(filteredRepositoryData -> {
             final long newGen = setPendingStep.result();
-            final RepositoryData newRepositoryData = filteredRepositoryData.withGenId(newGen);
+            final RepositoryData newRepositoryData = updateRepositoryData(filteredRepositoryData, version, newGen);
             if (latestKnownRepoGen.get() >= newGen) {
                 throw new IllegalArgumentException(
                     "Tried writing generation [" + newGen + "] but repository is at least at generation [" + latestKnownRepoGen.get()
@@ -1817,10 +1818,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                                 "Tried to update from unexpected pending repo generation [" + meta.pendingGeneration() +
                                     "] after write to generation [" + newGen + "]");
                         }
-                        return updateRepositoryGenerationsIfNecessary(stateFilter.apply(ClusterState.builder(currentState)
-                                .metadata(Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE,
-                                        currentState.metadata().<RepositoriesMetadata>custom(RepositoriesMetadata.TYPE)
-                                                .withUpdatedGeneration(metadata.name(), newGen, newGen))).build()), expectedGen, newGen);
+                        final RepositoriesMetadata currentMetadata = currentState.metadata().custom(RepositoriesMetadata.TYPE);
+                        final RepositoriesMetadata withGenerations = currentMetadata.withUpdatedGeneration(metadata.name(), newGen, newGen);
+                        final RepositoriesMetadata withUuid = meta.uuid().equals(newRepositoryData.getUuid())
+                                ? withGenerations
+                                : withGenerations.withUuid(metadata.name(), newRepositoryData.getUuid());
+                        final ClusterState newClusterState = stateFilter.apply(ClusterState.builder(currentState).metadata(
+                                Metadata.builder(currentState.getMetadata()).putCustom(RepositoriesMetadata.TYPE, withUuid)).build());
+                        return updateRepositoryGenerationsIfNecessary(newClusterState, expectedGen, newGen);
                     }
 
                     @Override
@@ -1851,6 +1856,14 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     }
                 });
         }, listener::onFailure);
+    }
+
+    private RepositoryData updateRepositoryData(RepositoryData repositoryData, Version repositoryMetaversion, long newGen) {
+        if (SnapshotsService.includesRepositoryUuid(repositoryMetaversion) && repositoryData.getUuid().equals(MISSING_UUID)) {
+            return repositoryData.withGenId(newGen).withUuid(UUIDs.randomBase64UUID());
+        } else {
+            return repositoryData.withGenId(newGen);
+        }
     }
 
     /**

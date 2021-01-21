@@ -363,7 +363,10 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
     public void testSnapshotStatusOnFailedSnapshot() throws Exception {
         String repoName = "test-repo";
-        createRepository(repoName, "fs");
+        assertAcked(clusterAdmin().preparePutRepository(repoName)
+                .setVerify(false) // mustn't load the repository data before we inject the broken snapshot
+                .setType("fs")
+                .setSettings(randomRepositorySettings()));
         final String snapshot = "test-snap-1";
         addBwCFailedSnapshot(repoName, snapshot, Collections.emptyMap());
 

@@ -69,9 +69,15 @@ public final class RepositoryData {
     public static final long CORRUPTED_REPO_GEN = -3L;
 
     /**
+     * Sentinel value for the repository UUID indicating that it is not set.
+     */
+    public static final String MISSING_UUID = "_na_";
+
+    /**
      * An instance initialized for an empty repository.
      */
     public static final RepositoryData EMPTY = new RepositoryData(
+            MISSING_UUID,
             EMPTY_REPO_GEN,
             Collections.emptyMap(),
             Collections.emptyMap(),
@@ -80,6 +86,11 @@ public final class RepositoryData {
             Collections.emptyMap(),
             ShardGenerations.EMPTY,
             IndexMetaDataGenerations.EMPTY);
+
+    /**
+     * A UUID that identifies this repository.
+     */
+    private final String uuid;
 
     /**
      * The generational id of the index file from which the repository data was read.
@@ -115,6 +126,7 @@ public final class RepositoryData {
     private final ShardGenerations shardGenerations;
 
     public RepositoryData(
+            String uuid,
             long genId,
             Map<String, SnapshotId> snapshotIds,
             Map<String, SnapshotState> snapshotStates,
@@ -123,6 +135,7 @@ public final class RepositoryData {
             ShardGenerations shardGenerations,
             IndexMetaDataGenerations indexMetaDataGenerations) {
         this(
+                uuid,
                 genId,
                 Collections.unmodifiableMap(snapshotIds),
                 Collections.unmodifiableMap(snapshotStates),
@@ -134,6 +147,7 @@ public final class RepositoryData {
     }
 
     private RepositoryData(
+            String uuid,
             long genId,
             Map<String, SnapshotId> snapshotIds,
             Map<String, SnapshotState> snapshotStates,
@@ -142,6 +156,7 @@ public final class RepositoryData {
             Map<IndexId, List<SnapshotId>> indexSnapshots,
             ShardGenerations shardGenerations,
             IndexMetaDataGenerations indexMetaDataGenerations) {
+        this.uuid = Objects.requireNonNull(uuid);
         this.genId = genId;
         this.snapshotIds = snapshotIds;
         this.snapshotStates = snapshotStates;
@@ -158,6 +173,7 @@ public final class RepositoryData {
 
     protected RepositoryData copy() {
         return new RepositoryData(
+                uuid,
                 genId,
                 snapshotIds,
                 snapshotStates,
@@ -180,6 +196,7 @@ public final class RepositoryData {
         final Map<String, Version> newVersions = new HashMap<>(snapshotVersions);
         versions.forEach((id, version) -> newVersions.put(id.getUUID(), version));
         return new RepositoryData(
+                uuid,
                 genId,
                 snapshotIds,
                 snapshotStates,
@@ -192,6 +209,14 @@ public final class RepositoryData {
 
     public ShardGenerations shardGenerations() {
         return shardGenerations;
+    }
+
+    /**
+     * @return The UUID of this repository, or {@link RepositoryData#MISSING_UUID} if this repository has no UUID because it still
+     * supports access from versions earlier than {@link SnapshotsService#REPOSITORY_UUID_IN_REPO_DATA_VERSION}.
+     */
+    public String getUuid() {
+        return uuid;
     }
 
     /**
@@ -334,6 +359,7 @@ public final class RepositoryData {
         }
 
         return new RepositoryData(
+                uuid,
                 genId,
                 snapshots,
                 newSnapshotStates,
@@ -354,7 +380,42 @@ public final class RepositoryData {
             return this;
         }
         return new RepositoryData(
+                uuid,
                 newGeneration,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations);
+    }
+
+    /**
+     * Make a copy of this instance with the given UUID and all other fields unchanged.
+     */
+    public RepositoryData withUuid(String uuid) {
+        assert this.uuid.equals(MISSING_UUID) : this.uuid;
+        assert uuid.equals(MISSING_UUID) == false;
+        return new RepositoryData(
+                uuid,
+                genId,
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                indexSnapshots,
+                shardGenerations,
+                indexMetaDataGenerations);
+    }
+
+    /**
+     * For test purposes, make a copy of this instance with the UUID removed and all other fields unchanged, as if from an older version.
+     */
+    public RepositoryData withoutUuid() {
+        return new RepositoryData(
+                MISSING_UUID,
+                genId,
                 snapshotIds,
                 snapshotStates,
                 snapshotVersions,
@@ -402,6 +463,7 @@ public final class RepositoryData {
         }
 
         return new RepositoryData(
+                uuid,
                 genId,
                 newSnapshotIds,
                 newSnapshotStates,
@@ -505,10 +567,24 @@ public final class RepositoryData {
      * Writes the snapshots metadata and the related indices metadata to x-content.
      */
     public XContentBuilder snapshotsToXContent(final XContentBuilder builder, final Version repoMetaVersion) throws IOException {
+        return snapshotsToXContent(builder, repoMetaVersion, false);
+    }
 
+    /**
+     * Writes the snapshots metadata and the related indices metadata to x-content.
+     * @param permitMissingUuid indicates whether we permit the repository UUID to be missing, e.g. we are serializing for the in-memory
+     *                          cache or running tests
+     */
+    public XContentBuilder snapshotsToXContent(
+            final XContentBuilder builder,
+            final Version repoMetaVersion,
+            boolean permitMissingUuid) throws IOException {
+
+        final boolean shouldWriteRepoUuid = SnapshotsService.includesRepositoryUuid(repoMetaVersion);
         final boolean shouldWriteIndexGens = SnapshotsService.useIndexGenerations(repoMetaVersion);
         final boolean shouldWriteShardGens = SnapshotsService.useShardGenerations(repoMetaVersion);
 
+        assert Boolean.compare(shouldWriteRepoUuid, shouldWriteIndexGens) <= 0;
         assert Boolean.compare(shouldWriteIndexGens, shouldWriteShardGens) <= 0;
 
         builder.startObject();
@@ -516,12 +592,24 @@ public final class RepositoryData {
         if (shouldWriteShardGens) {
             // Add min version field to make it impossible for older ES versions to deserialize this object
             final Version minVersion;
-            if (shouldWriteIndexGens) {
+            if (shouldWriteRepoUuid) {
+                minVersion = SnapshotsService.REPOSITORY_UUID_IN_REPO_DATA_VERSION;
+            } else if (shouldWriteIndexGens) {
                 minVersion = SnapshotsService.INDEX_GEN_IN_REPO_DATA_VERSION;
             } else {
                 minVersion = SnapshotsService.SHARD_GEN_IN_REPO_DATA_VERSION;
             }
             builder.field(MIN_VERSION, minVersion.toString());
+        }
+
+        if (shouldWriteRepoUuid) {
+            if (uuid.equals(MISSING_UUID)) {
+                assert permitMissingUuid : "missing uuid";
+            } else {
+                builder.field(UUID, uuid);
+            }
+        } else {
+            assert uuid.equals(MISSING_UUID) : "lost uuid " + uuid;
         }
 
         // write the snapshots list
@@ -606,6 +694,7 @@ public final class RepositoryData {
         final ShardGenerations.Builder shardGenerations = ShardGenerations.builder();
         final Map<SnapshotId, Map<String, String>> indexMetaLookup = new HashMap<>();
         Map<String, String> indexMetaIdentifiers = null;
+        String uuid = MISSING_UUID;
         while (parser.nextToken() == XContentParser.Token.FIELD_NAME) {
             final String field = parser.currentName();
             switch (field) {
@@ -628,6 +717,11 @@ public final class RepositoryData {
                                 "this snapshot repository format requires Elasticsearch version [" + version + "] or later");
                     }
                     break;
+                case UUID:
+                    XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.nextToken(), parser);
+                    uuid = parser.text();
+                    assert uuid.equals(MISSING_UUID) == false;
+                    break;
                 default:
                     XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
             }
@@ -637,6 +731,7 @@ public final class RepositoryData {
         XContentParserUtils.ensureExpectedToken(null, parser.nextToken(), parser);
 
         return new RepositoryData(
+                uuid,
                 genId,
                 snapshots,
                 snapshotStates,

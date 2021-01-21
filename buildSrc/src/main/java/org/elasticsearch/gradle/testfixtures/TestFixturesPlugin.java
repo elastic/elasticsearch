@@ -129,7 +129,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
                 t.mustRunAfter(preProcessFixture);
             });
             tasks.named("composePull").configure(t -> t.mustRunAfter(preProcessFixture));
-            tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testfixturesDir))));
+            // tasks.named("composeDown").configure(t -> t.doLast(t2 -> getFileSystemOperations().delete(d -> d.delete(testfixturesDir))));
         } else {
             project.afterEvaluate(spec -> {
                 if (extension.fixtures.isEmpty()) {
@@ -155,7 +155,7 @@ public class TestFixturesPlugin implements Plugin<Project> {
 
         tasks.withType(Test.class).configureEach(task -> extension.fixtures.all(fixtureProject -> {
             task.dependsOn(fixtureProject.getTasks().named("postProcessFixture"));
-            task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
+            // task.finalizedBy(fixtureProject.getTasks().named("composeDown"));
             configureServiceInfoForTask(
                 task,
                 fixtureProject,

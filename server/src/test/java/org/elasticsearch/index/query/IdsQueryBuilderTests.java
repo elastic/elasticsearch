@@ -97,7 +97,7 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
     protected QueryBuilder parseQuery(XContentParser parser) throws IOException {
         QueryBuilder query = super.parseQuery(parser);
         assertThat(query, instanceOf(IdsQueryBuilder.class));
-        return (IdsQueryBuilder) query;
+        return query;
     }
 
     @Override

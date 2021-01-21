@@ -25,6 +25,7 @@ import org.elasticsearch.search.lookup.SourceLookup;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 /**
  * A helper class for fetching field values during the {@link FetchFieldsPhase}. Each {@link MappedFieldType}
@@ -45,6 +46,24 @@ public interface ValueFetcher {
      * @return a list a standardized field values.
      */
     List<Object> fetchValues(SourceLookup lookup) throws IOException;
+
+    /**
+    * Given access to a document's _source, return this field's values.
+    *
+    * In addition to pulling out the values, they will be parsed into a standard form.
+    * For example numeric field mappers make sure to parse the source value into a number
+    * of the right type.
+    *
+    * Note that for array values, the order in which values are returned is undefined and
+    * should not be relied on.
+    *
+    * @param lookup a lookup structure over the document's source.
+    * @param ignoredFields the fields in _ignored that have been ignored for this document because they were malformed
+    * @return a list a standardized field values.
+    */
+    default List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) throws IOException {
+        return fetchValues(lookup);
+    }
 
     /**
      * Update the leaf reader used to fetch values.

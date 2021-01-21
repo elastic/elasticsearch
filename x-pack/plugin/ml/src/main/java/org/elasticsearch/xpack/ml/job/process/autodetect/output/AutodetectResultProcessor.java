@@ -187,24 +187,20 @@ public class AutodetectResultProcessor {
 
     private void readResults() {
         currentRunBucketCount = 0;
-        try {
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            while (iterator.hasNext()) {
-                try {
-                    AutodetectResult result = iterator.next();
-                    processResult(result);
-                    if (result.getBucket() != null) {
-                        LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
-                    }
-                } catch (Exception e) {
-                    if (isAlive() == false) {
-                        throw e;
-                    }
-                    LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
+        Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+        while (iterator.hasNext()) {
+            try {
+                AutodetectResult result = iterator.next();
+                processResult(result);
+                if (result.getBucket() != null) {
+                    LOGGER.trace("[{}] Bucket number {} parsed from output", jobId, currentRunBucketCount);
                 }
+            } catch (Exception e) {
+                if (isAlive() == false) {
+                    throw e;
+                }
+                LOGGER.warn(new ParameterizedMessage("[{}] Error processing autodetect result", jobId), e);
             }
-        } finally {
-            process.consumeAndCloseOutputStream();
         }
     }
 

@@ -174,10 +174,6 @@ public class BlackHoleAutodetectProcess implements AutodetectProcess {
     }
 
     @Override
-    public void consumeAndCloseOutputStream() {
-    }
-
-    @Override
     public ZonedDateTime getProcessStartTime() {
         return startTime;
     }

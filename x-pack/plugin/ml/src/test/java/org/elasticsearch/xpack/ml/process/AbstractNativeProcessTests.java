@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.anyInt;
@@ -78,8 +79,9 @@ public class AbstractNativeProcessTests extends ESTestCase {
     }
 
     @After
-    public void terminateExecutorService() {
+    public void terminateExecutorService() throws IOException {
         ThreadPool.terminate(executorService, 10, TimeUnit.SECONDS);
+        assertThat(processPipes.getProcessOutStream().get().available(), equalTo(0));
         verifyNoMoreInteractions(onProcessCrash);
     }
 

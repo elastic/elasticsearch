@@ -115,23 +115,19 @@ public class JobSnapshotUpgraderResultProcessor {
     }
 
     private void readResults() {
-        try {
-            Iterator<AutodetectResult> iterator = process.readAutodetectResults();
-            while (iterator.hasNext()) {
-                try {
-                    AutodetectResult result = iterator.next();
-                    processResult(result);
-                } catch (Exception e) {
-                    if (isAlive() == false) {
-                        throw e;
-                    }
-                    LOGGER.warn(
-                        new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId),
-                        e);
+        Iterator<AutodetectResult> iterator = process.readAutodetectResults();
+        while (iterator.hasNext()) {
+            try {
+                AutodetectResult result = iterator.next();
+                processResult(result);
+            } catch (Exception e) {
+                if (isAlive() == false) {
+                    throw e;
                 }
+                LOGGER.warn(
+                    new ParameterizedMessage("[{}] [{}] Error processing model snapshot upgrade result", jobId, snapshotId),
+                    e);
             }
-        } finally {
-            process.consumeAndCloseOutputStream();
         }
     }
 

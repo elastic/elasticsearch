@@ -176,6 +176,9 @@ public abstract class AbstractNativeProcess implements NativeProcess {
             if (processInStream() != null) {
                 processInStream().close();
             }
+
+            consumeAndCloseOutputStream();
+
             // wait for the process to exit by waiting for end-of-file on the named pipe connected
             // to the state processor - it may take a long time for all the model state to be
             // indexed
@@ -312,13 +315,12 @@ public abstract class AbstractNativeProcess implements NativeProcess {
         return processKilled;
     }
 
-    public void consumeAndCloseOutputStream() {
-        try {
+    void consumeAndCloseOutputStream() {
+        try (InputStream outStream = processOutStream()) {
             byte[] buff = new byte[512];
-            while (processOutStream().read(buff) >= 0) {
+            while (outStream.read(buff) >= 0) {
                 // Do nothing
             }
-            processOutStream().close();
         } catch (IOException e) {
             // Given we are closing down the process there is no point propagating IO exceptions here
         }

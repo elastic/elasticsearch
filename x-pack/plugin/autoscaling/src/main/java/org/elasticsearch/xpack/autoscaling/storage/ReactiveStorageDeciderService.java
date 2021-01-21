@@ -260,7 +260,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 && Strings.hasText(
                     DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING.get(indexMetadata(shard, allocation).getSettings())
                 )) {
-                // THe data tier decider allows a shard to remain on a lower preference tier when no nodes exists on higher preference
+                // The data tier decider allows a shard to remain on a lower preference tier when no nodes exists on higher preference
                 // tiers.
                 // Here we ensure that if our policy governs the highest preference tier, we assume the shard needs to move to that tier
                 // once a node is started for it.

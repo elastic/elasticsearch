@@ -300,6 +300,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createRepository(repoName, type, randomRepositorySettings());
     }
 
+    protected void createRepositoryNoVerify(String repoName, String type) {
+        logger.info("--> creating repository [{}] [{}]", repoName, type);
+        assertAcked(clusterAdmin().preparePutRepository(repoName)
+                .setVerify(false)
+                .setType(type)
+                .setSettings(randomRepositorySettings()));
+    }
+
     protected Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());

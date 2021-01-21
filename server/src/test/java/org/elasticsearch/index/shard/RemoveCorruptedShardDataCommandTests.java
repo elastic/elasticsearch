@@ -126,19 +126,11 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         shardPath = new ShardPath(false, nodePath.resolve(shardId), nodePath.resolve(shardId), shardId);
 
         // Adding rollover info to IndexMetadata to check that NamedXContentRegistry is properly configured
-        Condition rolloverCondition;
-
-        switch (randomIntBetween(0, 2)) {
-            case 0:
-                rolloverCondition = new MaxDocsCondition(randomNonNegativeLong());
-                break;
-            case 1:
-                rolloverCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-                break;
-            default:
-                rolloverCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-                break;
-        }
+        Condition rolloverCondition = randomFrom(
+            new MaxAgeCondition(new TimeValue(randomNonNegativeLong())),
+            new MaxDocsCondition(randomNonNegativeLong()),
+            new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+        );
 
         final IndexMetadata.Builder metadata = IndexMetadata.builder(routing.getIndexName())
             .settings(settings)

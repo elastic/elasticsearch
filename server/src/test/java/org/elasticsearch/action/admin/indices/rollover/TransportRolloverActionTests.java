@@ -110,10 +110,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testEvaluateConditions() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxAgeCondition, maxDocsCondition, maxSizeCondition);
 
         long matchMaxDocs = randomIntBetween(100, 1000);
         long notMatchMaxDocs = randomIntBetween(0, 99);
@@ -150,10 +150,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testEvaluateWithoutStats() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(randomIntBetween(1, 3)));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomNonNegativeLong());
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()));
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxAgeCondition, maxDocsCondition, maxSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
@@ -183,10 +183,10 @@ public class TransportRolloverActionTests extends ESTestCase {
     }
 
     public void testEvaluateWithoutMetadata() {
-        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxAgeCondition maxAgeCondition = new MaxAgeCondition(TimeValue.timeValueHours(2));
+        MaxDocsCondition maxDocsCondition = new MaxDocsCondition(100L);
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(new ByteSizeValue(randomIntBetween(10, 100), ByteSizeUnit.MB));
-        final Set<Condition<?>> conditions = Sets.newHashSet(maxDocsCondition, maxAgeCondition, maxSizeCondition);
+        final Set<Condition<?>> conditions = Sets.newHashSet(maxAgeCondition, maxDocsCondition, maxSizeCondition);
 
         final Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)

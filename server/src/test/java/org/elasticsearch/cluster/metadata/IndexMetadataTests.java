@@ -44,9 +44,9 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -92,9 +92,11 @@ public class IndexMetadataTests extends ESTestCase {
             .putCustom("my_custom", customMap)
             .putRolloverInfo(
                 new RolloverInfo(randomAlphaOfLength(5),
-                    Arrays.asList(new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
-                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())),
-                        new MaxDocsCondition(randomNonNegativeLong())),
+                    List.of(
+                        new MaxAgeCondition(TimeValue.timeValueMillis(randomNonNegativeLong())),
+                        new MaxDocsCondition(randomNonNegativeLong()),
+                        new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong()))
+                    ),
                     randomNonNegativeLong())).build();
         assertEquals(system, metadata.isSystem());
 

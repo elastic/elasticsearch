@@ -74,6 +74,10 @@ public class ConditionTests extends ESTestCase {
     }
 
     public void testEqualsAndHashCode() {
+        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
+        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value),
+            condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
+
         MaxDocsCondition maxDocsCondition = new MaxDocsCondition(randomLong());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxDocsCondition, condition -> new MaxDocsCondition(condition.value),
             condition -> new MaxDocsCondition(randomLong()));
@@ -81,10 +85,6 @@ public class ConditionTests extends ESTestCase {
         MaxSizeCondition maxSizeCondition = new MaxSizeCondition(randomByteSize());
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxSizeCondition, condition -> new MaxSizeCondition(condition.value),
             condition -> new MaxSizeCondition(randomByteSize()));
-
-        MaxAgeCondition maxAgeCondition = new MaxAgeCondition(new TimeValue(randomNonNegativeLong()));
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(maxAgeCondition, condition -> new MaxAgeCondition(condition.value),
-                condition -> new MaxAgeCondition(new TimeValue(randomNonNegativeLong())));
     }
 
     private static ByteSizeValue randomByteSize() {

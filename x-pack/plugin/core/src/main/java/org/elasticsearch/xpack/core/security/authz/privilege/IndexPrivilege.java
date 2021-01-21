@@ -25,10 +25,12 @@ import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsAction;
 import org.elasticsearch.action.admin.indices.mapping.put.AutoPutMappingAction;
+import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.xpack.core.action.PromoteDataStreamAction;
 import org.elasticsearch.xpack.core.ccr.action.ForgetFollowerAction;
 import org.elasticsearch.xpack.core.ccr.action.PutFollowAction;
 import org.elasticsearch.xpack.core.ccr.action.UnfollowAction;
@@ -72,7 +74,7 @@ public final class IndexPrivilege extends Privilege {
         ClusterSearchShardsAction.NAME, TypesExistsAction.NAME, ValidateQueryAction.NAME + "*", GetSettingsAction.NAME,
         ExplainLifecycleAction.NAME, GetDataStreamAction.NAME, ResolveIndexAction.NAME);
     private static final Automaton MANAGE_FOLLOW_INDEX_AUTOMATON = patterns(PutFollowAction.NAME, UnfollowAction.NAME,
-        CloseIndexAction.NAME + "*");
+        CloseIndexAction.NAME + "*", PromoteDataStreamAction.NAME, RolloverAction.NAME);
     private static final Automaton MANAGE_LEADER_INDEX_AUTOMATON = patterns(ForgetFollowerAction.NAME + "*");
     private static final Automaton MANAGE_ILM_AUTOMATON = patterns("indices:admin/ilm/*");
     private static final Automaton MAINTENANCE_AUTOMATON = patterns("indices:admin/refresh*", "indices:admin/flush*",

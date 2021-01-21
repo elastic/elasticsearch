@@ -97,7 +97,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public SourceConfig(final StreamInput in) throws IOException {
         index = in.readStringArray();
         queryConfig = new QueryConfig(in);
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             runtimeMappings = in.readMap();
         } else {
             runtimeMappings = Collections.emptyMap();
@@ -128,7 +128,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(index);
         queryConfig.writeTo(out);
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeMap(runtimeMappings);
         }
     }

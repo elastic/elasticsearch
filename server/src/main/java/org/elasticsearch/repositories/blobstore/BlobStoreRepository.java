@@ -1384,6 +1384,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
         synchronized (this) {
             if (repoDataInitialized == null) {
+                // double check the generation since we checked it outside the mutex in the caller and it could have changed by a
+                // concurrent initialization of the repo metadata and just load repository normally in case we already finished the
+                // initialization
+                if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
+                    getRepositoryData(listener);
+                    return;
+                }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
                 repoDataInitialized = PlainListenableActionFuture.newListenableFuture();
                 repoDataInitialized.addListener(listener);

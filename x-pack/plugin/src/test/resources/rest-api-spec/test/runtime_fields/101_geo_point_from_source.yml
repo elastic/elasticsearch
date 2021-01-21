@@ -83,7 +83,7 @@ setup:
   - match: {hits.total.value: 1}
 
 ---
-"geo shape query":
+"geo shape intersects query":
   - do:
       search:
         index: locations
@@ -95,6 +95,51 @@ setup:
                   type: "envelope"
                   coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
   - match: {hits.total.value: 1}
+
+---
+"geo shape within query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
+                relation: within
+  - match: {hits.total.value: 1}
+
+---
+"geo shape disjoint query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
+                relation: disjoint
+  - match: {hits.total.value: 5}
+
+---
+"geo shape contains query":
+  - do:
+      search:
+        index: locations
+        body:
+          query:
+            geo_shape:
+              location:
+                shape:
+                  type: "envelope"
+                  coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
+                relation: contains
+  - match: {hits.total.value: 0}
 
 ---
 "geo distance query":

@@ -28,9 +28,9 @@ import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.JSON_MIME_TYPE;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE;
-import static org.elasticsearch.script.mustache.CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE;
+import static org.elasticsearch.script.mustache.CustomMustacheFactory.JSON_MEDIA_TYPE;
+import static org.elasticsearch.script.mustache.CustomMustacheFactory.PLAIN_TEXT_MEDIA_TYPE;
+import static org.elasticsearch.script.mustache.CustomMustacheFactory.X_WWW_FORM_URLENCODED_MEDIA_TYPE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -40,33 +40,33 @@ public class CustomMustacheFactoryTests extends ESTestCase {
         {
             final IllegalArgumentException e =
                     expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("non-existent"));
-            assertThat(e.getMessage(), equalTo("No encoder found for MIME type [non-existent]"));
+            assertThat(e.getMessage(), equalTo("No encoder found for media type [non-existent]"));
         }
 
         {
             final IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder(""));
-            assertThat(e.getMessage(), equalTo("No encoder found for MIME type []"));
+            assertThat(e.getMessage(), equalTo("No encoder found for media type []"));
         }
 
         {
             final IllegalArgumentException e =
                     expectThrows(IllegalArgumentException.class, () -> CustomMustacheFactory.createEncoder("test"));
-            assertThat(e.getMessage(), equalTo("No encoder found for MIME type [test]"));
+            assertThat(e.getMessage(), equalTo("No encoder found for media type [test]"));
         }
 
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE_WITH_CHARSET),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MEDIA_TYPE_WITH_CHARSET),
             instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MIME_TYPE),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.JSON_MEDIA_TYPE),
                 instanceOf(CustomMustacheFactory.JsonEscapeEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MIME_TYPE),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.PLAIN_TEXT_MEDIA_TYPE),
                 instanceOf(CustomMustacheFactory.DefaultEncoder.class));
-        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MIME_TYPE),
+        assertThat(CustomMustacheFactory.createEncoder(CustomMustacheFactory.X_WWW_FORM_URLENCODED_MEDIA_TYPE),
                 instanceOf(CustomMustacheFactory.UrlEncoder.class));
     }
 
     public void testJsonEscapeEncoder() {
         final ScriptEngine engine = new MustacheScriptEngine();
-        final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MIME_TYPE) : emptyMap();
+        final Map<String, String> params = randomBoolean() ? singletonMap(Script.CONTENT_TYPE_OPTION, JSON_MEDIA_TYPE) : emptyMap();
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
@@ -76,7 +76,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testDefaultEncoder() {
         final ScriptEngine engine = new MustacheScriptEngine();
-        final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MIME_TYPE);
+        final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, PLAIN_TEXT_MEDIA_TYPE);
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 
@@ -86,7 +86,7 @@ public class CustomMustacheFactoryTests extends ESTestCase {
 
     public void testUrlEncoder() {
         final ScriptEngine engine = new MustacheScriptEngine();
-        final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MIME_TYPE);
+        final Map<String, String> params = singletonMap(Script.CONTENT_TYPE_OPTION, X_WWW_FORM_URLENCODED_MEDIA_TYPE);
 
         TemplateScript.Factory compiled = engine.compile(null, "{\"field\": \"{{value}}\"}", TemplateScript.CONTEXT, params);
 

@@ -81,13 +81,15 @@ public class GeoShapeUtils {
         String name,
         SearchExecutionContext context,
         Geometry geometry,
-        List<Class<? extends Geometry>> unsupportedGeometries
+        ShapeRelation relation
     ) {
+        if (geometry == null) {
+            return new LatLonGeometry[0];
+        }
         final List<LatLonGeometry> geometries = new ArrayList<>();
         geometry.visit(new GeometryVisitor<>() {
             @Override
             public Void visit(Circle circle) {
-                checkSupported(circle);
                 if (circle.isEmpty() == false) {
                     geometries.add(GeoShapeUtils.toLuceneCircle(circle));
                 }
@@ -96,7 +98,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(GeometryCollection<?> collection) {
-                checkSupported(collection);
                 if (collection.isEmpty() == false) {
                     for (Geometry shape : collection) {
                         shape.visit(this);
@@ -107,8 +108,12 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(org.elasticsearch.geometry.Line line) {
-                checkSupported(line);
                 if (line.isEmpty() == false) {
+                    if (relation == ShapeRelation.WITHIN) {
+                        // Line geometries and WITHIN relation is not supported by Lucene. Throw an error here
+                        // to have same behavior for runtime fields.
+                        throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape Line");
+                    }
                     geometries.add(GeoShapeUtils.toLuceneLine(line));
                 }
                 return null;
@@ -116,12 +121,11 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(LinearRing ring) {
-                throw new QueryShardException(context, "Field [" + name + "] found and unsupported shape LinearRing");
+                throw new QueryShardException(context, "Field [" + name + "] found an unsupported shape LinearRing");
             }
 
             @Override
             public Void visit(MultiLine multiLine) {
-                checkSupported(multiLine);
                 if (multiLine.isEmpty() == false) {
                     for (Line line : multiLine) {
                         visit(line);
@@ -132,7 +136,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(MultiPoint multiPoint) {
-                checkSupported(multiPoint);
                 if (multiPoint.isEmpty() == false) {
                     for (Point point : multiPoint) {
                         visit(point);
@@ -143,7 +146,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(MultiPolygon multiPolygon) {
-                checkSupported(multiPolygon);
                 if (multiPolygon.isEmpty() == false) {
                     for (Polygon polygon : multiPolygon) {
                         visit(polygon);
@@ -154,7 +156,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(Point point) {
-                checkSupported(point);
                 if (point.isEmpty() == false) {
                     geometries.add(toLucenePoint(point));
                 }
@@ -164,7 +165,6 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(org.elasticsearch.geometry.Polygon polygon) {
-                checkSupported(polygon);
                 if (polygon.isEmpty() == false) {
                     List<org.elasticsearch.geometry.Polygon> collector = new ArrayList<>();
                     GeoPolygonDecomposer.decomposePolygon(polygon, true, collector);
@@ -175,17 +175,10 @@ public class GeoShapeUtils {
 
             @Override
             public Void visit(Rectangle r) {
-                checkSupported(r);
                 if (r.isEmpty() == false) {
                     geometries.add(toLuceneRectangle(r));
                 }
                 return null;
-            }
-
-            private void checkSupported(Geometry geometry) {
-                if (unsupportedGeometries.contains(geometry.getClass())) {
-                    throw new QueryShardException(context, "Field [" + name + "] found and unsupported shape [" + geometry.type() + "]");
-                }
             }
         });
         return geometries.toArray(new LatLonGeometry[geometries.size()]);
@@ -193,5 +186,4 @@ public class GeoShapeUtils {
 
     private GeoShapeUtils() {
     }
-
 }

@@ -19,29 +19,10 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
-import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
-import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
-import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
-
-import java.io.IOException;
-import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.function.Function;
-
+import com.carrotsearch.hppc.LongArrayList;
+import com.carrotsearch.hppc.cursors.IntObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.rollover.RolloverInfo;
@@ -78,10 +59,28 @@ import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+import java.io.IOException;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
+
+import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_PARAM;
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.IP_VALIDATOR;
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.AND;
+import static org.elasticsearch.cluster.node.DiscoveryNodeFilters.OpType.OR;
+import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
+import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
 public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragment {
 

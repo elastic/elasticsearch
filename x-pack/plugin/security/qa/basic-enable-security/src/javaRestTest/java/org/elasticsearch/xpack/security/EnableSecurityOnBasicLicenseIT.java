@@ -97,9 +97,10 @@ public class EnableSecurityOnBasicLicenseIT extends ESRestTestCase {
         } else {
             checkAllowedWrite(otherIndex);
         }
+        checkSecurityDisabledWarning();
     }
 
-    public void testSecurityDisabledWarning() throws Exception {
+    public void checkSecurityDisabledWarning() throws Exception {
         final Request request = new Request("GET", "/_cat/indices");
         Response response = client().performRequest(request);
         List<String> warningHeaders = response.getWarnings();

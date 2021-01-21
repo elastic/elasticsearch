@@ -19,6 +19,7 @@
 
 package org.elasticsearch.snapshots;
 
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -717,6 +718,36 @@ public class SystemIndicesSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getDocCount(regularIndex), equalTo(1L));
         // But the system index shouldn't have been touched
         assertThat(getDocCount(SystemIndexTestPlugin.SYSTEM_INDEX_NAME), equalTo(2L));
+    }
+
+    /**
+     * This test checks a piece of BWC logic, and so should be removed when we block restoring system indices by name.
+     *
+     * This test checks whether it's possible to change the name of a system index when it's restored by name (rather than by feature state)
+     */
+    public void testCanRenameSystemIndicesIfRestoredByIndexName() {
+        indexDoc(SystemIndexTestPlugin.SYSTEM_INDEX_NAME, "1", "purpose", "pre-snapshot doc");
+        refresh(SystemIndexTestPlugin.SYSTEM_INDEX_NAME);
+
+        // snapshot including our system index
+        CreateSnapshotResponse createSnapshotResponse = clusterAdmin().prepareCreateSnapshot(REPO_NAME, "test-snap")
+            .setWaitForCompletion(true)
+            .setIncludeGlobalState(false)
+            .get();
+        assertSnapshotSuccess(createSnapshotResponse);
+
+        // Now restore it with a rename
+        clusterAdmin().prepareRestoreSnapshot(REPO_NAME, "test-snap")
+            .setIndices(SystemIndexTestPlugin.SYSTEM_INDEX_NAME)
+            .setWaitForCompletion(true)
+            .setRestoreGlobalState(false)
+            .setFeatureStates(NO_FEATURE_STATES_VALUE)
+            .setRenamePattern(".test-(.+)")
+            .setRenameReplacement("restored-$1")
+            .get();
+
+        assertTrue("The renamed system index should be present", indexExists("restored-system-idx"));
+        assertTrue("The original index should still be present", indexExists(SystemIndexTestPlugin.SYSTEM_INDEX_NAME));
     }
 
     private void assertSnapshotSuccess(CreateSnapshotResponse createSnapshotResponse) {

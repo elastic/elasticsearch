@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <!DOCTYPE module PUBLIC
-          "-//Puppy Crawl//DTD Check Configuration 1.3//EN"
-          "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+    "-//Puppy Crawl//DTD Check Configuration 1.3//EN"
+    "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
 
 <module name="Checker">
   <property name="charset" value="UTF-8" />
@@ -10,12 +10,16 @@
     <property name="file" value="${config_loc}/checkstyle_suppressions.xml" />
   </module>
 
-  <!-- Checks Java files and forbids empty Javadoc comments -->
+  <module name="SuppressWarningsFilter" />
+
+  <!-- Checks Java files and forbids empty Javadoc comments. -->
+  <!-- Although you can use the "JavadocStyle" rule for this, it considers Javadoc -->
+  <!-- that only contains a "@return" line to be empty. -->
   <module name="RegexpMultiline">
-    <property name="id" value="EmptyJavadoc"/>
-    <property name="format" value="\/\*[\s\*]*\*\/"/>
-    <property name="fileExtensions" value="java"/>
-    <property name="message" value="Empty javadoc comments are forbidden"/>
+    <property name="id" value="EmptyJavadoc" />
+    <property name="format" value="\/\*[\s\*]*\*\/" />
+    <property name="fileExtensions" value="java" />
+    <property name="message" value="Empty javadoc comments are forbidden" />
   </module>
 
   <!--
@@ -25,18 +29,21 @@
     such snippets.
   -->
   <module name="org.elasticsearch.gradle.checkstyle.SnippetLengthCheck">
-    <property name="id" value="SnippetLength"/>
-    <property name="max" value="76"/>
+    <property name="id" value="SnippetLength" />
+    <property name="max" value="76" />
+  </module>
+
+  <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
+    suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
+    unfair. -->
+  <module name="LineLength">
+    <property name="max" value="140" />
+    <property name="ignorePattern" value="^ *\* *https?://[^ ]+$" />
   </module>
 
   <module name="TreeWalker">
-    <!-- Its our official line length! See checkstyle_suppressions.xml for the files that don't pass this. For now we
-      suppress the check there but enforce it everywhere else. This prevents the list from getting longer even if it is
-      unfair. -->
-    <module name="LineLength">
-      <property name="max" value="140"/>
-      <property name="ignorePattern" value="^ *\* *https?://[^ ]+$"/>
-    </module>
+    <!-- Make the @SuppressWarnings annotations available to Checkstyle -->
+    <module name="SuppressWarningsHolder" />
 
     <module name="AvoidStarImport" />
 
@@ -45,15 +52,19 @@
 
     <!-- Non-inner classes must be in files that match their names. -->
     <module name="OuterTypeFilename" />
+
     <!-- No line wraps inside of import and package statements. -->
     <module name="NoLineWrap" />
+
     <!-- only one statement per line should be allowed -->
-    <module name="OneStatementPerLine"/>
+    <module name="OneStatementPerLine" />
+
     <!-- Each java file has only one outer class -->
     <module name="OneTopLevelClass" />
+
     <!-- The suffix L is preferred, because the letter l (ell) is often
-    hard to distinguish from the digit 1 (one). -->
-    <module name="UpperEll"/>
+      hard to distinguish from the digit 1 (one). -->
+    <module name="UpperEll" />
 
     <module name="EqualsHashCode" />
 
@@ -82,7 +93,7 @@
     <module name="RedundantModifier" />
     <!-- Checks that all java files have a package declaration and that it
       lines up with the directory structure. -->
-    <module name="PackageDeclaration"/>
+    <module name="PackageDeclaration" />
 
     <!-- We don't use Java's builtin serialization and we suppress all warning
       about it. The flip side of that coin is that we shouldn't _try_ to use
@@ -104,21 +115,19 @@
 
     <!-- Forbid equality comparisons with `true` -->
     <module name="DescendantToken">
-      <property name="tokens" value="EQUAL"/>
-      <property name="limitedTokens" value="LITERAL_TRUE"/>
-      <property name="maximumNumber" value="0"/>
-      <property name="maximumDepth" value="1"/>
-      <message key="descendant.token.max" value="Do not check for equality with 'true', since it is implied"/>
+      <property name="id" value="EqualityWithTrue" />
+      <property name="tokens" value="EQUAL" />
+      <property name="limitedTokens" value="LITERAL_TRUE" />
+      <property name="maximumNumber" value="0" />
+      <property name="maximumDepth" value="1" />
+      <message key="descendant.token.max" value="Do not check for equality with 'true', since it is implied" />
     </module>
 
-    <!-- Forbid using '!' for logical negations in favour of checking
-         against 'false' explicitly. -->
-    <!-- This is disabled for now because there are many, many violations,
-         hence the rule is reporting at the "warning" severity. -->
-
+    <!-- Forbid using '!' for logical negations in favour of checking against 'false' explicitly. -->
+    <!-- This is disabled for now because there are many violations, hence the rule is reporting at the "warning" severity. -->
     <!--
     <module name="DescendantToken">
-      <property name="severity" value="warning"/>
+      <property name="id" value="BooleanNegation" />
       <property name="tokens" value="EXPR"/>
       <property name="limitedTokens" value="LNOT"/>
       <property name="maximumNumber" value="0"/>

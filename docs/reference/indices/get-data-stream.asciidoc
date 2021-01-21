@@ -75,6 +75,13 @@ GET /_data_stream/my-data-stream
 
 `GET /_data_stream/<data-stream>`
 
+[[get-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the data stream.
+
 [[get-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 

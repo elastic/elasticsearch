@@ -95,6 +95,7 @@ TIMESTAMP_ADD    |SCALAR
 TIMESTAMP_DIFF   |SCALAR
 TIME_PARSE       |SCALAR
 TODAY            |SCALAR
+TO_CHAR          |SCALAR
 WEEK             |SCALAR
 WEEK_OF_YEAR     |SCALAR         
 YEAR             |SCALAR         

@@ -1483,7 +1483,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
         updatePolicy(index, policy);
@@ -1500,7 +1500,7 @@ public class TimeSeriesLifecycleActionsIT extends ESRestTestCase {
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
         RollupActionConfig rollupConfig = new RollupActionConfig(
             new RollupActionGroupConfig(new RollupActionDateHistogramGroupConfig.FixedInterval("timestamp", DateHistogramInterval.DAY)),
-            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))), null);
+            Collections.singletonList(new MetricConfig("volume", Collections.singletonList("max"))));
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
         updatePolicy(index, policy);

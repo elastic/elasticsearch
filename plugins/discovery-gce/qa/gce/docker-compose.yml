@@ -1,0 +1,15 @@
+version: '3'
+services:
+  gce-fixture:
+    build:
+      context: .
+      args:
+        port: 80
+        workingDir: "/fixture/work"
+        configDir: "/fixture/config/unicast_hosts.txt"
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+      - ./build/testclusters/yamlRestTest-1/config:/fixture/config
+      - ./testfixtures_shared/work:/fixture/work
+    ports:
+      - "80"

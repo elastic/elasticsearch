@@ -28,6 +28,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -60,7 +61,7 @@ public class GCEFixture extends AbstractHttpFixture {
     private final Path nodes;
 
     private GCEFixture(final String workingDir, final String nodesUriPath) {
-        super(workingDir);
+        super(workingDir, 80);
         this.nodes = toPath(Objects.requireNonNull(nodesUriPath));
         this.handlers = defaultHandlers();
     }
@@ -71,7 +72,7 @@ public class GCEFixture extends AbstractHttpFixture {
         }
 
         final GCEFixture fixture = new GCEFixture(args[0], args[1]);
-        fixture.listen();
+        fixture.listen(InetAddress.getByName("0.0.0.0"), false);
     }
 
     private static String nonAuthPath(Request request) {
@@ -200,7 +201,6 @@ public class GCEFixture extends AbstractHttpFixture {
                 .put("message", message)
                 .immutableMap())
             .endObject());
-
         return new Response(status.getStatus(), JSON_CONTENT_TYPE, response.getBytes(UTF_8));
     }
 

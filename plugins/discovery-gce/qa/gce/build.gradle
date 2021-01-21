@@ -25,6 +25,7 @@ import org.elasticsearch.gradle.test.AntFixture
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.test.fixtures'
 
 final int gceNumberOfNodes = 3
 
@@ -38,13 +39,30 @@ restResources {
   }
 }
 
-/** A task to start the GCEFixture which emulates a GCE service **/
-def gceFixtureProvider = tasks.register("gceFixture", AntFixture) {
-  dependsOn project.sourceSets.yamlRestTest.runtimeClasspath
-  env 'CLASSPATH', "${-> project.sourceSets.yamlRestTest.runtimeClasspath.asPath}"
-  executable = "${BuildParams.runtimeJavaHome}/bin/java"
-  args 'org.elasticsearch.cloud.gce.GCEFixture', baseDir, "${buildDir}/testclusters/yamlRestTest-1/config/unicast_hosts.txt"
+def fixtureAddress = {
+  int ephemeralPort = tasks.named("postProcessFixture").get().ext."test.fixtures.gce-fixture.tcp.80"
+  assert ephemeralPort > 0
+  'http://127.0.0.1:' + ephemeralPort
 }
+
+def yamlRestTestJar = tasks.register("yamlRestTestJar", Jar) {
+  from sourceSets.yamlRestTest.output
+  classifier = "yaml-rest-test"
+}
+
+tasks.named("preProcessFixture").configure {
+  inputs.files(yamlRestTestJar, sourceSets.yamlRestTest.runtimeClasspath)
+  doLast {
+    file("${testFixturesDir}/shared").mkdirs()
+    project.copy {
+      from yamlRestTestJar
+      from sourceSets.yamlRestTest.runtimeClasspath
+      into "${testFixturesDir}/shared"
+    }
+  }
+}
+
+testFixtures.useFixture()
 
 Map<String, Object> expansions = [
   'expected_nodes': gceNumberOfNodes
@@ -56,20 +74,20 @@ tasks.named("processYamlRestTestResources").configure {
 }
 
 tasks.named("yamlRestTest").configure {
-  dependsOn gceFixtureProvider
+  dependsOn postProcessFixture
 }
 
 testClusters.matching { it.name == "yamlRestTest" }.configureEach {
   numberOfNodes = gceNumberOfNodes
   plugin ':plugins:discovery-gce'
   // use gce fixture for Auth calls instead of http://metadata.google.internal
-  environment 'GCE_METADATA_HOST', { "http://${gceFixtureProvider.get().addressAndPort}" }, IGNORE_VALUE
+  environment 'GCE_METADATA_HOST', {-> "${fixtureAddress()}"}, IGNORE_VALUE
   // allows to configure hidden settings (`cloud.gce.host` and `cloud.gce.root_url`)
   systemProperty 'es.allow_reroute_gce_settings', 'true'
 
   setting 'discovery.seed_providers', 'gce'
   // use gce fixture for metadata server calls instead of http://metadata.google.internal
-  setting 'cloud.gce.host', { "http://${gceFixtureProvider.get().addressAndPort}" }, IGNORE_VALUE
+  setting 'cloud.gce.host', {-> "${fixtureAddress()}"}, IGNORE_VALUE
   // use gce fixture for API calls instead of https://www.googleapis.com
-  setting 'cloud.gce.root_url', { "http://${gceFixtureProvider.get().addressAndPort}" }, IGNORE_VALUE
+  setting 'cloud.gce.root_url', {-> "${fixtureAddress()}"}, IGNORE_VALUE
 }

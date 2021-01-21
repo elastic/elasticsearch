@@ -429,6 +429,24 @@ public abstract class AggregatorTestCase extends ESTestCase {
                                                                                       AggregationBuilder builder,
                                                                                       int maxBucket,
                                                                                       MappedFieldType... fieldTypes) throws IOException {
+        return searchAndReduce(indexSettings, searcher, query, builder, maxBucket, randomBoolean(), fieldTypes);
+    }
+
+    /**
+     * Collects all documents that match the provided query {@link Query} and
+     * returns the reduced {@link InternalAggregation}.
+     * <p>
+     * @param splitLeavesIntoSeparateAggregators If true this creates a new {@link Aggregator}
+     *          for each leaf as though it were a separate index. If false this aggregates
+     *          all leaves together, like we do in production.
+     */
+    protected <A extends InternalAggregation, C extends Aggregator> A searchAndReduce(IndexSettings indexSettings,
+                                                                                      IndexSearcher searcher,
+                                                                                      Query query,
+                                                                                      AggregationBuilder builder,
+                                                                                      int maxBucket,
+                                                                                      boolean splitLeavesIntoSeparateAggregators,
+                                                                                      MappedFieldType... fieldTypes) throws IOException {
         final IndexReaderContext ctx = searcher.getTopReaderContext();
         final PipelineTree pipelines = builder.buildPipelineTree();
         List<InternalAggregation> aggs = new ArrayList<>();
@@ -445,7 +463,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
         );
         C root = createAggregator(builder, context);
 
-        if (randomBoolean() && searcher.getIndexReader().leaves().size() > 0) {
+        if (splitLeavesIntoSeparateAggregators && searcher.getIndexReader().leaves().size() > 0) {
             assertThat(ctx, instanceOf(CompositeReaderContext.class));
             final CompositeReaderContext compCTX = (CompositeReaderContext) ctx;
             final int size = compCTX.leaves().size();

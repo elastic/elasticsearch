@@ -306,7 +306,10 @@ public class RestHighLevelClientTests extends ESTestCase {
         ArgumentCaptor<Request> requestArgumentCaptor = ArgumentCaptor.forClass(Request.class);
 
         verify(restClient, times(1)).performRequest(requestArgumentCaptor.capture());
-        assertThat(requestArgumentCaptor.getValue().getParameters(), hasEntry("filter_path", "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries"));
+        assertThat(
+            requestArgumentCaptor.getValue().getParameters(),
+            hasEntry("filter_path", "-hits.hits._index,-hits.hits._type,-hits.hits.matched_queries")
+        );
     }
 
     public void testParseEntity() throws IOException {

@@ -91,11 +91,11 @@ public abstract class CoreTestTranslater {
     protected abstract Map<String, Object> dynamicTemplateFor();
 
     protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields() {
-        return org.elasticsearch.common.collect.Map.of("index", false, "doc_values", false);
+        return Collections.singletonMap("mapping", org.elasticsearch.common.collect.Map.of("index", false, "doc_values", false));
     }
 
     protected static Map<String, Object> dynamicTemplateToAddRuntimeFields() {
-        return org.elasticsearch.common.collect.Map.of("runtime", Collections.emptyMap());
+        return Collections.singletonMap("runtime", Collections.emptyMap());
     }
 
     protected static Map<String, Object> runtimeFieldLoadingFromSource(String type) {

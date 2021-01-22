@@ -328,8 +328,8 @@ public class NodeStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestCa
         final NodeIndicesStats indices = new NodeIndicesStats(indicesCommonStats, emptyMap());
 
         // Filesystem
-        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, null);
-        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, ioStatsOne);
+        final FsInfo.DeviceStats ioStatsOne = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota,++iota, null);
+        final FsInfo.DeviceStats ioStatsTwo = new FsInfo.DeviceStats((int) no, (int) no, null, ++iota, ++iota, ++iota, ++iota, ++iota,ioStatsOne);
 
         final FsInfo.IoStats ioStats = new FsInfo.IoStats(new FsInfo.DeviceStats[]{ioStatsTwo});
         final FsInfo fs = new FsInfo(no, ioStats, new FsInfo.Path[]{new FsInfo.Path(null, null, ++iota, ++iota, ++iota)});

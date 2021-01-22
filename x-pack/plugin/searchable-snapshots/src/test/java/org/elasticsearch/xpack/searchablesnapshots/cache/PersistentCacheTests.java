@@ -238,10 +238,6 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 fsyncThread.join();
 
                 if (fsyncFailure) {
-                    assertTrue(
-                        "Fsync previously failed, the cache file should be marked as 'need fsync' again",
-                        cacheService.isCacheFileToSync(randomCacheFile)
-                    );
                     cacheService.synchronizeCache();
                 }
 

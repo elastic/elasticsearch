@@ -336,7 +336,7 @@ NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
 version.
 
-In addition to the above settings, you may also specify all non-secure client
+In addition to the above settings, you may also specify all non-secure <<repository-s3-client,client>>
 settings in the repository settings.  In this case, the client settings found in
 the repository settings will be merged with those of the named client used by
 the repository.  Conflicts between client and repository settings are resolved

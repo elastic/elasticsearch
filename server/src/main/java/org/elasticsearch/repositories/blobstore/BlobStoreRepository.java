@@ -40,6 +40,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
@@ -1506,7 +1507,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                     } else {
                         // someone switched the repo contents out from under us
                         RepositoriesService.updateRepositoryUuidInMetadata(
-                                clusterService, metadata.name(), loaded, listener.map(v -> loaded));
+                                clusterService,
+                                metadata.name(),
+                                loaded,
+                                new ThreadedActionListener<>(
+                                        logger,
+                                        threadPool,
+                                        ThreadPool.Names.GENERIC,
+                                        listener.map(v -> loaded),
+                                        false));
                     }
                 }
                 return;

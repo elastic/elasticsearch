@@ -228,6 +228,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             });
     }
 
+    /**
+     * Set the repository UUID in the named repository's {@link RepositoryMetadata} to match the UUID in its {@link RepositoryData},
+     * which may involve a cluster state update.
+     *
+     * @param listener notified when the {@link RepositoryMetadata} is updated, possibly on this thread or possibly on the master service
+     *                 thread
+     */
     public static void updateRepositoryUuidInMetadata(
             ClusterService clusterService,
             final String repositoryName,

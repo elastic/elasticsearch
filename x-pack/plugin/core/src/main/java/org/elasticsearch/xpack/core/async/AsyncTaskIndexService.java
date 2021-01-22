@@ -32,6 +32,8 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -45,9 +47,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Base64;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -64,6 +66,10 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
+    public static final String EXPIRATION_TIME_SCRIPT = String.format(Locale.ROOT,
+        "if (ctx._source.%s < params.%s) ctx._source.%s = params.%s",
+        EXPIRATION_TIME_FIELD, EXPIRATION_TIME_FIELD, EXPIRATION_TIME_FIELD, EXPIRATION_TIME_FIELD);
+
     public static final String RESULT_FIELD = "result";
 
     // Usually the settings, mappings and system index descriptor below
@@ -202,10 +208,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public void updateExpirationTime(String docId,
                               long expirationTimeMillis,
                               ActionListener<UpdateResponse> listener) {
-        Map<String, Object> source = Collections.singletonMap(EXPIRATION_TIME_FIELD, expirationTimeMillis);
-        UpdateRequest request = new UpdateRequest().index(index)
+        Script script = new Script(ScriptType.INLINE, "painless", EXPIRATION_TIME_SCRIPT,
+            Map.of(EXPIRATION_TIME_FIELD, expirationTimeMillis));
+        UpdateRequest request = new UpdateRequest()
+            .index(index)
             .id(docId)
-            .doc(source, XContentType.JSON)
+            .script(script)
             .retryOnConflict(5);
         client.update(request, listener);
     }

@@ -152,7 +152,7 @@ public class DataFrameAnalysisCustomFeatureIT extends MlNativeDataFrameAnalytics
 
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertModelStatePersisted(stateDocId());
     }
 

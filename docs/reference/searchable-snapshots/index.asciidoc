@@ -36,20 +36,22 @@ index setting.
 If a node fails and {search-snap} shards need to be restored from the snapshot,
 there is a brief window of time while {es} allocates the shards to other nodes
 where the cluster health will not be `green`. Searches that hit these shards
-will fail or return partial results until they are reallocated.
+will fail or return partial results until the shards are reallocated to healthy
+nodes.
 
 You typically manage {search-snaps} through {ilm-init}. The
 <<ilm-searchable-snapshot, searchable snapshots>> action automatically converts
-an index to a {search-snap} when it reaches the `cold` phase. You can also make
-indices in existing snapshots searchable by manually mounting them as
-{search-snaps} with the <<searchable-snapshots-api-mount-snapshot, mount
-snapshot>> API.
+a regular index into a {search-snap} index when it reaches the `cold` phase.
+You can also make indices in existing snapshots searchable by manually mounting
+them as {search-snap} indices with the
+<<searchable-snapshots-api-mount-snapshot, mount snapshot>> API.
 
 To mount an index from a snapshot that contains multiple indices, we recommend
 creating a <<clone-snapshot-api, clone>> of the snapshot that contains only the
-index you want to search, and mounting the clone. You cannot delete a snapshot
-if it has any mounted indices, so creating a clone enables you to manage the
-lifecycle of the backup snapshot independently of any {search-snaps}.
+index you want to search, and mounting the clone. You should not delete a
+snapshot if it has any mounted indices, so creating a clone enables you to
+manage the lifecycle of the backup snapshot independently of any
+{search-snaps}.
 
 You can control the allocation of the shards of {search-snap} indices using the
 same mechanisms as for regular indices. For example, you could use

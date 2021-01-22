@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.And;
@@ -199,7 +200,7 @@ public class ExpressionBuilder extends IdentifierBuilder {
         String name = ctx.name.getText();
         List<Expression> arguments = expressions(ctx.expression());
 
-        return new UnresolvedFunction(source, name, UnresolvedFunction.ResolutionType.STANDARD, arguments);
+        return new UnresolvedFunction(source, name, FunctionResolutionStrategy.DEFAULT, arguments);
     }
 
     @Override

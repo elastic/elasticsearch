@@ -105,12 +105,8 @@ public class EnrichShardMultiSearchAction extends ActionType<MultiSearchResponse
         public Request(MultiSearchRequest multiSearchRequest) {
             super(multiSearchRequest.requests().get(0).indices()[0]);
             this.multiSearchRequest = multiSearchRequest;
-            assert multiSearchRequest.requests()
-                .stream()
-                .map(SearchRequest::indices)
-                .flatMap(Arrays::stream)
-                .distinct()
-                .count() == 1 : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
+            assert multiSearchRequest.requests().stream().map(SearchRequest::indices).flatMap(Arrays::stream).distinct().count() == 1
+                : "action [" + NAME + "] cannot handle msearch request pointing to multiple indices";
             assert assertSearchSource();
         }
 

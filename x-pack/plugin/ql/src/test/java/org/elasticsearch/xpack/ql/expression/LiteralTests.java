@@ -105,7 +105,7 @@ public class LiteralTests extends AbstractNodeTestCase<Literal, Expression> {
 
     @Override
     public void testReplaceChildren() {
-        Exception e = expectThrows(UnsupportedOperationException.class, () -> randomInstance().replaceChildren(emptyList()));
+        Exception e = expectThrows(UnsupportedOperationException.class, () -> randomInstance().replaceChildrenSameSize(emptyList()));
         assertEquals("this type of node doesn't have any children to replace", e.getMessage());
     }
 

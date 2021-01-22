@@ -31,19 +31,22 @@ import static org.elasticsearch.client.transform.transforms.hlrc.TransformStatsT
 
 public class TransformCheckpointingInfoTests extends AbstractResponseTestCase<
     org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo,
-        TransformCheckpointingInfo> {
+    TransformCheckpointingInfo> {
 
     public static org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo randomTransformCheckpointingInfo() {
         return new org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo(
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             TransformCheckpointStatsTests.randomTransformCheckpointStats(),
             randomNonNegativeLong(),
-            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()));
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong()),
+            randomBoolean() ? null : Instant.ofEpochMilli(randomNonNegativeLong())
+        );
     }
 
     @Override
-    protected org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo
-    createServerTestInstance(XContentType xContentType) {
+    protected org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo createServerTestInstance(
+        XContentType xContentType
+    ) {
         return randomTransformCheckpointingInfo();
     }
 
@@ -53,8 +56,10 @@ public class TransformCheckpointingInfoTests extends AbstractResponseTestCase<
     }
 
     @Override
-    protected void assertInstances(org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo serverTestInstance,
-                                   TransformCheckpointingInfo clientInstance) {
+    protected void assertInstances(
+        org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo serverTestInstance,
+        TransformCheckpointingInfo clientInstance
+    ) {
         assertTransformCheckpointInfo(serverTestInstance, clientInstance);
     }
 }

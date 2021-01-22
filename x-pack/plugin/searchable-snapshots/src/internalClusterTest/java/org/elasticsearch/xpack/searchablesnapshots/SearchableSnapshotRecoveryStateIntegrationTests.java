@@ -182,7 +182,9 @@ public class SearchableSnapshotRecoveryStateIntegrationTests extends BaseSearcha
         assertThat(repository, instanceOf(BlobStoreRepository.class));
         final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
 
-        final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(repository);
+        final RepositoryData repositoryData = ESBlobStoreRepositoryIntegTestCase.getRepositoryData(
+            internalCluster().getCurrentMasterNodeInstance(RepositoriesService.class).repository(fsRepoName)
+        );
         final IndexId indexId = repositoryData.resolveIndexId(indexName);
         long inMemoryCacheSize = 0;
         long expectedPhysicalCacheSize = 0;

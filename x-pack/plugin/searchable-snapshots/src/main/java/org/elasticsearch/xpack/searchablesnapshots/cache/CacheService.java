@@ -9,7 +9,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.cache.Cache;
@@ -50,7 +49,6 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -64,7 +62,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  * Cache files created by this service are periodically synchronized on disk in order to make the cached data durable
  * (see {@link #synchronizeCache()} for more information).
  */
-public class CacheService extends AbstractLifecycleComponent {
+public class CacheService extends AbstractLifecycleComponent implements CacheFile.ModificationListener {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
@@ -135,8 +133,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(CacheService.class);
 
     private final ThreadPool threadPool;
-    private final ConcurrentLinkedQueue<CacheFile> cacheFilesToSync;
-    private final AtomicLong numberOfCacheFilesToSync;
+    private final ConcurrentLinkedQueue<CacheFileEvent> cacheFilesEventsQueue;
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
     private final ReentrantLock cacheSyncLock;
@@ -167,12 +164,11 @@ public class CacheService extends AbstractLifecycleComponent {
             .weigher((key, entry) -> entry.getLength())
             // NORELEASE This does not immediately free space on disk, as cache file are only deleted when all index inputs
             // are done with reading/writing the cache file
-            .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
+            .removalListener(notification -> onCacheFileEviction(notification.getValue()))
             .build();
         this.persistentCache = Objects.requireNonNull(persistentCache);
-        this.numberOfCacheFilesToSync = new AtomicLong();
         this.cacheSyncLock = new ReentrantLock();
-        this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
+        this.cacheFilesEventsQueue = new ConcurrentLinkedQueue<>();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.maxCacheFilesToSyncAtOnce = SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING, this::setMaxCacheFilesToSyncAtOnce);
@@ -290,9 +286,7 @@ public class CacheService extends AbstractLifecycleComponent {
             final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            final SetOnce<CacheFile> cacheFile = new SetOnce<>();
-            cacheFile.set(new CacheFile(key, fileLength, path, () -> onCacheFileUpdate(cacheFile.get())));
-            return cacheFile.get();
+            return new CacheFile(key, fileLength, path, this);
         });
     }
 
@@ -333,10 +327,7 @@ public class CacheService extends AbstractLifecycleComponent {
         if (Files.exists(path) == false) {
             throw new FileNotFoundException("Cache file [" + path + "] not found");
         }
-
-        final SetOnce<CacheFile> cacheFile = new SetOnce<>();
-        cacheFile.set(new CacheFile(cacheKey, fileLength, path, cacheFileRanges, () -> onCacheFileUpdate(cacheFile.get())));
-        cache.put(cacheKey, cacheFile.get());
+        cache.put(cacheKey, new CacheFile(cacheKey, fileLength, path, cacheFileRanges, this));
     }
 
     /**
@@ -496,37 +487,38 @@ public class CacheService extends AbstractLifecycleComponent {
 
     /**
      * This method is invoked when a {@link CacheFile} notifies the current {@link CacheService} that it needs to be fsync on disk.
-     * <p>
-     * It adds the {@link CacheFile} instance to current set of cache files to synchronize.
      *
      * @param cacheFile the instance that needs to be fsync
      */
-    private void onCacheFileUpdate(CacheFile cacheFile) {
-        assert cacheFile != null;
-        cacheFilesToSync.offer(cacheFile);
-        numberOfCacheFilesToSync.incrementAndGet();
+    @Override
+    public void onCacheFileUpdate(CacheFile cacheFile) {
+        cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.UPDATE, cacheFile));
+    }
+
+    /**
+     * This method is invoked after a {@link CacheFile} is deleted from the disk.
+     *
+     * @param cacheFile the deleted instance
+     */
+    @Override
+    public void onCacheFileDelete(CacheFile cacheFile) {
+        cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.DELETE, cacheFile));
     }
 
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
-     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted and removes it from the persistent cache.
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.
      *
      * @param cacheFile the evicted instance
      */
-    private void onCacheFileRemoval(CacheFile cacheFile) {
+    private void onCacheFileEviction(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
-        try {
-            persistentCache.removeCacheFile(cacheFile);
-        } catch (Exception e) {
-            assert e instanceof IOException : e;
-            logger.warn("failed to remove cache file from persistent cache", e);
-        }
     }
 
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
-        return cacheFilesToSync.contains(cacheFile);
+        return cacheFilesEventsQueue.stream().anyMatch(event -> event.value == cacheFile);
     }
 
     // used in tests
@@ -539,7 +531,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * This method synchronizes the cache files that have been updated since the last time the method was invoked. To be able to do this,
      * the cache files must notify the {@link CacheService} when they need to be fsync. When a {@link CacheFile} notifies the service the
-     * {@link CacheFile} instance is added to the current queue of cache files to synchronize referenced by {@link #cacheFilesToSync}.
+     * {@link CacheFile} instance is added to the current queue of cache files to synchronize referenced by {@link #cacheFilesEventsQueue}.
      *
      * Cache files are serially synchronized using the {@link CacheFile#fsync()} method. When the {@link CacheFile#fsync()} call returns a
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
@@ -549,57 +541,75 @@ public class CacheService extends AbstractLifecycleComponent {
     public void synchronizeCache() {
         cacheSyncLock.lock();
         try {
-            long count = 0L;
             final Set<Path> cacheDirs = new HashSet<>();
             final long startTimeNanos = threadPool.relativeTimeInNanos();
-            final long maxCacheFilesToSync = Math.min(numberOfCacheFilesToSync.get(), this.maxCacheFilesToSyncAtOnce);
+            final long maxCacheFilesToSync = this.maxCacheFilesToSyncAtOnce;
 
-            for (long i = 0L; i < maxCacheFilesToSync; i++) {
+            long updates = 0L;
+            long deletes = 0L;
+            long errors = 0L;
+
+            while ((updates + errors) < maxCacheFilesToSync) {
                 if (lifecycleState() != Lifecycle.State.STARTED) {
                     logger.debug("stopping cache synchronization (cache service is closing)");
-                    return;
+                    break;
                 }
-
-                final CacheFile cacheFile = cacheFilesToSync.poll();
-                assert cacheFile != null;
-
-                final long value = numberOfCacheFilesToSync.decrementAndGet();
-                assert value >= 0 : value;
-
-                final Path cacheFilePath = cacheFile.getFile();
+                final CacheFileEvent event = cacheFilesEventsQueue.poll();
+                if (event == null) {
+                    logger.debug("stopping cache synchronization (cache service is closing)");
+                    break;
+                }
+                final CacheFile cacheFile = event.value;
                 try {
-                    final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
-                    if (ranges.isEmpty() == false) {
-                        logger.trace(
-                            "cache file [{}] synchronized with [{}] completed range(s)",
-                            cacheFilePath.getFileName(),
-                            ranges.size()
-                        );
-                        final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
-                        boolean shouldPersist = cacheDirs.contains(cacheDir);
-                        if (shouldPersist == false) {
-                            try {
-                                IOUtils.fsync(cacheDir, true, false); // TODO evict cache file if fsync failed
-                                logger.trace("cache directory [{}] synchronized", cacheDir);
-                                cacheDirs.add(cacheDir);
-                                shouldPersist = true;
-                            } catch (Exception e) {
-                                assert e instanceof IOException : e;
-                                shouldPersist = false;
-                                logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
+                    switch (event.type) {
+                        case DELETE:
+                            logger.trace("deleting cache file [{}] from persistent cache", cacheFile.getFile().getFileName());
+                            persistentCache.removeCacheFile(cacheFile);
+                            deletes += 1L;
+                            break;
+
+                        case UPDATE:
+                            final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
+                            if (ranges.isEmpty() == false) {
+                                logger.trace(
+                                    "cache file [{}] synchronized with [{}] completed range(s)",
+                                    cacheFile.getFile().getFileName(),
+                                    ranges.size()
+                                );
+                                final Path cacheDir = cacheFile.getFile().toAbsolutePath().getParent();
+                                boolean shouldPersist = cacheDirs.contains(cacheDir);
+                                if (shouldPersist == false) {
+                                    try {
+                                        IOUtils.fsync(cacheDir, true, false); // TODO evict cache file if fsync failed
+                                        logger.trace("cache directory [{}] synchronized", cacheDir);
+                                        cacheDirs.add(cacheDir);
+                                        shouldPersist = true;
+                                    } catch (Exception e) {
+                                        assert e instanceof IOException : e;
+                                        shouldPersist = false;
+                                        logger.warn(
+                                            () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
+                                            e
+                                        );
+                                    }
+                                }
+                                if (shouldPersist) {
+                                    persistentCache.addCacheFile(cacheFile, ranges);
+                                    updates += 1L;
+                                }
                             }
-                        }
-                        if (shouldPersist) {
-                            persistentCache.addCacheFile(cacheFile, ranges);
-                            count += 1L;
-                        }
+                            break;
+
+                        default:
+                            throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
                     }
                 } catch (Exception e) {
+                    logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFile.getFile().getFileName()), e);
                     assert e instanceof IOException : e;
-                    logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
+                    errors += 1L;
                 }
             }
-            if (count > 0 || persistentCache.hasDeletions()) {
+            if (updates > 0 || deletes > 0 || persistentCache.hasDeletions()) {
                 try {
                     persistentCache.commit();
                 } catch (IOException e) {
@@ -610,7 +620,7 @@ public class CacheService extends AbstractLifecycleComponent {
                 final long elapsedNanos = threadPool.relativeTimeInNanos() - startTimeNanos;
                 logger.debug(
                     "cache files synchronization is done ([{}] cache files synchronized in [{}])",
-                    count,
+                    updates,
                     TimeValue.timeValueNanos(elapsedNanos)
                 );
             }
@@ -706,5 +716,41 @@ public class CacheService extends AbstractLifecycleComponent {
         assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']')
             || threadName.startsWith("TEST-") : "expected generic thread pool but got " + threadName;
         return true;
+    }
+
+    private enum CacheFileEventType {
+        UPDATE,
+        DELETE
+    }
+
+    public static class CacheFileEvent {
+
+        public final CacheFileEventType type;
+        public final CacheFile value;
+
+        private CacheFileEvent(CacheFileEventType type, CacheFile value) {
+            assert type != null;
+            this.type = type;
+            assert value != null;
+            this.value = value;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            CacheFileEvent event = (CacheFileEvent) o;
+            return type == event.type && value == event.value;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(type, value);
+        }
+
+        @Override
+        public String toString() {
+            return "cache file event [type=" + type + ", value=" + value + ']';
+        }
     }
 }

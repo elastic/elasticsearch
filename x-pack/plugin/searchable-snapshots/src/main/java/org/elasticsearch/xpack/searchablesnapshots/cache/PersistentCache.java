@@ -169,6 +169,7 @@ public class PersistentCache implements Closeable {
                                 for (Tuple<Long, Long> range : ranges) {
                                     aggregateSize += range.v2() - range.v1();
                                 }
+                                logger.trace("cache file [{}] has size [{}]", getValue(document, CACHE_ID_FIELD), aggregateSize);
                             }
                         }
                     }

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.internal;
+package org.elasticsearch.gradle.internal.rest.compat;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
@@ -150,6 +150,14 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.onlyIf(t -> isEnabled(project));
             });
 
+        // transform the copied tests task
+        TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
+            .register("transformCompatTests", RestCompatTestTransformTask.class, task -> {
+                task.sourceSetName = SOURCE_SET_NAME;
+                task.dependsOn(copyCompatYamlTestTask);
+                task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
+            });
+
         // setup the yamlRestTest task
         Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTask(project, yamlCompatTestSourceSet);
         project.getTasks().withType(RestIntegTestTask.class).named(SOURCE_SET_NAME).configure(testTask -> {
@@ -166,6 +174,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyCompatYamlTestTask);
+            testTask.dependsOn(transformCompatTestTask);
             testTask.onlyIf(t -> isEnabled(project));
         });
 

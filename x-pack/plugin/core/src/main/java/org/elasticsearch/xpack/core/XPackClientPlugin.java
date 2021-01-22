@@ -507,7 +507,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
             new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
             new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new),
-            new NamedWriteableRegistry.Entry(RetentionPolicyConfig.class, TransformField.TIME.getPreferredName(), TimeRetentionPolicyConfig::new),
+            new NamedWriteableRegistry.Entry(
+                RetentionPolicyConfig.class,
+                TransformField.TIME.getPreferredName(),
+                TimeRetentionPolicyConfig::new
+            ),
             // Flattened for backward compatibility with 7.x
             new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.FLATTENED, FlattenedFeatureSetUsage::new),
             // Vectors

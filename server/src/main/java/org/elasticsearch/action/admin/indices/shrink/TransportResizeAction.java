@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.shrink;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.IndexWriter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -58,6 +60,8 @@ import java.util.function.IntFunction;
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
 public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
+    private static final Logger logger = LogManager.getLogger(TransportResizeAction.class);
+
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
 
@@ -153,11 +157,15 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                         minShardsNum = minShardsNum + 1;
                     }
                     if (minShardsNum > sourceIndexShardsNum) {
-                        throw new IllegalArgumentException("The target index's shards number [" + minShardsNum +
-                            "] is greater than the source index's shards number [" + sourceIndexShardsNum + "]");
+                        logger.info("By setting max_single_shard_size to [" + maxSingleShardSize.toString() +
+                            "], the target index [" + targetIndexName + "] will contain [" + minShardsNum +
+                            "] shards, which will be greater than [" + sourceIndexShardsNum +
+                            "] shards of the source index [" + sourceMetadata.getIndex().getName() +
+                            "], use [" + sourceIndexShardsNum + "] as the shards number of the target index [" + targetIndexName + "]");
+                        numShards = sourceIndexShardsNum;
+                    } else {
+                        numShards = calTargetShardsNum(sourceIndexShardsNum, (int)minShardsNum);
                     }
-
-                    numShards = calTargetShardsNum(sourceIndexShardsNum, (int)minShardsNum);
                 } else {
                     numShards = 1;
                 }

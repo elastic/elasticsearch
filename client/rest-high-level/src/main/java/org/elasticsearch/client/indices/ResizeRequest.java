@@ -90,14 +90,14 @@ public class ResizeRequest extends TimedRequest implements Validatable, ToXConte
     }
 
     /**
-     * Sets the max single primary shard size of the target index
+     * Sets the max single shard size of the target index
      */
     public void setMaxSingleShardSize(ByteSizeValue maxSingleShardSize) {
         this.maxSingleShardSize = maxSingleShardSize;
     }
 
     /**
-     * Return the max single primary shard size of the target index
+     * Return the max single shard size of the target index
      */
     public ByteSizeValue getMaxSingleShardSize() {
         return maxSingleShardSize;

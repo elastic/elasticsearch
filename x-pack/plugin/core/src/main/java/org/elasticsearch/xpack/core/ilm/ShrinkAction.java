@@ -85,8 +85,8 @@ public class ShrinkAction implements LifecycleAction {
                 this.numberOfShards = in.readVInt();
                 this.maxSingleShardSize = null;
             } else {
+                this.numberOfShards = null;
                 this.maxSingleShardSize = new ByteSizeValue(in);
-                this.maxSingleShardSize = null;
             }
         } else {
             this.numberOfShards = in.readVInt();

@@ -37,10 +37,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
-import java.util.Arrays;
 import java.util.Locale;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -141,6 +141,9 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         final long position = getFilePointer() + this.offset;
         final int length = b.remaining();
 
+        final ReentrantReadWriteLock luceneByteBufLock = new ReentrantReadWriteLock();
+        final AtomicBoolean stopAsyncReads = new AtomicBoolean();
+
         // We can detect that we're going to read the last 16 bytes (that contains the footer checksum) of the file. Such reads are often
         // executed when opening a Directory and since we have the checksum in the snapshot metadata we can use it to fill the ByteBuffer.
         if (length == CodecUtil.footerLength() && isClone == false && position == fileInfo.length() - length) {
@@ -158,7 +161,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
 
             final Future<Integer> waitingForRead = sharedCacheFile.readIfAvailableOrPending(Tuple.tuple(position, position + length),
                 (channel, pos, relativePos, len) -> {
-                final int read = readCacheFile(channel, pos, relativePos, len, b, position, true);
+                final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
                 assert read <= length : read + " vs " + length;
                 return read;
             });
@@ -166,6 +169,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             if (waitingForRead != null) {
                 final Integer read = waitingForRead.get();
                 assert read == length;
+                assert luceneByteBufLock.getReadHoldCount() == 0;
                 b.position(read); // mark all bytes as accounted for
                 readComplete(position, length);
                 return;
@@ -292,7 +296,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
 
             final Future<Integer> populateCacheFuture = sharedCacheFile.populateAndRead(rangeToWrite, rangeToRead,
                 (channel, pos, relativePos, len) -> {
-                return readCacheFile(channel, pos, relativePos, len, b, rangeToRead.v1(), false);
+                return readCacheFile(channel, pos, relativePos, len, b, rangeToRead.v1(), false, luceneByteBufLock, stopAsyncReads);
             }, (channel, channelPos, relativePos, l, progressUpdater) -> this.writeCacheFile(channel, channelPos, relativePos, l,
                     rangeToWrite.v1(), progressUpdater), directory.cacheFetchAsyncExecutor());
 
@@ -341,8 +345,19 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
 
             final int bytesRead = populateCacheFuture.get();
             assert bytesRead == length : bytesRead + " vs " + length;
+            assert luceneByteBufLock.getReadHoldCount() == 0;
             b.position(bytesRead); // mark all bytes as accounted for
         } catch (final Exception e) {
+            // Ensure that readCacheFile is not reading anymore once
+            // readDirectlyIfAlreadyClosed is executing, as that is adapting the buffers offset
+            // In particular, we need to make sure readCacheFile is not messing with the buffer anymore once this method has returned
+            luceneByteBufLock.writeLock().lock();
+            try {
+                stopAsyncReads.set(true);
+            } finally {
+                luceneByteBufLock.writeLock().unlock();
+            }
+
             // may have partially filled the buffer before the exception was thrown, so try and get the remainder directly.
             final int alreadyRead = length - b.remaining();
             final int bytesRead = readDirectlyIfAlreadyClosed(position + alreadyRead, b, e);
@@ -488,31 +503,48 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
     }
 
     private int readCacheFile(final FileChannel fc, long channelPos, long relativePos, long length, final ByteBuffer buffer,
-                              long logicalPos, boolean cached)
+                              long logicalPos, boolean cached, ReentrantReadWriteLock luceneByteBufLock, AtomicBoolean stopAsyncReads)
         throws IOException {
         assert assertFileChannelOpen(fc);
-        //logger.info("{}: reading cached {} logical {} channel {} pos {} length {} (details: {})", fileInfo.physicalName(), cached,
-        //    logicalPos, channelPos, relativePos, length, sharedCacheFile);
+        logger.trace("{}: reading cached {} logical {} channel {} pos {} length {} (details: {})", fileInfo.physicalName(), cached,
+            logicalPos, channelPos, relativePos, length, sharedCacheFile);
         if (length == 0L) {
             return 0;
         }
-        // create slice that is positioned to read the given values
-        ByteBuffer dup = buffer.duplicate();
-        final int newPosition = dup.position() + Math.toIntExact(relativePos);
-        assert newPosition <= dup.limit();
-        dup.position(newPosition);
-        dup.limit(newPosition + Math.toIntExact(length));
-        final int bytesRead = Channels.readFromFileChannel(fc, channelPos, dup);
-        if (bytesRead == -1) {
-            throw new EOFException(
-                String.format(
-                    Locale.ROOT,
-                    "unexpected EOF reading [%d-%d] from %s",
-                    channelPos,
-                    channelPos + dup.remaining(),
-                    this.sharedCacheFile
-                )
-            );
+        final int bytesRead;
+        if (luceneByteBufLock.readLock().tryLock()) {
+            try {
+                boolean shouldStopReading = stopAsyncReads.get();
+                if (shouldStopReading) {
+                    // return fake response
+                    return Math.toIntExact(length);
+                }
+                // create slice that is positioned to read the given values
+                ByteBuffer dup = buffer.duplicate();
+                assert dup.position() == 0;
+                final int newPosition = dup.position() + Math.toIntExact(relativePos);
+                assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
+                assert newPosition + length <= buffer.limit();
+                dup.position(newPosition);
+                dup.limit(newPosition + Math.toIntExact(length));
+                bytesRead = Channels.readFromFileChannel(fc, channelPos, dup);
+                if (bytesRead == -1) {
+                    throw new EOFException(
+                        String.format(
+                            Locale.ROOT,
+                            "unexpected EOF reading [%d-%d] from %s",
+                            channelPos,
+                            channelPos + dup.remaining(),
+                            this.sharedCacheFile
+                        )
+                    );
+                }
+            } finally {
+                luceneByteBufLock.readLock().unlock();
+            }
+        } else {
+            // return fake response
+            return Math.toIntExact(length);
         }
         stats.addCachedBytesRead(bytesRead);
         return bytesRead;
@@ -523,8 +555,8 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         throws IOException {
         assert assertFileChannelOpen(fc);
         assert assertCurrentThreadMayWriteCacheFile();
-        //logger.info("{}: writing logical {} channel {} pos {} length {} (details: {})", fileInfo.physicalName(), logicalPos,
-        //    fileChannelPos, relativePos, length, sharedCacheFile);
+        logger.trace("{}: writing logical {} channel {} pos {} length {} (details: {})", fileInfo.physicalName(), logicalPos,
+            fileChannelPos, relativePos, length, sharedCacheFile);
         final long end = relativePos + length;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
         logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos,
@@ -691,56 +723,6 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             + ", directory="
             + directory
             + '}';
-    }
-
-    private static class CacheFileReference {
-
-        private final long fileLength;
-        private final CacheKey cacheKey;
-        private final SearchableSnapshotDirectory directory;
-        private final AtomicReference<CacheFile> cacheFile = new AtomicReference<>(); // caches the last used CacheFile for convenience
-
-        private CacheFileReference(SearchableSnapshotDirectory directory, String fileName, long fileLength) {
-            this.cacheKey = directory.createCacheKey(fileName);
-            this.fileLength = fileLength;
-            this.directory = directory;
-        }
-
-        CacheFile get() throws Exception {
-            CacheFile currentCacheFile = cacheFile.get();
-            if (currentCacheFile != null && currentCacheFile.isEvicted() == false) {
-                // fast path
-                return currentCacheFile;
-            }
-
-            // evicted or does not exist yet, create another instance
-            if (currentCacheFile.isEvicted()) {
-
-            }
-            final CacheFile newCacheFile = directory.getCacheFile(cacheKey, fileLength);
-            synchronized (this) {
-                currentCacheFile = cacheFile.get();
-                if (currentCacheFile != null) {
-                    return currentCacheFile;
-                }
-                final CacheFile previousCacheFile = cacheFile.getAndSet(newCacheFile);
-                assert previousCacheFile == null;
-                return newCacheFile;
-            }
-        }
-
-        @Override
-        public String toString() {
-            return "CacheFileReference{"
-                + "cacheKey='"
-                + cacheKey
-                + '\''
-                + ", fileLength="
-                + fileLength
-                + ", acquired="
-                + (cacheFile.get() != null)
-                + '}';
-        }
     }
 
     private static boolean assertFileChannelOpen(FileChannel fileChannel) {

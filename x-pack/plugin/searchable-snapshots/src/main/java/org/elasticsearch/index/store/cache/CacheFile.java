@@ -151,10 +151,6 @@ public class CacheFile {
         return file;
     }
 
-    public boolean isEvicted() {
-        return evicted.get();
-    }
-
     // Only used in tests
     @Nullable
     FileChannel getChannel() {

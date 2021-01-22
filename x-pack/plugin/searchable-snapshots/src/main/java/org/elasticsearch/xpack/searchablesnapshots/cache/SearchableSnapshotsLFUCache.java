@@ -6,28 +6,30 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.nio.channels.ReadableByteChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -36,50 +38,42 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
 public class SearchableSnapshotsLFUCache {
 
-    private final ConcurrentLinkedQueue<CacheFileChunk>[] items;
-    private final ConcurrentHashMap<Chunk, CacheFileChunk> keyMapping;
+    private static final Logger logger = LogManager.getLogger(SearchableSnapshotsLFUCache.class);
+
+    private final ConcurrentHashMap<ChunkKey, CacheFileChunk> keyMapping;
 
     private final LongSupplier currentTimeSupplier;
-
-    public static final long BYTES_16_MB = ByteSizeValue.ofMb(16).getBytes();
 
     private final KeyedLock<CacheKey> keyedLock = new KeyedLock<>();
 
     private final SharedBytes sharedBytes;
-
     private final long regionSize;
 
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<CacheFileChunk> occupiedRegions = new ConcurrentLinkedQueue<>();
+    private final AtomicReference<CacheFileChunk>[] regionOwners;
 
     // creates an LFU cache that can hold size items
-    public SearchableSnapshotsLFUCache(int numRegions, long regionSize, int maxFreq, LongSupplier currentTimeSupplier) throws IOException {
+    public SearchableSnapshotsLFUCache(int numRegions, long regionSize, LongSupplier currentTimeSupplier) throws IOException {
         this.currentTimeSupplier = currentTimeSupplier;
-        items = new ConcurrentLinkedQueue[maxFreq];
-        for (int i = 0; i < maxFreq; i++) {
-            items[i] = new ConcurrentLinkedQueue<>();
-        }
         keyMapping = new ConcurrentHashMap<>();
+        regionOwners = new AtomicReference[numRegions];
         for (int i = 0; i < numRegions; i++) {
             freeRegions.add(i);
+            regionOwners[i] = new AtomicReference<>();
         }
         this.regionSize = regionSize;
         sharedBytes = new SharedBytes(numRegions, regionSize, Files.createTempFile("cache", "snap"));
     }
 
-    private int getAccessBucket(long position) {
+    private int getBucket(long position) {
         return Math.toIntExact(position / regionSize);
-    }
-
-    private int getAccessBucketEnd(long position) {
-        if (position % regionSize == 0L) {
-            return getAccessBucket(position - 1);
-        }
-        return getAccessBucket(position);
     }
 
     private long getBucketRelativePosition(long position) {
@@ -88,6 +82,13 @@ public class SearchableSnapshotsLFUCache {
 
     private long getBucketStart(int bucket) {
         return bucket * regionSize;
+    }
+
+    private int getEndingBucket(long position) {
+        if (position % regionSize == 0L) {
+            return getBucket(position - 1);
+        }
+        return getBucket(position);
     }
 
     private Tuple<Long, Long> mapSubRangeToBucket(Tuple<Long, Long> range, int bucket) {
@@ -109,7 +110,7 @@ public class SearchableSnapshotsLFUCache {
         if (bucket * regionSize == fileLength) {
             return 0;
         }
-        int maxBucket = getAccessBucket(fileLength - 1);
+        int maxBucket = getBucket(fileLength - 1);
         if (bucket == maxBucket) {
             return fileLength % regionSize;
         } else {
@@ -117,76 +118,75 @@ public class SearchableSnapshotsLFUCache {
         }
     }
 
-    public CacheFileChunk get(CacheKey cacheKey, long fileLength, int accessBucket) {
-        final long chunkLength = getBucketSize(fileLength, accessBucket);
+    public CacheFileChunk get(CacheKey cacheKey, long fileLength, int bucket) {
+        final long chunkLength = getBucketSize(fileLength, bucket);
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
-            final CacheFileChunk chunk = keyMapping.computeIfAbsent(
-                new Chunk(cacheKey, accessBucket), key -> new CacheFileChunk(accessBucket, chunkLength));
-            final long now = currentTimeSupplier.getAsLong();
-            if (chunk.freq > 0 && now - chunk.lastAccessed > 60_000) {
-                // increase freq
-                chunk.freq++;
-                // TODO: move up one list, i.e., unlink at this level and relink one up
-                chunk.lastAccessed = now;
-            } else if (chunk.freq == 0) {
+            final ChunkKey chunkKey = new ChunkKey(cacheKey, bucket);
+            final CacheFileChunk chunk = keyMapping.computeIfAbsent(chunkKey,
+                key -> new CacheFileChunk(chunkKey, bucket, chunkLength));
+            if (chunk.sharedBytesPos == -1) {
                 // new item
-                chunk.freq++;
                 final Integer freeSlot = freeRegions.poll();
                 if (freeSlot != null) {
                     // no need to evict an item, just add
-                    items[0].add(chunk);
                     chunk.sharedBytesPos = freeSlot;
+                    boolean regionSet = regionOwners[freeSlot].compareAndSet(null, chunk);
+                    assert regionSet;
+                    occupiedRegions.add(chunk);
                 } else {
-                    assert false : "should never evict for now";
-                    final CacheFileChunk evictedChunk = possiblyEvictItem(chunk.freq);
+                    final CacheFileChunk evictedChunk = occupiedRegions.poll();
                     if (evictedChunk != null) {
-                        items[0].add(chunk);
-                        chunk.sharedBytesPos = evictedChunk.sharedBytesPos;
+                        boolean evicted = evictedChunk.tryEvict();
+                        assert evicted;
+                        final Integer freeSlotRetry = freeRegions.poll();
+                        if (freeSlotRetry != null) {
+                            chunk.sharedBytesPos = freeSlotRetry;
+                            boolean regionSet = regionOwners[freeSlotRetry].compareAndSet(null, chunk);
+                            assert regionSet;
+                            occupiedRegions.add(chunk);
+                        } else {
+                            boolean removed = keyMapping.remove(chunkKey, chunk);
+                            assert removed;
+                            throw new AlreadyClosedException("no free region found after evicting");
+                        }
                     } else {
-                        throw new ResourceNotFoundException("no eviction target found");
+                        boolean removed = keyMapping.remove(chunkKey, chunk);
+                        assert removed;
+                        throw new AlreadyClosedException("no eviction target found");
                     }
+                }
+            } else {
+                // bump to end of queue (LRU)
+                if (occupiedRegions.remove(chunk)) {
+                    occupiedRegions.add(chunk);
                 }
             }
             return chunk;
         }
     }
 
-    // searches for item that can be evicted that has at most the given freq
+    public void onClose(CacheFileChunk chunk) {
+        boolean regionReset = regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
+        assert regionReset;
+        freeRegions.add(chunk.sharedBytesPos);
+        keyMapping.remove(chunk.chunkKey, chunk);
+    }
 
-    @Nullable
-    private CacheFileChunk possiblyEvictItem(int maxFreq) {
-        for (int i = 0; i < maxFreq; i++) {
-            final ConcurrentLinkedQueue<CacheFileChunk> deque = items[i];
-            for (Iterator<CacheFileChunk> it = deque.iterator(); it.hasNext(); ) {
-                final CacheFileChunk node = it.next();
-                assert node.freq <= maxFreq;
-                if (node.tryEvict()) {
-                    // remove from list but keep node in keyMap
-                    it.remove();
-                    return node;
-                }
-            }
+    private static class ChunkKey {
+        ChunkKey(CacheKey file, int part) {
+            this.file = file;
+            this.part = part;
         }
-        return null;
-    }
 
-    // periodically scan and update freq
-    public void applyDecay() {
+        final CacheKey file;
+        final int part;
 
-    }
-
-    public void removeUnavailableFiles(ShardId shardId) {
-        // full scan on keyMap and items to remove any entries that mention this shard
-        // add freed entries to freeRegions deque again
-    }
-
-    private static class Chunk {
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Chunk chunk = (Chunk) o;
-            return part == chunk.part && file.equals(chunk.file);
+            ChunkKey chunkKey = (ChunkKey) o;
+            return part == chunkKey.part && file.equals(chunkKey.file);
         }
 
         @Override
@@ -194,13 +194,13 @@ public class SearchableSnapshotsLFUCache {
             return Objects.hash(file, part);
         }
 
-        Chunk(CacheKey file, int part) {
-            this.file = file;
-            this.part = part;
+        @Override
+        public String toString() {
+            return "Chunk{" +
+                "file=" + file +
+                ", part=" + part +
+                '}';
         }
-
-        final CacheKey file;
-        final int part;
     }
 
     static class SharedBytes {
@@ -220,13 +220,13 @@ public class SearchableSnapshotsLFUCache {
             this.numRegions = numRegions;
             this.regionSize = regionSize;
             this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
-            fileChannel.position(numRegions * regionSize);
-            fileChannel.write(ByteBuffer.allocate(1));
+            // write one byte at the end of the file to make sure all bytes are allocated
+            fileChannel.write(ByteBuffer.allocate(1), numRegions * regionSize - 1);
         }
 
         FileChannel getFileChannel(int sharedBytesPos) {
-            return fileChannel;
-            /*return new FileChannel() {
+            //return fileChannel;
+            return new FileChannel() {
                 @Override
                 public int read(ByteBuffer dst) throws IOException {
                     throw new UnsupportedOperationException();
@@ -333,7 +333,7 @@ public class SearchableSnapshotsLFUCache {
                 protected void implCloseChannel() throws IOException {
                     fileChannel.close();
                 }
-            };*/
+            };
         }
 
         long getPhysicalOffset(long chunkPosition) {
@@ -342,16 +342,13 @@ public class SearchableSnapshotsLFUCache {
     }
 
     class CacheFileChunk extends AbstractRefCounted {
-        int freq = 0;
-        long lastAccessed = currentTimeSupplier.getAsLong();
-
-        volatile int sharedBytesPos;
-        final long accessBucket;
+        final ChunkKey chunkKey;
         final SparseFileTracker tracker;
+        volatile int sharedBytesPos = -1;
 
-        CacheFileChunk(int accessBucket, long chunkLength) {
+        CacheFileChunk(ChunkKey chunkKey, int bucket, long chunkLength) {
             super("CacheFileChunk");
-            this.accessBucket = accessBucket;
+            this.chunkKey = chunkKey;
             tracker = new SparseFileTracker("file", chunkLength);
         }
 
@@ -359,27 +356,28 @@ public class SearchableSnapshotsLFUCache {
             return sharedBytes.getPhysicalOffset(sharedBytesPos);
         }
 
+        public long physicalEndOffset() {
+            return sharedBytes.getPhysicalOffset(sharedBytesPos + 1);
+        }
+
         // If true this file has been evicted from the cache and should not be used any more
         private final AtomicBoolean evicted = new AtomicBoolean(false);
-        private volatile boolean closed = false;
 
         // tries to evict this chunk. If not all resources are cleaned up right away return false
         public boolean tryEvict() {
             if (evicted.compareAndSet(false, true)) {
-                // TODO: do some more stuff here
+                logger.trace("evicted {} with channel pos {}", chunkKey, physicalStartOffset());
                 decRef();
+                return true;
             }
-            return closed;
-        }
-
-        public boolean closed() {
-            return closed;
+            return false;
         }
 
         @Override
         protected void closeInternal() {
             // now actually free the region associated with this chunk
-            closed = true;
+            onClose(this);
+            logger.trace("closed {} with channel pos {}", chunkKey, physicalStartOffset());
         }
 
         private void ensureOpen() {
@@ -405,11 +403,17 @@ public class SearchableSnapshotsLFUCache {
                 ensureOpen();
                 incRef();
                 decrementRef = Releasables.releaseOnce(this::decRef);
+                ensureOpen();
+                Releasable finalDecrementRef = decrementRef;
+                future.handle((integer, throwable) -> {
+                    finalDecrementRef.close();
+                    return null;
+                });
                 final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
                 final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
                     rangeToWrite,
                     rangeToRead,
-                    rangeListener(rangeToRead, reader, future, fileChannel, decrementRef)
+                    rangeListener(rangeToRead, reader, future, fileChannel)
                 );
 
                 for (SparseFileTracker.Gap gap : gaps) {
@@ -418,12 +422,13 @@ public class SearchableSnapshotsLFUCache {
                         @Override
                         protected void doRun() throws Exception {
                             if (CacheFileChunk.this.tryIncRef() == false) {
-                                assert false : "expected a non-closed channel reference";
+                                //assert false : "expected a non-closed channel reference";
                                 throw new AlreadyClosedException("Cache file channel has been released and closed");
                             }
                             try {
                                 ensureOpen();
                                 final long start = gap.start();
+                                assert regionOwners[sharedBytesPos].get() == CacheFileChunk.this;
                                 writer.fillCacheRange(fileChannel, physicalStartOffset() + gap.start(), gap.start(),
                                     gap.end() - gap.start(), progress -> gap.onProgress(start + progress));
                             } finally {
@@ -453,8 +458,14 @@ public class SearchableSnapshotsLFUCache {
                 ensureOpen();
                 incRef();
                 decrementRef = Releasables.releaseOnce(this::decRef);
+                ensureOpen();
+                Releasable finalDecrementRef = decrementRef;
+                future.handle((integer, throwable) -> {
+                    finalDecrementRef.close();
+                    return null;
+                });
                 final FileChannel fileChannel = sharedBytes.getFileChannel(sharedBytesPos);
-                if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, future, fileChannel, decrementRef))) {
+                if (tracker.waitForRangeIfPending(rangeToRead, rangeListener(rangeToRead, reader, future, fileChannel))) {
                     return future;
                 } else {
                     decrementRef.close();
@@ -470,11 +481,11 @@ public class SearchableSnapshotsLFUCache {
             Tuple<Long, Long> rangeToRead,
             RangeAvailableHandler reader,
             CompletableFuture<Integer> future,
-            FileChannel fileChannel,
-            Releasable releasable
+            FileChannel fileChannel
         ) {
-            return ActionListener.runAfter(ActionListener.wrap(success -> {
+            return ActionListener.wrap(success -> {
                 final long physicalStartOffset = physicalStartOffset();
+                assert regionOwners[sharedBytesPos].get() == CacheFileChunk.this;
                 final int read = reader.onRangeAvailable(fileChannel,
                     physicalStartOffset + rangeToRead.v1(), rangeToRead.v1(), rangeToRead.v2() - rangeToRead.v1());
                 assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
@@ -485,7 +496,7 @@ public class SearchableSnapshotsLFUCache {
                     + rangeToRead.v1()
                     + ']';
                 future.complete(read);
-            }, future::completeExceptionally), releasable::close);
+            }, future::completeExceptionally);
         }
 
         private void releaseAndFail(CompletableFuture<Integer> future, Releasable decrementRef, Exception e) {
@@ -518,20 +529,23 @@ public class SearchableSnapshotsLFUCache {
             CompletableFuture<Integer> combinedFut = null;
             final long writeStart = rangeToWrite.v1();
             final long readStart = rangeToRead.v1();
-            for (int i = getAccessBucket(rangeToWrite.v1()); i <= getAccessBucketEnd(rangeToWrite.v2()); i++) {
+            for (int i = getBucket(rangeToWrite.v1()); i <= getEndingBucket(rangeToWrite.v2()); i++) {
                 final int bucket = i;
                 final Tuple<Long, Long> subRangeToWrite = mapSubRangeToBucket(rangeToWrite, i);
                 final Tuple<Long, Long> subRangeToRead = mapSubRangeToBucket(rangeToRead, i);
                 CacheFileChunk chunk = get(cacheKey, length, i);
+                chunk.ensureOpen();
 
                 final CompletableFuture<Integer> fut = chunk.populateAndRead(subRangeToWrite, subRangeToRead,
                     new RangeAvailableHandler() {
                         @Override
                         public int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length)
                             throws IOException {
-                            final long distanceToStart = bucket == getAccessBucket(readStart) ?
+                            final long distanceToStart = bucket == getBucket(readStart) ?
                                 relativePos - getBucketRelativePosition(readStart) :
                                 getBucketStart(bucket) + relativePos - readStart;
+                            assert regionOwners[chunk.sharedBytesPos].get() == chunk;
+                            assert channelPos >= chunk.physicalStartOffset() && channelPos + length <= chunk.physicalEndOffset();
                             return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
                         }
                     },
@@ -539,9 +553,11 @@ public class SearchableSnapshotsLFUCache {
                         @Override
                         public void fillCacheRange(FileChannel channel, long channelPos, long relativePos, long length,
                                                    Consumer<Long> progressUpdater) throws IOException {
-                            final long distanceToStart = bucket == getAccessBucket(writeStart) ?
+                            final long distanceToStart = bucket == getBucket(writeStart) ?
                                 relativePos - getBucketRelativePosition(writeStart) :
                                 getBucketStart(bucket) + relativePos - writeStart;
+                            assert regionOwners[chunk.sharedBytesPos].get() == chunk;
+                            assert channelPos >= chunk.physicalStartOffset() && channelPos + length <= chunk.physicalEndOffset();
                             writer.fillCacheRange(channel, channelPos, distanceToStart, length, progressUpdater);
                         }
                 }, executor);
@@ -561,7 +577,7 @@ public class SearchableSnapshotsLFUCache {
         public Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
             CompletableFuture<Integer> combinedFut = null;
             final long start = rangeToRead.v1();
-            for (int i = getAccessBucket(rangeToRead.v1()); i <= getAccessBucketEnd(rangeToRead.v2()); i++) {
+            for (int i = getBucket(rangeToRead.v1()); i <= getEndingBucket(rangeToRead.v2()); i++) {
                 final int bucket = i;
                 final Tuple<Long, Long> subRangeToRead = mapSubRangeToBucket(rangeToRead, i);
                 /*if (subRangeToRead.v1() == subRangeToRead.v2()) {
@@ -572,7 +588,7 @@ public class SearchableSnapshotsLFUCache {
                 final CompletableFuture<Integer> fut = chunk.readIfAvailableOrPending(subRangeToRead, new RangeAvailableHandler() {
                     @Override
                     public int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length) throws IOException {
-                        final long distanceToStart = bucket == getAccessBucket(start) ? relativePos - getBucketRelativePosition(start) :
+                        final long distanceToStart = bucket == getBucket(start) ? relativePos - getBucketRelativePosition(start) :
                             getBucketStart(bucket) + relativePos - start;
                         return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
                     }
@@ -605,9 +621,8 @@ public class SearchableSnapshotsLFUCache {
 
     @FunctionalInterface
     public interface RangeAvailableHandler {
-        // caller that wants to read from x should instead do a positional read from x + adaptedOffset
-        // adaptedOffset can be negative or positive
-        // caller should also only read up to size, further bytes will be offered by another call to this method
+        // caller that wants to read from x should instead do a positional read from x + relativePos
+        // caller should also only read up to length, further bytes will be offered by another call to this method
         int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length) throws IOException;
     }
 

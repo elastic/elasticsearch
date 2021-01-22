@@ -276,6 +276,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             new SettingsConfig(pageSize, null, (Boolean) null),
             null,
+            null,
             null
         );
         AtomicReference<IndexerState> state = new AtomicReference<>(IndexerState.STOPPED);
@@ -347,6 +348,7 @@ public class TransformIndexerTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             new SettingsConfig(pageSize, null, (Boolean) null),
             null,
+            null,
             null
         );
         SearchResponse searchResponse = new SearchResponse(
@@ -407,6 +409,7 @@ public class TransformIndexerTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             new SettingsConfig(pageSize, null, (Boolean) null),
+            null,
             null,
             null
         );

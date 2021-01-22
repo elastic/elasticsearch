@@ -254,6 +254,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             null,
             null,
+            null,
             null
         );
 
@@ -459,6 +460,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
             new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null),
+            null,
             null,
             null
         );

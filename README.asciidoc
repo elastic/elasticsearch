@@ -1,5 +1,7 @@
 = Elasticsearch
 
+image:https://www.elastic.co/static-res/images/elastic-logo-200.png[]
+
 == A Distributed RESTful Search Engine
 
 === https://www.elastic.co/products/elasticsearch[https://www.elastic.co/products/elasticsearch]

@@ -1,0 +1,204 @@
+[[painless-runtime-fields-context]]
+=== Runtime fields context
+beta::[]
+Use a Painless script to calculate and emit
+<<painless-runtime-fields,runtime field>> values.
+
+See the {ref}/runtime.html[runtime fields] documentation for more information
+about how to use runtime fields.
+
+*Variables*
+
+`params` (`Map`, read-only)::
+        User-defined parameters passed in as part of the query.
+
+`doc` (`Map`, read-only)::
+        Contains the fields of the specified document where each field is a
+        `List` of values.
+
+{ref}/mapping-source-field.html[`params['_source']`] (`Map`, read-only)::
+        Contains extracted JSON in a `Map` and `List` structure for the fields
+        existing in a stored document.
+
+*Return*
+
+`void`::
+        No expected return value.
+
+*API*
+
+Both the standard <<painless-api-reference-shared, Painless API>> and
+<<painless-api-reference-field, Specialized Field API>> are available.
+
+
+*Example*
+
+Let's break down each of the steps from the
+<<painless-context-examples,context examples>> to understand how runtime fields
+work within the context of Painless.
+
+[[painless-runtime-fields-mappings]]
+==== Create the index mappings
+First, create the mappings for the sample data:
+
+[source,console]
+----
+PUT /seats
+{
+  "mappings": {
+    "properties": {
+      "theatre":  { "type": "keyword" },
+      "play":     { "type": "keyword" },
+      "actors":   { "type": "text"    },
+      "row":      { "type": "integer" },
+      "number":   { "type": "integer" },
+      "cost":     { "type": "double"  },
+      "sold":     { "type": "boolean" },
+      "datetime": { "type": "date"    },
+      "date":     { "type": "keyword" },
+      "time":     { "type": "keyword" }
+    }
+  }
+}
+----
+
+[[painless-runtime-fields-processor]]
+==== Run the ingest processor
+Next, run the request from the <<painless-ingest-processor-context,Painless ingest processor context>> to configure a script ingest processor that parses
+each document as the `seat` data is indexed:
+
+[source,console]
+----
+PUT /_ingest/pipeline/seats
+{
+  "description": "update datetime for seats",
+  "processors": [
+    {
+      "script": {
+        "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
+      }
+    }
+  ]
+}
+----
+// TEST[continued]
+
+[[painless-runtime-fields-ingest]]
+==== Ingest some sample data
+Use the ingest pipeline you defined to ingest some sample data. You
+can ingest the full https://download.elastic.co/demos/painless/contexts/seats.json[seat sample data], but we'll only use a subset for this example:
+
+[source,console]
+----
+POST seats/_bulk?pipeline=seats&refresh=true
+{"create":{"_index":"seats","_id":"1"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":1,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"2"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":2,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"3"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":3,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"4"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":4,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"5"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":5,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"6"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":6,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"7"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":7,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"8"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":8,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"9"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":9,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"10"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":10,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"11"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":11,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"12"}}
+----
+// TEST[continued]
+
+[[painless-runtime-fields-definition]]
+==== Define a runtime field with a Painless script
+Run the following request to define a runtime field named `day_of_week`. This
+field contains a script with the same `source` defined in
+<<painless-field-context,Field context>>, but also uses an `emit` function
+that runtime fields require when defining a Painless script.
+
+Because `day_of_week` is a runtime field, it isn't indexed, and the included
+script only runs at query time:
+
+[source,console]
+----
+PUT seats/_mapping
+{
+  "runtime": {
+    "day_of_week": {
+      "type": "date",
+      "script": {
+        "source": "emit(doc['datetime'].value.getDayOfWeekEnum().getValue())"
+      }
+    }
+  }
+}
+----
+// TEST[continued]
+
+After defining the runtime field and script in the mappings, you can run a
+query that includes a terms aggregation for `day_of_week`. When the query runs,
+{es} evaluates the included Painless script and dynamically generates a value
+based on the script definition:
+
+[source,console]
+----
+GET seats/_search
+{
+  "size": 0,
+  "fields": [
+    "time",
+    "day_of_week"
+    ],
+    "aggs": {
+      "day_of_week": {
+        "terms": {
+          "field": "day_of_week",
+          "size": 10
+        }
+      }
+    }
+}
+----
+// TEST[continued]
+
+The response includes `day_of_week` for each hit. {es} calculates the value for
+this field dynamically at search time by operating on the `datetime` field
+defined in the mappings.
+
+[source,console-result]
+----
+{
+  ...
+  "hits" : {
+    "total" : {
+      "value" : 11,
+      "relation" : "eq"
+    },
+    "max_score" : null,
+    "hits" : [ ]
+  },
+  "aggregations" : {
+    "day_of_week" : {
+      "doc_count_error_upper_bound" : 0,
+      "sum_other_doc_count" : 0,
+      "buckets" : [
+        {
+          "key" : 7,
+          "key_as_string" : "1970-01-01T00:00:00.007Z",
+          "doc_count" : 11
+        }
+      ]
+    }
+  }
+}
+----
+// TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
+// TESTRESPONSE[s/"value" : "11"/"value": $body.hits.total.value/]

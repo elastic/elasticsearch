@@ -13,6 +13,11 @@ health>> API.
 
 `GET /_cat/health`
 
+[[cat-health-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[cat-health-api-desc]]
 ==== {api-description-title}
@@ -67,7 +72,7 @@ By default, the cat health API returns `HH:MM:SS` and
 
 [source,console,id=cat-health-example]
 --------------------------------------------------
-GET /_cat/health?v
+GET /_cat/health?v=true
 --------------------------------------------------
 // TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 
@@ -87,7 +92,7 @@ You can use the `ts` (timestamps) parameter to disable timestamps. For example:
 
 [source,console,id=cat-health-no-timestamp-example]
 --------------------------------------------------
-GET /_cat/health?v&ts=false
+GET /_cat/health?v=true&ts=false
 --------------------------------------------------
 // TEST[s/^/PUT my-index-000001\n{"settings":{"number_of_replicas": 0}}\n/]
 

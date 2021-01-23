@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -23,26 +24,38 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
+import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
-import java.util.function.Predicate;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.toIntBytes;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
 /**
  * {@link CacheService} maintains a cache entry for all files read from searchable snapshot directories (see
@@ -65,9 +78,30 @@ public class CacheService extends AbstractLifecycleComponent {
 
     public static final ByteSizeValue MIN_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(4, ByteSizeUnit.KB);
     public static final ByteSizeValue MAX_SNAPSHOT_CACHE_RANGE_SIZE = new ByteSizeValue(Integer.MAX_VALUE, ByteSizeUnit.BYTES);
+
+    /**
+     * If a search needs data from the repository then we expand it to a larger contiguous range whose size is determined by this setting,
+     * in anticipation of needing nearby data in subsequent reads. Repository reads typically have quite high latency (think ~100ms) and
+     * the default of 32MB for this setting represents the approximate point at which size starts to matter. In other words, reads of
+     * ranges smaller than 32MB don't usually happen much quicker, so we may as well expand all the way to 32MB ranges.
+     */
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "range_size",
         new ByteSizeValue(32, ByteSizeUnit.MB),                 // default
+        MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
+        MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Starting up a shard involves reading small parts of some files from the repository, independently of the pre-warming process. If we
+     * expand those ranges using {@link CacheService#SNAPSHOT_CACHE_RANGE_SIZE_SETTING} then we end up reading quite a few 32MB ranges. If
+     * we read enough of these ranges for the restore throttling rate limiter to kick in then all the read threads will end up waiting on
+     * the throttle, blocking subsequent reads. By using a smaller read size during restore we avoid clogging up the rate limiter so much.
+     */
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "recovery_range_size",
+        new ByteSizeValue(128, ByteSizeUnit.KB),                // default
         MIN_SNAPSHOT_CACHE_RANGE_SIZE,                          // min
         MAX_SNAPSHOT_CACHE_RANGE_SIZE,                          // max
         Setting.Property.NodeScope
@@ -106,23 +140,28 @@ public class CacheService extends AbstractLifecycleComponent {
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
     private final ReentrantLock cacheSyncLock;
+    private final PersistentCache persistentCache;
     private final Cache<CacheKey, CacheFile> cache;
     private final ByteSizeValue cacheSize;
-    private final Runnable cacheCleaner;
     private final ByteSizeValue rangeSize;
+    private final ByteSizeValue recoveryRangeSize;
+    private final Map<ShardEviction, Future<?>> pendingShardsEvictions;
+    private final ReadWriteLock shardsEvictionsLock;
+    private final Object shardsEvictionsMutex;
 
     private volatile int maxCacheFilesToSyncAtOnce;
+    private boolean allowShardsEvictions;
 
     public CacheService(
         final Settings settings,
         final ClusterService clusterService,
         final ThreadPool threadPool,
-        final Runnable cacheCleaner
+        final PersistentCache persistentCache
     ) {
         this.threadPool = Objects.requireNonNull(threadPool);
         this.cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings);
-        this.cacheCleaner = Objects.requireNonNull(cacheCleaner);
         this.rangeSize = SNAPSHOT_CACHE_RANGE_SIZE_SETTING.get(settings);
+        this.recoveryRangeSize = SNAPSHOT_CACHE_RECOVERY_RANGE_SIZE_SETTING.get(settings);
         this.cache = CacheBuilder.<CacheKey, CacheFile>builder()
             .setMaximumWeight(cacheSize.getBytes())
             .weigher((key, entry) -> entry.getLength())
@@ -130,6 +169,7 @@ public class CacheService extends AbstractLifecycleComponent {
             // are done with reading/writing the cache file
             .removalListener(notification -> onCacheFileRemoval(notification.getValue()))
             .build();
+        this.persistentCache = Objects.requireNonNull(persistentCache);
         this.numberOfCacheFilesToSync = new AtomicLong();
         this.cacheSyncLock = new ReentrantLock();
         this.cacheFilesToSync = new ConcurrentLinkedQueue<>();
@@ -139,20 +179,24 @@ public class CacheService extends AbstractLifecycleComponent {
         this.cacheSyncTask = new CacheSynchronizationTask(threadPool, SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING.get(settings));
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING, this::setCacheSyncInterval);
         this.cacheSyncStopTimeout = SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT.get(settings);
+        this.shardsEvictionsLock = new ReentrantReadWriteLock();
+        this.pendingShardsEvictions = new HashMap<>();
+        this.shardsEvictionsMutex = new Object();
+        this.allowShardsEvictions = true;
     }
 
     public static Path getShardCachePath(ShardPath shardPath) {
         return resolveSnapshotCache(shardPath.getDataPath());
     }
 
-    static Path resolveSnapshotCache(Path path) {
+    public static Path resolveSnapshotCache(Path path) {
         return path.resolve("snapshot_cache");
     }
 
     @Override
     protected void doStart() {
+        persistentCache.repopulateCache(this);
         cacheSyncTask.rescheduleIfNecessary();
-        cacheCleaner.run();
     }
 
     @Override
@@ -169,10 +213,19 @@ public class CacheService extends AbstractLifecycleComponent {
                 logger.warn("interrupted while waiting for cache sync lock", e);
             }
             cacheSyncTask.close();
-            cache.invalidateAll();
         } finally {
-            if (acquired) {
-                cacheSyncLock.unlock();
+            try {
+                processAllPendingShardsEvictions();
+            } finally {
+                try {
+                    persistentCache.close();
+                } catch (Exception e) {
+                    logger.warn("failed to close persistent cache", e);
+                } finally {
+                    if (acquired) {
+                        cacheSyncLock.unlock();
+                    }
+                }
             }
         }
     }
@@ -211,6 +264,13 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
+     * @return the cache range size (in bytes) to use during recovery (until post_recovery)
+     */
+    public int getRecoveryRangeSize() {
+        return toIntBytes(recoveryRangeSize.getBytes());
+    }
+
+    /**
      * Retrieves the {@link CacheFile} instance associated with the specified {@link CacheKey} in the cache. If the key is not already
      * associated with a {@link CacheFile}, this method creates a new instance using the given file length and cache directory.
      *
@@ -234,6 +294,16 @@ public class CacheService extends AbstractLifecycleComponent {
             cacheFile.set(new CacheFile(key, fileLength, path, () -> onCacheFileUpdate(cacheFile.get())));
             return cacheFile.get();
         });
+    }
+
+    /**
+     * Get the number of bytes cached for the given shard id in the given snapshot id.
+     * @param shardId    shard id
+     * @param snapshotId snapshot id
+     * @return number of bytes cached
+     */
+    public long getCachedSize(ShardId shardId, SnapshotId snapshotId) {
+        return persistentCache.getCacheSize(shardId, snapshotId);
     }
 
     /**
@@ -270,17 +340,150 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Invalidate cache entries with keys matching the given predicate
+     * Evicts the cache file associated with the specified cache key.
      *
-     * @param predicate the predicate to evaluate
+     * @param cacheKey the {@link CacheKey} whose associated {@link CacheFile} must be evicted from cache
      */
-    public void removeFromCache(final Predicate<CacheKey> predicate) {
-        for (CacheKey cacheKey : cache.keys()) {
-            if (predicate.test(cacheKey)) {
-                cache.invalidate(cacheKey);
+    public void removeFromCache(final CacheKey cacheKey) {
+        cache.invalidate(cacheKey);
+    }
+
+    /**
+     * Marks the specified searchable snapshot shard as evicted in cache. Cache files associated with this shard will be evicted from cache.
+     *
+     * @param snapshotUUID      the snapshot's unique identifier
+     * @param snapshotIndexName the name of the index in the snapshot
+     * @param shardId           the {@link ShardId}
+     */
+    public void markShardAsEvictedInCache(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        synchronized (shardsEvictionsMutex) {
+            if (allowShardsEvictions) {
+                final ShardEviction shardEviction = new ShardEviction(snapshotUUID, snapshotIndexName, shardId);
+                pendingShardsEvictions.computeIfAbsent(shardEviction, shard -> threadPool.generic().submit(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        processShardEviction(shardEviction);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn(
+                            () -> new ParameterizedMessage("failed to evict cache files associated with shard {}", shardEviction),
+                            e
+                        );
+                        assert false : e;
+                    }
+                }));
             }
         }
-        cache.refresh();
+    }
+
+    /**
+     * Waits for the cache files associated with the shard represented by ({@link SnapshotId}, {@link IndexId}, {@link SnapshotId}) to be
+     * evicted if the shard is marked as evicted in cache at the time this method is executed.
+     *
+     * @param snapshotUUID      the snapshot's unique identifier
+     * @param snapshotIndexName the name of the index in the snapshot
+     * @param shardId           the {@link ShardId}
+     */
+    public void waitForCacheFilesEvictionIfNeeded(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+        assert assertGenericThreadPool();
+        final Future<?> future;
+        synchronized (shardsEvictionsMutex) {
+            if (allowShardsEvictions == false) {
+                throw new AlreadyClosedException("Cannot wait for shard eviction to be processed, cache is stopping");
+            }
+            future = pendingShardsEvictions.get(new ShardEviction(snapshotUUID, snapshotIndexName, shardId));
+            if (future == null) {
+                return;
+            }
+        }
+        FutureUtils.get(future);
+    }
+
+    /**
+     * Evicts the cache files associated to the specified {@link ShardEviction}.
+     *
+     * @param shardEviction the shard eviction to process
+     */
+    private void processShardEviction(ShardEviction shardEviction) {
+        assert isPendingShardEviction(shardEviction) : "shard is not marked as evicted: " + shardEviction;
+        assert assertGenericThreadPool();
+
+        shardsEvictionsLock.readLock().lock();
+        try {
+            try {
+                final boolean canEvict;
+                synchronized (shardsEvictionsMutex) {
+                    canEvict = allowShardsEvictions;
+                }
+                if (canEvict) {
+                    final List<CacheFile> cacheFilesToEvict = new ArrayList<>();
+                    cache.forEach((cacheKey, cacheFile) -> {
+                        if (shardEviction.matches(cacheKey)) {
+                            cacheFilesToEvict.add(cacheFile);
+                        }
+                    });
+                    for (CacheFile cacheFile : cacheFilesToEvict) {
+                        try {
+                            cache.invalidate(cacheFile.getCacheKey(), cacheFile);
+                        } catch (RuntimeException e) {
+                            logger.warn(() -> new ParameterizedMessage("failed to evict cache file {}", cacheFile.getCacheKey()), e);
+                            assert false : e;
+                        }
+                    }
+                    logger.debug(
+                        "shard eviction [{}] processed with [{}] cache files invalidated",
+                        shardEviction,
+                        cacheFilesToEvict.size()
+                    );
+                }
+            } finally {
+                synchronized (shardsEvictionsMutex) {
+                    final Future<?> removedFuture = pendingShardsEvictions.remove(shardEviction);
+                    assert removedFuture != null;
+                }
+            }
+        } finally {
+            shardsEvictionsLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Processes and waits for all pending shard evictions to complete.
+     */
+    private void processAllPendingShardsEvictions() {
+        synchronized (shardsEvictionsMutex) {
+            allowShardsEvictions = false;
+        }
+        boolean success = false;
+        try {
+            if (shardsEvictionsLock.writeLock().tryLock(10L, TimeUnit.SECONDS) == false) {
+                logger.warn("waiting for shards evictions to be processed");
+                shardsEvictionsLock.writeLock().lock(); // wait indefinitely
+            }
+            success = true;
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("interrupted while waiting shards evictions to be processed", e);
+        } finally {
+            if (success) {
+                shardsEvictionsLock.writeLock().unlock();
+            }
+        }
+    }
+
+    boolean isPendingShardEviction(ShardEviction shardEviction) {
+        synchronized (shardsEvictionsMutex) {
+            return pendingShardsEvictions.get(shardEviction) != null;
+        }
+    }
+
+    // used in tests
+    Map<ShardEviction, Future<?>> pendingShardsEvictions() {
+        synchronized (shardsEvictionsMutex) {
+            return Map.copyOf(pendingShardsEvictions);
+        }
     }
 
     void setCacheSyncInterval(TimeValue interval) {
@@ -307,17 +510,28 @@ public class CacheService extends AbstractLifecycleComponent {
     /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
-     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.
+     * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted and removes it from the persistent cache.
      *
      * @param cacheFile the evicted instance
      */
     private void onCacheFileRemoval(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
+        try {
+            persistentCache.removeCacheFile(cacheFile);
+        } catch (Exception e) {
+            assert e instanceof IOException : e;
+            logger.warn("failed to remove cache file from persistent cache", e);
+        }
     }
 
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
         return cacheFilesToSync.contains(cacheFile);
+    }
+
+    // used in tests
+    PersistentCache getPersistentCache() {
+        return persistentCache;
     }
 
     /**
@@ -331,7 +545,8 @@ public class CacheService extends AbstractLifecycleComponent {
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
      * cache entry. Note that cache files might be evicted during the synchronization.
      */
-    protected void synchronizeCache() {
+    // public for tests only
+    public void synchronizeCache() {
         cacheSyncLock.lock();
         try {
             long count = 0L;
@@ -350,6 +565,7 @@ public class CacheService extends AbstractLifecycleComponent {
 
                 final long value = numberOfCacheFilesToSync.decrementAndGet();
                 assert value >= 0 : value;
+
                 final Path cacheFilePath = cacheFile.getFile();
                 try {
                     final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
@@ -360,21 +576,34 @@ public class CacheService extends AbstractLifecycleComponent {
                             ranges.size()
                         );
                         final Path cacheDir = cacheFilePath.toAbsolutePath().getParent();
-                        if (cacheDirs.add(cacheDir)) {
+                        boolean shouldPersist = cacheDirs.contains(cacheDir);
+                        if (shouldPersist == false) {
                             try {
-                                IOUtils.fsync(cacheDir, true, false);
+                                IOUtils.fsync(cacheDir, true, false); // TODO evict cache file if fsync failed
                                 logger.trace("cache directory [{}] synchronized", cacheDir);
+                                cacheDirs.add(cacheDir);
+                                shouldPersist = true;
                             } catch (Exception e) {
                                 assert e instanceof IOException : e;
+                                shouldPersist = false;
                                 logger.warn(() -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir), e);
                             }
                         }
-                        // TODO Index searchable snapshot shard information + cache file ranges in Lucene
-                        count += 1L;
+                        if (shouldPersist) {
+                            persistentCache.addCacheFile(cacheFile, ranges);
+                            count += 1L;
+                        }
                     }
                 } catch (Exception e) {
                     assert e instanceof IOException : e;
                     logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFilePath.getFileName()), e);
+                }
+            }
+            if (count > 0 || persistentCache.hasDeletions()) {
+                try {
+                    persistentCache.commit();
+                } catch (IOException e) {
+                    logger.error("failed to commit persistent cache after synchronization", e);
                 }
             }
             if (logger.isDebugEnabled()) {
@@ -415,5 +644,67 @@ public class CacheService extends AbstractLifecycleComponent {
         public String toString() {
             return "cache_synchronization_task";
         }
+    }
+
+    /**
+     * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
+     * to evict the cache files associated to that shard.
+     */
+    static class ShardEviction {
+
+        private final String snapshotUUID;
+        private final String snapshotIndexName;
+        private final ShardId shardId;
+
+        ShardEviction(String snapshotUUID, String snapshotIndexName, ShardId shardId) {
+            this.snapshotUUID = snapshotUUID;
+            this.snapshotIndexName = snapshotIndexName;
+            this.shardId = shardId;
+        }
+
+        public String getSnapshotUUID() {
+            return snapshotUUID;
+        }
+
+        public String getSnapshotIndexName() {
+            return snapshotIndexName;
+        }
+
+        public ShardId getShardId() {
+            return shardId;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ShardEviction that = (ShardEviction) o;
+            return Objects.equals(snapshotUUID, that.snapshotUUID)
+                && Objects.equals(snapshotIndexName, that.snapshotIndexName)
+                && Objects.equals(shardId, that.shardId);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(snapshotUUID, snapshotIndexName, shardId);
+        }
+
+        @Override
+        public String toString() {
+            return "[snapshotUUID=" + snapshotUUID + ", snapshotIndexName=" + snapshotIndexName + ", shardId=" + shardId + ']';
+        }
+
+        boolean matches(CacheKey cacheKey) {
+            return Objects.equals(snapshotUUID, cacheKey.getSnapshotUUID())
+                && Objects.equals(snapshotIndexName, cacheKey.getSnapshotIndexName())
+                && Objects.equals(shardId, cacheKey.getShardId());
+        }
+    }
+
+    private static boolean assertGenericThreadPool() {
+        final String threadName = Thread.currentThread().getName();
+        assert threadName.contains('[' + ThreadPool.Names.GENERIC + ']') || threadName.startsWith("TEST-")
+            : "expected generic thread pool but got " + threadName;
+        return true;
     }
 }

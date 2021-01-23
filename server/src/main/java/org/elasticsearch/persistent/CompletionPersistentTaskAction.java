@@ -147,8 +147,7 @@ public class CompletionPersistentTaskAction extends ActionType<PersistentTaskRes
         protected final void masterOperation(Task ignoredTask, final Request request, ClusterState state,
                                              final ActionListener<PersistentTaskResponse> listener) {
             persistentTasksClusterService.completePersistentTask(request.taskId, request.allocationId, request.exception,
-                ActionListener.delegateFailure(listener,
-                    (delegatedListener, task) -> delegatedListener.onResponse(new PersistentTaskResponse(task))));
+                    listener.map(PersistentTaskResponse::new));
         }
     }
 }

@@ -30,6 +30,7 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         assertEquals(0, stats.getTotalPartitionFieldCount());
         assertEquals(0, stats.getBucketAllocationFailuresCount());
         assertEquals(MemoryStatus.OK, stats.getMemoryStatus());
+        assertNull(stats.getAssignmentMemoryBasis());
         assertEquals(0, stats.getCategorizedDocCount());
         assertEquals(0, stats.getTotalCategoryCount());
         assertEquals(0, stats.getFrequentCategoryCount());
@@ -94,6 +95,9 @@ public class ModelSizeStatsTests extends AbstractSerializingTestCase<ModelSizeSt
         }
         if (randomBoolean()) {
             stats.setMemoryStatus(randomFrom(MemoryStatus.values()));
+        }
+        if (randomBoolean()) {
+            stats.setAssignmentMemoryBasis(randomFrom(ModelSizeStats.AssignmentMemoryBasis.values()));
         }
         if (randomBoolean()) {
             stats.setCategorizedDocCount(randomNonNegativeLong());

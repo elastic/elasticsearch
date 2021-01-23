@@ -32,7 +32,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 
@@ -49,13 +49,13 @@ public class BucketsAggregatorTests extends AggregatorTestCase{
             try (IndexReader indexReader = DirectoryReader.open(directory)) {
                 IndexSearcher indexSearcher = new IndexSearcher(indexReader);
 
-                SearchContext searchContext = createSearchContext(
+                AggregationContext context = createAggregationContext(
                     indexSearcher,
                     null,
                     new NumberFieldMapper.NumberFieldType("test", NumberFieldMapper.NumberType.INTEGER)
                 );
 
-                return new BucketsAggregator("test", AggregatorFactories.EMPTY, searchContext, null, null, null) {
+                return new BucketsAggregator("test", AggregatorFactories.EMPTY, context, null, null, null) {
                     @Override
                     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
                         return null;

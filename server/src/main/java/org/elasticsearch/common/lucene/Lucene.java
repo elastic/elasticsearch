@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.BinaryDocValues;
@@ -88,11 +89,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.search.sort.ShardDocSortField;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -566,29 +569,35 @@ public class Lucene {
         out.writeVInt(sortType.ordinal());
     }
 
-    public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
+    /**
+     * Returns the generic version of the provided {@link SortField} that
+     * can be used to merge documents coming from different shards.
+     */
+    private static SortField rewriteMergeSortField(SortField sortField) {
         if (sortField.getClass() == GEO_DISTANCE_SORT_TYPE_CLASS) {
-            // for geo sorting, we replace the SortField with a SortField that assumes a double field.
-            // this works since the SortField is only used for merging top docs
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.DOUBLE);
             newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
+            return newSortField;
         } else if (sortField.getClass() == SortedSetSortField.class) {
-            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
-            // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(sortField.getField(), SortField.Type.STRING, sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
+            return newSortField;
         } else if (sortField.getClass() == SortedNumericSortField.class) {
-            // for multi-valued sort field, we replace the SortedSetSortField with a simple SortField.
-            // It works because the sort field is only used to merge results from different shards.
             SortField newSortField = new SortField(sortField.getField(),
                 ((SortedNumericSortField) sortField).getNumericType(),
                 sortField.getReverse());
             newSortField.setMissingValue(sortField.getMissingValue());
-            sortField = newSortField;
+            return newSortField;
+        } else if (sortField.getClass() == ShardDocSortField.class) {
+            SortField newSortField = new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
+            return newSortField;
+        } else {
+            return sortField;
         }
+    }
 
+    public static void writeSortField(StreamOutput out, SortField sortField) throws IOException {
+        sortField = rewriteMergeSortField(sortField);
         if (sortField.getClass() != SortField.class) {
             throw new IllegalArgumentException("Cannot serialize SortField impl [" + sortField + "]");
         }
@@ -910,7 +919,7 @@ public class Lucene {
     }
 
     private static final class DirectoryReaderWithAllLiveDocs extends FilterDirectoryReader {
-        static final class LeafReaderWithLiveDocs extends FilterLeafReader {
+        static final class LeafReaderWithLiveDocs extends SequentialStoredFieldsLeafReader {
             final Bits liveDocs;
             final int numDocs;
             LeafReaderWithLiveDocs(LeafReader in, Bits liveDocs, int  numDocs) {
@@ -933,6 +942,10 @@ public class Lucene {
             @Override
             public CacheHelper getReaderCacheHelper() {
                 return null; // Modifying liveDocs
+            }
+            @Override
+            protected StoredFieldsReader doGetSequentialStoredFieldsReader(StoredFieldsReader reader) {
+                return reader;
             }
         }
 

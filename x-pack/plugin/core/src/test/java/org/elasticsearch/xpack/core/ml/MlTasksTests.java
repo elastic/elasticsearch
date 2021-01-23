@@ -203,46 +203,6 @@ public class MlTasksTests extends ESTestCase {
         assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
     }
 
-    public void testGetDataFrameAnalyticsState_GivenTaskWithReindexingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.REINDEXING, false);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.REINDEXING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenStaleTaskWithReindexingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.REINDEXING, true);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenTaskWithAnalyzingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.ANALYZING, false);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.ANALYZING));
-    }
-
-    public void testGetDataFrameAnalyticsState_GivenStaleTaskWithAnalyzingState() {
-        String jobId = "foo";
-        PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",
-            DataFrameAnalyticsState.ANALYZING, true);
-
-        DataFrameAnalyticsState state = MlTasks.getDataFrameAnalyticsState(task);
-
-        assertThat(state, equalTo(DataFrameAnalyticsState.STARTING));
-    }
-
     public void testGetDataFrameAnalyticsState_GivenTaskWithStoppingState() {
         String jobId = "foo";
         PersistentTasksCustomMetadata.PersistentTask<?> task = createDataFrameAnalyticsTask(jobId, "test_node",

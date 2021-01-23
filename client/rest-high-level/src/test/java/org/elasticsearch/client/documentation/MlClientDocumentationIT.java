@@ -56,8 +56,6 @@ import org.elasticsearch.client.ml.EvaluateDataFrameRequest;
 import org.elasticsearch.client.ml.EvaluateDataFrameResponse;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsRequest;
 import org.elasticsearch.client.ml.ExplainDataFrameAnalyticsResponse;
-import org.elasticsearch.client.ml.FindFileStructureRequest;
-import org.elasticsearch.client.ml.FindFileStructureResponse;
 import org.elasticsearch.client.ml.FlushJobRequest;
 import org.elasticsearch.client.ml.FlushJobResponse;
 import org.elasticsearch.client.ml.ForecastJobRequest;
@@ -175,7 +173,6 @@ import org.elasticsearch.client.ml.dataframe.evaluation.regression.MeanSquaredLo
 import org.elasticsearch.client.ml.dataframe.evaluation.regression.RSquaredMetric;
 import org.elasticsearch.client.ml.dataframe.explain.FieldSelection;
 import org.elasticsearch.client.ml.dataframe.explain.MemoryEstimation;
-import org.elasticsearch.client.ml.filestructurefinder.FileStructure;
 import org.elasticsearch.client.ml.inference.InferenceToXContentCompressor;
 import org.elasticsearch.client.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.client.ml.inference.TrainedModelConfig;
@@ -221,9 +218,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.junit.After;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Date;
@@ -250,6 +244,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.core.Is.is;
 
 public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
+
+    private static final RequestOptions POST_DATA_OPTIONS = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> Collections.singletonList("Posting data directly to anomaly detection jobs is deprecated, " +
+            "in a future major version it will be compulsory to use a datafeed").equals(warnings) == false).build();
 
     @After
     public void cleanUp() throws IOException {
@@ -710,6 +708,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // tag::put-datafeed-config-set-scroll-size
             datafeedBuilder.setScrollSize(1000); // <1>
             // end::put-datafeed-config-set-scroll-size
+
+            // tag::put-datafeed-config-set-runtime-mappings
+            Map<String, Object> fieldProperties = new HashMap<>();
+            fieldProperties.put("type", "keyword");
+            fieldProperties.put("script", "emit(params._source.agent.toLowerCase())");
+            Map<String, Object> runtimeMappings = new HashMap<>();
+            runtimeMappings.put("agent_lowercase", fieldProperties);
+
+            datafeedBuilder.setRuntimeMappings(runtimeMappings); // <1>
+            // end::put-datafeed-config-set-runtime-mappings
 
             // tag::put-datafeed-request
             PutDatafeedRequest request = new PutDatafeedRequest(datafeedBuilder.build()); // <1>
@@ -1372,7 +1380,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
         }
 
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         ForecastJobResponse forecastJobResponse = client.machineLearning().
@@ -1509,7 +1518,8 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             builder.addDoc(hashMap);
         }
         PostDataRequest postDataRequest = new PostDataRequest(job.getId(), builder);
-        client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
+        // Post data is deprecated, so expect a deprecation warning
+        client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
         client.machineLearning().flushJob(new FlushJobRequest(job.getId()), RequestOptions.DEFAULT);
 
         {
@@ -1778,9 +1788,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             postDataRequest.setResetEnd(null);
             postDataRequest.setResetStart(null);
 
+            // Post data is deprecated, so expect a deprecation warning
+            PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, POST_DATA_OPTIONS);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute
             PostDataResponse postDataResponse = client.machineLearning().postData(postDataRequest, RequestOptions.DEFAULT);
             // end::post-data-execute
+            */
 
             // tag::post-data-response
             DataCounts dataCounts = postDataResponse.getDataCounts(); // <1>
@@ -1812,71 +1827,14 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             final CountDownLatch latch = new CountDownLatch(1);
             listener = new LatchedActionListener<>(listener, latch);
 
+            // Post data is deprecated, so expect a deprecation warning
+            client.machineLearning().postDataAsync(postDataRequest, POST_DATA_OPTIONS, listener);
+            // The end user can use the default options without it being a fatal error (this is only in the test framework)
+            /*
             // tag::post-data-execute-async
             client.machineLearning().postDataAsync(postDataRequest, RequestOptions.DEFAULT, listener); // <1>
             // end::post-data-execute-async
-
-            assertTrue(latch.await(30L, TimeUnit.SECONDS));
-        }
-    }
-
-    public void testFindFileStructure() throws Exception {
-        RestHighLevelClient client = highLevelClient();
-
-        Path anInterestingFile = createTempFile();
-        String contents = "{\"logger\":\"controller\",\"timestamp\":1478261151445,\"level\":\"INFO\"," +
-                "\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 1\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n" +
-            "{\"logger\":\"controller\",\"timestamp\":1478261151445," +
-                "\"level\":\"INFO\",\"pid\":42,\"thread\":\"0x7fff7d2a8000\",\"message\":\"message 2\",\"class\":\"ml\"," +
-                "\"method\":\"core::SomeNoiseMaker\",\"file\":\"Noisemaker.cc\",\"line\":333}\n";
-        Files.write(anInterestingFile, Collections.singleton(contents), StandardCharsets.UTF_8);
-
-        {
-            // tag::find-file-structure-request
-            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest(); // <1>
-            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile)); // <2>
-            // end::find-file-structure-request
-
-            // tag::find-file-structure-request-options
-            findFileStructureRequest.setLinesToSample(500); // <1>
-            findFileStructureRequest.setExplain(true); // <2>
-            // end::find-file-structure-request-options
-
-            // tag::find-file-structure-execute
-            FindFileStructureResponse findFileStructureResponse =
-                client.machineLearning().findFileStructure(findFileStructureRequest, RequestOptions.DEFAULT);
-            // end::find-file-structure-execute
-
-            // tag::find-file-structure-response
-            FileStructure structure = findFileStructureResponse.getFileStructure(); // <1>
-            // end::find-file-structure-response
-            assertEquals(2, structure.getNumLinesAnalyzed());
-        }
-        {
-            // tag::find-file-structure-execute-listener
-            ActionListener<FindFileStructureResponse> listener = new ActionListener<FindFileStructureResponse>() {
-                @Override
-                public void onResponse(FindFileStructureResponse findFileStructureResponse) {
-                    // <1>
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    // <2>
-                }
-            };
-            // end::find-file-structure-execute-listener
-            FindFileStructureRequest findFileStructureRequest = new FindFileStructureRequest();
-            findFileStructureRequest.setSample(Files.readAllBytes(anInterestingFile));
-
-            // Replace the empty listener by a blocking listener in test
-            final CountDownLatch latch = new CountDownLatch(1);
-            listener = new LatchedActionListener<>(listener, latch);
-
-            // tag::find-file-structure-execute-async
-            client.machineLearning().findFileStructureAsync(findFileStructureRequest, RequestOptions.DEFAULT, listener); // <1>
-            // end::find-file-structure-execute-async
+            */
 
             assertTrue(latch.await(30L, TimeUnit.SECONDS));
         }
@@ -2366,15 +2324,16 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 jobId, // <1>
                 snapshotId, // <2>
                 TimeValue.timeValueMinutes(30), // <3>
-                false); // <4>
+                true); // <4>
             // end::upgrade-job-model-snapshot-request
 
             try {
                 // tag::upgrade-job-model-snapshot-execute
                 UpgradeJobModelSnapshotResponse response = client.machineLearning().upgradeJobSnapshot(request, RequestOptions.DEFAULT);
                 // end::upgrade-job-model-snapshot-execute
+                fail("upgrade model snapshot should not have succeeded.");
             } catch (ElasticsearchException ex) {
-                assertThat(ex.getMessage(), containsString("Expected persisted state but no state exists"));
+                assertThat(ex.getMessage(), containsString("Unexpected state [failed] while waiting for to be assigned to a node"));
             }
             UpgradeJobModelSnapshotResponse response = new UpgradeJobModelSnapshotResponse(true, "");
 
@@ -2384,7 +2343,7 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
             // end::upgrade-job-model-snapshot-response
         }
         {
-            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, false);
+            UpgradeJobModelSnapshotRequest request = new UpgradeJobModelSnapshotRequest(jobId, snapshotId, null, true);
 
             // tag::upgrade-job-model-snapshot-execute-listener
             ActionListener<UpgradeJobModelSnapshotResponse> listener =

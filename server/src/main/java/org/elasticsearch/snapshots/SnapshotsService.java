@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardState;
@@ -206,8 +207,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param listener snapshot completion listener
      */
     public void executeSnapshot(final CreateSnapshotRequest request, final ActionListener<SnapshotInfo> listener) {
-        createSnapshot(request,
-            ActionListener.wrap(snapshot -> addListener(snapshot, ActionListener.map(listener, Tuple::v2)), listener::onFailure));
+        createSnapshot(request, ActionListener.wrap(snapshot -> addListener(snapshot, listener.map(Tuple::v2)), listener::onFailure));
     }
 
     /**
@@ -277,10 +277,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 newEntry = SnapshotsInProgress.startedEntry(
                         new Snapshot(repositoryName, snapshotId), request.includeGlobalState(), request.partial(),
                         indexIds, dataStreams, threadPool.absoluteTimeInMillis(), repositoryData.getGenId(), shards, userMeta, version);
-                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
-                newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                        SnapshotsInProgress.of(List.copyOf(newEntries))).build();
+                        SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry))).build();
             }
 
             @Override
@@ -378,10 +376,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                         repositoryData.resolveIndices(matchingIndices),
                         threadPool.absoluteTimeInMillis(), repositoryData.getGenId(),
                         minCompatibleVersion(currentState.nodes().getMinNodeVersion(), repositoryData, null));
-                final List<SnapshotsInProgress.Entry> newEntries = new ArrayList<>(runningSnapshots);
-                newEntries.add(newEntry);
                 return ClusterState.builder(currentState).putCustom(SnapshotsInProgress.TYPE,
-                        SnapshotsInProgress.of(List.copyOf(newEntries))).build();
+                        SnapshotsInProgress.of(CollectionUtils.appendToCopy(runningSnapshots, newEntry))).build();
             }
 
             @Override
@@ -1176,10 +1172,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (entry.isClone()) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(
                         ActionRunnable.supply(metadataListener, () -> {
-                            final Metadata.Builder metaBuilder = Metadata.builder(repo.getSnapshotGlobalMetadata(entry.source()));
+                            final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
+                            final Metadata.Builder metaBuilder = Metadata.builder(existing);
+                            final Set<Index> existingIndices = new HashSet<>();
                             for (IndexId index : entry.indices()) {
-                                metaBuilder.put(repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index), false);
+                                final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
+                                existingIndices.add(indexMetadata.getIndex());
+                                metaBuilder.put(indexMetadata, false);
                             }
+                            // remove those data streams from metadata for which we are missing indices
+                            Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
+                            for (Map.Entry<String, DataStream> dataStreamEntry : existing.dataStreams().entrySet()) {
+                                if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
+                                    dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
+                                }
+                            }
+                            metaBuilder.dataStreams(dataStreamsToCopy);
                             return metaBuilder.build();
                         }));
             } else {
@@ -1193,9 +1201,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     entry.version(),
                     state -> stateWithoutSnapshot(state, snapshot),
                     ActionListener.wrap(newRepoData -> {
-                        endingSnapshots.remove(snapshot);
-                        completeListenersIgnoringException(
-                            snapshotCompletionListeners.remove(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
+                        completeListenersIgnoringException(endAndGetListenersToResolve(snapshot), Tuple.tuple(newRepoData, snapshotInfo));
                         logger.info("snapshot [{}] completed with state [{}]", snapshot, snapshotInfo.state());
                         runNextQueuedOperation(newRepoData, repository, true);
                     }, e -> handleFinalizationFailure(e, entry, repositoryData))),
@@ -1204,6 +1210,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             assert false : new AssertionError(e);
             handleFinalizationFailure(e, entry, repositoryData);
         }
+    }
+
+    /**
+     * Remove a snapshot from {@link #endingSnapshots} set and return its completion listeners that must be resolved.
+     */
+    private List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> endAndGetListenersToResolve(Snapshot snapshot) {
+        // get listeners before removing from the ending snapshots set to not trip assertion in #assertConsistentWithClusterState that
+        // makes sure we don't have listeners for snapshots that aren't tracked in any internal state of this class
+        final List<ActionListener<Tuple<RepositoryData, SnapshotInfo>>> listenersToComplete = snapshotCompletionListeners.remove(snapshot);
+        endingSnapshots.remove(snapshot);
+        return listenersToComplete;
     }
 
     /**
@@ -1441,8 +1458,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     }
 
     private void failSnapshotCompletionListeners(Snapshot snapshot, Exception e) {
-        endingSnapshots.remove(snapshot);
-        failListenersIgnoringException(snapshotCompletionListeners.remove(snapshot), e);
+        failListenersIgnoringException(endAndGetListenersToResolve(snapshot), e);
         assert repositoryOperations.assertNotQueued(snapshot);
     }
 
@@ -2648,7 +2664,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
         protected void masterOperation(Task task, UpdateIndexShardSnapshotStatusRequest request, ClusterState state,
                                        ActionListener<ActionResponse.Empty> listener) {
             innerUpdateSnapshotState(new ShardSnapshotUpdate(request.snapshot(), request.shardId(), request.status()),
-                    ActionListener.delegateFailure(listener, (l, v) -> l.onResponse(ActionResponse.Empty.INSTANCE)));
+                    listener.map(v -> ActionResponse.Empty.INSTANCE));
         }
 
         @Override

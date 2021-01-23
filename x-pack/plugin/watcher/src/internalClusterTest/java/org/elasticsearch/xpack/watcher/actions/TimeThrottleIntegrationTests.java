@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.xpack.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.xpack.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -28,6 +27,7 @@ import static org.elasticsearch.xpack.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.oneOf;
 
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
@@ -116,6 +116,6 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(new SearchSourceBuilder().query(QueryBuilders.boolQuery().must(termQuery("watch_id", id))))
                 .get();
 
-        assertHitCount(searchResponse, expectedCount);
+        assertThat(searchResponse.getHits().getTotalHits().value, is(oneOf(expectedCount, expectedCount + 1)));
     }
 }

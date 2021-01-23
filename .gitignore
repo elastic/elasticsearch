@@ -32,6 +32,9 @@ build/
 # vscode stuff
 .vscode/
 
+# vs stuff
+.vs/
+
 # testing stuff
 **/.local*
 .vagrant/
@@ -56,3 +59,6 @@ testfixtures_shared/
 
 # These are generated from .ci/jobs.t
 .ci/jobs/
+
+# Generated
+checkstyle_ide.xml

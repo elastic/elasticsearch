@@ -19,22 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.document.Field;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -51,6 +35,23 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
+
+import org.apache.lucene.document.Field;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
@@ -187,10 +188,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     protected final void createFieldNamesField(ParseContext context) {
         assert fieldType().hasDocValues() == false : "_field_names should only be used when doc_values are turned off";
-        FieldNamesFieldType fieldNamesFieldType = context.docMapper().metadataMapper(FieldNamesFieldMapper.class).fieldType();
-        if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
-            for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
-                context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+        FieldNamesFieldMapper fieldNamesFieldMapper = (FieldNamesFieldMapper) context.getMetadataMapper(FieldNamesFieldMapper.NAME);
+        if (fieldNamesFieldMapper != null) {
+            FieldNamesFieldType fieldNamesFieldType = fieldNamesFieldMapper.fieldType();
+            if (fieldNamesFieldType != null && fieldNamesFieldType.isEnabled()) {
+                for (String fieldName : FieldNamesFieldMapper.extractFieldNames(fieldType().name())) {
+                    context.doc().add(new Field(FieldNamesFieldMapper.NAME, fieldName, FieldNamesFieldMapper.Defaults.FIELD_TYPE));
+                }
             }
         }
     }
@@ -962,6 +966,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (Objects.equals("boost", propName)) {
                     if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
                         deprecationLogger.deprecate(
+                            DeprecationCategory.API,
                             "boost",
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
                             name);
@@ -973,14 +978,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                    deprecationLogger.deprecate(DeprecationCategory.API, propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecate(propName,
+                        deprecationLogger.deprecate(DeprecationCategory.API, propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;
@@ -989,7 +994,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         + "] on mapper [" + name + "] of type [" + type + "]");
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.deprecate(propName,
+                    deprecationLogger.deprecate(DeprecationCategory.API, propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName);
                 }

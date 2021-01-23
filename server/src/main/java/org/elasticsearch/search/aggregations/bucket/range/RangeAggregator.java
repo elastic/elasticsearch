@@ -24,7 +24,6 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.ScorerSupplier;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -37,6 +36,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -51,10 +51,10 @@ import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.range.InternalRange.Factory;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -274,7 +274,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         InternalRange.Factory<?, ?> rangeFactory,
         Range[] ranges,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -315,7 +315,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
              * aggregator's debug information if we're profiling bececause it
              * is useful even if the aggregator isn't. 
              */
-            if (context.getProfilers() != null) {
+            if (context.profiling()) {
                 filtersDebug = new HashMap<>();
                 adapted.delegate().collectDebugInfo(filtersDebug::put);
             }
@@ -345,7 +345,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         Range[] ranges,
         double averageDocsPerRange,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -388,17 +388,10 @@ public abstract class RangeAggregator extends BucketsAggregator {
              */
             DocValueFormat format = valuesSourceConfig.fieldType().docValueFormat(null, null);
             // TODO correct the loss of precision from the range somehow.....?
-            filters[i] = valuesSourceConfig.fieldType()
-                .rangeQuery(
-                    ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from),
-                    ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to),
-                    true,
-                    false,
-                    ShapeRelation.CONTAINS,
-                    null,
-                    null,
-                    context.getQueryShardContext()
-                );
+            RangeQueryBuilder builder = new RangeQueryBuilder(valuesSourceConfig.fieldType().name());
+            builder.from(ranges[i].from == Double.NEGATIVE_INFINITY ? null : format.format(ranges[i].from)).includeLower(true);
+            builder.to(ranges[i].to == Double.POSITIVE_INFINITY ? null : format.format(ranges[i].to)).includeUpper(false);
+            filters[i] = context.buildQuery(builder);
         }
         FiltersAggregator.FilterByFilter delegate = FiltersAggregator.buildFilterOrderOrNull(
             name,
@@ -443,7 +436,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         double averageDocsPerRange,
         Map<String, Object> filtersDebug,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -500,7 +493,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
         double averageDocsPerRange,
         Map<String, Object> filtersDebug,
         boolean keyed,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -591,12 +584,11 @@ public abstract class RangeAggregator extends BucketsAggregator {
             R[] ranges,
             boolean keyed,
             DocValueFormat format,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             InternalRange.Factory factory,
             Map<String, Object> metadata
         ) throws IOException {
-
             super(name, context, parent, factories, metadata);
             this.ranges = ranges;
             this.keyed = keyed;
@@ -629,7 +621,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             double averageDocsPerRange,
             Map<String, Object> filtersDebug,
             boolean keyed,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
@@ -681,7 +673,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
             double averageDocsPerRange,
             Map<String, Object> filtersDebug,
             boolean keyed,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata

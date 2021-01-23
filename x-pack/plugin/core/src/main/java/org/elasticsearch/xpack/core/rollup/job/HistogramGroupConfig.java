@@ -40,7 +40,7 @@ import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constru
  */
 public class HistogramGroupConfig implements Writeable, ToXContentObject {
 
-    static final String NAME = "histogram";
+    public static final String NAME = "histogram";
     public static final String INTERVAL = "interval";
     private static final String FIELDS = "fields";
     private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;
@@ -67,7 +67,7 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
         this.fields = fields;
     }
 
-    HistogramGroupConfig(final StreamInput in) throws IOException {
+    public HistogramGroupConfig(final StreamInput in) throws IOException {
         interval = in.readVLong();
         fields = in.readStringArray();
     }

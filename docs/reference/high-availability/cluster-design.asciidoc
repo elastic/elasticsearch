@@ -9,16 +9,17 @@ operating normally if some of its nodes are unavailable or disconnected.
 There is a limit to how small a resilient cluster can be. All {es} clusters
 require:
 
-* One <<modules-discovery-quorums,elected master node>> node
-* At least one node for each <<modules-node,role>>.
-* At least one copy of every <<scalability,shard>>.
+- One <<modules-discovery-quorums,elected master node>> node
+- At least one node for each <<modules-node,role>>.
+- At least one copy of every <<scalability,shard>>.
 
 A resilient cluster requires redundancy for every required cluster component.
 This means a resilient cluster must have:
 
-* At least three master-eligible nodes
-* At least two nodes of each role
-* At least two copies of each shard (one primary and one or more replicas)
+- At least three master-eligible nodes
+- At least two nodes of each role
+- At least two copies of each shard (one primary and one or more replicas,
+  unless the index is a <<searchable-snapshots,searchable snapshot index>>)
 
 A resilient cluster needs three master-eligible nodes so that if one of
 them fails then the remaining two still form a majority and can hold a
@@ -44,8 +45,8 @@ failures. Designers of larger clusters must also consider cases where multiple
 nodes fail at the same time. The following pages give some recommendations for
 building resilient clusters of various sizes:
 
-* <<high-availability-cluster-small-clusters>>
-* <<high-availability-cluster-design-large-clusters>>
+- <<high-availability-cluster-small-clusters>>
+- <<high-availability-cluster-design-large-clusters>>
 
 [[high-availability-cluster-small-clusters]]
 === Resilience in small clusters
@@ -78,11 +79,12 @@ one-node clusters in production.
 
 If you have two nodes, we recommend they both be data nodes. You should also
 ensure every shard is stored redundantly on both nodes by setting
-<<dynamic-index-settings,`index.number_of_replicas`>> to `1` on every index.
-This is the default number of replicas but may be overridden by an
-<<indices-templates,index template>>. <<dynamic-index-settings,Auto-expand
-replicas>> can also achieve the same thing, but it's not necessary to use this
-feature in such a small cluster.
+<<dynamic-index-settings,`index.number_of_replicas`>> to `1` on every index
+that is not a <<searchable-snapshots,searchable snapshot index>>. This is the
+default behaviour but may be overridden by an <<index-templates,index
+template>>. <<dynamic-index-settings,Auto-expand replicas>> can also achieve
+the same thing, but it's not necessary to use this feature in such a small
+cluster.
 
 We recommend you set `node.master: false` on one of your two nodes so that it is
 not <<master-node,master-eligible>>. This means you can be certain which of your
@@ -162,12 +164,13 @@ cluster that is suitable for production deployments.
 [[high-availability-cluster-design-three-nodes]]
 ==== Three-node clusters
 
-If you have three nodes, we recommend they all be <<data-node,data
-nodes>> and every index should have at least one replica. Nodes are data nodes
-by default. You may prefer for some indices to have two replicas so that each
-node has a copy of each shard in those indices. You should also configure each
-node to be <<master-node,master-eligible>> so that any two of them can hold a
-master election without needing to communicate with the third node. Nodes are
+If you have three nodes, we recommend they all be <<data-node,data nodes>> and
+every index that is not a <<searchable-snapshots,searchable snapshot index>>
+should have at least one replica. Nodes are data nodes by default. You may
+prefer for some indices to have two replicas so that each node has a copy of
+each shard in those indices. You should also configure each node to be
+<<master-node,master-eligible>> so that any two of them can hold a master
+election without needing to communicate with the third node. Nodes are
 master-eligible by default. This cluster will be resilient to the loss of any
 single node.
 
@@ -215,8 +218,8 @@ The cluster will be resilient to the loss of any node as long as:
 
 - The <<cluster-health,cluster health status>> is `green`.
 - There are at least two data nodes. 
-- Every index has at least one replica of each shard, in addition to the 
-  primary.
+- Every index that is not a <<searchable-snapshots,searchable snapshot index>>
+  has at least one replica of each shard, in addition to the primary.
 - The cluster has at least three master-eligible nodes, as long as at least two
   of these nodes are not voting-only master-eligible nodes.
 - Clients are configured to send their requests to more than one node or are
@@ -326,14 +329,14 @@ zone. If you have more than three zones then you should choose three of the
 zones and put a master-eligible node in each of these three zones. This will
 mean that the cluster can still elect a master even if one of the zones fails.
 
-As always, your indices should have at least one replica in case a node fails.
-You should also use <<allocation-awareness,shard allocation awareness>> to
-limit the number of copies of each shard in each zone. For instance, if you have
-an index with one or two replicas configured then allocation awareness will
-ensure that the replicas of the shard are in a different zone from the primary.
-This means that a copy of every shard will still be available if one zone
-fails. The availability of this shard will not be affected by such a
-failure.
+As always, your indices should have at least one replica in case a node fails,
+unless they are <<searchable-snapshots,searchable snapshot indices>>. You
+should also use <<allocation-awareness,shard allocation awareness>> to limit
+the number of copies of each shard in each zone. For instance, if you have an
+index with one or two replicas configured then allocation awareness will ensure
+that the replicas of the shard are in a different zone from the primary. This
+means that a copy of every shard will still be available if one zone fails. The
+availability of this shard will not be affected by such a failure.
 
 [[high-availability-cluster-design-large-cluster-summary]]
 ==== Summary
@@ -342,8 +345,8 @@ The cluster will be resilient to the loss of any zone as long as:
 
 - The <<cluster-health,cluster health status>> is `green`.
 - There are at least two zones containing data nodes.
-- Every index has at least one replica of each shard, in addition to the 
-  primary.
+- Every index that is not a <<searchable-snapshots,searchable snapshot index>>
+  has at least one replica of each shard, in addition to the primary.
 - Shard allocation awareness is configured to avoid concentrating all copies of
   a shard within a single zone.
 - The cluster has at least three master-eligible nodes. At least two of these 

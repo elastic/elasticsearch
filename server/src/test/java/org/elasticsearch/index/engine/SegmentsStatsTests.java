@@ -63,8 +63,13 @@ public class SegmentsStatsTests extends ESTestCase {
 
             for (String file : dir.listAll()) {
                 final String extension = IndexFileNames.getExtension(file);
+                if ("lock".equals(extension)) {
+                    // We should ignore lock files for stats file comparisons
+                    continue;
+                }
                 if (extension != null) {
-                    assertTrue(SegmentsStats.FILE_DESCRIPTIONS.get(extension) != null);
+                    assertNotNull("extension [" + extension + "] was not contained in the known segment stats files",
+                        SegmentsStats.FILE_DESCRIPTIONS.get(extension));
                 }
             }
         }

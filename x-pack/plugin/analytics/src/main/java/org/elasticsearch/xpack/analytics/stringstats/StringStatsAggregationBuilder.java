@@ -59,7 +59,7 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -82,7 +82,11 @@ public class StringStatsAggregationBuilder extends ValuesSourceAggregationBuilde
                                                       ValuesSourceConfig config,
                                                       AggregatorFactory parent,
                                                       AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        return new StringStatsAggregatorFactory(name, config, showDistribution, context, parent, subFactoriesBuilder, metadata);
+        StringStatsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new StringStatsAggregatorFactory(name, config, showDistribution, context,
+                                                parent, subFactoriesBuilder, metadata,
+                                                aggregatorSupplier);
     }
 
     @Override

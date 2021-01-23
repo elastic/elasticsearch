@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.autoscaling.AutoscalingLicenseChecker;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.policy.AutoscalingPolicy;
@@ -40,7 +41,8 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            new AutoscalingLicenseChecker(() -> true)
         );
         final ClusterBlocks blocks = ClusterBlocks.builder()
             .addGlobalBlock(
@@ -66,7 +68,8 @@ public class TransportGetAutoscalingPolicyActionTests extends AutoscalingTestCas
             mock(ClusterService.class),
             mock(ThreadPool.class),
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class)
+            mock(IndexNameExpressionResolver.class),
+            new AutoscalingLicenseChecker(() -> true)
         );
         final ClusterBlocks blocks = ClusterBlocks.builder().build();
         final ClusterState state = ClusterState.builder(new ClusterName(randomAlphaOfLength(8))).blocks(blocks).build();

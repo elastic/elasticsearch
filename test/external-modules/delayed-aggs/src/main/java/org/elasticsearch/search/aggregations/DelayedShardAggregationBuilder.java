@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -104,16 +103,12 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
         final AggregatorFactory factory = filterAgg.build(context, parent);
         return new AggregatorFactory(name, context, parent, subfactoriesBuilder, metadata) {
             @Override
-            protected Aggregator createInternal(
-                SearchContext searchContext,
-                Aggregator parent,
-                CardinalityUpperBound cardinality,
-                Map<String, Object> metadata
-            ) throws IOException {
-                long start = searchContext.getRelativeTimeInMillis();
+            protected Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+                throws IOException {
+                long start = context.getRelativeTimeInMillis();
                 long sleepTime = Math.min(delay.getMillis(), 100);
                 do {
-                    if (searchContext.isCancelled()) {
+                    if (context.isCancelled()) {
                         break;
                     }
                     try {
@@ -121,8 +116,8 @@ public class DelayedShardAggregationBuilder extends AbstractAggregationBuilder<D
                     } catch (InterruptedException e) {
                         throw new IOException(e);
                     }
-                } while (searchContext.getRelativeTimeInMillis() - start < delay.getMillis());
-                return factory.create(searchContext, parent, cardinality);
+                } while (context.getRelativeTimeInMillis() - start < delay.getMillis());
+                return factory.create(parent, cardinality);
             }
         };
     }

@@ -22,6 +22,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure that the index action response `index` field in the watch_record action result is
@@ -52,7 +53,7 @@ public class HistoryTemplateIndexActionMappingsTests extends AbstractWatcherInte
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 

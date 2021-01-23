@@ -2,24 +2,24 @@
 [[data-tiers]]
 == Data tiers
 
-A _data tier_ is a collection of nodes with the same data role that 
-typically share the same hardware profile: 
+A _data tier_ is a collection of nodes with the same data role that
+typically share the same hardware profile:
 
 * <<content-tier, Content tier>> nodes handle the indexing and query load for content such as a product catalog.
 * <<hot-tier, Hot tier>> nodes handle the indexing load for time series data such as logs or metrics
-and hold your most recent, most-frequently-accessed data. 
-* <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently 
+and hold your most recent, most-frequently-accessed data.
+* <<warm-tier, Warm tier>> nodes hold time series data that is accessed less-frequently
 and rarely needs to be updated.
 * <<cold-tier, Cold tier>> nodes hold time series data that is accessed occasionally and not normally updated.
 
-When you index documents directly to a specific index, they remain on content tier nodes indefinitely. 
+When you index documents directly to a specific index, they remain on content tier nodes indefinitely.
 
-When you index documents to a data stream, they initially reside on hot tier nodes. 
+When you index documents to a data stream, they initially reside on hot tier nodes.
 You can configure <<index-lifecycle-management, {ilm}>> ({ilm-init}) policies
-to automatically transition your time series data through the hot, warm, and cold tiers 
-according to your performance, resiliency and data retention requirements. 
+to automatically transition your time series data through the hot, warm, and cold tiers
+according to your performance, resiliency and data retention requirements.
 
-A node's <<data-node, data role>> is configured in `elasticsearch.yml`. 
+A node's <<data-node, data role>> is configured in `elasticsearch.yml`.
 For example, the highest-performance nodes in a cluster might be assigned to both the hot and content tiers:
 
 [source,yaml]
@@ -33,9 +33,9 @@ node.roles: ["data_hot", "data_content"]
 
 Data stored in the content tier is generally a collection of items such as a product catalog or article archive.
 Unlike time series data, the value of the content remains relatively constant over time,
-so it doesn't make sense to move it to a tier with different performance characteristics as it ages. 
-Content data typically has long data retention requirements, and you want to be able to retrieve 
-items quickly regardless of how old they are. 
+so it doesn't make sense to move it to a tier with different performance characteristics as it ages.
+Content data typically has long data retention requirements, and you want to be able to retrieve
+items quickly regardless of how old they are.
 
 Content tier nodes are usually optimized for query performance--they prioritize processing power over IO throughput
 so they can process complex searches and aggregations and return results quickly.
@@ -49,10 +49,10 @@ New indices are automatically allocated to the <<content-tier>> unless they are 
 [[hot-tier]]
 === Hot tier
 
-The hot tier is the {es} entry point for time series data and holds your most-recent, 
-most-frequently-searched time series data. 
-Nodes in the hot tier need to be fast for both reads and writes, 
-which requires more hardware resources and faster storage (SSDs). 
+The hot tier is the {es} entry point for time series data and holds your most-recent,
+most-frequently-searched time series data.
+Nodes in the hot tier need to be fast for both reads and writes,
+which requires more hardware resources and faster storage (SSDs).
 For resiliency, indices in the hot tier should be configured to use one or more replicas.
 
 New indices that are part of a <<data-streams, data stream>> are automatically allocated to the
@@ -62,43 +62,43 @@ hot tier.
 [[warm-tier]]
 === Warm tier
 
-Time series data can move to the warm tier once it is being queried less frequently 
-than the recently-indexed data in the hot tier. 
-The warm tier typically holds data from recent weeks. 
+Time series data can move to the warm tier once it is being queried less frequently
+than the recently-indexed data in the hot tier.
+The warm tier typically holds data from recent weeks.
 Updates are still allowed, but likely infrequent.
-Nodes in the warm tier generally don't need to be as fast as those in the hot tier. 
+Nodes in the warm tier generally don't need to be as fast as those in the hot tier.
 For resiliency, indices in the warm tier should be configured to use one or more replicas.
 
 [discrete]
 [[cold-tier]]
 === Cold tier
 
-Once data in the warm tier is no longer being updated, it can move to the cold tier. 
-The cold tier typically holds the data from recent months or years.
+Once data is no longer being updated, it can move from the warm tier to the cold tier where it
+stays for the rest of its life.
 The cold tier is still a responsive query tier, but data in the cold tier is not normally updated.
 As data transitions into the cold tier it can be compressed and shrunken.
-For resiliency, indices in the cold tier can rely on 
-<<ilm-searchable-snapshot, searchable snapshots>>, eliminating the need for replicas. 
+For resiliency, indices in the cold tier can rely on
+<<ilm-searchable-snapshot, searchable snapshots>>, eliminating the need for replicas.
 
 [discrete]
 [[data-tier-allocation]]
 === Data tier index allocation
 
-When you create an index, by default {es} sets 
+When you create an index, by default {es} sets
 <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
 to `data_content` to automatically allocate the index shards to the content tier.
 
-When {es} creates an index as part of a <<data-streams, data stream>>, 
-by default {es} sets 
+When {es} creates an index as part of a <<data-streams, data stream>>,
+by default {es} sets
 <<tier-preference-allocation-filter, `index.routing.allocation.include._tier_preference`>>
 to `data_hot` to automatically allocate the index shards to the hot tier.
 
-You can override the automatic tier-based allocation by specifying 
+You can override the automatic tier-based allocation by specifying
 <<shard-allocation-filtering, shard allocation filtering>>
 settings in the create index request or index template that matches the new index.
 
-You can also explicitly set `index.routing.allocation.include._tier_preference`  
-to opt out of the default tier-based allocation.  
+You can also explicitly set `index.routing.allocation.include._tier_preference`
+to opt out of the default tier-based allocation.
 If you set the tier preference to `null`, {es} ignores the data tier roles during allocation.
 
 [discrete]
@@ -106,7 +106,7 @@ If you set the tier preference to `null`, {es} ignores the data tier roles durin
 === Automatic data tier migration
 
 {ilm-init} automatically transitions managed
-indices through the available data tiers using the <<ilm-migrate, migrate>> action. 
-By default, this action is automatically injected in every phase. 
-You can explicitly specify the migrate action to override the default behavior, 
+indices through the available data tiers using the <<ilm-migrate, migrate>> action.
+By default, this action is automatically injected in every phase.
+You can explicitly specify the migrate action to override the default behavior,
 or use the <<ilm-allocate, allocate action>> to manually specify allocation rules.

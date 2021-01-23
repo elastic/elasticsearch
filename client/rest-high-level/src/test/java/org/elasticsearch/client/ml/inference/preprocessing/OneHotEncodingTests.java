@@ -50,12 +50,18 @@ public class OneHotEncodingTests extends AbstractXContentTestCase<OneHotEncoding
     }
 
     public static OneHotEncoding createRandom() {
+        return createRandom(randomAlphaOfLength(10));
+    }
+
+    public static OneHotEncoding createRandom(String inputField) {
         int valuesSize = randomIntBetween(1, 10);
         Map<String, String> valueMap = new HashMap<>();
         for (int i = 0; i < valuesSize; i++) {
             valueMap.put(randomAlphaOfLength(10), randomAlphaOfLength(10));
         }
-        return new OneHotEncoding(randomAlphaOfLength(10), valueMap, randomBoolean() ? null : randomBoolean());
+        return new OneHotEncoding(inputField,
+            valueMap,
+            randomBoolean() ? null : randomBoolean());
     }
 
 }

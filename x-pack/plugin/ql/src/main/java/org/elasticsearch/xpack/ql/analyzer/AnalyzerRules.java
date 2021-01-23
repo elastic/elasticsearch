@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 
 public final class AnalyzerRules {
 
@@ -23,13 +24,16 @@ public final class AnalyzerRules {
 
         @Override
         protected LogicalPlan rule(Filter filter) {
+            if (filter.resolved() == false) {
+                return filter;
+            }
             // check the condition itself
             Expression condition = replaceRawBoolFieldWithEquals(filter.condition());
             // otherwise look for binary logic
             if (condition == filter.condition()) {
-                condition = condition.transformUp(b ->
-                        b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
-                    , BinaryLogic.class);
+                condition = condition.transformUp(BinaryLogic.class, b ->
+                    b.replaceChildren(asList(replaceRawBoolFieldWithEquals(b.left()), replaceRawBoolFieldWithEquals(b.right())))
+                );
             }
 
             if (condition != filter.condition()) {
@@ -39,7 +43,7 @@ public final class AnalyzerRules {
         }
 
         private Expression replaceRawBoolFieldWithEquals(Expression e) {
-            if (e instanceof FieldAttribute) {
+            if (e instanceof FieldAttribute && e.dataType() == BOOLEAN) {
                 e = new Equals(e.source(), e, Literal.of(e, Boolean.TRUE));
             }
             return e;
@@ -58,7 +62,7 @@ public final class AnalyzerRules {
         // but with a twist; only if the tree is not resolved or analyzed
         @Override
         public final LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t), typeToken());
+            return plan.transformUp(typeToken(), t -> t.analyzed() || skipResolved() && t.resolved() ? t : rule(t));
         }
 
         @Override

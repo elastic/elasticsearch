@@ -21,6 +21,16 @@ import java.util.Objects;
 
 public class NodeLoad {
 
+    public static boolean taskStateFilter(JobState jobState) {
+        return jobState == null || jobState.isNoneOf(JobState.CLOSED, JobState.FAILED);
+    }
+
+    public static boolean taskStateFilter(DataFrameAnalyticsState dataFrameAnalyticsState) {
+        // Don't count stopped and failed df-analytics tasks as they don't consume native memory
+        return dataFrameAnalyticsState == null
+            || dataFrameAnalyticsState.isNoneOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED);
+    }
+
     private static final Logger logger = LogManager.getLogger(NodeLoadDetector.class);
 
     private final long maxMemory;
@@ -90,6 +100,20 @@ public class NodeLoad {
      */
     public String getNodeId() {
         return nodeId;
+    }
+
+    /**
+     * @return The available memory on the node
+     */
+    public long getFreeMemory() {
+        return Math.max(maxMemory - assignedJobMemory, 0L);
+    }
+
+    /**
+     * @return The number of jobs that can still be assigned to the node
+     */
+    public int remainingJobs() {
+        return Math.max(maxJobs - (int)numAssignedJobs, 0);
     }
 
     /**
@@ -191,7 +215,7 @@ public class NodeLoad {
         void adjustForAnomalyJob(JobState jobState,
                                  String jobId,
                                  MlMemoryTracker mlMemoryTracker) {
-            if ((jobState.isAnyOf(JobState.CLOSED, JobState.FAILED) == false) && jobId != null) {
+            if (taskStateFilter(jobState) && jobId != null) {
                 // Don't count CLOSED or FAILED jobs, as they don't consume native memory
                 ++numAssignedJobs;
                 if (jobState == JobState.OPENING) {
@@ -214,8 +238,7 @@ public class NodeLoad {
                                    MlMemoryTracker mlMemoryTracker) {
             DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
 
-            // Don't count stopped and failed df-analytics tasks as they don't consume native memory
-            if (dataFrameAnalyticsState.isAnyOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED) == false) {
+            if (taskStateFilter(dataFrameAnalyticsState)) {
                 // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
                 // and REINDEXING states we're committed to using the memory soon, so account for it here
                 ++numAssignedJobs;

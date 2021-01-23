@@ -33,6 +33,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.RegexMatcher.matches;
@@ -238,7 +239,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
             assertBusy(() -> {
                 Response response;
                 try {
-                    response = client().performRequest(new Request("GET", ".logs-deprecation-elasticsearch/_search"));
+                    client().performRequest(new Request("POST", "/.logs-deprecation-elasticsearch/_refresh?ignore_unavailable=true"));
+                    response = client().performRequest(new Request("GET", "/.logs-deprecation-elasticsearch/_search"));
                 } catch (Exception e) {
                     // It can take a moment for the index to be created. If it doesn't exist then the client
                     // throws an exception. Translate it into an assertion error so that assertBusy() will
@@ -284,7 +286,8 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("message", "[deprecated_settings] usage is deprecated. use [settings] instead"),
                             hasKey("node.id"),
                             hasKey("node.name"),
-                            hasEntry("x-opaque-id", "some xid")
+                            hasEntry("x-opaque-id", "some xid"),
+                            hasEntry("elasticsearch.event.category", "settings")
                         ),
                         allOf(
                             hasKey("@timestamp"),
@@ -300,11 +303,12 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasEntry("message", "[/_test_cluster/deprecated_settings] exists for deprecated tests"),
                             hasKey("node.id"),
                             hasKey("node.name"),
-                            hasEntry("x-opaque-id", "some xid")
+                            hasEntry("x-opaque-id", "some xid"),
+                            hasEntry("elasticsearch.event.category", "api")
                         )
                     )
                 );
-            });
+            }, 30, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
             client().performRequest(new Request("DELETE", "_data_stream/.logs-deprecation-elasticsearch"));

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.input.chain;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
@@ -18,7 +19,6 @@ import org.elasticsearch.xpack.watcher.input.http.HttpInput;
 import org.elasticsearch.xpack.watcher.test.AbstractWatcherIntegrationTestCase;
 
 import java.net.InetSocketAddress;
-import java.util.ArrayList;
 import java.util.Collection;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
@@ -50,9 +50,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        ArrayList<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
-        plugins.add(Netty4Plugin.class); // for http
-        return plugins;
+        return CollectionUtils.appendToCopy(super.nodePlugins(), Netty4Plugin.class); // for http
     }
 
     public void testChainedInputsAreWorking() throws Exception {

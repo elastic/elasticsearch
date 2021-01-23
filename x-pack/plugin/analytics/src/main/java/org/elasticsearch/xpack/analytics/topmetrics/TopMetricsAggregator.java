@@ -25,10 +25,10 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortValue;
@@ -65,7 +65,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
 
     TopMetricsAggregator(
         String name,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
         int size,
@@ -81,7 +81,7 @@ class TopMetricsAggregator extends NumericMetricsAggregator.MultiValue {
          * in that *very* common case.
          */
         BucketedSort.ExtraData values = metrics.values.length == 1 ? metrics.values[0] : metrics;
-        this.sort = sort.buildBucketedSort(context.getQueryShardContext(), size, values);
+        this.sort = context.buildBucketedSort(sort, size, values);
     }
 
     @Override

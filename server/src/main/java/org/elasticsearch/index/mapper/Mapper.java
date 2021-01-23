@@ -25,7 +25,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.script.ScriptService;
 
@@ -60,8 +60,9 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             private final Function<String, SimilarityProvider> similarityLookupService;
             private final Function<String, TypeParser> typeParsers;
             private final Function<String, RuntimeFieldType.Parser> runtimeTypeParsers;
+            private final boolean supportsDynamicRuntimeMappings;
             private final Version indexVersionCreated;
-            private final Supplier<QueryShardContext> queryShardContextSupplier;
+            private final Supplier<SearchExecutionContext> searchExecutionContextSupplier;
             private final DateFormatter dateFormatter;
             private final ScriptService scriptService;
             private final IndexAnalyzers indexAnalyzers;
@@ -72,22 +73,24 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                                  Function<String, TypeParser> typeParsers,
                                  Function<String, RuntimeFieldType.Parser> runtimeTypeParsers,
                                  Version indexVersionCreated,
-                                 Supplier<QueryShardContext> queryShardContextSupplier,
+                                 Supplier<SearchExecutionContext> searchExecutionContextSupplier,
                                  DateFormatter dateFormatter,
                                  ScriptService scriptService,
                                  IndexAnalyzers indexAnalyzers,
                                  IndexSettings indexSettings,
-                                 BooleanSupplier idFieldDataEnabled) {
+                                 BooleanSupplier idFieldDataEnabled,
+                                 boolean supportsDynamicRuntimeMappings) {
                 this.similarityLookupService = similarityLookupService;
                 this.typeParsers = typeParsers;
                 this.runtimeTypeParsers = runtimeTypeParsers;
                 this.indexVersionCreated = indexVersionCreated;
-                this.queryShardContextSupplier = queryShardContextSupplier;
+                this.searchExecutionContextSupplier = searchExecutionContextSupplier;
                 this.dateFormatter = dateFormatter;
                 this.scriptService = scriptService;
                 this.indexAnalyzers = indexAnalyzers;
                 this.indexSettings = indexSettings;
                 this.idFieldDataEnabled = idFieldDataEnabled;
+                this.supportsDynamicRuntimeMappings = supportsDynamicRuntimeMappings;
             }
 
             public IndexAnalyzers getIndexAnalyzers() {
@@ -118,12 +121,16 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
                 return runtimeTypeParsers.apply(type);
             }
 
+            public boolean supportsDynamicRuntimeMappings() {
+                return supportsDynamicRuntimeMappings;
+            }
+
             public Version indexVersionCreated() {
                 return indexVersionCreated;
             }
 
-            public Supplier<QueryShardContext> queryShardContextSupplier() {
-                return queryShardContextSupplier;
+            public Supplier<SearchExecutionContext> searchExecutionContext() {
+                return searchExecutionContextSupplier;
             }
 
             /**
@@ -153,8 +160,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             static class MultiFieldParserContext extends ParserContext {
                 MultiFieldParserContext(ParserContext in) {
                     super(in.similarityLookupService, in.typeParsers, in.runtimeTypeParsers, in.indexVersionCreated,
-                        in.queryShardContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
-                        in.idFieldDataEnabled);
+                        in.searchExecutionContextSupplier, in.dateFormatter, in.scriptService, in.indexAnalyzers, in.indexSettings,
+                        in.idFieldDataEnabled, in.supportsDynamicRuntimeMappings);
                 }
 
                 @Override

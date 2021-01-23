@@ -11,6 +11,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.Before;
@@ -72,10 +73,12 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "  indices:\n" +
             "    - names: 'b'\n" +
             "      privileges: [ monitor ]\n" +
-            "maintenance_a_role:\n" +
+            "maintenance_a_view_meta_b_role:\n" +
             "  indices:\n" +
             "    - names: 'a'\n" +
             "      privileges: [ maintenance ]\n" +
+            "    - names: '*b'\n" +
+            "      privileges: [ view_index_metadata ]\n" +
             "read_write_a_role:\n" +
             "  indices:\n" +
             "    - names: 'a'\n" +
@@ -103,7 +106,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "read_write_all_role:u12\n" +
             "create_c_role:u11\n" +
             "monitor_b_role:u14\n" +
-            "maintenance_a_role:u15\n" +
+            "maintenance_a_view_meta_b_role:u15\n" +
             "read_write_a_role:u12\n" +
             "delete_b_role:u11\n" +
             "index_a_role:u13\n";
@@ -120,8 +123,8 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
 
     @Override
     protected String configUsers() {
-        final String usersPasswdHashed = new String(Hasher.resolve(
-            randomFrom("pbkdf2", "pbkdf2_1000", "bcrypt", "bcrypt9")).hash(new SecureString("passwd".toCharArray())));
+        final Hasher passwdHasher = getFastStoredHashAlgoForTests();
+        final String usersPasswdHashed = new String(passwdHasher.hash(SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING));
 
         return super.configUsers() +
             "admin:" + usersPasswdHashed + "\n" +
@@ -173,6 +176,8 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u1",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u1", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
+        assertAccessIsDenied("u1", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
     public void testUserU2() throws Exception {
@@ -190,6 +195,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u2",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u2", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
     public void testUserU3() throws Exception {
@@ -228,6 +234,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u4",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u2", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
     public void testUserU5() throws Exception {
@@ -277,6 +284,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsDenied("u7",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u7", randomFrom("GET", "POST"), "/" + randomIndex() + "/_field_caps?fields=*");
     }
 
     public void testUserU8() throws Exception {
@@ -308,6 +316,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u9",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u9", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
     public void testUserU11() throws Exception {
@@ -333,6 +342,8 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsDenied("u11",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u11", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
+        assertAccessIsDenied("u11", randomFrom("GET", "POST"), "/" + "c" + "/_field_caps?fields=*");
     }
 
     public void testUserU12() throws Exception {
@@ -372,6 +383,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
         assertBodyHasAccessIsDenied("u13", "PUT", "/b/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u13",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u13", randomFrom("GET", "POST"), "/" + "a" + "/_field_caps?fields=*");
     }
 
     public void testUserU14() throws Exception {
@@ -394,11 +406,31 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
             "/" + randomIndex() + "/_bulk", "{ \"index\" : { \"_id\" : \"123\" } }\n{ \"foo\" : \"bar\" }\n");
         assertAccessIsAllowed("u14",
             "GET", "/" + randomIndex() + "/_mtermvectors", "{ \"docs\" : [ { \"_id\": \"1\" }, { \"_id\": \"2\" } ] }");
+        assertAccessIsDenied("u14", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
     }
 
     public void testUserU15() throws Exception {
         assertUserIsAllowed("u15", "maintenance", "a");
         assertUserIsDenied("u15", "crud", "a");
+        assertUserIsDenied("u15", "maintenance", "b");
+        assertUserIsDenied("u15", "crud", "b");
+        assertAccessIsDenied("u15", randomFrom("GET", "POST"), "/" + "a" + "/_field_caps?fields=*");
+        assertAccessIsAllowed("u15", randomFrom("GET", "POST"), "/" + "b" + "/_field_caps?fields=*");
+        assertAccessIsDenied("u15", "GET", "/_alias/" + "a");
+        assertAccessIsAllowed("u15", "GET", "/_alias/" + "b*");
+        assertAccessIsDenied("u15", "GET", "/" + "a" + (randomBoolean() ? "" : "/_settings"));
+        assertAccessIsAllowed("u15", "GET", "/" + "b" + (randomBoolean() ? "" : "/_settings"));
+        assertAccessIsDenied("u15", "GET", "/" + "a" + "/_mapping" + (randomBoolean() ? "" : "/field/name"));
+        assertAccessIsAllowed("u15", "GET", "/" + "b" + "/_mapping" + (randomBoolean() ? "" : "/field/name"));
+        assertAccessIsDenied("u15", "GET", "/" + "a" + "/_validate/query?q=name:elasticsearch");
+        assertAccessIsAllowed("u15", "GET", "/" + "b" + "/_validate/query?q=name:elasticsearch");
+        assertAccessIsDenied("u15", "GET", "/_resolve/index/" + "a");
+        assertAccessIsAllowed("u15", "GET", "/_resolve/index/" + "b");
+        assertAccessIsAllowed("u15", randomFrom("GET", "POST"), "/" + "a" + "/_search_shards");
+        assertAccessIsAllowed("u15", randomFrom("GET", "POST"), "/" + "b" + "/_search_shards");
+        // the ILM and data streams plugins reside in a separate project
+        // the view_index_metadata permission also grants the get data stream and ILM explain APIs
+        // but I don't feel compelled to add those as dependencies for this IT only
     }
 
     public void testThatUnknownUserIsRejectedProperly() throws Exception {
@@ -467,6 +499,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertNoTimeout(client().admin().cluster().prepareHealth(index).setWaitForGreenStatus().get());
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_mapping/field/name");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_settings");
+                    assertAccessIsAllowed(user, randomFrom("GET", "POST"), "/" + index + "/_field_caps?fields=*");
                 } else {
                     assertAccessIsDenied(user, "DELETE", "/" + index);
                     assertUserIsDenied(user, "create_index", index);
@@ -522,6 +555,7 @@ public class IndexPrivilegeIntegTests extends AbstractPrivilegeTestCase {
                     assertAccessIsAllowed("admin", "GET", "/" + index + "/_doc/1");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_explain/1", "{ \"query\" : { \"match_all\" : {} } }");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_termvectors/1");
+                    assertAccessIsAllowed(user, randomFrom("GET", "POST"), "/" + index + "/_field_caps?fields=*");
                     assertUserIsAllowed(user, "search", index);
                 } else {
                     assertAccessIsDenied(user, "GET", "/" + index + "/_count");

@@ -38,6 +38,12 @@ public class SparseFileTracker {
     private final long length;
 
     /**
+     * Number of bytes that were initially present in the case where the sparse file tracker was initialized with some completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
+    private final long initialLength;
+
+    /**
      * Creates a new empty {@link SparseFileTracker}
      *
      * @param description a description for the sparse file tracker
@@ -60,6 +66,7 @@ public class SparseFileTracker {
         if (length < 0) {
             throw new IllegalArgumentException("Length [" + length + "] must be equal to or greater than 0 for [" + description + "]");
         }
+        long initialLength = 0;
         if (ranges.isEmpty() == false) {
             synchronized (mutex) {
                 Range previous = null;
@@ -77,10 +84,12 @@ public class SparseFileTracker {
                     final boolean added = this.ranges.add(range);
                     assert added : range + " already exist in " + this.ranges;
                     previous = range;
+                    initialLength += range.end - range.start;
                 }
                 assert invariant();
             }
         }
+        this.initialLength = initialLength;
     }
 
     public long getLength() {
@@ -102,6 +111,15 @@ public class SparseFileTracker {
             }
         }
         return completedRanges == null ? Collections.emptySortedSet() : completedRanges;
+    }
+
+    /**
+     * Returns the number of bytes that were initially present in the case where the sparse file tracker was initialized with some
+     * completed ranges.
+     * See {@link #SparseFileTracker(String, long, SortedSet)}
+     */
+    public long getInitialLength() {
+        return initialLength;
     }
 
     /**
@@ -239,13 +257,13 @@ public class SparseFileTracker {
             case 1:
                 final Range requiredRange = requiredRanges.get(0);
                 requiredRange.completionListener.addListener(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     Math.min(requiredRange.completionListener.end, subRange.v2())
                 );
                 break;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     requiredRanges.size()
                 );
                 requiredRanges.forEach(
@@ -328,13 +346,13 @@ public class SparseFileTracker {
             case 1:
                 final Range pendingRange = pendingRanges.get(0);
                 pendingRange.completionListener.addListener(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     Math.min(pendingRange.completionListener.end, end)
                 );
                 return true;
             default:
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
-                    ActionListener.map(wrappedListener, progress -> null),
+                    wrappedListener.map(progress -> null),
                     pendingRanges.size()
                 );
                 pendingRanges.forEach(

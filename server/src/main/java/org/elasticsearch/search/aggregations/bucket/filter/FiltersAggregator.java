@@ -49,7 +49,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -147,7 +147,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Query[] filters,
         boolean keyed,
         String otherBucketKey,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -195,7 +195,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         Query[] filters,
         boolean keyed,
         String otherBucketKey,
-        SearchContext context,
+        AggregationContext context,
         Aggregator parent,
         CardinalityUpperBound cardinality,
         Map<String, Object> metadata
@@ -226,7 +226,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     protected final String otherBucketKey;
 
     private FiltersAggregator(String name, AggregatorFactories factories, String[] keys, boolean keyed,
-            String otherBucketKey, SearchContext context, Aggregator parent, CardinalityUpperBound cardinality,
+            String otherBucketKey, AggregationContext context, Aggregator parent, CardinalityUpperBound cardinality,
             Map<String, Object> metadata) throws IOException {
         super(name, factories, context, parent, cardinality.multiply(keys.length + (otherBucketKey == null ? 0 : 1)), metadata);
         this.keyed = keyed;
@@ -292,14 +292,14 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             String[] keys,
             Query[] filters,
             boolean keyed,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata
         ) throws IOException {
             super(name, AggregatorFactories.EMPTY, keys, keyed, null, context, parent, cardinality, metadata);
             this.filters = filters;
-            this.profiling = context.getProfilers() != null;
+            this.profiling = context.profiling();
         }
 
         /**
@@ -418,7 +418,7 @@ public abstract class FiltersAggregator extends BucketsAggregator {
             Query[] filters,
             boolean keyed,
             String otherBucketKey,
-            SearchContext context,
+            AggregationContext context,
             Aggregator parent,
             CardinalityUpperBound cardinality,
             Map<String, Object> metadata

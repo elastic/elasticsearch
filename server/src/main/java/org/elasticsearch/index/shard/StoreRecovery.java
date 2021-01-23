@@ -135,8 +135,7 @@ final class StoreRecovery {
                     internalRecoverFromStore(indexShard);
                     // just trigger a merge to do housekeeping on the
                     // copied segments - we will also see them in stats etc.
-                    indexShard.getEngine().forceMerge(false, -1, false,
-                        false, false, UUIDs.randomBase64UUID());
+                    indexShard.getEngine().forceMerge(false, -1, false, UUIDs.randomBase64UUID());
                     return true;
                 } catch (IOException ex) {
                     throw new IndexShardRecoveryException(indexShard.shardId(), "failed to recover from local shards", ex);
@@ -414,7 +413,7 @@ final class StoreRecovery {
                 }
                 index.setFileDetailsComplete();
             } else {
-                store.createEmpty(indexShard.indexSettings().getIndexVersionCreated().luceneVersion);
+                store.createEmpty();
                 final String translogUUID = Translog.createEmptyTranslog(
                     indexShard.shardPath().resolveTranslog(), SequenceNumbers.NO_OPS_PERFORMED, shardId,
                     indexShard.getPendingPrimaryTerm());
@@ -490,8 +489,7 @@ final class StoreRecovery {
             // If the index UUID was not found in the recovery source we will have to load RepositoryData and resolve it by index name
             if (indexId.getId().equals(IndexMetadata.INDEX_UUID_NA_VALUE)) {
                 // BwC path, running against an old version master that did not add the IndexId to the recovery source
-                repository.getRepositoryData(ActionListener.map(
-                    indexIdListener, repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
+                repository.getRepositoryData(indexIdListener.map(repositoryData -> repositoryData.resolveIndexId(indexId.getName())));
             } else {
                 indexIdListener.onResponse(indexId);
             }

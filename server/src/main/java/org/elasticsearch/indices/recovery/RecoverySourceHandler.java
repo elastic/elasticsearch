@@ -44,6 +44,7 @@ import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.Loggers;
@@ -218,7 +219,7 @@ public class RecoverySourceHandler {
                 logger.trace("performing sequence numbers based recovery. starting at [{}]", request.startingSeqNo());
                 startingSeqNo = request.startingSeqNo();
                 if (retentionLeaseRef.get() == null) {
-                    createRetentionLease(startingSeqNo, ActionListener.map(sendFileStep, ignored -> SendFileResult.EMPTY));
+                    createRetentionLease(startingSeqNo, sendFileStep.map(ignored -> SendFileResult.EMPTY));
                 } else {
                     sendFileStep.onResponse(SendFileResult.EMPTY);
                 }
@@ -941,8 +942,8 @@ public class RecoverySourceHandler {
                 protected void executeChunkRequest(FileChunk request, ActionListener<Void> listener) {
                     cancellableThreads.checkForCancel();
                     recoveryTarget.writeFileChunk(
-                        request.md, request.position, request.content, request.lastChunk, translogOps.getAsInt(),
-                        ActionListener.runBefore(listener, request::close));
+                        request.md, request.position, ReleasableBytesReference.wrap(request.content), request.lastChunk,
+                            translogOps.getAsInt(), ActionListener.runBefore(listener, request::close));
                 }
 
                 @Override

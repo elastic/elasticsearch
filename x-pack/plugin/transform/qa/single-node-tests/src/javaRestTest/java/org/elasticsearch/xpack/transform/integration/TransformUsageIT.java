@@ -75,8 +75,6 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         Request getRequest = new Request("GET", getTransformEndpoint() + "test_usage/_stats");
         Map<String, Object> stats = entityAsMap(client().performRequest(getRequest));
-        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
-        logger.info("test_usage/_stats response: [{}]", stats);
         Map<String, Double> expectedStats = new HashMap<>();
         for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
@@ -87,8 +85,6 @@ public class TransformUsageIT extends TransformRestTestCase {
 
         getRequest = new Request("GET", getTransformEndpoint() + "test_usage_continuous/_stats");
         stats = entityAsMap(client().performRequest(getRequest));
-        // temporary debug logs for https://github.com/elastic/elasticsearch/issues/52931
-        logger.info("test_usage_continuous/_stats response: [{}]", stats);
         for (String statName : PROVIDED_STATS) {
             @SuppressWarnings("unchecked")
             List<Object> specificStatistic = (List<Object>) (XContentMapValues.extractValue("transforms.stats." + statName, stats));
@@ -107,12 +103,14 @@ public class TransformUsageIT extends TransformRestTestCase {
             assertEquals(2, XContentMapValues.extractValue("transform.transforms.stopped", statsMap));
             assertEquals(1, XContentMapValues.extractValue("transform.transforms.started", statsMap));
             for (String statName : PROVIDED_STATS) {
-                // the trigger count can be higher if the scheduler kicked before usage has been called, therefore check for gte
+                // the trigger count can be off: e.g. if the scheduler kicked in before usage has been called,
+                // or if the scheduler triggered later, but state hasn't been persisted (by design)
+                // however, we know that as we have 2 transforms, the trigger count must be greater or equal to 2
                 if (statName.equals(TransformIndexerStats.NUM_INVOCATIONS.getPreferredName())) {
                     assertThat(
                         "Incorrect stat " + statName + ", got: " + statsMap.get("transform"),
                         extractStatsAsDouble(XContentMapValues.extractValue("transform.stats." + statName, statsMap)),
-                        greaterThanOrEqualTo(expectedStats.get(statName).doubleValue())
+                        greaterThanOrEqualTo(2.0)
                     );
                 } else {
                     assertThat(

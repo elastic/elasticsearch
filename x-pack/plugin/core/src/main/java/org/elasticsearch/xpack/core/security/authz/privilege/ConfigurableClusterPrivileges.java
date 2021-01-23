@@ -19,7 +19,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.privilege.ApplicationPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege.Category;
-import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.security.xcontent.XContentUtils;
 
 import java.io.IOException;
@@ -133,7 +133,7 @@ public final class ConfigurableClusterPrivileges {
 
         public ManageApplicationPrivileges(Set<String> applicationNames) {
             this.applicationNames = Collections.unmodifiableSet(applicationNames);
-            this.applicationPredicate = Automatons.predicate(applicationNames);
+            this.applicationPredicate = StringMatcher.of(applicationNames);
             this.requestPredicate = request -> {
                 if (request instanceof ApplicationPrivilegesRequest) {
                     final ApplicationPrivilegesRequest privRequest = (ApplicationPrivilegesRequest) request;

@@ -75,7 +75,7 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -163,8 +163,10 @@ public class DiversifiedAggregationBuilder extends ValuesSourceAggregationBuilde
                                                        ValuesSourceConfig config,
                                                        AggregatorFactory parent,
                                                        Builder subFactoriesBuilder) throws IOException {
-        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context, parent,
-                subFactoriesBuilder, metadata);
+        DiversifiedAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new DiversifiedAggregatorFactory(name, config, shardSize, maxDocsPerValue, executionHint, context,
+                                                parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

@@ -246,7 +246,7 @@ public class OutlierDetection implements DataFrameAnalysis {
     }
 
     @Override
-    public Map<String, Object> getExplicitlyMappedFields(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
+    public Map<String, Object> getResultMappings(String resultsFieldName, FieldCapabilitiesResponse fieldCapabilitiesResponse) {
         Map<String, Object> additionalProperties = new HashMap<>();
         additionalProperties.put(resultsFieldName + ".outlier_score",
             Collections.singletonMap("type", NumberFieldMapper.NumberType.DOUBLE.typeName()));

@@ -6,9 +6,7 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.function.aggregate.InnerAggregate;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 
@@ -26,26 +24,14 @@ abstract class Verifier {
             if (p instanceof UnplannedExec) {
                 failures.add(fail(p, "Unplanned item"));
             }
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
                     failures.add(fail(e, "Unresolved expression"));
                 }
             });
         });
-        // verify Pivot
-        checkInnerAggsPivot(plan, failures);
 
         return failures;
-    }
-
-    private static void checkInnerAggsPivot(PhysicalPlan plan, List<Failure> failures) {
-        plan.forEachDown(p -> {
-            p.pivot().aggregates().forEach(agg -> agg.forEachDown(e -> {
-                if (e instanceof InnerAggregate) {
-                    failures.add(fail(e, "Aggregation [{}] not supported (yet) by PIVOT", e.sourceText()));
-                }
-            }));
-        }, PivotExec.class);
     }
 
     static List<Failure> verifyExecutingPlan(PhysicalPlan plan) {
@@ -55,7 +41,7 @@ abstract class Verifier {
             if (p instanceof Unexecutable) {
                 failures.add(fail(p, "Unexecutable item"));
             }
-            p.forEachExpressionsUp(e -> {
+            p.forEachExpressionUp(e -> {
                 if (e.childrenResolved() && !e.resolved()) {
                     failures.add(fail(e, "Unresolved expression"));
                 }

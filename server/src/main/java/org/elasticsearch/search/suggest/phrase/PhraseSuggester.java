@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry;
@@ -117,12 +117,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     // from the index for a correction, collateMatch is updated
                     final Map<String, Object> vars = suggestion.getCollateScriptParams();
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
-                    QueryShardContext shardContext = suggestion.getShardContext();
+                    SearchExecutionContext searchExecutionContext = suggestion.getSearchExecutionContext();
                     final String querySource = scriptFactory.newInstance(vars).execute();
                     try (XContentParser parser = XContentFactory.xContent(querySource)
-                            .createParser(shardContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
+                            .createParser(searchExecutionContext.getXContentRegistry(), LoggingDeprecationHandler.INSTANCE, querySource)) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
-                        final ParsedQuery parsedQuery = shardContext.toQuery(innerQueryBuilder);
+                        final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
                         collateMatch = Lucene.exists(searcher, parsedQuery.query());
                     }
                 }

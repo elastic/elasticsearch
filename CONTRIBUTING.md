@@ -134,17 +134,20 @@ onwards and Eclipse 2020-3 and onwards.
     ./gradlew :run
 
 That'll spend a while building Elasticsearch and then it'll start Elasticsearch,
-writing its log above Gradle's status message. We log a lot of stuff on startup,
-specifically these lines tell you that Elasticsearch is ready:
+writing its log above Gradle's status message. We log a lot of stuff on startup, when you see some lines like these ones (when the console stops scrolling):
 
-    [2020-05-29T14:50:35,167][INFO ][o.e.h.AbstractHttpServerTransport] [runTask-0] publish_address {127.0.0.1:9200}, bound_addresses {[::1]:9200}, {127.0.0.1:9200}
-    [2020-05-29T14:50:35,169][INFO ][o.e.n.Node               ] [runTask-0] started
+    [2021-01-24T14:20:16,894][INFO ][o.e.x.s.s.SecurityStatusChangeListener] [runTask-0] Active license is now [BASIC]; Security is enabled
+    <============-> 99% EXECUTING [4m 34s]
+    > :run
+    > IDLE
+    > IDLE
+    > IDLE
 
-But to be honest its typically easier to wait until the console stops scrolling
-and then run `curl` in another window like this:
+Open another terminal window to check if ES is ready to receive requests by running this `curl` command in :
 
     curl -u elastic:password localhost:9200
 
+> Note: If you need assistance or question, go to our [discussion forum](https://discuss.elastic.co/).
 
 
 ### Importing the project into IntelliJ IDEA

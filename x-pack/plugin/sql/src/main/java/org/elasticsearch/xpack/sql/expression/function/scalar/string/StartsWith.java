@@ -15,7 +15,7 @@ import java.util.List;
 public class StartsWith extends org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith {
 
     public StartsWith(Source source, Expression input, Expression pattern) {
-        super(source, input, pattern, true);
+        super(source, input, pattern, false);
     }
 
     @Override

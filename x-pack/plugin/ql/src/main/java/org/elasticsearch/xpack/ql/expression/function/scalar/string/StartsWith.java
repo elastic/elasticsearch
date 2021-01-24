@@ -33,8 +33,8 @@ public abstract class StartsWith extends CaseInsensitiveScalarFunction {
     private final Expression input;
     private final Expression pattern;
 
-    public StartsWith(Source source, Expression input, Expression pattern, boolean caseSensitive) {
-        super(source, Arrays.asList(input, pattern), caseSensitive);
+    public StartsWith(Source source, Expression input, Expression pattern, boolean caseInsensitive) {
+        super(source, Arrays.asList(input, pattern), caseInsensitive);
         this.input = input;
         this.pattern = pattern;
     }

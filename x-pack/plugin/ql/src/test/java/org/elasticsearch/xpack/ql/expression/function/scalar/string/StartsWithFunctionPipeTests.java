@@ -27,8 +27,8 @@ import static org.elasticsearch.xpack.ql.tree.SourceTests.randomSource;
 
 public class StartsWithFunctionPipeTests extends AbstractNodeTestCase<StartsWithFunctionPipe, Pipe> {
 
-    static class StartsWithTest extends StartsWith {
-        StartsWithTest(Source source, Expression input, Expression pattern, boolean caseInsensitive) {
+    public static class StartsWithTest extends StartsWith {
+        public StartsWithTest(Source source, Expression input, Expression pattern, boolean caseInsensitive) {
             super(source, input, pattern, caseInsensitive);
         }
 

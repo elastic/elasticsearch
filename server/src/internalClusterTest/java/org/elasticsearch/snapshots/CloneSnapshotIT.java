@@ -613,6 +613,39 @@ public class CloneSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertAcked(cloneFuture.get());
     }
 
+    public void testManyConcurrentClonesStartOutOfOrder() throws Exception {
+        // large snapshot pool to allow for concurrently finishing clone while another clone is blocked on trying to load SnapshotInfo
+        final String masterName = internalCluster().startMasterOnlyNode(LARGE_SNAPSHOT_POOL_SETTINGS);
+        internalCluster().startDataOnlyNode();
+        final String repoName = "test-repo";
+        createRepository(repoName, "mock");
+        final String testIndex = "test-idx";
+        createIndexWithContent(testIndex);
+
+        final String sourceSnapshot = "source-snapshot";
+        createFullSnapshot(repoName, sourceSnapshot);
+        assertAcked(admin().indices().prepareDelete(testIndex).get());
+
+        final MockRepository repo = getRepositoryOnMaster(repoName);
+        repo.setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked();
+        repo.setBlockOnWriteIndexFile();
+
+        final ActionFuture<AcknowledgedResponse> clone1 = startClone(repoName, sourceSnapshot, "target-snapshot-1", testIndex);
+        // wait for this snapshot to show up in the cluster state
+        awaitNumberOfSnapshotsInProgress(1);
+        waitForBlock(masterName, repoName);
+
+        final ActionFuture<AcknowledgedResponse> clone2 = startClone(repoName, sourceSnapshot, "target-snapshot-2", testIndex);
+
+        awaitNumberOfSnapshotsInProgress(2);
+        awaitClusterState(state -> state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
+                .entries().stream().anyMatch(entry -> entry.state().completed()));
+        repo.unblock();
+
+        assertAcked(clone1.get());
+        assertAcked(clone2.get());
+    }
+
     private ActionFuture<AcknowledgedResponse> startCloneFromDataNode(String repoName, String sourceSnapshot, String targetSnapshot,
                                                                       String... indices) {
         return startClone(dataNodeClient(), repoName, sourceSnapshot, targetSnapshot, indices);

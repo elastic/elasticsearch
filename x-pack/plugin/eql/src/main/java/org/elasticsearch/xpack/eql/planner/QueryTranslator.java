@@ -173,7 +173,7 @@ final class QueryTranslator {
         }
 
         public static Query doTranslate(CaseInsensitiveScalarFunction f, TranslatorHandler handler) {
-            Query q = ExpressionTranslators.CaseInsensitiveScalars.doKnownTranslate(f, handler);
+            Query q = ExpressionTranslators.Scalars.doKnownTranslate(f, handler);
             if (q != null) {
                 return q;
             }

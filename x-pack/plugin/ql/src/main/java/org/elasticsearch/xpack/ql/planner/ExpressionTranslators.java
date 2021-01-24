@@ -11,7 +11,7 @@ import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
-import org.elasticsearch.xpack.ql.expression.function.scalar.string.CaseInsensitiveScalarFunction;
+import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
@@ -72,19 +72,19 @@ public final class ExpressionTranslators {
 
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(
-            new BinaryComparisons(),
-            new Ranges(),
-            new BinaryLogic(),
-            new IsNulls(),
-            new IsNotNulls(),
-            new Nots(),
-            new Likes(),
-            new InComparisons(),
-            new StringQueries(),
-            new Matches(),
-            new MultiMatches(),
-        new CaseInsensitiveScalars()
-            );
+        new BinaryComparisons(),
+        new Ranges(),
+        new BinaryLogic(),
+        new IsNulls(),
+        new IsNotNulls(),
+        new Nots(),
+        new Likes(),
+        new InComparisons(),
+        new StringQueries(),
+        new Matches(),
+        new MultiMatches(),
+        new Scalars()
+    );
 
     public static Query toQuery(Expression e) {
         return toQuery(e, new QlTranslatorHandler());
@@ -425,14 +425,14 @@ public final class ExpressionTranslators {
         }
     }
 
-    public static class CaseInsensitiveScalars extends ExpressionTranslator<CaseInsensitiveScalarFunction> {
+    public static class Scalars extends ExpressionTranslator<ScalarFunction> {
 
         @Override
-        protected Query asQuery(CaseInsensitiveScalarFunction f, TranslatorHandler handler) {
+        protected Query asQuery(ScalarFunction f, TranslatorHandler handler) {
             return doTranslate(f, handler);
         }
 
-        public static Query doTranslate(CaseInsensitiveScalarFunction f, TranslatorHandler handler) {
+        public static Query doTranslate(ScalarFunction f, TranslatorHandler handler) {
             Query q = doKnownTranslate(f, handler);
             if (q != null) {
                 return q;
@@ -440,7 +440,7 @@ public final class ExpressionTranslators {
             return handler.wrapFunctionQuery(f, f, new ScriptQuery(f.source(), f.asScript()));
         }
 
-        public static Query doKnownTranslate(CaseInsensitiveScalarFunction f, TranslatorHandler handler) {
+        public static Query doKnownTranslate(ScalarFunction f, TranslatorHandler handler) {
             if (f instanceof StartsWith) {
                 StartsWith sw = (StartsWith) f;
                 if (sw.input() instanceof FieldAttribute && sw.pattern().foldable()) {

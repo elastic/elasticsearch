@@ -146,7 +146,7 @@ process where endsWith(process_path, "x") == true and endsWith(process_path, "yx
 ;
 
 twoFunctionsEqualsBooleanLiterals-insensitive
-process where ~endsWith(process_path, "x") == true and ~endsWith(process_path, "yx") != true
+process where endsWith~(process_path, "x") == true and endsWith~(process_path, "yx") != true
 ;
 {"bool":{"must":[{"wildcard":{"process_path":{"wildcard":"*x","case_insensitive":true,"boost":1.0}}},
 {"bool":{"must_not":[{"wildcard":{"process_path":{"wildcard":"*yx","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}],"boost":1.0}}
@@ -167,7 +167,7 @@ process where endsWith(hostname, "c")
 ;
 
 endsWithFunction-insensitive
-process where ~endsWith(user_name, "c")
+process where endsWith~(user_name, "c")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"wildcard":{"user_name":{"wildcard":"*c","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
@@ -241,7 +241,7 @@ InternalEqlScriptUtils.length(InternalQlScriptUtils.docValue(doc,params.v0)),par
 ;
 
 startsWithFunction-insensitive
-process where ~startsWith(user_name, "A")
+process where startswith~(user_name, "A")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"prefix":{"user_name":{"value":"A","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
@@ -263,7 +263,7 @@ process where startsWith(user_name, "A") or startsWith(user_name, "B")
 ;
 
 startsWithFunctionWithCondition-insensitive
-process where ~startsWith(user_name, "A") or ~startsWith(user_name, "B")
+process where startswith~(user_name, "A") or startswith~(user_name, "B")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"bool":{"should":[{"prefix":{"user_name":{"value":"A","case_insensitive":true,"boost":1.0}}},
@@ -278,7 +278,7 @@ process where stringContains(process_name, "foo")
 ;
 
 stringContainsExactField-insensitive
-process where ~stringContains(process_name, "foo")
+process where stringContains~(process_name, "foo")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"wildcard":{"process_name":{"wildcard":"*foo*","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
@@ -292,7 +292,7 @@ process where stringContains(hostname, "foo")
 ;
 
 stringContains-insensitive
-process where ~stringContains(process_name, "foo")
+process where stringContains~(process_name, "foo")
 ;
 {"bool":{"must":[{"term":{"event.category":{"value":"process","boost":1.0}}},
 {"wildcard":{"process_name":{"wildcard":"*foo*","case_insensitive":true,"boost":1.0}}}],"boost":1.0}}
@@ -323,7 +323,7 @@ InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),par
 ;
 
 indexOfFunction-insensitive
-process where ~indexOf(user_name, "A", 2) > 0
+process where indexOf~(user_name, "A", 2) > 0
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.gt(
 InternalEqlScriptUtils.indexOf(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3),params.v4))",
@@ -347,7 +347,7 @@ InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),par
 ;
 
 betweenFunction-insensitive
-process where ~between(process_name, "s", "e") : "yst"
+process where between~(process_name, "s", "e") : "yst"
 ;
 "script":{"source":"InternalQlScriptUtils.nullSafeFilter(InternalEqlScriptUtils.seq(
 InternalEqlScriptUtils.between(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2,params.v3,params.v4),params.v5))",
@@ -483,20 +483,20 @@ process where wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def
 ;
 
 wildcardFunctionSingleArgument-insensitive
-process where ~wildcard(process_path, "*\\red_ttp\\wininit.*")
+process where wildcard~(process_path, "*\\red_ttp\\wininit.*")
 ;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
 ;
 
 wildcardFunctionTwoArguments-insensitive
-process where ~wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
+process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*")
 ;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
 "wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","case_insensitive":true,"boost":1.0}}
 ;
 
 wildcardFunctionThreeArguments-insensitive
-process where ~wildcard(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
+process where wildcard~(process_path, "*\\red_ttp\\wininit.*", "*\\abc\\*", "*def*")
 ;
 "wildcard":{"process_path":{"wildcard":"*\\\\red_ttp\\\\wininit.*","case_insensitive":true,"boost":1.0}}
 "wildcard":{"process_path":{"wildcard":"*\\\\abc\\\\*","case_insensitive":true,"boost":1.0}}

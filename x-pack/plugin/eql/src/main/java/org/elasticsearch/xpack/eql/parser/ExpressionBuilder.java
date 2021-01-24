@@ -203,8 +203,8 @@ public class ExpressionBuilder extends IdentifierBuilder {
 
         FunctionResolutionStrategy strategy = FunctionResolutionStrategy.DEFAULT;
 
-        if (name.startsWith("~")) {
-            name = name.substring(1);
+        if (name.endsWith("~")) {
+            name = name.substring(0, name.length() - 1);
             strategy = EqlFunctionResolution.CASE_INSENSITIVE;
         }
 

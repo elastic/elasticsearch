@@ -228,7 +228,7 @@ QUOTED_IDENTIFIER
     ;
 
 TILDE_IDENTIFIER
-    : '~' LETTER (LETTER | DIGIT | '_')*
+    : LETTER (LETTER | DIGIT | '_')* '~'
     ;
 
 eventValue

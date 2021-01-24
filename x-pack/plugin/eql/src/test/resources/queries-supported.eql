@@ -697,4 +697,4 @@ sequence
 ;
 
 // case sensitive
-process where ~startswith(process_name,"net") and endswith(command_line,".exe");
+process where startswith~(process_name,"net") and endswith(command_line,".exe");

@@ -75,6 +75,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                     new TransformCheckpointStats(0, null, null, 100, 1000),
                     // changesLastDetectedAt aren't serialized back
                     100,
+                    null,
                     null
                 )
             );
@@ -103,6 +104,7 @@ public class TransformStatsTests extends AbstractSerializingTestCase<TransformSt
                     new TransformCheckpointStats(0, null, null, 100, 1000),
                     // changesLastDetectedAt aren't serialized back
                     100,
+                    null,
                     null
                 )
             );

@@ -447,8 +447,8 @@ public class CacheFile {
         synchronized (listeners) {
             ensureOpen();
             reference = channelRef;
-            assert reference != null
-                && reference.refCount() > 0 : "impossible to run into a fully released channel reference under the listeners mutex";
+            assert reference != null && reference.refCount() > 0
+                : "impossible to run into a fully released channel reference under the listeners mutex";
             assert refCounter.refCount() > 0 : "file should not be fully released";
             reference.incRef();
         }

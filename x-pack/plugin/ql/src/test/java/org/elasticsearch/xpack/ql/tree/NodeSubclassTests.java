@@ -155,7 +155,7 @@ public class NodeSubclassTests<T extends B, B extends Node<B>> extends ESTestCas
     }
 
     /**
-     * Test {@link Node#replaceChildren} implementation on {@link #subclass}.
+     * Test {@link Node#replaceChildren(List)} implementation on {@link #subclass}.
      */
     public void testReplaceChildren() throws Exception {
         Constructor<T> ctor = longestCtor(subclass);

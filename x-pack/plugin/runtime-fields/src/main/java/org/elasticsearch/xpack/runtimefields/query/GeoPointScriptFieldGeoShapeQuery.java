@@ -6,8 +6,10 @@
 
 package org.elasticsearch.xpack.runtimefields.query;
 
+import org.apache.lucene.geo.Component2D;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.xpack.runtimefields.mapper.GeoPointFieldScript;
 
@@ -16,31 +18,26 @@ import java.util.Objects;
 
 public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFieldQuery {
 
-    private final GeoEncodingUtils.Component2DPredicate predicate;
+    private final SpatialPredicate predicate;
     private final LatLonGeometry[] geometries;
+    private final ShapeRelation relation;
 
     public GeoPointScriptFieldGeoShapeQuery(
         Script script,
         GeoPointFieldScript.LeafFactory leafFactory,
         String fieldName,
+        ShapeRelation relation,
         LatLonGeometry... geometries
     ) {
         super(script, leafFactory, fieldName);
         this.geometries = geometries;
-        predicate = GeoEncodingUtils.createComponentPredicate(LatLonGeometry.create(geometries));
+        this.relation = relation;
+        this.predicate = getPredicate(relation, geometries);
     }
 
     @Override
     protected boolean matches(long[] values, int count) {
-        for (int i = 0; i < count; i++) {
-            final long value = values[i];
-            final int lat = (int) (value >>> 32);
-            final int lon = (int) (value & 0xFFFFFFFF);
-            if (predicate.test(lat, lon)) {
-                return true;
-            }
-        }
-        return false;
+        return predicate.matches(values, count);
     }
 
     @Override
@@ -57,11 +54,94 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
         GeoPointScriptFieldGeoShapeQuery that = (GeoPointScriptFieldGeoShapeQuery) o;
-        return Arrays.equals(geometries, that.geometries);
+        return relation == that.relation && Arrays.equals(geometries, that.geometries);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), Arrays.hashCode(geometries));
+        return Objects.hash(super.hashCode(), relation, Arrays.hashCode(geometries));
+    }
+
+    @FunctionalInterface
+    private interface SpatialPredicate {
+        boolean matches(long[] values, int count);
+    }
+
+    private static SpatialPredicate getPredicate(ShapeRelation relation, LatLonGeometry... geometries) {
+        switch (relation) {
+            case INTERSECTS: {
+                final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
+                    LatLonGeometry.create(geometries)
+                );
+                return (values, count) -> {
+                    for (int i = 0; i < count; i++) {
+                        final long value = values[i];
+                        final int lat = (int) (value >>> 32);
+                        final int lon = (int) (value & 0xFFFFFFFF);
+                        if (predicate.test(lat, lon)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+            }
+            case DISJOINT: {
+                final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
+                    LatLonGeometry.create(geometries)
+                );
+                return (values, count) -> {
+                    for (int i = 0; i < count; i++) {
+                        final long value = values[i];
+                        final int lat = (int) (value >>> 32);
+                        final int lon = (int) (value & 0xFFFFFFFF);
+                        if (predicate.test(lat, lon)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                };
+            }
+            case WITHIN: {
+                final GeoEncodingUtils.Component2DPredicate predicate = GeoEncodingUtils.createComponentPredicate(
+                    LatLonGeometry.create(geometries)
+                );
+                return (values, count) -> {
+                    for (int i = 0; i < count; i++) {
+                        final long value = values[i];
+                        final int lat = (int) (value >>> 32);
+                        final int lon = (int) (value & 0xFFFFFFFF);
+                        if (predicate.test(lat, lon) == false) {
+                            return false;
+                        }
+                    }
+                    return true;
+                };
+            }
+            case CONTAINS: {
+                final Component2D[] component2DS = new Component2D[geometries.length];
+                for (int i = 0; i < geometries.length; i++) {
+                    component2DS[i] = LatLonGeometry.create(geometries[i]);
+                }
+                return (values, count) -> {
+                    Component2D.WithinRelation answer = Component2D.WithinRelation.DISJOINT;
+                    for (int i = 0; i < count; i++) {
+                        final long value = values[i];
+                        final double lat = GeoEncodingUtils.decodeLatitude((int) (value >>> 32));
+                        final double lon = GeoEncodingUtils.decodeLongitude((int) (value & 0xFFFFFFFF));
+                        for (Component2D component2D : component2DS) {
+                            Component2D.WithinRelation withinRelation = component2D.withinPoint(lon, lat);
+                            if (withinRelation == Component2D.WithinRelation.NOTWITHIN) {
+                                return false;
+                            } else if (withinRelation != Component2D.WithinRelation.DISJOINT) {
+                                answer = withinRelation;
+                            }
+                        }
+                    }
+                    return answer == Component2D.WithinRelation.CANDIDATE;
+                };
+            }
+            default:
+                throw new IllegalArgumentException("Unknown spatial relationship [" + relation.getRelationName() + "]");
+        }
     }
 }

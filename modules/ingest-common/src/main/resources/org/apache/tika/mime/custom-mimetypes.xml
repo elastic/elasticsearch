@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  ~ Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+  ~ or more contributor license agreements. Licensed under the Elastic License;
+  ~ you may not use this file except in compliance with the Elastic License.
+  -->
+
+<mime-info>
+    <mime-type type="application/x-mach-binary">
+        <acronym>Mach-O</acronym>
+        <magic priority="50">
+            <match value="\xfe\xed\xfa\xce" type="string" offset="0" />
+            <match value="\xbe\xba\xfe\xca" type="string" offset="0" />
+            <match value="\xcf\xfa\xed\xfe" type="string" offset="0" />
+            <match value="\xce\xfa\xed\xfe" type="string" offset="0" />
+            <match value="\xca\xfe\xba\xbe" type="string" offset="0" />
+        </magic>
+    </mime-type>
+</mime-info>

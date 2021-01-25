@@ -14,10 +14,16 @@ esplugin {
   extendedPlugins = ['lang-painless']
 }
 
+versions << [
+  'tika': '1.24',
+]
+
 dependencies {
   compileOnly project(':modules:lang-painless')
   api project(':libs:elasticsearch-grok')
   api project(':libs:elasticsearch-dissect')
+  api "commons-codec:commons-codec:${versions.commonscodec}"
+  api "org.apache.tika:tika-core:${versions.tika}"
 }
 
 restResources {

@@ -298,12 +298,10 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     public List<String> nestedMappings() {
-        if (mapperService.documentMapper() == null) {
+        if (mappingLookup.objectMappers() == null) {
             return Collections.emptyList();
         }
-        return mapperService.documentMapper()
-            .mappers()
-            .objectMappers()
+        return mappingLookup.objectMappers()
             .keySet()
             .stream()
             .filter(s -> getObjectMapper(s).nested().isNested())

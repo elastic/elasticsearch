@@ -89,6 +89,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.StreamSupport;
 
+import static org.elasticsearch.snapshots.SnapshotsService.NO_FEATURE_STATES_VALUE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -373,6 +374,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
                 .prepareCreateSnapshot(repositoryName, snapshot)
                 .setIndices(indices.toArray(Strings.EMPTY_ARRAY))
                 .setWaitForCompletion(true)
+                .setFeatureStates(NO_FEATURE_STATES_VALUE) // Exclude all feature states to ensure only specified indices are included
                 .get();
 
         final SnapshotInfo snapshotInfo = response.getSnapshotInfo();

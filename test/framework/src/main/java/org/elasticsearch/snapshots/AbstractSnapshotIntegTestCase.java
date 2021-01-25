@@ -155,6 +155,15 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         skipRepoConsistencyCheckReason = reason;
     }
 
+    protected RepositoryData getRepositoryData(String repoName, Version version) {
+        final RepositoryData repositoryData = getRepositoryData(repoName);
+        if (SnapshotsService.includesRepositoryUuid(version) == false) {
+            return repositoryData.withoutUuid();
+        } else {
+            return repositoryData;
+        }
+    }
+
     protected RepositoryData getRepositoryData(String repository) {
         return getRepositoryData((Repository) getRepositoryOnMaster(repository));
     }
@@ -291,6 +300,14 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         createRepository(repoName, type, randomRepositorySettings());
     }
 
+    protected void createRepositoryNoVerify(String repoName, String type) {
+        logger.info("--> creating repository [{}] [{}]", repoName, type);
+        assertAcked(clusterAdmin().preparePutRepository(repoName)
+                .setVerify(false)
+                .setType(type)
+                .setSettings(randomRepositorySettings()));
+    }
+
     protected Settings.Builder randomRepositorySettings() {
         final Settings.Builder settings = Settings.builder();
         settings.put("location", randomRepoPath()).put("compress", randomBoolean());
@@ -328,7 +345,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
         assertThat(snapshotInfo.totalShards(), is(0));
 
         logger.info("--> writing downgraded RepositoryData for repository metadata version [{}]", version);
-        final RepositoryData repositoryData = getRepositoryData(repoName);
+        final RepositoryData repositoryData = getRepositoryData(repoName, version);
         final XContentBuilder jsonBuilder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(jsonBuilder, version);
         final RepositoryData downgradedRepoData = RepositoryData.snapshotsFromXContent(JsonXContent.jsonXContent.createParser(

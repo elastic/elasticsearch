@@ -24,6 +24,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.admin.cluster.repositories.delete.DeleteRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -60,9 +62,9 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.Set;
 
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
@@ -126,30 +128,54 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
         validate(request.name());
 
-        final ActionListener<AcknowledgedResponse> registrationListener;
-        if (request.verify()) {
-            registrationListener = ActionListener.delegateFailure(listener, (delegatedListener, clusterStateUpdateResponse) -> {
-                if (clusterStateUpdateResponse.isAcknowledged()) {
-                    // The response was acknowledged - all nodes should know about the new repository, let's verify them
-                    verifyRepository(request.name(), delegatedListener.map(discoveryNodes -> clusterStateUpdateResponse));
-                } else {
-                    delegatedListener.onResponse(clusterStateUpdateResponse);
-                }
-            });
-        } else {
-            registrationListener = listener;
-        }
-
         // Trying to create the new repository on master to make sure it works
         try {
             closeRepository(createRepository(newRepositoryMetadata, typesRegistry));
         } catch (Exception e) {
-            registrationListener.onFailure(e);
+            listener.onFailure(e);
             return;
         }
 
+        final StepListener<AcknowledgedResponse> acknowledgementStep = new StepListener<>();
+        final StepListener<Void> publicationStep = new StepListener<>();
+
+        if (request.verify()) {
+
+            // When publication has completed (and all acks received or timed out) then verify the repository.
+            // (if acks timed out then acknowledgementStep completes before the master processes this cluster state, hence why we have
+            // to wait for the publication to be complete too)
+            final StepListener<List<DiscoveryNode>> verifyStep = new StepListener<>();
+            publicationStep.whenComplete(ignored -> acknowledgementStep.whenComplete(clusterStateUpdateResponse -> {
+                if (clusterStateUpdateResponse.isAcknowledged()) {
+                    // The response was acknowledged - all nodes should know about the new repository, let's verify them
+                    verifyRepository(request.name(), verifyStep);
+                } else {
+                    verifyStep.onResponse(null);
+                }
+            }, listener::onFailure), listener::onFailure);
+
+            // When verification has completed, get the repository data for the first time
+            final StepListener<RepositoryData> getRepositoryDataStep = new StepListener<>();
+            verifyStep.whenComplete(ignored -> threadPool.generic().execute(
+                    ActionRunnable.wrap(getRepositoryDataStep, l -> repository(request.name()).getRepositoryData(l))), listener::onFailure);
+
+            // When the repository metadata is ready, update the repository UUID stored in the cluster state, if available
+            final StepListener<Void> updateRepoUuidStep = new StepListener<>();
+            getRepositoryDataStep.whenComplete(
+                    repositoryData -> updateRepositoryUuidInMetadata(clusterService, request.name(), repositoryData, updateRepoUuidStep),
+                    listener::onFailure);
+
+            // Finally respond to the outer listener with the response from the original cluster state update
+            updateRepoUuidStep.whenComplete(
+                    ignored -> acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure),
+                    listener::onFailure);
+
+        } else {
+            acknowledgementStep.whenComplete(listener::onResponse, listener::onFailure);
+        }
+
         clusterService.submitStateUpdateTask("put_repository [" + request.name() + "]",
-            new AckedClusterStateUpdateTask(request, registrationListener) {
+            new AckedClusterStateUpdateTask(request, acknowledgementStep) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -185,6 +211,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 @Override
                 public void onFailure(String source, Exception e) {
                     logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", request.name()), e);
+                    publicationStep.onFailure(e);
                     super.onFailure(source, e);
                 }
 
@@ -193,7 +220,69 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     // repository is created on both master and data nodes
                     return discoveryNode.isMasterNode() || discoveryNode.isDataNode();
                 }
+
+                @Override
+                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                    publicationStep.onResponse(null);
+                }
             });
+    }
+
+    /**
+     * Set the repository UUID in the named repository's {@link RepositoryMetadata} to match the UUID in its {@link RepositoryData},
+     * which may involve a cluster state update.
+     *
+     * @param listener notified when the {@link RepositoryMetadata} is updated, possibly on this thread or possibly on the master service
+     *                 thread
+     */
+    public static void updateRepositoryUuidInMetadata(
+            ClusterService clusterService,
+            final String repositoryName,
+            RepositoryData repositoryData,
+            ActionListener<Void> listener) {
+
+        final String repositoryUuid = repositoryData.getUuid();
+        if (repositoryUuid.equals(RepositoryData.MISSING_UUID)) {
+            listener.onResponse(null);
+            return;
+        }
+
+        final RepositoriesMetadata currentReposMetadata
+                = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+        final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
+        if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
+            listener.onResponse(null);
+            return;
+        }
+
+        clusterService.submitStateUpdateTask("update repository UUID [" + repositoryName + "] to [" + repositoryUuid + "]",
+                new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        final RepositoriesMetadata currentReposMetadata
+                                = currentState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+
+                        final RepositoryMetadata repositoryMetadata = currentReposMetadata.repository(repositoryName);
+                        if (repositoryMetadata == null || repositoryMetadata.uuid().equals(repositoryUuid)) {
+                            return currentState;
+                        } else {
+                            final RepositoriesMetadata newReposMetadata = currentReposMetadata.withUuid(repositoryName, repositoryUuid);
+                            final Metadata.Builder metadata
+                                    = Metadata.builder(currentState.metadata()).putCustom(RepositoriesMetadata.TYPE, newReposMetadata);
+                            return ClusterState.builder(currentState).metadata(metadata).build();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(String source, Exception e) {
+                        listener.onFailure(e);
+                    }
+
+                    @Override
+                    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                        listener.onResponse(null);
+                    }
+                });
     }
 
     /**

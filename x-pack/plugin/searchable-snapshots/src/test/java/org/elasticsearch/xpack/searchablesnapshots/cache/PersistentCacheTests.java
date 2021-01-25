@@ -42,6 +42,7 @@ import java.util.SortedSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
@@ -293,6 +294,35 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             }
         } finally {
             fileSystem.tearDown();
+        }
+    }
+
+    public void testGetCacheSizeIgnoresDeletedCacheFiles() throws Exception {
+        try (CacheService cacheService = defaultCacheService()) {
+            cacheService.setCacheSyncInterval(TimeValue.ZERO);
+            cacheService.start();
+
+            final CacheFile cacheFile = randomFrom(randomCacheFiles(cacheService));
+            final long sizeOfCacheFileInCache = cacheFile.getCompletedRanges().stream().mapToLong(range -> range.v2() - range.v1()).sum();
+
+            final Supplier<Long> cacheSizeSupplier = () -> cacheService.getPersistentCache()
+                .getCacheSize(cacheFile.getCacheKey().getShardId(), new SnapshotId("_ignored_", cacheFile.getCacheKey().getSnapshotUUID()));
+            assertThat(cacheSizeSupplier.get(), equalTo(0L));
+
+            cacheService.synchronizeCache();
+
+            final long sizeOfShardInCache = cacheSizeSupplier.get();
+            assertThat(sizeOfShardInCache, greaterThanOrEqualTo(sizeOfCacheFileInCache));
+
+            final CacheFile.EvictionListener listener = evictedCacheFile -> {};
+            cacheFile.acquire(listener);
+            try {
+                cacheService.removeFromCache(cacheFile.getCacheKey());
+                assertThat(cacheSizeSupplier.get(), equalTo(sizeOfShardInCache));
+            } finally {
+                cacheFile.release(listener);
+            }
+            assertThat(cacheSizeSupplier.get(), equalTo(sizeOfShardInCache - sizeOfCacheFileInCache));
         }
     }
 

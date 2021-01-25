@@ -155,7 +155,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // And so does updating the expiration time
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            indexService.updateExpirationTime("0", 10L, future);
+            indexService.extendExpirationTime("0", 10L, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
         }

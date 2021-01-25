@@ -70,8 +70,8 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        public void setExpirationTime(long expirationTimeMillis) {
-            this.expirationTimeMillis = expirationTimeMillis;
+        public void extendExpirationTime(long newExpirationTimeMillis) {
+            this.expirationTimeMillis = newExpirationTimeMillis;
         }
 
         @Override
@@ -157,7 +157,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         try {
             boolean shouldExpire = randomBoolean();
             long expirationTime = System.currentTimeMillis() + randomLongBetween(100000, 1000000) * (shouldExpire ? -1 : 1);
-            task.setExpirationTime(expirationTime);
+            task.extendExpirationTime(expirationTime);
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -199,7 +199,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.extendExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result
@@ -237,7 +237,7 @@ public class AsyncResultsServiceTests extends ESSingleNodeTestCase {
         TestTask task = (TestTask) taskManager.register("test", "test", request);
         try {
             long startTime = System.currentTimeMillis();
-            task.setExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
+            task.extendExpirationTime(startTime + TimeValue.timeValueMinutes(1).getMillis());
 
             if (updateInitialResultsInStore) {
                 // we need to store initial result

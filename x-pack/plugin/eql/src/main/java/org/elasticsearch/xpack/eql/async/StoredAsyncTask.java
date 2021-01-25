@@ -52,8 +52,8 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
      * Update the expiration time of the (partial) response.
      */
     @Override
-    public void setExpirationTime(long expirationTimeMillis) {
-        this.expirationTimeMillis.updateAndGet(curr -> Math.max(curr, expirationTimeMillis));
+    public void extendExpirationTime(long newExpirationTimeMillis) {
+        this.expirationTimeMillis.updateAndGet(curr -> Math.max(curr, newExpirationTimeMillis));
     }
 
     public long getExpirationTimeMillis() {

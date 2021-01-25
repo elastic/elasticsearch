@@ -202,12 +202,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     }
 
     /**
-     * Updates the expiration time of the provided <code>docId</code> if the place-holder
-     * document is still present (update).
+     * Extends the expiration time of the provided <code>docId</code> if the place-holder document is still present (update).
      */
-    public void updateExpirationTime(String docId,
-                              long expirationTimeMillis,
-                              ActionListener<UpdateResponse> listener) {
+    public void extendExpirationTime(String docId, long expirationTimeMillis, ActionListener<UpdateResponse> listener) {
         Script script = new Script(ScriptType.INLINE, "painless", EXPIRATION_TIME_SCRIPT,
             Map.of(EXPIRATION_TIME_FIELD, expirationTimeMillis));
         UpdateRequest request = new UpdateRequest()

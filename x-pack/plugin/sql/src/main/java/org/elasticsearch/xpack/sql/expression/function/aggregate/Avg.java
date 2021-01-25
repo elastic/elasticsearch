@@ -30,9 +30,6 @@ public class Avg extends NumericAggregate implements EnclosedAgg {
 
     @Override
     public Avg replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new Avg(source(), newChildren.get(0));
     }
 

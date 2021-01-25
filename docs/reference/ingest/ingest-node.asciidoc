@@ -870,6 +870,7 @@ See {plugins}/ingest.html[Ingest plugins] for information about the available in
 include::processors/append.asciidoc[]
 include::processors/bytes.asciidoc[]
 include::processors/circle.asciidoc[]
+include::processors/community-id.asciidoc[]
 include::processors/convert.asciidoc[]
 include::processors/csv.asciidoc[]
 include::processors/date.asciidoc[]

@@ -18,10 +18,10 @@ Previews a {transform}.
 [[preview-transform-prereq]]
 == {api-prereq-title}
 
-If the {es} {security-features} are enabled, you must have the following 
+If the {es} {security-features} are enabled, you must have the following
 privileges:
 
-* `manage_transform` 
+* `manage_transform`
 * source index: `read`, `view_index_metadata`
 
 The built-in `transform_admin` role has the `manage_transform` privilege.
@@ -136,6 +136,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transform
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-runtime-mappings-transforms]
 ====
 //End source
 
@@ -160,7 +164,7 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time]
 `delay`::::
 (Optional, <<time-units, time units>>)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-delay]
-    
+
 `field`::::
 (Optional, string)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=sync-time-field]
@@ -191,11 +195,11 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=transform-settings-max
 == {api-response-body-title}
 
 `preview`::
-(array) An array of documents. In particular, they are the JSON representation 
-of the documents that would be created in the destination index by the 
+(array) An array of documents. In particular, they are the JSON representation
+of the documents that would be created in the destination index by the
 {transform}.
 
-//Begin generated_dest_index  
+//Begin generated_dest_index
 `generated_dest_index`::
 (object) Contains details about the destination index.
 +
@@ -207,7 +211,7 @@ of the documents that would be created in the destination index by the
 (object) The aliases for the destination index.
 
 `mappings`:::
-(object) The <<mapping,mappings>> for each document in the destination index. 
+(object) The <<mapping,mappings>> for each document in the destination index.
 
 `settings`:::
 (object) The <<index-modules-settings,index settings>> for the destination index.

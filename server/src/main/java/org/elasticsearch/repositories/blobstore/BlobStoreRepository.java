@@ -1344,6 +1344,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
+        // RepositoryData is the responsibility of the elected master: we shouldn't be loading it on other nodes as we don't have good
+        // consistency guarantees there, but electedness is too ephemeral to assert. We can say for sure that this node should be
+        // master-eligible, which is almost as strong since all other snapshot-related activity happens on data nodes whether they be
+        // master-eligible or not.
+        assert clusterService.localNode().isMasterNode() : "should only load repository data on master nodes";
+
         if (latestKnownRepoGen.get() == RepositoryData.CORRUPTED_REPO_GEN) {
             listener.onFailure(corruptedStateException(null));
             return;
@@ -1384,6 +1390,13 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     private void initializeRepoGenerationTracking(ActionListener<RepositoryData> listener) {
         synchronized (this) {
             if (repoDataInitialized == null) {
+                // double check the generation since we checked it outside the mutex in the caller and it could have changed by a
+                // concurrent initialization of the repo metadata and just load repository normally in case we already finished the
+                // initialization
+                if (metadata.generation() != RepositoryData.UNKNOWN_REPO_GEN) {
+                    getRepositoryData(listener);
+                    return;
+                }
                 logger.trace("[{}] initializing repository generation in cluster state", metadata.name());
                 repoDataInitialized = PlainListenableActionFuture.newListenableFuture();
                 repoDataInitialized.addListener(listener);

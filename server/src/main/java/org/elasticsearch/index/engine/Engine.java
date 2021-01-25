@@ -1059,7 +1059,6 @@ public abstract class Engine implements Closeable {
      * Triggers a forced merge on this engine
      */
     public abstract void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                                    boolean upgrade, boolean upgradeOnlyAncientSegments,
                                     String forceMergeUUID) throws EngineException, IOException;
 
     /**

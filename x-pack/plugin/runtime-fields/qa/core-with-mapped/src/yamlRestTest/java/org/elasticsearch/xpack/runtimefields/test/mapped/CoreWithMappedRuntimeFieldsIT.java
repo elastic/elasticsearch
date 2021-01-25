@@ -33,8 +33,8 @@ public class CoreWithMappedRuntimeFieldsIT extends ESClientYamlSuiteTestCase {
 
     private static class MappingRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected Map<String, Object> dynamicTemplateFor(String type) {
-            return dynamicTemplateToAddRuntimeFields(type);
+        protected Map<String, Object> dynamicTemplateFor() {
+            return dynamicTemplateToAddRuntimeFields();
         }
 
         @Override

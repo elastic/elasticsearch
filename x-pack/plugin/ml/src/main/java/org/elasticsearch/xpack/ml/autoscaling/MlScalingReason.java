@@ -126,7 +126,7 @@ public class MlScalingReason implements AutoscalingDeciderResult.Reason {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(WAITING_ANALYTICS_JOBS, waitingAnalyticsJobs);
-        builder.field(WAITING_ANOMALY_JOBS, waitingAnalyticsJobs);
+        builder.field(WAITING_ANOMALY_JOBS, waitingAnomalyJobs);
         builder.startObject(CONFIGURATION).value(passedConfiguration).endObject();
         if (largestWaitingAnalyticsJob != null) {
             builder.field(LARGEST_WAITING_ANALYTICS_JOB, largestWaitingAnalyticsJob);

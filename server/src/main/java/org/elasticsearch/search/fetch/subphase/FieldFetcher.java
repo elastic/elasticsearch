@@ -62,7 +62,7 @@ public class FieldFetcher {
         Map<String, FieldContext> fieldContexts = new LinkedHashMap<>();
         List<String> unmappedFetchPattern = new ArrayList<>();
         boolean includeUnmapped = false;
-        Set<FieldAndFormat> matchingNestedFields = determineMatchingNestedFields(fieldAndFormats, availableNestedMappings);
+        Set<String> matchingNestedFieldPaths = determineMatchingNestedFieldPaths(fieldAndFormats, availableNestedMappings);
 
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
@@ -77,26 +77,23 @@ public class FieldFetcher {
                 if (ft == null || context.isMetadataField(field)) {
                     continue;
                 }
-                if (isNestedObjectSubfield(field, matchingNestedFields) == false) {
+                // only add leaf value fetchers here if they are not inside a nested object, otherwise they are handled later
+                if (isNestedObjectSubfield(field, matchingNestedFieldPaths) == false) {
                     ValueFetcher valueFetcher = ft.valueFetcher(context, fieldAndFormat.format);
                     fieldContexts.put(field, new FieldContext(field, valueFetcher));
                 }
             }
 
             // check if pattern matches nested field
-            for (FieldAndFormat nestedField : matchingNestedFields) {
+            for (String nestedFieldPath : matchingNestedFieldPaths) {
                 List<String> nextAvailableMappings = new ArrayList<>(availableNestedMappings);
-                nextAvailableMappings.remove(nestedField.field);
-                FieldFetcher nestedSubFieldFetcher = FieldFetcher.create(
-                    context,
-                    fieldAndFormats,
-                    nextAvailableMappings
-                );
+                nextAvailableMappings.remove(nestedFieldPath);
+                FieldFetcher nestedSubFieldFetcher = FieldFetcher.create(context, fieldAndFormats, nextAvailableMappings);
 
                 // add a special ValueFetcher that filters source and collects its subfields
                 fieldContexts.put(
-                    nestedField.field,
-                    new FieldContext(nestedField.field, new NestedFieldValueFetcher(nestedField.field, nestedSubFieldFetcher))
+                    nestedFieldPath,
+                    new FieldContext(nestedFieldPath, new NestedFieldValueFetcher(nestedFieldPath, nestedSubFieldFetcher))
                 );
             }
         }
@@ -105,9 +102,9 @@ public class FieldFetcher {
         if (unmappedFetchPattern.isEmpty() == false) {
             Automaton unionOfPatterns = Regex.simpleMatchToAutomaton(unmappedFetchPattern.toArray(new String[unmappedFetchPattern.size()]));
             Automaton matchingNestedFieldsAutomaton = Automata.makeEmpty();
-            if (matchingNestedFields.isEmpty() == false) {
+            if (matchingNestedFieldPaths.isEmpty() == false) {
                 matchingNestedFieldsAutomaton = Regex.simpleMatchToAutomaton(
-                    matchingNestedFields.stream().map(ff -> ff.field + "*").toArray(String[]::new)
+                    matchingNestedFieldPaths.stream().map(s -> s + ".*").toArray(String[]::new)
                 );
             }
             unmappedFetchAutomaton = new CharacterRunAutomaton(
@@ -117,30 +114,37 @@ public class FieldFetcher {
         return new FieldFetcher(fieldContexts, unmappedFetchAutomaton, includeUnmapped);
     }
 
-    private static boolean isNestedObjectSubfield(String field, Set<FieldAndFormat> nestedFields) {
-        for (FieldAndFormat nestedField : nestedFields) {
-            if (field.startsWith(nestedField.field)) {
+    private static boolean isNestedObjectSubfield(String field, Set<String> nestedFields) {
+        for (String nestedField : nestedFields) {
+            if (field.startsWith(nestedField)) {
                 return true;
             }
         }
         return false;
     }
 
-    private static Set<FieldAndFormat> determineMatchingNestedFields(
+    /**
+     * Given a list of requested field patterns, this method determines the set of
+     * set of available field mappers that are needed to handle fetching the subfields.
+     *
+     * Given two available nested field mappings "foo" and "foo.bar", we want to return the
+     * one closest to the root document (in this case "foo") for any subfield of foo.*, so patterns like
+     * "*", "foo.*", "foo.bar.baz" should all just return the nested field "foo" that further recursive sub-processing is routed too.
+     */
+    static Set<String> determineMatchingNestedFieldPaths(
         Collection<FieldAndFormat> fieldAndFormats,
-        List<String> nestedMappings
+        List<String> nestedMappingPaths
     ) {
-        Set<FieldAndFormat> matchingNestedFields = new HashSet<>();
+        Set<String> matchingNestedFields = new HashSet<>();
         for (FieldAndFormat fieldAndFormat : fieldAndFormats) {
             String fieldPattern = fieldAndFormat.field;
-            nestedMappings.sort(Comparator.comparing(String::length));
-            List<String> matchingPrefixes = new ArrayList<>();
-            for (String nestedField : nestedMappings) {
-                if (Regex.simpleMatch(fieldPattern, nestedField)|| fieldPattern.startsWith(nestedField)) {
+            // sort available nested mappings paths according to their path length, so we process shortest prefixes first
+            nestedMappingPaths.sort(Comparator.comparing(String::length));
+            for (String nestedField : nestedMappingPaths) {
+                if (Regex.simpleMatch(fieldPattern, nestedField) || fieldPattern.startsWith(nestedField)) {
                     // have we already added another nested field path that is a prefix of this?
-                    if (matchingPrefixes.stream().anyMatch(s -> nestedField.startsWith(s)) == false) {
-                        matchingNestedFields.add(new FieldAndFormat(nestedField, fieldAndFormat.format, fieldAndFormat.includeUnmapped));
-                        matchingPrefixes.add(nestedField);
+                    if (matchingNestedFields.stream().anyMatch(s -> nestedField.startsWith(s)) == false) {
+                        matchingNestedFields.add(nestedField);
                     }
                 }
             }

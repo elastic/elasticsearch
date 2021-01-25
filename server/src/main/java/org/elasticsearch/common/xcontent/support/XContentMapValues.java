@@ -129,7 +129,6 @@ public class XContentMapValues {
      *
      * @return the list associated with the path in the map or {@code null} if the path does not exits.
      */
-    @SuppressWarnings("unchecked")
     public static List<?> extractNestedValue(String nestedPath, Map<?, ?> map) {
         Object extractedValue = XContentMapValues.extractValue(nestedPath, map);
         List<?> nestedParsedSource = null;

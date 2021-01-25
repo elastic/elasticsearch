@@ -456,6 +456,26 @@ Test nested fields:
         hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55]}
   - match:
         hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products.manufacturer"]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products"]
+  - is_false: hits.hits.0.fields
 ---
 Test nested field inside object structure:
   -  skip:

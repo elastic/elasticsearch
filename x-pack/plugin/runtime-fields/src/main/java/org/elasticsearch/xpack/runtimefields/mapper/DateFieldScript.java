@@ -16,6 +16,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public abstract class DateFieldScript extends AbstractLongFieldScript {
     public static final ScriptContext<Factory> CONTEXT = newContext("date", Factory.class);
@@ -45,12 +46,10 @@ public abstract class DateFieldScript extends AbstractLongFieldScript {
         @Override
         public void execute() {
             for (Object v : extractFromSource(field)) {
-                if (v instanceof String) {
-                    try {
-                        emit(formatter.parseMillis((String) v));
-                    } catch (Exception e) {
-                        // ignore
-                    }
+                try {
+                    emit(formatter.parseMillis(Objects.toString(v)));
+                } catch (Exception e) {
+                    // ignore
                 }
             }
         }

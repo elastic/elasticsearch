@@ -46,6 +46,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryData.EMPTY_REPO_GEN;
+import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -75,7 +76,7 @@ public class RepositoryDataTests extends ESTestCase {
     }
 
     public void testXContent() throws IOException {
-        RepositoryData repositoryData = generateRandomRepoData();
+        RepositoryData repositoryData = generateRandomRepoData().withUuid(UUIDs.randomBase64UUID());
         XContentBuilder builder = JsonXContent.contentBuilder();
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
@@ -141,6 +142,7 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotVersions.put(snapshotId.getUUID(), randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
         }
         RepositoryData repositoryData = new RepositoryData(
+                MISSING_UUID,
                 EMPTY_REPO_GEN,
                 snapshotIds,
                 Collections.emptyMap(),
@@ -151,6 +153,7 @@ public class RepositoryDataTests extends ESTestCase {
         // test that initializing indices works
         Map<IndexId, List<SnapshotId>> indices = randomIndices(snapshotIds);
         RepositoryData newRepoData = new RepositoryData(
+                repositoryData.getUuid(),
                 repositoryData.getGenId(),
                 snapshotIds,
                 snapshotStates,
@@ -203,7 +206,7 @@ public class RepositoryDataTests extends ESTestCase {
 
     public void testIndexThatReferencesAnUnknownSnapshot() throws IOException {
         final XContent xContent = randomFrom(XContentType.values()).xContent();
-        final RepositoryData repositoryData = generateRandomRepoData();
+        final RepositoryData repositoryData = generateRandomRepoData().withUuid(UUIDs.randomBase64UUID());
 
         XContentBuilder builder = XContentBuilder.builder(xContent);
         repositoryData.snapshotsToXContent(builder, Version.CURRENT);
@@ -241,6 +244,7 @@ public class RepositoryDataTests extends ESTestCase {
         assertNotNull(corruptedIndexId);
 
         RepositoryData corruptedRepositoryData = new RepositoryData(
+                parsedRepositoryData.getUuid(),
                 parsedRepositoryData.getGenId(),
                 snapshotIds,
                 snapshotStates,

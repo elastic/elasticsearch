@@ -264,6 +264,11 @@ public class DissectParserTests extends ESTestCase {
         assertMatch(",%{a} %{b}", ",,foo bar", Arrays.asList("a", "b"), Arrays.asList(",foo", "bar"));
     }
 
+    public void testEmptyValueWithBrackets() {
+        assertMatch("(%{a}) [%{b}] -[%{c}]", "(foo) [] -[bar]", Arrays.asList("a", "b", "c"), Arrays.asList("foo", "", "bar"));
+        assertMatch("[%{a}] [%{b}]", "[] []", Arrays.asList("a", "b"), Arrays.asList("", ""));
+    }
+
     /**
      * Runtime errors
      */

@@ -34,6 +34,7 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.FieldMapper.Parameter;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -196,7 +197,7 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
     }
 
-    private static TestMapper fromMapping(String mapping, Version version) {
+    private static TestMapper fromMapping(String mapping, Version version, boolean fromDynamicTemplate) {
         MapperService mapperService = mock(MapperService.class);
         IndexAnalyzers indexAnalyzers = new IndexAnalyzers(
             Map.of("_standard", Lucene.STANDARD_ANALYZER,
@@ -216,9 +217,16 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
             mapperService.getIndexAnalyzers(), mapperService.getIndexSettings(), () -> {
             throw new UnsupportedOperationException();
         }, false);
+        if (fromDynamicTemplate) {
+            pc = pc.createDynamicTemplateFieldContext(pc);
+        }
         return (TestMapper) new TypeParser()
             .parse("field", XContentHelper.convertToMap(JsonXContent.jsonXContent, mapping, true), pc)
             .build(new ContentPath());
+    }
+
+    private static TestMapper fromMapping(String mapping, Version version) {
+        return fromMapping(mapping, version, false);
     }
 
     private static TestMapper fromMapping(String mapping) {
@@ -378,6 +386,26 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         assertTrue(mapper.fixed2);
         assertWarnings("Parameter [fixed2_old] on mapper [field] is deprecated, use [fixed2]");
         assertEquals("{\"field\":{\"type\":\"test_mapper\",\"fixed2\":true,\"required\":\"value\"}}", Strings.toString(mapper));
+    }
+
+    /**
+     * test parsing mapping from dynamic templates, should ignore unknown parameters for bwc and log warning before 8.0.0
+     */
+    public void testBWCunknownParametersfromDynamicTemplates() {
+        String mapping = "{\"type\":\"test_mapper\",\"some_unknown_parameter\":true,\"required\":\"value\"}";
+        TestMapper mapper = fromMapping(mapping, VersionUtils.randomPreviousCompatibleVersion(random(), Version.V_8_0_0), true);
+        assertNotNull(mapper);
+        assertWarnings(
+            "Parameter [some_unknown_parameter] is used in a dynamic template mapping and has no effect on type [test_mapper]. "
+            + "Usage will result in an error in future major versions and should be removed."
+        );
+        assertEquals("{\"field\":{\"type\":\"test_mapper\",\"required\":\"value\"}}", Strings.toString(mapper));
+
+        MapperParsingException ex = expectThrows(
+            MapperParsingException.class,
+            () -> fromMapping(mapping, Version.V_8_0_0, true)
+        );
+        assertEquals("unknown parameter [some_unknown_parameter] on mapper [field] of type [test_mapper]", ex.getMessage());
     }
 
     public void testAnalyzers() {

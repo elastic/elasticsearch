@@ -231,7 +231,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         } else {
             changesLastDetectedAt = null;
         }
-        if (in.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
             lastSearchTime = in.readOptionalInstant();
         } else {
             lastSearchTime = null;
@@ -294,7 +294,7 @@ public class TransformCheckpointingInfo implements Writeable, ToXContentObject {
         if (out.getVersion().onOrAfter(Version.V_7_4_0)) {
             out.writeOptionalInstant(changesLastDetectedAt);
         }
-        if (out.getVersion().onOrAfter(Version.V_8_0_0)) { // todo: V_7_12_0
+        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
             out.writeOptionalInstant(lastSearchTime);
         }
     }

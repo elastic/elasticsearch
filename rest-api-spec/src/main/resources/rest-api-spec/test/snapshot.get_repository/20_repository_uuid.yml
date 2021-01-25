@@ -1,8 +1,8 @@
 ---
 "Get repository returns UUID":
   - skip:
-      version: " - 7.99.99"
-      reason:  "backporting #67829"
+      version: " - 7.12.99"
+      reason:  repository UUIDs introduced in 7.12.0
 
   - do:
       snapshot.create_repository:

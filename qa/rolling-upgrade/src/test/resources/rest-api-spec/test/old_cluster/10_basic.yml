@@ -1,15 +1,14 @@
 ---
 "Create things in the cluster state that we'll validate are there after the upgrade":
-# Skipping this for backport of #67829
-#  - do:
-#      snapshot.create_repository:
-#        repository: my_repo
-#        verify: false
-#        body:
-#          type: url
-#          settings:
-#            url: "http://snapshot.test"
-#  - match: { "acknowledged": true }
+  - do:
+      snapshot.create_repository:
+        repository: my_repo
+        verify: false
+        body:
+          type: url
+          settings:
+            url: "http://snapshot.test"
+  - match: { "acknowledged": true }
 
   - do:
       ingest.put_pipeline:

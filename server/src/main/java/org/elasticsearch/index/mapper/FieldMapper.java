@@ -978,8 +978,21 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         iterator.remove();
                         continue;
                     }
-                    throw new MapperParsingException("unknown parameter [" + propName
-                        + "] on mapper [" + name + "] of type [" + type + "]");
+                    if (parserContext.isFromDynamicTemplate()) {
+                        // The parameter is unknown, but this mapping is from a dynamic template.
+                        // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
+                        deprecationLogger.deprecate(propName,
+                            "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
+                            + "Usage will result in an error in future major versions and should be removed.",
+                            propName,
+                            type
+                        );
+                        iterator.remove();
+                        continue;
+                    }
+                    throw new MapperParsingException(
+                        "unknown parameter [" + propName + "] on mapper [" + name + "] of type [" + type + "]"
+                    );
                 }
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(

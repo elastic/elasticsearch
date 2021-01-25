@@ -13,10 +13,11 @@
 
 ---
 "Verify custom cluster metadata still exists during upgrade":
-  - do:
-      snapshot.get_repository:
-        repository: my_repo
-  - is_true: my_repo
+# Skipping this for backport of #67829
+#  - do:
+#      snapshot.get_repository:
+#        repository: my_repo
+#  - is_true: my_repo
 
   - do:
       ingest.get_pipeline:

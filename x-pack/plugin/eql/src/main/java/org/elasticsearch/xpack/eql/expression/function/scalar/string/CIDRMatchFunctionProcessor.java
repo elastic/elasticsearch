@@ -7,7 +7,9 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
+import org.elasticsearch.xpack.core.common.network.CIDRUtils;
 import org.elasticsearch.xpack.ql.util.Check;
 
 import java.io.IOException;
@@ -66,7 +68,11 @@ public class CIDRMatchFunctionProcessor implements Processor {
             Check.isString(address);
             arr[i++] = (String)address;
         }
-        return CIDRUtils.isInRange((String)source, arr);
+        try {
+            return CIDRUtils.isInRange((String)source, arr);
+        } catch (IllegalArgumentException e) {
+            throw new EqlIllegalArgumentException(e.getMessage());
+        }
     }
 
     protected Processor source() {

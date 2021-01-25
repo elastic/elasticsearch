@@ -225,7 +225,7 @@ public class TransportExplainDataFrameAnalyticsAction
     /**
      * Finds the first available ML node in the cluster state.
      */
-    static Optional<DiscoveryNode> findMlNode(ClusterState clusterState) {
+    private static Optional<DiscoveryNode> findMlNode(ClusterState clusterState) {
         for (DiscoveryNode node : clusterState.getNodes()) {
             if (MachineLearning.isMlNode(node)) {
                 return Optional.of(node);

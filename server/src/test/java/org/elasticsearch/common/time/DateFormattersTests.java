@@ -398,4 +398,23 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(instant.getNano(), is(123_456_789));
         }
     }
+
+    public void testParsingDates() {
+        DateFormatter formatter = DateFormatters.forPattern("strict_date_optional_time");
+//        assertSameNanosOnParsedAndPrinted(formatter,"2016-01-01T00:00:01.000");
+        assertSameNanosOnParsedAndPrinted(formatter, "2018-05-15T17:14:56Z");
+        assertSameNanosOnParsedAndPrinted(formatter, "2018-05-15T17:14:56+0100");
+        assertSameNanosOnParsedAndPrinted(formatter, "2018-05-15T17:14:56+01:00");
+        assertSameNanosOnParsedAndPrinted(formatter, "2018-05-15T17:14:56.123456789Z");
+        assertSameNanosOnParsedAndPrinted(formatter, "2018-05-15T17:14:56.123456789+0100");
+        assertSameNanosOnParsedAndPrinted(formatter, "2018-05-15T17:14:56.123456789+01:00");
+    }
+
+    private void assertSameNanosOnParsedAndPrinted(DateFormatter formatter, String date) {
+        TemporalAccessor parse = formatter.parse(date);
+        Instant parsedInstant = Instant.from(parse);
+        String printed = formatter.format(parsedInstant);
+        Instant printedInstant = Instant.from(formatter.parse(printed));
+        assertThat(printedInstant.getNano(), equalTo(parsedInstant.getNano()));
+    }
 }

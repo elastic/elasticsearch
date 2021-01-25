@@ -101,13 +101,16 @@ public class TransformLog4jConfigTests extends TestCase {
         List<String> input = List.of(
             "appender.rolling.fileName = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}_server.json",
             "appender.rolling.layout.type = ECSJsonLayout",
-            "appender.rolling.layout.type_name = server",
+            "appender.rolling.layout.dataset = elasticsearch.server",
             "appender.rolling.filePattern = ${sys:es.logs.base_path}/${sys:es.logs.cluster_name}-%d{yyyy-MM-dd}-%i.json.gz",
             "appender.rolling.policies.type = Policies",
             "appender.rolling.strategy.type = DefaultRolloverStrategy"
         );
 
-        List<String> expected = List.of("appender.rolling.layout.type = ECSJsonLayout", "appender.rolling.layout.type_name = server");
+        List<String> expected = List.of(
+            "appender.rolling.layout.type = ECSJsonLayout",
+            "appender.rolling.layout.dataset = elasticsearch.server"
+        );
 
         runTest(input, expected);
     }

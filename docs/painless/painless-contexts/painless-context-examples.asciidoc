@@ -10,6 +10,12 @@ data set contains booking information for a collection of plays. Each document
 represents a single seat for a play at a particular theater on a specific date
 and time.
 +
+[source,js]
+----
+curl https://download.elastic.co/demos/painless/contexts/seats.json --output seats.json
+----
+// NOTCONSOLE
++
 Each document contains the following fields:
 +
 `theatre` ({ref}/keyword.html[`keyword`])::
@@ -74,4 +80,3 @@ seat data is indexed.
 curl -XPOST "localhost:9200/seats/_bulk?pipeline=seats" -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
 ----
 // NOTCONSOLE
-

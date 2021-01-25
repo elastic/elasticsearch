@@ -26,7 +26,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/67887") 
 public class HistogramGroupByIT extends ContinuousTestCase {
     private static final String NAME = "continuous-histogram-pivot-test";
 

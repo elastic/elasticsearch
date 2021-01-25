@@ -113,7 +113,6 @@ public class TransportStartDataFrameAnalyticsAction
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
-    private volatile int numLazyMLNodes;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(TransportService transportService, Client client, ClusterService clusterService,
@@ -121,7 +120,7 @@ public class TransportStartDataFrameAnalyticsAction
                                                   IndexNameExpressionResolver indexNameExpressionResolver,
                                                   PersistentTasksService persistentTasksService,
                                                   DataFrameAnalyticsConfigProvider configProvider, MlMemoryTracker memoryTracker,
-                                                  DataFrameAnalyticsAuditor auditor, Settings settings) {
+                                                  DataFrameAnalyticsAuditor auditor) {
         super(StartDataFrameAnalyticsAction.NAME, transportService, clusterService, threadPool, actionFilters,
             StartDataFrameAnalyticsAction.Request::new, indexNameExpressionResolver, NodeAcknowledgedResponse::new, ThreadPool.Names.SAME);
         this.licenseState = licenseState;
@@ -130,7 +129,7 @@ public class TransportStartDataFrameAnalyticsAction
         this.configProvider = configProvider;
         this.memoryTracker = memoryTracker;
         this.auditor = Objects.requireNonNull(auditor);
-        this.numLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
+
         this.sourceDestValidator = new SourceDestValidator(
             indexNameExpressionResolver,
             transportService.getRemoteClusterService(),
@@ -139,11 +138,6 @@ public class TransportStartDataFrameAnalyticsAction
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setNumLazyMLNodes);
-    }
-
-    private void setNumLazyMLNodes(int value) {
-        this.numLazyMLNodes = value;
     }
 
     @Override
@@ -250,6 +244,7 @@ public class TransportStartDataFrameAnalyticsAction
             ExplainDataFrameAnalyticsAction.INSTANCE,
             explainRequest,
             explainListener);
+
     }
 
     private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {

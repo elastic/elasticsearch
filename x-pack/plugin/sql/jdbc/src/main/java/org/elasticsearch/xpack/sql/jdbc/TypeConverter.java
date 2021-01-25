@@ -89,8 +89,12 @@ final class TypeConverter {
     /**
      * Converts millisecond after epoch to timestamp
      */
-    static Timestamp convertTimestamp(Long millis, Calendar cal) {
-        return dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+    static Timestamp convertTimestamp(Long millis, int nanos, Calendar cal) {
+        Timestamp ts = dateTimeConvert(millis, cal, c -> new Timestamp(c.getTimeInMillis()));
+        if (ts != null) {
+            ts.setNanos(nanos);
+        }
+        return ts;
     }
 
     private static <T> T dateTimeConvert(Long millis, Calendar c, Function<Calendar, T> creator) {
@@ -105,8 +109,6 @@ final class TypeConverter {
             c.setTimeInMillis(initial);
         }
     }
-
-
 
     static long convertFromCalendarToUTC(long value, Calendar cal) {
         if (cal == null) {

@@ -64,6 +64,7 @@ import static java.util.Calendar.MONTH;
 import static java.util.Calendar.SECOND;
 import static java.util.Calendar.YEAR;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
@@ -982,7 +983,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    public void testGettingDateWithoutCalendar() throws Exception {
+    private void setupDataForDateTimeTests(long randomLongDate, long randomLongDateNanos) throws IOException {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
@@ -990,9 +991,18 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.startObject("test_date").field("type", "date").endObject();
             builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
         });
+
+        indexSimpleDocumentWithTrueValues(randomLongDate, randomLongDateNanos);
+        index("test", "2", builder -> {
+            builder.timeField("test_date", null);
+            builder.timeField("test_date_nanos", null);
+        });
+    }
+
+    public void testGettingDateWithoutCalendar() throws Exception {
         long randomLongDate = randomNonNegativeLong();
         long randomLongDateNanos = randomNanos();
-        indexSimpleDocumentWithTrueValues(randomLongDate, randomLongDateNanos);
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
@@ -1003,39 +1013,49 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
             assertEquals(expectedDate, results.getObject(9, java.sql.Date.class));
 
-            if (versionSupportsDateNanos()) {
-                long millisFromNanos = toMilliSeconds(randomLongDateNanos);
-                java.sql.Date expectedDateNanos = asDate(millisFromNanos, getZoneFromOffset(millisFromNanos));
-                assertEquals(expectedDateNanos, results.getDate("test_date_nanos"));
-                assertEquals(expectedDateNanos, results.getDate(10));
-                assertEquals(expectedDateNanos, results.getObject("test_date_nanos", java.sql.Date.class));
-                assertEquals(expectedDateNanos, results.getObject(10, java.sql.Date.class));
-            }
+            // bulk validation for all fields which are not of type date
+            validateErrorsForDateTimeTestsWithoutCalendar(results::getDate, "Date");
+
+            results.next();
+            assertNull(results.getDate("test_date"));
+            assertNull(results.getDate("test_date_nanos"));
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingDateWithoutCalendar_DateNanos() throws Exception {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
+
+            long millisFromNanos = toMilliSeconds(randomLongDateNanos);
+            java.sql.Date expectedDateNanos = asDate(millisFromNanos, getZoneFromOffset(millisFromNanos));
+            assertEquals(expectedDateNanos, results.getDate("test_date_nanos"));
+            assertEquals(expectedDateNanos, results.getDate(10));
+            assertEquals(expectedDateNanos, results.getObject("test_date_nanos", java.sql.Date.class));
+            assertEquals(expectedDateNanos, results.getObject(10, java.sql.Date.class));
 
             // bulk validation for all fields which are not of type date
-            validateErrorsForDateTestsWithoutCalendar(results::getDate);
+            validateErrorsForDateTimeTestsWithoutCalendar(results::getDate, "Date");
+
+            results.next();
+            assertNull(results.getDate("test_date_nanos"));
+            assertFalse(results.next());
         });
     }
 
     public void testGettingDateWithCalendar() throws Exception {
-        createIndex("test");
-        updateMappingForNumericValuesTests("test");
-        updateMapping("test", builder -> {
-            builder.startObject("test_boolean").field("type", "boolean").endObject();
-            builder.startObject("test_date").field("type", "date").endObject();
-            builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
-        });
         long randomLongDate = randomNonNegativeLong();
         long randomLongDateNanos = randomNanos();
-        indexSimpleDocumentWithTrueValues(randomLongDate, randomLongDateNanos);
-        index("test", "2", builder -> {
-            builder.timeField("test_date", null);
-            builder.timeField("test_date_nanos", null);
-        });
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
-        Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
@@ -1045,21 +1065,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(SECOND, 0);
             c.set(MILLISECOND, 0);
 
-            cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
-            cNanos.set(HOUR_OF_DAY, 0);
-            cNanos.set(MINUTE, 0);
-            cNanos.set(SECOND, 0);
-            cNanos.set(MILLISECOND, 0);
-
             java.sql.Date expectedDate = new java.sql.Date(c.getTimeInMillis());
             assertEquals(expectedDate, results.getDate("test_date", c));
             assertEquals(expectedDate, results.getDate(9, c));
-
-            if (versionSupportsDateNanos()) {
-                java.sql.Date expectedDateNanos = new java.sql.Date(cNanos.getTimeInMillis());
-                assertEquals(expectedDateNanos, results.getDate("test_date_nanos", cNanos));
-                assertEquals(expectedDateNanos, results.getDate(10, cNanos));
-            }
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithCalendar(c, results::getDate);
@@ -1067,20 +1075,45 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
             assertNull(results.getDate("test_date"));
             assertNull(results.getDate("test_date_nanos"));
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingDateWithCalendar_DateNanos() throws Exception {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+
+        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
+
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
+            cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
+            cNanos.set(HOUR_OF_DAY, 0);
+            cNanos.set(MINUTE, 0);
+            cNanos.set(SECOND, 0);
+            cNanos.set(MILLISECOND, 0);
+
+            java.sql.Date expectedDateNanos = new java.sql.Date(cNanos.getTimeInMillis());
+            assertEquals(expectedDateNanos, results.getDate("test_date_nanos", cNanos));
+            assertEquals(expectedDateNanos, results.getDate(10, cNanos));
+
+            // bulk validation for all fields which are not of type date
+            validateErrorsForDateTimeTestsWithCalendar(cNanos, results::getDate);
+
+            results.next();
+            assertNull(results.getDate("test_date_nanos"));
+            assertFalse(results.next());
         });
     }
 
     public void testGettingTimeWithoutCalendar() throws Exception {
-        createIndex("test");
-        updateMappingForNumericValuesTests("test");
-        updateMapping("test", builder -> {
-            builder.startObject("test_boolean").field("type", "boolean").endObject();
-            builder.startObject("test_date").field("type", "date").endObject();
-            builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
-        });
         long randomLongDate = randomNonNegativeLong();
         long randomLongDateNanos = randomNanos();
-        indexSimpleDocumentWithTrueValues(randomLongDate, randomLongDateNanos);
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
@@ -1091,38 +1124,47 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(expectedTime, results.getObject("test_date", java.sql.Time.class));
             assertEquals(expectedTime, results.getObject(9, java.sql.Time.class));
 
-            if (versionSupportsDateNanos()) {
-                long millisFromNanos = toMilliSeconds(randomLongDateNanos);
-                java.sql.Time expectedTimeNanos = asTime(millisFromNanos, getZoneFromOffset(millisFromNanos));
-                assertEquals(expectedTimeNanos, results.getTime("test_date_nanos"));
-                assertEquals(expectedTimeNanos, results.getTime(10));
-                assertEquals(expectedTimeNanos, results.getObject("test_date_nanos", java.sql.Time.class));
-                assertEquals(expectedTimeNanos, results.getObject(10, java.sql.Time.class));
-            }
+            validateErrorsForDateTimeTestsWithoutCalendar(results::getTime, "Time");
 
-            validateErrorsForTimeTestsWithoutCalendar(results::getTime);
+            results.next();
+            assertNull(results.getTime("test_date"));
+            assertNull(results.getTime("test_date_nanos"));
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingTimeWithoutCalendar_DateNanos() throws Exception {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
+
+            long millisFromNanos = toMilliSeconds(randomLongDateNanos);
+            java.sql.Time expectedTimeNanos = asTime(millisFromNanos, getZoneFromOffset(millisFromNanos));
+            assertEquals(expectedTimeNanos, results.getTime("test_date_nanos"));
+            assertEquals(expectedTimeNanos, results.getTime(10));
+            assertEquals(expectedTimeNanos, results.getObject("test_date_nanos", java.sql.Time.class));
+            assertEquals(expectedTimeNanos, results.getObject(10, java.sql.Time.class));
+
+            validateErrorsForDateTimeTestsWithoutCalendar(results::getTime, "Time");
+
+            results.next();
+            assertNull(results.getTime("test_date_nanos"));
+            assertFalse(results.next());
         });
     }
 
     public void testGettingTimeWithCalendar() throws Exception {
-        createIndex("test");
-        updateMappingForNumericValuesTests("test");
-        updateMapping("test", builder -> {
-            builder.startObject("test_boolean").field("type", "boolean").endObject();
-            builder.startObject("test_date").field("type", "date").endObject();
-            builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
-        });
         long randomLongDate = randomNonNegativeLong();
         long randomLongDateNanos = randomNanos();
-        indexSimpleDocumentWithTrueValues(randomLongDate, randomLongDateNanos);
-        index("test", "2", builder -> {
-            builder.timeField("test_date", null);
-            builder.timeField("test_date_nanos", null);
-        });
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
-        Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
@@ -1132,118 +1174,140 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(MONTH, 0);
             c.set(DAY_OF_MONTH, 1);
 
-            cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
-            cNanos.set(ERA, GregorianCalendar.AD);
-            cNanos.set(YEAR, 1970);
-            cNanos.set(MONTH, 0);
-            cNanos.set(DAY_OF_MONTH, 1);
-
             java.sql.Time expectedTime = new java.sql.Time(c.getTimeInMillis());
             assertEquals(expectedTime, results.getTime("test_date", c));
             assertEquals(expectedTime, results.getTime(9, c));
-
-            if (versionSupportsDateNanos()) {
-                java.sql.Time expectedTimeNanos = new java.sql.Time(cNanos.getTimeInMillis());
-                assertEquals(expectedTimeNanos, results.getTime("test_date_nanos", cNanos));
-                assertEquals(expectedTimeNanos, results.getTime(10, cNanos));
-            }
 
             validateErrorsForDateTimeTestsWithCalendar(c, results::getTime);
 
             results.next();
             assertNull(results.getTime("test_date"));
             assertNull(results.getTime("test_date_nanos"));
+            assertFalse(results.next());
+        });
+    }
+
+    public void testGettingTimeWithCalendar_DateNanos() throws Exception {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+
+        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
+
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
+            cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
+            cNanos.set(ERA, GregorianCalendar.AD);
+            cNanos.set(YEAR, 1970);
+            cNanos.set(MONTH, 0);
+            cNanos.set(DAY_OF_MONTH, 1);
+
+            java.sql.Time expectedTimeNanos = new java.sql.Time(cNanos.getTimeInMillis());
+            assertEquals(expectedTimeNanos, results.getTime("test_date_nanos", cNanos));
+            assertEquals(expectedTimeNanos, results.getTime(10, cNanos));
+
+            validateErrorsForDateTimeTestsWithCalendar(cNanos, results::getTime);
+
+            results.next();
+            assertNull(results.getTime("test_date_nanos"));
+            assertFalse(results.next());
         });
     }
 
     public void testGettingTimestampWithoutCalendar() throws Exception {
-        createIndex("library");
-        updateMapping("library", builder -> {
-            builder.startObject("release_date").field("type", "date").endObject();
-            builder.startObject("republish_date").field("type", "date").endObject();
-            builder.startObject("date_nanos").field("type", "date_nanos").endObject();
-        });
-        long randomMillis = randomNonNegativeLong();
-        long randomNanos = randomNanos();
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
-        index("library", "1", builder -> {
-            builder.field("name", "Don Quixote");
-            builder.field("page_count", 1072);
-            builder.field("release_date", randomMillis);
-            builder.timeField("republish_date", null);
-            builder.field("date_nanos", asTimestampWithNanos(randomNanos));
-        });
-        index("library", "2", builder -> {
-            builder.field("name", "1984");
-            builder.field("page_count", 328);
-            builder.field("release_date", 649036800000L);
-            builder.field("republish_date", 599616000000L);
-        });
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
 
-        doWithQuery("SELECT name, release_date, republish_date, date_nanos FROM library", results -> {
-            ResultSetMetaData resultSetMetaData = results.getMetaData();
+            assertEquals(randomLongDate, results.getTimestamp("test_date").getTime());
+            assertEquals(randomLongDate, results.getTimestamp(9).getTime());
+            assertTrue(results.getObject(9) instanceof java.sql.Timestamp);
+            assertEquals(randomLongDate, ((Timestamp) results.getObject("test_date")).getTime());
+            assertEquals(randomLongDate, results.getObject("test_date", Timestamp.class).getTime());
 
             results.next();
-            assertEquals(4, resultSetMetaData.getColumnCount());
-            assertEquals(randomMillis, results.getTimestamp("release_date").getTime());
-            assertEquals(randomMillis, results.getTimestamp(2).getTime());
-            assertTrue(results.getObject(2) instanceof Timestamp);
-            assertEquals(randomMillis, ((Timestamp) results.getObject("release_date")).getTime());
+            assertNull(results.getTimestamp("test_date"));
+            assertNull(results.getTimestamp("test_date_nanos"));
+            assertFalse(results.next());
+        });
+    }
 
-            assertNull(results.getTimestamp(3));
-            assertNull(results.getObject("republish_date"));
-            if (versionSupportsDateNanos()) {
-                assertTrue(results.getObject(4) instanceof Timestamp);
-                java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(toMilliSeconds(randomNanos));
-                expectedTimestamp.setNanos(extractNanosOnly(randomNanos));
-                assertEquals(expectedTimestamp, results.getTimestamp(4));
-            }
+    public void testGettingTimestampWithoutCalendar_DateNanos() throws Exception {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
-            assertTrue(results.next());
-            assertEquals(599616000000L, results.getTimestamp("republish_date").getTime());
-            assertEquals(649036800000L, ((Timestamp) results.getObject(2)).getTime());
-            assertNull(results.getTimestamp(4));
-            assertNull(results.getObject("date_nanos"));
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
 
+            assertTrue(results.getObject(10) instanceof Timestamp);
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(toMilliSeconds(randomLongDateNanos));
+            expectedTimestamp.setNanos(extractNanosOnly(randomLongDateNanos));
+            assertEquals(expectedTimestamp, results.getTimestamp(10));
+
+            results.next();
+            assertNull(results.getDate("test_date"));
+            assertNull(results.getDate("test_date_nanos"));
             assertFalse(results.next());
         });
     }
 
     public void testGettingTimestampWithCalendar() throws IOException, SQLException {
-        createIndex("test");
-        updateMappingForNumericValuesTests("test");
-        updateMapping("test", builder -> {
-            builder.startObject("test_boolean").field("type", "boolean").endObject();
-            builder.startObject("test_date").field("type", "date").endObject();
-            builder.startObject("test_date_nanos").field("type", "date_nanos").endObject();
-        });
         long randomLongDate = randomNonNegativeLong();
         long randomLongDateNanos = randomNanos();
-        indexSimpleDocumentWithTrueValues(randomLongDate, randomLongDateNanos);
-        index("test", "2", builder -> {
-            builder.timeField("test_date", null);
-            builder.timeField("test_date_nanos", null);
-        });
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
-        Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
             c.setTimeInMillis(randomLongDate);
-            cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
 
-            assertEquals(results.getTimestamp("test_date", c), new java.sql.Timestamp(c.getTimeInMillis()));
-            assertEquals(results.getTimestamp(9, c), new java.sql.Timestamp(c.getTimeInMillis()));
+            assertEquals(new java.sql.Timestamp(c.getTimeInMillis()), results.getTimestamp("test_date", c));
+            assertEquals(new java.sql.Timestamp(c.getTimeInMillis()), results.getTimestamp(9, c));
 
             validateErrorsForDateTimeTestsWithCalendar(c, results::getTimestamp);
 
             results.next();
             assertNull(results.getTimestamp("test_date"));
-            if (versionSupportsDateNanos()) {
-                assertNull(results.getTimestamp("test_date_nanos"));
-            }
+            assertNull(results.getTimestamp("test_date_nanos"));
+        });
+    }
+
+    public void testGettingTimestampWithCalendar_DateNanos() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+
+        String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
+        Calendar cNanos = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
+
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
+            cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
+            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(cNanos.getTimeInMillis());
+            expectedTimestamp.setNanos(extractNanosOnly(randomLongDateNanos));
+
+            assertTrue(results.getObject(10) instanceof java.sql.Timestamp);
+            assertEquals(expectedTimestamp, results.getTimestamp("test_date_nanos", cNanos));
+            assertEquals(expectedTimestamp, results.getTimestamp(10, cNanos));
+
+            validateErrorsForDateTimeTestsWithCalendar(cNanos, results::getTimestamp);
+
+            results.next();
+            assertNull(results.getTimestamp("test_date"));
+            assertNull(results.getTimestamp("test_date_nanos"));
         });
     }
 
@@ -1942,23 +2006,13 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertThrowsUnsupportedAndExpectErrorMessage(r, "Writes not supported");
     }
 
-    private void validateErrorsForDateTestsWithoutCalendar(CheckedFunction<String, Object, SQLException> method) {
+    private void validateErrorsForDateTimeTestsWithoutCalendar(CheckedFunction<String, Object, SQLException> method, String type) {
         SQLException sqle;
         for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
             sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
             assertEquals(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Date", field.getKey().v2(), field.getValue()),
-                sqle.getMessage()
-            );
-        }
-    }
-
-    private void validateErrorsForTimeTestsWithoutCalendar(CheckedFunction<String, Object, SQLException> method) {
-        SQLException sqle;
-        for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
-            sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1()));
-            assertEquals(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Time", field.getKey().v2(), field.getValue()),
+                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a " + type,
+                        field.getKey().v2(), field.getValue()),
                 sqle.getMessage()
             );
         }

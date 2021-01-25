@@ -107,7 +107,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
 
     public void testIndexWithFaultyMappingOnDisk() {
         SecurityIndexManager.State state = new SecurityIndexManager.State(randomBoolean() ? Instant.now() : null, true, randomBoolean(),
-                false, null, "not_important", null, null);
+                false, null, "not_important", null, null, null);
         Supplier<byte[]> mappingSourceSupplier = () -> {
             throw new RuntimeException();
         };

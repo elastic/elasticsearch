@@ -155,8 +155,8 @@ increase the size of the resulting rollup index.
 
 `metrics`::
 (Required, array of objects)
-Collects and stores metrics for <<number,numeric>> fields. At least one
-`metrics` object must be configured.
+Collects and stores metrics for <<number,numeric>> fields. You must specify at
+least one `metrics` object.
 +
 .Properties of `metrics` objects
 [%collapsible%open]

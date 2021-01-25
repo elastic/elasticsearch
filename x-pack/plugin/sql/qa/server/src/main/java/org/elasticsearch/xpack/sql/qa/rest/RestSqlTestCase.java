@@ -146,10 +146,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             } else {
                 expected.put(
                     "rows",
-                    asList(
-                        asList("text" + i, i, Math.sqrt(i), value),
-                        asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), value)
-                    )
+                    asList(asList("text" + i, i, Math.sqrt(i), value), asList("text" + (i + 1), i + 1, Math.sqrt(i + 1), value))
                 );
             }
             cursor = (String) response.remove("cursor");
@@ -705,10 +702,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         assertResponse(
             expected,
             runSql(
-                new StringEntity(
-                    query("SELECT ARRAY(" + field + ") FROM test").mode(mode).toString(),
-                    ContentType.APPLICATION_JSON
-                ),
+                new StringEntity(query("SELECT ARRAY(" + field + ") FROM test").mode(mode).toString(), ContentType.APPLICATION_JSON),
                 StringUtils.EMPTY,
                 mode
             )
@@ -716,44 +710,37 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testBasicQueryWithMultiValuesAndMultiPathAndMultiDoc() throws IOException {
-        index("{" +
-            "  \"a\": [" +
-            "    {" +
-            "      \"b\": [" +
-            "        {" +
-            "          \"c\": {" +
-            "            \"d\": 2" +
-            "          }" +
-            "        }," +
-            "        {" +
-            "          \"c\": [" +
-            "            {" +
-            "              \"d\": [3, 4]" +
-            "            }" +
-            "          ]" +
-            "        }" +
-            "      ]" +
-            "    }," +
-            "    {" +
-            "      \"b\": {" +
-            "        \"c\": {" +
-            "          \"d\": 5" +
-            "        }" +
-            "      }" +
-            "    }" +
-            "  ]" +
-            "}", "{" +
-            "  \"a.b\": {" +
-            "    \"c\": {" +
-            "      \"d\": 6" +
-            "    }" +
-            "  }" +
-            "}", "{" +
-            "  \"a.b\": {" +
-            "    \"c.d\": 7" +
-            "  }," +
-            "  \"a.b.c.d\": 8" +
-            "}");
+        index(
+            "{"
+                + "  \"a\": ["
+                + "    {"
+                + "      \"b\": ["
+                + "        {"
+                + "          \"c\": {"
+                + "            \"d\": 2"
+                + "          }"
+                + "        },"
+                + "        {"
+                + "          \"c\": ["
+                + "            {"
+                + "              \"d\": [3, 4]"
+                + "            }"
+                + "          ]"
+                + "        }"
+                + "      ]"
+                + "    },"
+                + "    {"
+                + "      \"b\": {"
+                + "        \"c\": {"
+                + "          \"d\": 5"
+                + "        }"
+                + "      }"
+                + "    }"
+                + "  ]"
+                + "}",
+            "{" + "  \"a.b\": {" + "    \"c\": {" + "      \"d\": 6" + "    }" + "  }" + "}",
+            "{" + "  \"a.b\": {" + "    \"c.d\": 7" + "  }," + "  \"a.b.c.d\": 8" + "}"
+        );
 
         String mode = randomMode();
         boolean columnar = randomBoolean();
@@ -769,10 +756,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
             expected,
             runSql(
                 new StringEntity(
-                    query("SELECT ARRAY(a.b.c.d) FROM test")
-                        .mode(mode)
-                        .columnar(columnarValue(columnar))
-                        .toString(),
+                    query("SELECT ARRAY(a.b.c.d) FROM test").mode(mode).columnar(columnarValue(columnar)).toString(),
                     ContentType.APPLICATION_JSON
                 ),
                 StringUtils.EMPTY,
@@ -785,24 +769,17 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         index("{\"a\": [2, 3, 4, 5]}", "{\"a\": 6}", "{\"a\": [7, 8]}");
         String mode = randomMode();
         Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", asList(
-            columnInfo(mode, "ARRAY(a)", "long_array", JDBCType.ARRAY, 20),
-            columnInfo(mode, "a", "long", JDBCType.BIGINT, 20)
-        ));
-        expected.put("values", asList(
-            asList(singletonList(6), asList(7, 8)),
-            asList(6, 7)
-        ));
+        expected.put(
+            "columns",
+            asList(columnInfo(mode, "ARRAY(a)", "long_array", JDBCType.ARRAY, 20), columnInfo(mode, "a", "long", JDBCType.BIGINT, 20))
+        );
+        expected.put("values", asList(asList(singletonList(6), asList(7, 8)), asList(6, 7)));
 
         assertResponse(
             expected,
             runSql(
                 new StringEntity(
-                    query("SELECT ARRAY(a), a FROM test WHERE a > 5")
-                        .mode(mode)
-                        .columnar(true)
-                        .fieldMultiValueLeniency(true)
-                        .toString(),
+                    query("SELECT ARRAY(a), a FROM test WHERE a > 5").mode(mode).columnar(true).fieldMultiValueLeniency(true).toString(),
                     ContentType.APPLICATION_JSON
                 ),
                 StringUtils.EMPTY,

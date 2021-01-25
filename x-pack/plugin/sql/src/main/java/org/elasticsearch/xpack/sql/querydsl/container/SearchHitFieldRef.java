@@ -15,21 +15,23 @@ public class SearchHitFieldRef extends FieldReference {
     private final DataType dataType;
     private final boolean docValue;
     private final String hitName;
+    private final boolean asArray;
 
-    public SearchHitFieldRef(String name, String fullFieldName, DataType dataType, boolean useDocValueInsteadOfSource, boolean isAlias) {
-        this(name, fullFieldName, dataType, useDocValueInsteadOfSource, isAlias, null);
+    public SearchHitFieldRef(String name, String fullFieldName, DataType dataType, boolean useDocValueInsteadOfSource, boolean isAlias,
+                             boolean asArray) {
+        this(name, fullFieldName, dataType, useDocValueInsteadOfSource, isAlias, null, asArray);
     }
 
     public SearchHitFieldRef(String name, String fullFieldName, DataType dataType, boolean useDocValueInsteadOfSource, boolean isAlias,
-            String hitName) {
+            String hitName, boolean asArray) {
         this.name = name;
         this.fullFieldName = fullFieldName;
         this.dataType = dataType;
         // these field types can only be extracted from docvalue_fields (ie, values already computed by Elasticsearch)
         // because, for us to be able to extract them from _source, we would need the mapping of those fields (which we don't have)
-        this.docValue = isAlias ? useDocValueInsteadOfSource : 
-            (SqlDataTypes.isFromDocValuesOnly(dataType) ? useDocValueInsteadOfSource : false);
+        this.docValue = isAlias ? useDocValueInsteadOfSource : (SqlDataTypes.isFromDocValuesOnly(dataType) && useDocValueInsteadOfSource);
         this.hitName = hitName;
+        this.asArray = asArray;
     }
 
     public String hitName() {
@@ -40,7 +42,7 @@ public class SearchHitFieldRef extends FieldReference {
     public String name() {
         return name;
     }
-    
+
     public String fullFieldName() {
         return fullFieldName;
     }
@@ -51,6 +53,10 @@ public class SearchHitFieldRef extends FieldReference {
 
     public boolean useDocValue() {
         return docValue;
+    }
+
+    public boolean asArray() {
+        return asArray;
     }
 
     @Override

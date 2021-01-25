@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.sql.expression.function.aggregate.Min;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.NumericAggregate;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.Skewness;
 import org.elasticsearch.xpack.sql.expression.function.aggregate.TopHits;
+import org.elasticsearch.xpack.sql.expression.function.Array;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Distinct;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -67,6 +68,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static java.util.stream.Collectors.toMap;
@@ -214,12 +216,16 @@ public final class Verifier {
                     checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
                 }
 
-                checkForScoreInsideFunctions(p, localFailures);
+                checkForRestrictedFunctionInsideFunctions(p, Score.class, localFailures);
                 checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(p, localFailures, attributeRefs);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
                 checkMatrixStats(p, localFailures);
                 checkCastOnInexact(p, localFailures);
+                // restricted array usage
+                checkForRestrictedFunctionInsideFunctions(p, Array.class, localFailures);
+                checkArrayFunctionUsedInOrderByOrAggregate(p, localFailures);
+                checkArrayFunctionArguments(p, localFailures);
 
                 // everything checks out
                 // mark the plan as analyzed
@@ -686,12 +692,14 @@ public final class Verifier {
     }
 
 
-    private static void checkForScoreInsideFunctions(LogicalPlan p, Set<Failure> localFailures) {
-        // Make sure that SCORE is only used in "top level" functions
+    private static void checkForRestrictedFunctionInsideFunctions(LogicalPlan p, Class<? extends Function> restrictedFunctionClass,
+                                                                  Set<Failure> localFailures) {
+        // Make sure that functions like SCORE or ARRAY only appear in clauses at their "top level"
         p.forEachExpression(Function.class, f ->
             f.arguments().stream()
-                .filter(exp -> exp.anyMatch(Score.class::isInstance))
-                .forEach(exp -> localFailures.add(fail(exp, "[SCORE()] cannot be an argument to a function")))
+                .filter(exp -> exp.anyMatch(restrictedFunctionClass::isInstance))
+                .forEach(exp -> localFailures.add(fail(exp, "[{}()] cannot be an argument to a function",
+                    restrictedFunctionClass.getSimpleName().toUpperCase(Locale.ROOT))))
         );
     }
 
@@ -870,6 +878,26 @@ public final class Verifier {
                         "[{}] of data type [{}] cannot be used for [{}()] inside the WHERE clause",
                         c.field().sourceText(), c.field().dataType().typeName(), c.functionName()));
                 }
+            }
+        }));
+    }
+
+    private static void checkArrayFunctionUsedInOrderByOrAggregate(LogicalPlan plan, Set<Failure> localFailures) {
+        BiConsumer<Expression, String> check = (exp, clause) -> {
+            if (exp instanceof Array) {
+                localFailures.add(fail(exp, "[ARRAY()] may be used in the SELECT clause only, but found in [{}]", clause));
+            }
+        };
+        plan.forEachDown(OrderBy.class, e -> e.order().forEach(o -> check.accept(o.child(), "ORDER BY")));
+        plan.forEachDown(Aggregate.class, e -> e.groupings().forEach(g -> check.accept(g, "GROUP BY")));
+    }
+
+    private static void checkArrayFunctionArguments(LogicalPlan plan, Set<Failure> localFailures) {
+        // TODO: allow `*`? scalars? or possibly array-level aggs?
+        plan.forEachExpression(Array.class, r ->r.arguments().forEach(a -> {
+            if (a instanceof FieldAttribute == false &&
+                (a instanceof Alias == false || ((Alias) a).child() instanceof FieldAttribute == false)) {
+                localFailures.add(fail(r, "ARRAY()'s argument must be an index field, found [{}]", a.source().text()));
             }
         }));
     }

@@ -1225,4 +1225,37 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals("1:36: [text] of data type [text] cannot be used for [CAST()] inside the WHERE clause",
                 error("SELECT * FROM test WHERE NOT (CAST(text AS string) = 'foo') OR true"));
     }
+
+    public void testArrayInProjection() {
+        accept("SELECT ARRAY(int) FROM test WHERE int > 4");
+    }
+
+    public void testArrayInGroupBy() {
+        assertEquals("1:38: [ARRAY()] may be used in the SELECT clause only, but found in [GROUP BY]",
+            error("SELECT ARRAY(int) FROM test GROUP BY ARRAY(int)"));
+    }
+
+    public void testArrayInOrderBy() {
+        assertEquals("1:38: [ARRAY()] may be used in the SELECT clause only, but found in [ORDER BY]",
+            error("SELECT ARRAY(int) FROM test ORDER BY ARRAY(int)"));
+    }
+
+    public void testArrayInFunction() {
+        assertEquals("1:12: [ARRAY()] cannot be an argument to a function",
+            error("SELECT SUM(ARRAY(int)) FROM test"));
+    }
+
+    public void testArrayFunctionParameter() {
+        assertEquals("1:8: ARRAY()'s argument must be an index field, found [SUM(int)]",
+            error("SELECT ARRAY(SUM(int)) FROM test"));
+
+        assertEquals("1:8: ARRAY()'s argument must be an index field, found [1]",
+            error("SELECT ARRAY(1) FROM test"));
+    }
+
+    public void testUnsupportedArrayType() {
+        //  type's checked upstream from function's checked
+        assertEquals("1:14: Cannot use field [unsupported] with unsupported type [ip_range]",
+            error("SELECT ARRAY(unsupported) FROM test"));
+    }
 }

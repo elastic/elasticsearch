@@ -40,8 +40,9 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
      */
     static final String NAME = "f";
 
-    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue, boolean arrayLeniency) {
-        super(name, dataType, zoneId, useDocValue, arrayLeniency);
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue,
+                             MultiValueExtraction multiValueExtraction) {
+        super(name, dataType, zoneId, useDocValue, multiValueExtraction);
     }
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
@@ -49,8 +50,8 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
-            boolean arrayLeniency) {
-        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, arrayLeniency);
+                             MultiValueExtraction multiValueExtraction) {
+        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, multiValueExtraction);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {
@@ -89,7 +90,7 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         return list.get(0) instanceof Number;
     }
 
-    
+
     @Override
     protected boolean isFromDocValuesOnly(DataType dataType) {
         return SqlDataTypes.isFromDocValuesOnly(dataType);

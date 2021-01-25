@@ -18,7 +18,8 @@ public class SqlFunctionTypeRegistry extends DefaultFunctionTypeRegistry {
     private enum Types {
         CONDITIONAL(ConditionalFunction.class),
         GROUPING(GroupingFunction.class),
-        SCORE(Score.class);
+        SCORE(Score.class),
+        ARRAY(Array.class);
 
         private Class<? extends Function> baseClass;
 

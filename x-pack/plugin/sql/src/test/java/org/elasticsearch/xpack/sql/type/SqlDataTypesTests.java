@@ -20,7 +20,17 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.compatibleInterval;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.BINARY_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.BOOLEAN_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.BYTE_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATETIME_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DOUBLE_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.FLOAT_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.HALF_FLOAT_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTEGER_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_MINUTE;
@@ -34,6 +44,13 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.IP_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.KEYWORD_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.LONG_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SCALED_FLOAT_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHORT_ARRAY;
+import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TEXT_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.defaultPrecision;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
@@ -106,6 +123,29 @@ public class SqlDataTypesTests extends ESTestCase {
         }
     }
 
+    public  void testIsArray() {
+        for (DataType dataType : asList(
+            BOOLEAN_ARRAY,
+            BYTE_ARRAY,
+            SHORT_ARRAY,
+            INTEGER_ARRAY,
+            LONG_ARRAY,
+            DOUBLE_ARRAY,
+            FLOAT_ARRAY,
+            HALF_FLOAT_ARRAY,
+            SCALED_FLOAT_ARRAY,
+            KEYWORD_ARRAY,
+            TEXT_ARRAY,
+            DATETIME_ARRAY,
+            IP_ARRAY,
+            BINARY_ARRAY,
+            GEO_SHAPE_ARRAY,
+            GEO_POINT_ARRAY,
+            SHAPE_ARRAY)) {
+            assertTrue(dataType + "is not an array", dataType.isArray());
+        }
+    }
+
     public void testIntervalCompatibilityYearMonth() {
         assertEquals(INTERVAL_YEAR_TO_MONTH, compatibleInterval(INTERVAL_YEAR, INTERVAL_MONTH));
         assertEquals(INTERVAL_YEAR_TO_MONTH, compatibleInterval(INTERVAL_YEAR, INTERVAL_YEAR_TO_MONTH));
@@ -148,14 +188,23 @@ public class SqlDataTypesTests extends ESTestCase {
                 "half_float", "scaled_float", "float",
                 "decimal", "numeric",
                 "keyword", "text", "varchar",
-                "date", "datetime", "timestamp",
+                "date", "time", "datetime", "timestamp",
                 "binary", "varbinary",
                 "ip",
                 "interval_year", "interval_month", "interval_year_to_month",
                 "interval_day", "interval_hour", "interval_minute", "interval_second",
                 "interval_day_to_hour", "interval_day_to_minute", "interval_day_to_second",
                 "interval_hour_to_minute", "interval_hour_to_second",
-                "interval_minute_to_second"));
+                "interval_minute_to_second",
+                "boolean_array",
+                "byte_array", "short_array", "integer_array", "long_array",
+                "double_array", "float_array", "half_float_array", "scaled_float_array",
+                "keyword_array", "text_array",
+                "datetime_array",
+                "ip_array",
+                "binary_array",
+                "geo_shape_array", "geo_point_array",
+                "shape_array"));
 
         types.addAll(SqlDataTypes.types().stream()
                 .filter(DataTypes::isPrimitive)
@@ -166,7 +215,44 @@ public class SqlDataTypesTests extends ESTestCase {
         assertNotNull("cound not find " + type, dataType);
     }
 
-    private DataType randomDataTypeNoDateTime() {
+    public void testTypeAsArray() {
+        for (String baseTypeName : Arrays.asList(
+            "boolean", "bool", "bit",
+            "byte", "smallint",
+            "short", "tinyint",
+            "integer",
+            "long", "bigint",
+            "double", "real",
+            "float", "half_float", "scaled_float",
+            "keyword", "text",
+            "datetime", "timestamp",
+            "ip",
+            "binary", "varbinary",
+            "geo_shape", "geo_point",
+            "shape")) {
+            DataType baseType = SqlDataTypes.fromSqlOrEsType(baseTypeName);
+            DataType arrayType = SqlDataTypes.arrayType(baseType);
+            assertNotNull(arrayType);
+            assertTrue(arrayType.isArray());
+        }
+    }
+
+    public void testTypeNotAsArray() {
+        for (String baseTypeName : Arrays.asList(
+            "null",
+            "date", "time",
+            "interval_year", "interval_month", "interval_year_to_month",
+            "interval_day", "interval_hour", "interval_minute", "interval_second",
+            "interval_day_to_hour", "interval_day_to_minute", "interval_day_to_second",
+            "interval_hour_to_minute", "interval_hour_to_second",
+            "interval_minute_to_second")) {
+            DataType baseType = SqlDataTypes.fromSqlOrEsType(baseTypeName);
+            DataType arrayType = SqlDataTypes.arrayType(baseType);
+            assertNull(arrayType);
+        }
+    }
+
+        private DataType randomDataTypeNoDateTime() {
         return randomValueOtherThanMany(SqlDataTypes::isDateOrTimeBased, () -> randomFrom(SqlDataTypes.types()));
     }
 }

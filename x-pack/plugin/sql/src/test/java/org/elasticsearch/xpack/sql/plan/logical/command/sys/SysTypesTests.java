@@ -22,7 +22,10 @@ import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 import org.elasticsearch.xpack.sql.types.SqlTypesTests;
 
 import java.sql.JDBCType;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.action.ActionListener.wrap;
@@ -51,6 +54,19 @@ public class SysTypesTests extends ESTestCase {
                 "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
                 "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
                 "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
+        List<String> arrayNames = Stream.of(
+                "BOOLEAN_ARRAY",
+                "BYTE_ARRAY", "SHORT_ARRAY", "INTEGER_ARRAY", "LONG_ARRAY",
+                "DOUBLE_ARRAY", "FLOAT_ARRAY", "HALF_FLOAT_ARRAY", "SCALED_FLOAT_ARRAY",
+                "KEYWORD_ARRAY", "TEXT_ARRAY",
+                "DATETIME_ARRAY",
+                "IP_ARRAY",
+                "BINARY_ARRAY",
+                "GEO_SHAPE_ARRAY", "GEO_POINT_ARRAY",
+                "SHAPE_ARRAY")
+            .sorted().collect(Collectors.toList());
+        List<String> typeNames = new ArrayList<>(names);
+        typeNames.addAll(arrayNames);
 
         cmd.execute(session(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
@@ -65,7 +81,7 @@ public class SysTypesTests extends ESTestCase {
             assertFalse(r.column(11, Boolean.class));
 
             for (int i = 0; i < r.size(); i++) {
-                assertEquals(names.get(i), r.column(0));
+                assertEquals(typeNames.get(i), r.column(0));
                 r.advanceRow();
             }
 

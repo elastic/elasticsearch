@@ -10,7 +10,7 @@ public class TimestampFieldHitExtractor extends FieldHitExtractor {
 
     public TimestampFieldHitExtractor(FieldHitExtractor target) {
         super(target.fieldName(), target.fullFieldName(), target.dataType(), target.zoneId(), target.useDocValues(), target.hitName(),
-                target.arrayLeniency());
+                target.multiValueExtraction());
     }
 
     @Override

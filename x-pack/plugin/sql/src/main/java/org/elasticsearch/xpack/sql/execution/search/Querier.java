@@ -83,6 +83,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_ARRAY;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_ONE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_NONE;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -488,12 +491,16 @@ public class Querier {
             if (ref instanceof SearchHitFieldRef) {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
                 return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(),
-                        multiValueFieldLeniency);
+                        f.asArray()
+                            ? MULTI_VALUE_EXTRACT_ARRAY
+                            : (multiValueFieldLeniency ? MULTI_VALUE_EXTRACT_ONE : MULTI_VALUE_EXTRACT_NONE));
             }
 
+            // TODO: this is dead code; remove? (and possibly simplify FieldReference out?)
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
-                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true, multiValueFieldLeniency);
+                return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true,
+                    multiValueFieldLeniency ? MULTI_VALUE_EXTRACT_ONE : MULTI_VALUE_EXTRACT_NONE);
             }
 
             if (ref instanceof ComputedRef) {

@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.execution.search.SourceGenerator;
+import org.elasticsearch.xpack.sql.expression.function.Array;
 import org.elasticsearch.xpack.sql.expression.function.Score;
 import org.elasticsearch.xpack.sql.expression.gen.pipeline.ScorePipe;
 import org.elasticsearch.xpack.sql.querydsl.agg.Aggs;
@@ -171,7 +172,7 @@ public class QueryContainer {
 
             sortingColumns.add(new Tuple<>(Integer.valueOf(atIndex), comp));
         }
-        
+
         return sortingColumns;
     }
 
@@ -327,11 +328,11 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr) {
+    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr, boolean multiValue) {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-        
+
         // Only if the field is not an alias (in which case it will be taken out from docvalue_fields if it's isAggregatable()),
         // go up the tree of parents until a non-object (and non-nested) type of field is found and use that specific parent
         // as the field to extract data from, from _source. We do it like this because sub-fields are not in the _source, only
@@ -360,18 +361,18 @@ public class QueryContainer {
             rootField = rootField.parent();
         }
         return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
+                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias(), multiValue);
     }
 
-    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr) {
+    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr, boolean multiValue) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
-                attr.nestedParent().name(), name, 
-                SqlDataTypes.format(attr.field().getDataType()), 
+                attr.nestedParent().name(), name,
+                SqlDataTypes.format(attr.field().getDataType()),
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
-                false, attr.parent().name());
+                false, attr.parent().name(), multiValue);
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
@@ -439,6 +440,10 @@ public class QueryContainer {
         return new Tuple<>(qContainer, new ComputedRef(proc));
     }
 
+    private Tuple<QueryContainer, FieldExtraction> asFieldAttributeExtraction(FieldAttribute fa, boolean multiValue) {
+        return fa.isNested() ? nestedHitFieldRef(fa, multiValue) : new Tuple<>(this, topHitFieldRef(fa, multiValue));
+    }
+
     public QueryContainer addColumn(Attribute attr) {
         Expression expression = aliases.getOrDefault(attr, attr);
         Tuple<QueryContainer, FieldExtraction> tuple = asFieldExtraction(attr);
@@ -450,12 +455,7 @@ public class QueryContainer {
         Expression expression = aliases.getOrDefault(attr, attr);
 
         if (expression instanceof FieldAttribute) {
-            FieldAttribute fa = (FieldAttribute) expression;
-            if (fa.isNested()) {
-                return nestedHitFieldRef(fa);
-            } else {
-                return new Tuple<>(this, topHitFieldRef(fa));
-            }
+            return asFieldAttributeExtraction((FieldAttribute) expression, false);
         }
 
         if (expression == null) {
@@ -468,6 +468,10 @@ public class QueryContainer {
 
         if (expression instanceof Score) {
             return new Tuple<>(this, new ComputedRef(new ScorePipe(expression.source(), expression)));
+        }
+
+        if (expression instanceof Array) {
+            return asFieldAttributeExtraction((FieldAttribute) ((Array) expression).field(), true);
         }
 
         if (expression instanceof ScalarFunction) {

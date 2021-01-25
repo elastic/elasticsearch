@@ -33,6 +33,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -90,7 +91,8 @@ public class ILMHistoryStore implements Closeable {
                     if (response.hasFailures()) {
                         Map<String, String> failures = Arrays.stream(response.getItems())
                             .filter(BulkItemResponse::isFailed)
-                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage));
+                            .collect(Collectors.toMap(BulkItemResponse::getId, BulkItemResponse::getFailureMessage,
+                                    (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2));
                         logger.error("failures: [{}]", failures);
                     }
                 }

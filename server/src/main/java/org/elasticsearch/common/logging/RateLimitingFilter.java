@@ -36,6 +36,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.logging.DeprecatedMessage.KEY_FIELD_NAME;
 import static org.elasticsearch.common.logging.DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME;
 
 @Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = Filter.ELEMENT_TYPE)
@@ -68,7 +69,7 @@ public class RateLimitingFilter extends AbstractFilter {
             final ESLogMessage esLogMessage = (ESLogMessage) message;
 
             String xOpaqueId = esLogMessage.get(X_OPAQUE_ID_FIELD_NAME);
-            final String key = esLogMessage.get("key");
+            final String key = esLogMessage.get(KEY_FIELD_NAME);
 
             return lruKeyCache.add(xOpaqueId + key) ? Result.ACCEPT : Result.DENY;
 

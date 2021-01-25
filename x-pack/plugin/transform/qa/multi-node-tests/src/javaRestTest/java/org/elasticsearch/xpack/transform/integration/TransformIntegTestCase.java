@@ -25,6 +25,8 @@ import org.elasticsearch.client.transform.GetTransformRequest;
 import org.elasticsearch.client.transform.GetTransformResponse;
 import org.elasticsearch.client.transform.GetTransformStatsRequest;
 import org.elasticsearch.client.transform.GetTransformStatsResponse;
+import org.elasticsearch.client.transform.PreviewTransformRequest;
+import org.elasticsearch.client.transform.PreviewTransformResponse;
 import org.elasticsearch.client.transform.PutTransformRequest;
 import org.elasticsearch.client.transform.StartTransformRequest;
 import org.elasticsearch.client.transform.StartTransformResponse;
@@ -33,7 +35,6 @@ import org.elasticsearch.client.transform.StopTransformResponse;
 import org.elasticsearch.client.transform.UpdateTransformRequest;
 import org.elasticsearch.client.transform.transforms.DestConfig;
 import org.elasticsearch.client.transform.transforms.QueryConfig;
-import org.elasticsearch.client.transform.transforms.SettingsConfig;
 import org.elasticsearch.client.transform.transforms.SourceConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfig;
 import org.elasticsearch.client.transform.transforms.TransformConfigUpdate;
@@ -55,7 +56,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchModule;
@@ -200,6 +200,12 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
         }
     }
 
+    protected PreviewTransformResponse previewTransform(TransformConfig config, RequestOptions options) throws IOException {
+        try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
+            return restClient.transform().previewTransform(new PreviewTransformRequest(config), options);
+        }
+    }
+
     protected GetTransformStatsResponse getTransformStats(String id) throws IOException {
         try (RestHighLevelClient restClient = new TestRestHighLevelClient()) {
             return restClient.transform().getTransformStats(new GetTransformStatsRequest(id), RequestOptions.DEFAULT);
@@ -280,16 +286,7 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
     protected TransformConfig.Builder createTransformConfigBuilder(
         String id,
         String destinationIndex,
-        String... sourceIndices
-    ) throws Exception {
-        return createTransformConfigBuilder(id, destinationIndex, QueryBuilders.matchAllQuery(), null, sourceIndices);
-    }
-
-    protected TransformConfig.Builder createTransformConfigBuilder(
-        String id,
-        String destinationIndex,
         QueryBuilder queryBuilder,
-        SettingsConfig.Builder settingsBuilder,
         String... sourceIndices
     ) throws Exception {
         return TransformConfig.builder()
@@ -297,7 +294,6 @@ abstract class TransformIntegTestCase extends ESRestTestCase {
             .setSource(SourceConfig.builder().setIndex(sourceIndices).setQueryConfig(createQueryConfig(queryBuilder)).build())
             .setDest(DestConfig.builder().setIndex(destinationIndex).build())
             .setFrequency(TimeValue.timeValueSeconds(10))
-            .setSettings(settingsBuilder != null ? settingsBuilder.build() : null)
             .setDescription("Test transform config id: " + id);
     }
 

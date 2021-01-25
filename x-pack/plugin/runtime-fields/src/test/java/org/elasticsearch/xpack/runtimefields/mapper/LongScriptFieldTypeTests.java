@@ -25,10 +25,13 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
@@ -59,6 +62,18 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         assertThat(simpleMappedFieldType().docValueFormat("#.0", null).format(1), equalTo("1.0"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(11), equalTo("11"));
         assertThat(simpleMappedFieldType().docValueFormat("#,##0.##", null).format(1123), equalTo("1,123"));
+    }
+
+    public void testLongFromSource() throws IOException {
+        MapperService mapperService = createMapperService(runtimeFieldMapping(b -> b.field("type", "long")));
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "9223372036854775806.00")));
+        withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
+            MappedFieldType ft = mapperService.fieldType("field");
+            SearchExecutionContext sec = createSearchExecutionContext(mapperService);
+            Query rangeQuery = ft.rangeQuery(0, 9223372036854775807L, false, false, ShapeRelation.CONTAINS, null, null, sec);
+            IndexSearcher searcher = new IndexSearcher(ir);
+            assertEquals(1, searcher.count(rangeQuery));
+        });
     }
 
     @Override

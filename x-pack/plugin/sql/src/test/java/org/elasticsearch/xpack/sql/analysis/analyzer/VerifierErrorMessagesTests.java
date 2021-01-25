@@ -385,6 +385,23 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         );
     }
 
+    public void testToCharValidArgs() {
+        accept("SELECT TO_CHAR(date, 'HH:MI:SS.FF3 OF') FROM test");
+        accept("SELECT TO_CHAR(date::date, 'MM/DD/YYYY') FROM test");
+        accept("SELECT TO_CHAR(date::time, 'HH:MI:SS OF') FROM test");
+    }
+
+    public void testToCharInvalidArgs() {
+        assertEquals(
+            "1:8: first argument of [TO_CHAR(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
+            error("SELECT TO_CHAR(int, keyword) FROM test")
+        );
+        assertEquals(
+            "1:8: second argument of [TO_CHAR(date, int)] must be [string], found value [int] type [integer]",
+            error("SELECT TO_CHAR(date, int) FROM test")
+        );
+    }
+
     public void testValidDateTimeFunctionsOnTime() {
         accept("SELECT HOUR_OF_DAY(CAST(date AS TIME)) FROM test");
         accept("SELECT MINUTE_OF_HOUR(CAST(date AS TIME)) FROM test");

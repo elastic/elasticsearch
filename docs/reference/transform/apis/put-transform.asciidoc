@@ -33,10 +33,10 @@ For more information, see <<built-in-roles>>, <<security-privileges>>, and
 == {api-description-title}
 
 This API defines a {transform}, which copies data from source indices,
-transforms it, and persists it into an entity-centric destination index. If you 
-choose to use the pivot method for your {transform}, the entities are defined by 
-the set of `group_by` fields in the `pivot` object.  If you choose to use the 
-latest method, the entities are defined by the `unique_key` field values in the 
+transforms it, and persists it into an entity-centric destination index. If you
+choose to use the pivot method for your {transform}, the entities are defined by
+the set of `group_by` fields in the `pivot` object.  If you choose to use the
+latest method, the entities are defined by the `unique_key` field values in the
 `latest` object.
 
 You can also think of the destination index as a two-dimensional tabular data structure (known as a {dataframe}). The ID for each document in the
@@ -56,12 +56,12 @@ it had at the time of creation and uses those same roles. If those roles do not
 have the required privileges on the source and destination indices, the
 {transform} fails when it attempts unauthorized operations.
 
-IMPORTANT: You must use {kib} or this API to create a {transform}. Do not put a 
+IMPORTANT: You must use {kib} or this API to create a {transform}. Do not put a
 {transform} directly into any `.transform-internal*` indices using the {es}
 index API. If {es} {security-features} are enabled, do not give users any
 privileges on `.transform-internal*` indices. If you used {transforms} prior to
 7.5, also do not give users any privileges on `.data-frame-internal*` indices.
-            
+
 You must choose either the latest or pivot method for your {transform}; you
 cannot use both in a single {transform}.
 
@@ -187,6 +187,10 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-index-transform
 `query`:::
 (Optional, object)
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-query-transforms]
+
+`runtime_mappings`:::
+(Optional, object)
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=source-runtime-mappings-transforms]
 ====
 //End source
 
@@ -289,7 +293,7 @@ When the {transform} is created, you receive the following results:
 }
 ----
 
-The following {transform} uses the `latest` method: 
+The following {transform} uses the `latest` method:
 
 [source,console]
 --------------------------------------------------

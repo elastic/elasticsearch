@@ -46,8 +46,7 @@ public abstract class LongFieldScript extends AbstractLongFieldScript {
             for (Object v : extractFromSource(field)) {
                 try {
                     emit(NumberFieldMapper.NumberType.objectToLong(v, true));
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     // ignore;
                 }
             }

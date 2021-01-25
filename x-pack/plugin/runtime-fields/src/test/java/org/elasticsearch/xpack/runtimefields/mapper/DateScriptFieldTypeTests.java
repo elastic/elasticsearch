@@ -79,8 +79,7 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), ir -> {
             MappedFieldType ft = mapperService.fieldType("field");
             SearchExecutionContext sec = createSearchExecutionContext(mapperService);
-            Query rangeQuery = ft.rangeQuery("1200-01-01", "2020-01-01", false, false,
-                ShapeRelation.CONTAINS, null, null, sec);
+            Query rangeQuery = ft.rangeQuery("1200-01-01", "2020-01-01", false, false, ShapeRelation.CONTAINS, null, null, sec);
             IndexSearcher searcher = new IndexSearcher(ir);
             assertEquals(1, searcher.count(rangeQuery));
         });

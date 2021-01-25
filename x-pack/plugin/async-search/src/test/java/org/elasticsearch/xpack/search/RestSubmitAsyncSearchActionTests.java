@@ -15,6 +15,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestChannel;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
+import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import org.junit.Before;
 
@@ -89,7 +90,7 @@ public class RestSubmitAsyncSearchActionTests extends RestActionTestCase {
             assertThat(request, instanceOf(SubmitAsyncSearchRequest.class));
             assertThat(valueAccessor.apply((SubmitAsyncSearchRequest) request), equalTo(expectedValue));
             executeCalled.set(true);
-            return null;
+            return new AsyncSearchResponse("", randomBoolean(), randomBoolean(), 0L, 0L);
         });
         Map<String, String> params = new HashMap<>();
         params.put(paramName, paramValue);

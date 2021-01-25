@@ -49,7 +49,7 @@ public class TransportClientTests extends ESTestCase {
         final TransportClient client =  new MockTransportClient(Settings.EMPTY);
         client.close();
         final IllegalStateException e =
-            expectThrows(IllegalStateException.class, () -> client.admin().cluster().health(new ClusterHealthRequest()).get());
+            expectThrows(IllegalStateException.class, () -> client.admin().cluster().health(new ClusterHealthRequest()).actionGet());
         assertThat(e, hasToString(containsString("transport client is closed")));
     }
 

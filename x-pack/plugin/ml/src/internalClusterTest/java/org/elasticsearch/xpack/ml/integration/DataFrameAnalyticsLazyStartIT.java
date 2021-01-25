@@ -48,7 +48,7 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
         logger.info("Starting dedicated master node...");
         internalCluster().startMasterOnlyNode();
         logger.info("Starting data node...");
-        internalCluster().startNode(onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE)));
+        internalCluster().startNode(onlyRoles(org.elasticsearch.common.collect.Set.of(DiscoveryNodeRole.DATA_ROLE)));
         ensureStableCluster();
     }
 
@@ -218,7 +218,7 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
 
     private void createIndex(String indexName) {
         client().admin().indices().prepareCreate(indexName).get();
-        client().prepareIndex(indexName)
+        client().prepareIndex(indexName, "_doc")
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .setSource("{\"field\": 1, \"other\": 2}", XContentType.JSON)
             .get();

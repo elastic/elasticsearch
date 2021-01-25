@@ -31,10 +31,9 @@ import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.junit.Before;
 
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
+import static org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig.DEFAULT_MODEL_MEMORY_LIMIT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
 
@@ -59,11 +58,7 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
 
     public void testNoMlNodesLazyStart() throws Exception {
         String indexName = "data";
-        client().admin().indices().prepareCreate(indexName).get();
-        client().prepareIndex(indexName)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource("{\"field\": 1, \"other\": 2}", XContentType.JSON)
-            .get();
+        createIndex(indexName);
 
         DataFrameAnalyticsConfig.Builder dataFrameAnalyticsConfig = new DataFrameAnalyticsConfig
             .Builder()
@@ -115,11 +110,8 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
 
     public void testNoMlNodesButWithLazyNodes() throws Exception {
         String indexName = "data";
-        client().admin().indices().prepareCreate(indexName).get();
-        client().prepareIndex(indexName)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource("{\"field\": 1, \"other\": 2}", XContentType.JSON)
-            .get();
+        createIndex(indexName);
+
         client()
             .admin()
             .cluster()
@@ -170,11 +162,7 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
 
     public void testExplainWithLazyStartSet() {
         String indexName = "data";
-        client().admin().indices().prepareCreate(indexName).get();
-        client().prepareIndex(indexName)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource("{\"field\": 1, \"other\": 2}", XContentType.JSON)
-            .get();
+        createIndex(indexName);
 
         String analyticsId = "not-lazy-dfa-with-lazy-nodes";
         DataFrameAnalyticsConfig.Builder dataFrameAnalyticsConfig = new DataFrameAnalyticsConfig
@@ -196,17 +184,13 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
             new PutDataFrameAnalyticsAction.Request(dataFrameAnalyticsConfig.setId(analyticsId).setAllowLazyStart(true).buildForExplain()))
             .actionGet();
 
-        assertThat(response.getMemoryEstimation().getExpectedMemoryWithoutDisk(), is(nullValue()));
-        assertThat(response.getMemoryEstimation().getExpectedMemoryWithDisk(), is(nullValue()));
+        assertThat(response.getMemoryEstimation().getExpectedMemoryWithoutDisk(), equalTo(DEFAULT_MODEL_MEMORY_LIMIT));
+        assertThat(response.getMemoryEstimation().getExpectedMemoryWithDisk(), equalTo(DEFAULT_MODEL_MEMORY_LIMIT));
     }
 
     public void testExplainWithLazyMlNodes() {
         String indexName = "data";
-        client().admin().indices().prepareCreate(indexName).get();
-        client().prepareIndex(indexName)
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .setSource("{\"field\": 1, \"other\": 2}", XContentType.JSON)
-            .get();
+        createIndex(indexName);
 
         client()
             .admin()
@@ -228,7 +212,15 @@ public class DataFrameAnalyticsLazyStartIT extends BaseMlIntegTestCase {
             new PutDataFrameAnalyticsAction.Request(dataFrameAnalyticsConfig.setId(analyticsId).buildForExplain()))
             .actionGet();
 
-        assertThat(response.getMemoryEstimation().getExpectedMemoryWithoutDisk(), is(nullValue()));
-        assertThat(response.getMemoryEstimation().getExpectedMemoryWithDisk(), is(nullValue()));
+        assertThat(response.getMemoryEstimation().getExpectedMemoryWithoutDisk(), equalTo(DEFAULT_MODEL_MEMORY_LIMIT));
+        assertThat(response.getMemoryEstimation().getExpectedMemoryWithDisk(), equalTo(DEFAULT_MODEL_MEMORY_LIMIT));
+    }
+
+    private void createIndex(String indexName) {
+        client().admin().indices().prepareCreate(indexName).get();
+        client().prepareIndex(indexName)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .setSource("{\"field\": 1, \"other\": 2}", XContentType.JSON)
+            .get();
     }
 }

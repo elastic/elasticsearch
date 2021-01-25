@@ -96,7 +96,6 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
-import static org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction.findMlNode;
 
 /**
  * Starts the persistent task for running data frame analytics.
@@ -244,29 +243,13 @@ public class TransportStartDataFrameAnalyticsAction
             listener::onFailure
         );
 
-        Optional<DiscoveryNode> node = findMlNode(clusterService.state());
-        if (node.isPresent()) {
-            PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
-            ClientHelper.executeAsyncWithOrigin(
-                client,
-                ClientHelper.ML_ORIGIN,
-                ExplainDataFrameAnalyticsAction.INSTANCE,
-                explainRequest,
-                explainListener);
-        } else if (startContext.config.isAllowLazyStart() || numLazyMLNodes > 0) {
-            String warning =  Messages.getMessage(
-                Messages.DATA_FRAME_ANALYTICS_AUDIT_UNABLE_TO_ESTIMATE_MEMORY_USAGE,
-                startContext.config.getModelMemoryLimit());
-            auditor.warning(jobId, warning);
-            logger.warn("[{}] {}", jobId, warning);
-            HeaderWarning.addWarning(warning);
-            // Refresh memory requirement for jobs
-            memoryTracker.addDataFrameAnalyticsJobMemoryAndRefreshAllOthers(
-                jobId, startContext.config.getModelMemoryLimit().getBytes(), ActionListener.wrap(
-                    aVoid -> listener.onResponse(startContext), listener::onFailure));
-        } else {
-            listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
-        }
+        PutDataFrameAnalyticsAction.Request explainRequest = new PutDataFrameAnalyticsAction.Request(startContext.config);
+        ClientHelper.executeAsyncWithOrigin(
+            client,
+            ClientHelper.ML_ORIGIN,
+            ExplainDataFrameAnalyticsAction.INSTANCE,
+            explainRequest,
+            explainListener);
     }
 
     private void getStartContext(String id, Task task, ActionListener<StartContext> finalListener) {

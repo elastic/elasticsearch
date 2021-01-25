@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
 
-public class TransportRequestDeduplicatorTests extends ESTestCase {
+public class AbstractResultDeduplicatorTests extends ESTestCase {
 
     public void testRequestDeduplication() throws Exception {
         AtomicInteger successCount = new AtomicInteger();
@@ -40,7 +40,7 @@ public class TransportRequestDeduplicatorTests extends ESTestCase {
             public void setParentTask(final TaskId taskId) {
             }
         };
-        final TransportRequestDeduplicator<TransportRequest> deduplicator = new TransportRequestDeduplicator<>();
+        final AbstractResultDeduplicator<TransportRequest, Void> deduplicator = new AbstractResultDeduplicator<>();
         final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
         int iterationsPerThread = scaledRandomIntBetween(100, 1000);
         Thread[] threads = new Thread[between(1, 4)];

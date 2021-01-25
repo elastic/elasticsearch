@@ -11,6 +11,7 @@ import java.io.Reader;
 import java.sql.Blob;
 import java.sql.Clob;
 import java.sql.Connection;
+import java.sql.Date;
 import java.sql.NClob;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -18,6 +19,7 @@ import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.sql.SQLType;
+import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
@@ -25,7 +27,6 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import java.util.Calendar;
-import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -1007,11 +1008,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
 
-            java.sql.Date expectedDate = asDate(randomLongDate, getZoneFromOffset(randomLongDate));
+            Date expectedDate = asDate(randomLongDate, getZoneFromOffset(randomLongDate));
             assertEquals(expectedDate, results.getDate("test_date"));
             assertEquals(expectedDate, results.getDate(9));
-            assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
-            assertEquals(expectedDate, results.getObject(9, java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject("test_date", Date.class));
+            assertEquals(expectedDate, results.getObject(9, Date.class));
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithoutCalendar(results::getDate, "Date");
@@ -1034,11 +1035,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
 
             long millisFromNanos = toMilliSeconds(randomLongDateNanos);
-            java.sql.Date expectedDateNanos = asDate(millisFromNanos, getZoneFromOffset(millisFromNanos));
+            Date expectedDateNanos = asDate(millisFromNanos, getZoneFromOffset(millisFromNanos));
             assertEquals(expectedDateNanos, results.getDate("test_date_nanos"));
             assertEquals(expectedDateNanos, results.getDate(10));
-            assertEquals(expectedDateNanos, results.getObject("test_date_nanos", java.sql.Date.class));
-            assertEquals(expectedDateNanos, results.getObject(10, java.sql.Date.class));
+            assertEquals(expectedDateNanos, results.getObject("test_date_nanos", Date.class));
+            assertEquals(expectedDateNanos, results.getObject(10, Date.class));
 
             // bulk validation for all fields which are not of type date
             validateErrorsForDateTimeTestsWithoutCalendar(results::getDate, "Date");
@@ -1065,7 +1066,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(SECOND, 0);
             c.set(MILLISECOND, 0);
 
-            java.sql.Date expectedDate = new java.sql.Date(c.getTimeInMillis());
+            Date expectedDate = new Date(c.getTimeInMillis());
             assertEquals(expectedDate, results.getDate("test_date", c));
             assertEquals(expectedDate, results.getDate(9, c));
 
@@ -1097,7 +1098,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             cNanos.set(SECOND, 0);
             cNanos.set(MILLISECOND, 0);
 
-            java.sql.Date expectedDateNanos = new java.sql.Date(cNanos.getTimeInMillis());
+            Date expectedDateNanos = new Date(cNanos.getTimeInMillis());
             assertEquals(expectedDateNanos, results.getDate("test_date_nanos", cNanos));
             assertEquals(expectedDateNanos, results.getDate(10, cNanos));
 
@@ -1118,11 +1119,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
 
-            java.sql.Time expectedTime = asTime(randomLongDate, getZoneFromOffset(randomLongDate));
+            Time expectedTime = asTime(randomLongDate, getZoneFromOffset(randomLongDate));
             assertEquals(expectedTime, results.getTime("test_date"));
             assertEquals(expectedTime, results.getTime(9));
-            assertEquals(expectedTime, results.getObject("test_date", java.sql.Time.class));
-            assertEquals(expectedTime, results.getObject(9, java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject("test_date", Time.class));
+            assertEquals(expectedTime, results.getObject(9, Time.class));
 
             validateErrorsForDateTimeTestsWithoutCalendar(results::getTime, "Time");
 
@@ -1144,11 +1145,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
 
             long millisFromNanos = toMilliSeconds(randomLongDateNanos);
-            java.sql.Time expectedTimeNanos = asTime(millisFromNanos, getZoneFromOffset(millisFromNanos));
+            Time expectedTimeNanos = asTime(millisFromNanos, getZoneFromOffset(millisFromNanos));
             assertEquals(expectedTimeNanos, results.getTime("test_date_nanos"));
             assertEquals(expectedTimeNanos, results.getTime(10));
-            assertEquals(expectedTimeNanos, results.getObject("test_date_nanos", java.sql.Time.class));
-            assertEquals(expectedTimeNanos, results.getObject(10, java.sql.Time.class));
+            assertEquals(expectedTimeNanos, results.getObject("test_date_nanos", Time.class));
+            assertEquals(expectedTimeNanos, results.getObject(10, Time.class));
 
             validateErrorsForDateTimeTestsWithoutCalendar(results::getTime, "Time");
 
@@ -1174,7 +1175,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(MONTH, 0);
             c.set(DAY_OF_MONTH, 1);
 
-            java.sql.Time expectedTime = new java.sql.Time(c.getTimeInMillis());
+            Time expectedTime = new Time(c.getTimeInMillis());
             assertEquals(expectedTime, results.getTime("test_date", c));
             assertEquals(expectedTime, results.getTime(9, c));
 
@@ -1205,7 +1206,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             cNanos.set(MONTH, 0);
             cNanos.set(DAY_OF_MONTH, 1);
 
-            java.sql.Time expectedTimeNanos = new java.sql.Time(cNanos.getTimeInMillis());
+            Time expectedTimeNanos = new Time(cNanos.getTimeInMillis());
             assertEquals(expectedTimeNanos, results.getTime("test_date_nanos", cNanos));
             assertEquals(expectedTimeNanos, results.getTime(10, cNanos));
 
@@ -1227,7 +1228,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
             assertEquals(randomLongDate, results.getTimestamp("test_date").getTime());
             assertEquals(randomLongDate, results.getTimestamp(9).getTime());
-            assertTrue(results.getObject(9) instanceof java.sql.Timestamp);
+            assertTrue(results.getObject(9) instanceof Timestamp);
             assertEquals(randomLongDate, ((Timestamp) results.getObject("test_date")).getTime());
             assertEquals(randomLongDate, results.getObject("test_date", Timestamp.class).getTime());
 
@@ -1249,7 +1250,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
 
             assertTrue(results.getObject(10) instanceof Timestamp);
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(toMilliSeconds(randomLongDateNanos));
+            Timestamp expectedTimestamp = new Timestamp(toMilliSeconds(randomLongDateNanos));
             expectedTimestamp.setNanos(extractNanosOnly(randomLongDateNanos));
             assertEquals(expectedTimestamp, results.getTimestamp(10));
 
@@ -1272,8 +1273,8 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
             c.setTimeInMillis(randomLongDate);
 
-            assertEquals(new java.sql.Timestamp(c.getTimeInMillis()), results.getTimestamp("test_date", c));
-            assertEquals(new java.sql.Timestamp(c.getTimeInMillis()), results.getTimestamp(9, c));
+            assertEquals(new Timestamp(c.getTimeInMillis()), results.getTimestamp("test_date", c));
+            assertEquals(new Timestamp(c.getTimeInMillis()), results.getTimestamp(9, c));
 
             validateErrorsForDateTimeTestsWithCalendar(c, results::getTimestamp);
 
@@ -1296,14 +1297,12 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
             cNanos.setTimeInMillis(toMilliSeconds(randomLongDateNanos));
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(cNanos.getTimeInMillis());
+            Timestamp expectedTimestamp = new Timestamp(cNanos.getTimeInMillis());
             expectedTimestamp.setNanos(extractNanosOnly(randomLongDateNanos));
 
-            assertTrue(results.getObject(10) instanceof java.sql.Timestamp);
+            assertTrue(results.getObject(10) instanceof Timestamp);
             assertEquals(expectedTimestamp, results.getTimestamp("test_date_nanos", cNanos));
             assertEquals(expectedTimestamp, results.getTimestamp(10, cNanos));
-
-            validateErrorsForDateTimeTestsWithCalendar(cNanos, results::getTimestamp);
 
             results.next();
             assertNull(results.getTimestamp("test_date"));
@@ -1331,11 +1330,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             connCalendar1.set(SECOND, 0);
             connCalendar1.set(MILLISECOND, 0);
 
-            java.sql.Date expectedDate = new java.sql.Date(connCalendar1.getTimeInMillis());
+            Date expectedDate = new Date(connCalendar1.getTimeInMillis());
             assertEquals(expectedDate, results.getDate("test_date"));
             assertEquals(expectedDate, results.getDate(1));
-            assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
-            assertEquals(expectedDate, results.getObject(1, java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject("test_date", Date.class));
+            assertEquals(expectedDate, results.getObject(1, Date.class));
 
             // +1 day
             assertEquals(13, results.getInt("day"));
@@ -1359,11 +1358,76 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             connCalendar2.set(SECOND, 0);
             connCalendar2.set(MILLISECOND, 0);
 
-            java.sql.Date expectedDate = new java.sql.Date(connCalendar2.getTimeInMillis());
+            Date expectedDate = new Date(connCalendar2.getTimeInMillis());
             assertEquals(expectedDate, results.getDate("test_date"));
             assertEquals(expectedDate, results.getDate(1));
-            assertEquals(expectedDate, results.getObject("test_date", java.sql.Date.class));
-            assertEquals(expectedDate, results.getObject(1, java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject("test_date", Date.class));
+            assertEquals(expectedDate, results.getObject(1, Date.class));
+
+            // -1 day
+            assertEquals(11, results.getInt("day"));
+        });
+    }
+
+    public void testScalarOnDates_DateNanos() throws IOException, SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        createIndex("test");
+        updateMapping("test", builder -> builder.startObject("test_date_nanos").field("type", "date_nanos").endObject());
+
+        // 2018-03-12 17:00:00.123456789 UTC
+        long dateInNanos1 = 1520874000123456789L;
+        long dateInMillis1 = 1520874000123L;
+        index("test", "1", builder -> builder.field("test_date_nanos", asTimestampWithNanos(dateInNanos1)));
+
+        // UTC +10 hours
+        String timeZoneId1 = "Etc/GMT-10";
+        Calendar connCalendar1 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId1), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT test_date_nanos, DAY_OF_MONTH(test_date_nanos) as day FROM test", timeZoneId1, results -> {
+            results.next();
+            connCalendar1.setTimeInMillis(dateInMillis1);
+            connCalendar1.set(HOUR_OF_DAY, 0);
+            connCalendar1.set(MINUTE, 0);
+            connCalendar1.set(SECOND, 0);
+            connCalendar1.set(MILLISECOND, 0);
+
+            Timestamp expectedTimestamp = new Timestamp(connCalendar1.getTimeInMillis());
+            expectedTimestamp.setNanos(123456789);
+            assertEquals(expectedTimestamp, results.getTimestamp("test_date_nanos"));
+            assertEquals(expectedTimestamp, results.getTimestamp(1));
+            assertEquals(expectedTimestamp, results.getObject("test_date_nanos", Timestamp.class));
+            assertEquals(expectedTimestamp, results.getObject(1, Timestamp.class));
+
+            // +1 day
+            assertEquals(13, results.getInt("day"));
+        });
+
+        delete("test", "1");
+
+        // 2018-03-12 05:00:00.123456789 UTC
+        long dateInNanos2 = 1520830800123456789L;
+        long dateInMillis2 = 1520830800123L;
+        index("test", "1", builder -> builder.field("test_date_nanos", asTimestampWithNanos(dateInNanos2)));
+
+        // UTC -10 hours
+        String timeZoneId2 = "Etc/GMT+10";
+        Calendar connCalendar2 = Calendar.getInstance(TimeZone.getTimeZone(timeZoneId2), Locale.ROOT);
+
+        doWithQueryAndTimezone("SELECT test_date_nanos, DAY_OF_MONTH(test_date_nanos) as day FROM test", timeZoneId2, results -> {
+            results.next();
+            connCalendar2.setTimeInMillis(dateInMillis2);
+            connCalendar2.set(HOUR_OF_DAY, 0);
+            connCalendar2.set(MINUTE, 0);
+            connCalendar2.set(SECOND, 0);
+            connCalendar2.set(MILLISECOND, 0);
+
+            Timestamp expectedTimestamp = new Timestamp(connCalendar2.getTimeInMillis());
+            expectedTimestamp.setNanos(123456789);
+            assertEquals(expectedTimestamp, results.getTimestamp("test_date_nanos"));
+            assertEquals(expectedTimestamp, results.getTimestamp(1));
+            assertEquals(expectedTimestamp, results.getObject("test_date_nanos", Timestamp.class));
+            assertEquals(expectedTimestamp, results.getObject(1, Timestamp.class));
 
             // -1 day
             assertEquals(11, results.getInt("day"));
@@ -1390,17 +1454,17 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             c.set(SECOND, 0);
             c.set(MILLISECOND, 0);
 
-            java.sql.Date expectedDate = new java.sql.Date(c.getTimeInMillis());
+            Date expectedDate = new Date(c.getTimeInMillis());
             assertEquals(expectedDate, results.getDate("date"));
-            assertEquals(expectedDate, results.getObject("date", java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject("date", Date.class));
 
-            java.sql.Time expectedTime = new java.sql.Time(0L);
+            Time expectedTime = new Time(0L);
             assertEquals(expectedTime, results.getTime("date"));
-            assertEquals(expectedTime, results.getObject("date", java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject("date", Time.class));
 
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(c.getTimeInMillis());
+            Timestamp expectedTimestamp = new Timestamp(c.getTimeInMillis());
             assertEquals(expectedTimestamp, results.getTimestamp("date"));
-            assertEquals(expectedTimestamp, results.getObject("date", java.sql.Timestamp.class));
+            assertEquals(expectedTimestamp, results.getObject("date", Timestamp.class));
         });
     }
 
@@ -1418,17 +1482,17 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                 .toLocalDate()
                 .atStartOfDay(ZoneId.of("Z"));
 
-            java.sql.Date expectedDate = new java.sql.Date(zdt.toInstant().toEpochMilli());
+            Date expectedDate = new Date(zdt.toInstant().toEpochMilli());
             assertEquals(expectedDate, results.getDate("converted"));
-            assertEquals(expectedDate, results.getObject("converted", java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject("converted", Date.class));
 
-            java.sql.Time expectedTime = new java.sql.Time(0L);
+            Time expectedTime = new Time(0L);
             assertEquals(expectedTime, results.getTime("converted"));
-            assertEquals(expectedTime, results.getObject("converted", java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject("converted", Time.class));
 
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(zdt.toInstant().toEpochMilli());
+            Timestamp expectedTimestamp = new Timestamp(zdt.toInstant().toEpochMilli());
             assertEquals(expectedTimestamp, results.getTimestamp("converted"));
-            assertEquals(expectedTimestamp, results.getObject("converted", java.sql.Timestamp.class));
+            assertEquals(expectedTimestamp, results.getObject("converted", Timestamp.class));
         });
     }
 
@@ -1446,17 +1510,17 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         doWithQueryAndTimezone("SELECT CAST(test_date AS TIME) as time FROM test", timeZoneId1, results -> {
             results.next();
 
-            java.sql.Date expectedDate = new java.sql.Date(0L);
+            Date expectedDate = new Date(0L);
             assertEquals(expectedDate, results.getDate("time"));
-            assertEquals(expectedDate, results.getObject("time", java.sql.Date.class));
+            assertEquals(expectedDate, results.getObject("time", Date.class));
 
-            java.sql.Time expectedTime = JdbcTestUtils.asTime(timeInMillis, ZoneId.of("Etc/GMT-10"));
+            Time expectedTime = JdbcTestUtils.asTime(timeInMillis, ZoneId.of("Etc/GMT-10"));
             assertEquals(expectedTime, results.getTime("time"));
-            assertEquals(expectedTime, results.getObject("time", java.sql.Time.class));
+            assertEquals(expectedTime, results.getObject("time", Time.class));
 
-            java.sql.Timestamp expectedTimestamp = new java.sql.Timestamp(expectedTime.getTime());
+            Timestamp expectedTimestamp = new Timestamp(expectedTime.getTime());
             assertEquals(expectedTimestamp, results.getTimestamp("time"));
-            assertEquals(expectedTimestamp, results.getObject("time", java.sql.Timestamp.class));
+            assertEquals(expectedTimestamp, results.getObject("time", Timestamp.class));
         });
     }
 
@@ -1514,7 +1578,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(randomString, results.getObject("test_keyword"));
             assertTrue(results.getObject("test_keyword") instanceof String);
 
-            assertEquals(new Date(randomLongDate), results.getObject("test_date"));
+            assertEquals(new java.util.Date(randomLongDate), results.getObject("test_date"));
             assertTrue(results.getObject("test_date") instanceof Timestamp);
 
             assertEquals(randomBool, results.getObject("test_boolean"));

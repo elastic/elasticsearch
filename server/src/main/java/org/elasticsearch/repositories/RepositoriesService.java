@@ -479,8 +479,6 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /**
      * Returns registered repository
-     * <p>
-     * This method is called only on the master node
      *
      * @param repositoryName repository name
      * @return registered repository
@@ -496,6 +494,20 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             return repository;
         }
         throw new RepositoryMissingException(repositoryName);
+    }
+
+    /**
+     * Return repository with the given UUID
+     *
+     * @throws RepositoryMissingException if a repository with that UUID is not registered
+     */
+    public Repository repositoryByUuid(String repositoryUuid, String originalName) {
+        for (Repository repository : repositories.values()) {
+            if (repository.getMetadata().uuid().equals(repositoryUuid)) {
+                return repository;
+            }
+        }
+        throw new RepositoryMissingException("uuid [" + repositoryUuid + "], original name [" + originalName + "]");
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {

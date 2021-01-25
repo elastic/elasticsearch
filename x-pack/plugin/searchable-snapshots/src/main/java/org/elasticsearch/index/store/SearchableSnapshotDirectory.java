@@ -85,7 +85,8 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING;
@@ -536,7 +537,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         BlobStoreCacheService blobStoreCacheService
     ) throws IOException {
 
-        if (SNAPSHOT_REPOSITORY_SETTING.exists(indexSettings.getSettings()) == false
+        if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_INDEX_NAME_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_INDEX_ID_SETTING.exists(indexSettings.getSettings()) == false
             || SNAPSHOT_SNAPSHOT_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -562,8 +563,19 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
             );
         }
 
-        final String repositoryName = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings());
-        final Repository repository = repositories.repository(repositoryName);
+        final Repository repository;
+        final String repositoryName;
+        if (SNAPSHOT_REPOSITORY_UUID_SETTING.exists(indexSettings.getSettings())) {
+            final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings.getSettings());
+            repository = repositories.repositoryByUuid(repositoryUuid, SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings()));
+            repositoryName = repository.getMetadata().name();
+        } else {
+            // repository containing pre-7.12 snapshots has no UUID so we assume it matches by name
+            repositoryName = SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings());
+            repository = repositories.repository(repositoryName);
+            assert repository.getMetadata().name().equals(repositoryName) : repository.getMetadata().name() + " vs " + repositoryName;
+        }
+
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }

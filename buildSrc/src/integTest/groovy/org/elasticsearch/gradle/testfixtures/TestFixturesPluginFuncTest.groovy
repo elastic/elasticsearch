@@ -29,6 +29,7 @@ class TestFixturesPluginFuncTest extends AbstractGradleFuncTest {
         internalBuild()
         buildFile << """
             apply plugin:'java'
+            apply plugin:'elasticsearch.test.base'
             apply plugin:'elasticsearch.test.fixtures'
             testFixtures.useFixture()
             

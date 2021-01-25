@@ -68,7 +68,6 @@ public class TestFixturesPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         project.getRootProject().getPluginManager().apply(DockerSupportPlugin.class);
-        project.getPlugins().apply(ElasticsearchTestBasePlugin.class);
         TaskContainer tasks = project.getTasks();
         TestFixtureExtension extension = project.getExtensions().create("testFixtures", TestFixtureExtension.class, project);
         Provider<DockerComposeThrottle> dockerComposeThrottle = project.getGradle()

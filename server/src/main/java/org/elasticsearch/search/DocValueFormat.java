@@ -433,7 +433,7 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 n = format.parse(value);
             } catch (ParseException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Cannot parse the value [" + value + "] using the pattern [" + pattern + "]");
             }
             if (format.isParseIntegerOnly()) {
                 return n.longValue();
@@ -454,7 +454,7 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 n = format.parse(value);
             } catch (ParseException e) {
-                throw new RuntimeException(e);
+                throw new RuntimeException("Cannot parse the value [" + value + "] using the pattern [" + pattern + "]");
             }
             return n.doubleValue();
         }

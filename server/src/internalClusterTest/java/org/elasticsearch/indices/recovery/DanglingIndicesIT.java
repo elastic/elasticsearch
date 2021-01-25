@@ -38,6 +38,7 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -287,12 +288,15 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
         final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
 
-        final AtomicBoolean isImporting = new AtomicBoolean();
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final AtomicBoolean isImporting = new AtomicBoolean(true);
         final Thread[] importThreads = new Thread[2];
         for (int i = 0; i < importThreads.length; i++) {
             importThreads[i] = new Thread(() -> {
-                //noinspection StatementWithEmptyBody
-                while (isImporting.get() == false) {
+                try {
+                    startLatch.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
                 }
 
                 while (isImporting.get()) {
@@ -306,7 +310,7 @@ public class DanglingIndicesIT extends ESIntegTestCase {
             importThreads[i].start();
         }
 
-        isImporting.set(true);
+        startLatch.countDown();
 
         final TimeValue timeout = TimeValue.timeValueSeconds(10);
         final long endTimeMillis = System.currentTimeMillis() + timeout.millis();

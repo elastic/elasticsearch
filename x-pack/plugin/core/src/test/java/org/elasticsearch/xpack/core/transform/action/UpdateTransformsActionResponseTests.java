@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction.Respo
 import org.elasticsearch.xpack.core.transform.action.compat.UpdateTransformActionPre78;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
+import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfigTests;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
 
 import java.io.IOException;
@@ -42,7 +43,14 @@ public class UpdateTransformsActionResponseTests extends AbstractSerializingTran
     }
 
     public void testBWCPre78() throws IOException {
-        Response newResponse = new Response(TransformConfigTests.randomTransformConfigWithoutHeaders(randomAlphaOfLengthBetween(1, 10)));
+        // latest has been added in 7.11, so we only need to test pivot
+        Response newResponse = new Response(
+            TransformConfigTests.randomTransformConfigWithoutHeaders(
+                randomAlphaOfLengthBetween(1, 10),
+                PivotConfigTests.randomPivotConfig(),
+                null
+            )
+        );
         UpdateTransformActionPre78.Response oldResponse = writeAndReadBWCObject(
             newResponse,
             getNamedWriteableRegistry(),

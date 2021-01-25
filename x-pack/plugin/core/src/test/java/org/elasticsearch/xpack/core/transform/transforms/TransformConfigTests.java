@@ -55,6 +55,10 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             latestConfig = LatestConfigTests.randomLatestConfig();
         }
 
+        return randomTransformConfigWithoutHeaders(id, pivotConfig, latestConfig);
+    }
+
+    public static TransformConfig randomTransformConfigWithoutHeaders(String id, PivotConfig pivotConfig, LatestConfig latestConfig) {
         return new TransformConfig(
             id,
             randomSourceConfig(),

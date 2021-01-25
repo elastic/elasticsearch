@@ -102,7 +102,7 @@ setup:
   - length: { hits.hits: 2 }
   - match: { hits.hits.0._id: "date_ns_1" }
   - match: { hits.hits.1._id: "date_ms_1" }
-  - match: { hits.hits.0.fields.date: [ "2018-10-29T12:12:12.123Z", "1540815132123.456789", "2018-10-29T12:12:12.123456789Z" ] }
+  - match: { hits.hits.0.fields.date: [ "2018-10-29T12:12:12.123456789Z", "1540815132123.456789", "2018-10-29T12:12:12.123456789Z" ] }
   - match: { hits.hits.1.fields.date: [ "2018-10-29T12:12:12.987Z", "1540815132987", "2018-10-29T12:12:12.987000000Z" ] }
 
 ---

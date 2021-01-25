@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.ilm.actions;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.util.EntityUtils;
@@ -32,7 +33,6 @@ import org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction;
 import org.elasticsearch.xpack.core.ilm.SetPriorityAction;
 import org.elasticsearch.xpack.core.ilm.ShrinkAction;
 import org.elasticsearch.xpack.core.ilm.Step;
-import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -52,10 +52,10 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.getNumberOfSegments;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.getStepKeyForIndex;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.indexDocument;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCondition;
-import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
+@Repeat(iterations = 60)
 public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     private String policy;
@@ -67,27 +67,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         dataStream = "logs-" + randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         policy = "policy-" + randomAlphaOfLength(5);
         snapshotRepo = randomAlphaOfLengthBetween(4, 10);
+        logger.info(" before test: ds [{}], policy [{}], snapshotRepo [{}]", dataStream, policy, snapshotRepo);
     }
 
-    @After
-    public void waitNoRestoresInProgressInRepo() throws Exception {
-        /*
-         * This should be a "fairly quick" wait as each test waits for the searchable snapshot action
-         * to complete.
-         * It seems that sometime there is a discrepancy between the {@link org.elasticsearch.repositories.RepositoryData}
-         * status of the snapshots and the cluster state {@link org.elasticsearch.cluster.RestoreInProgress} metadata, which
-         * will prevent {@link #wipeCluster} from wiping the snapshots as the cluster state would show some
-         * as "in progress" and won't be able to delete them.
-         */
-        assertBusy(() -> {
-            try {
-                Response response = client().performRequest(new Request("GET", "/_snapshot/" + snapshotRepo + "/_status"));
-                assertThat(EntityUtils.toString(response.getEntity()), containsStringIgnoringCase("\"snapshots\":[]"));
-            } catch (IOException e) {
-                // converting to AssertionError here so assertBusy retries
-                throw new AssertionError(e);
-            }
-        });
+    @Override
+    protected boolean waitForAllSnapshotsWiped() {
+        return true;
     }
 
     public void testSearchableSnapshotAction() throws Exception {

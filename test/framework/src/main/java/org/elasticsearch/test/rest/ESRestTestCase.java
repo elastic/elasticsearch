@@ -730,6 +730,7 @@ public abstract class ESRestTestCase extends ESTestCase {
                     Map<?, ?> snapshotInfo = (Map<?, ?>) snapshot;
                     String name = (String) snapshotInfo.get("snapshot");
                     if (SnapshotState.valueOf((String) snapshotInfo.get("state")).completed() == false) {
+                        logger.info("snapshot [{}/{}]] is not complete", repoName, name);
                         inProgressSnapshots.computeIfAbsent(repoName, key -> new ArrayList<>()).add(snapshotInfo);
                     }
                     logger.debug("wiping snapshot [{}/{}]", repoName, name);

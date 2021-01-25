@@ -81,8 +81,7 @@ public class MetadataIndexUpgradeService {
         if (isUpgraded(indexMetadata)) {
             /*
              * We still need to check for broken index settings since it might be that a user removed a plugin that registers a setting
-             * needed by this index. Additionally, the system flag could have been lost during a rolling upgrade where the previous version
-             * did not know about the flag.
+             * needed by this index.
              */
             return archiveBrokenIndexSettings(indexMetadata);
         }

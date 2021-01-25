@@ -802,7 +802,7 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         /**
-         * Converts and Object to a {@code long} by checking it against known
+         * Converts an Object to a {@code long} by checking it against known
          * types and checking its range.
          */
         public static long objectToLong(Object value, boolean coerce) {

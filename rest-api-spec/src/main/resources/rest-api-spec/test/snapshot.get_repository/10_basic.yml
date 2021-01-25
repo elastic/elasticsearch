@@ -1,5 +1,8 @@
 ---
 setup:
+  - skip:
+      version: " - 7.99.99"
+      reason:  "backporting #67829"
 
   - do:
       snapshot.create_repository:

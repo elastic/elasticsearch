@@ -232,6 +232,7 @@ public class IndexingIT extends ESRestTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/67829") // backporting
     public void testUpdateSnapshotStatus() throws Exception {
         Nodes nodes = buildNodeAndVersions();
         assumeFalse("new nodes is empty", nodes.getNewNodes().isEmpty());

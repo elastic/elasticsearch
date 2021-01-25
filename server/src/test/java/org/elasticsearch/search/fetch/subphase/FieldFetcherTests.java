@@ -783,27 +783,45 @@ public class FieldFetcherTests extends MapperServiceTestCase {
      */
     public void testDetermineMatchingNestedFields() throws IOException {
         List<String> nestedMappings = Arrays.asList("user", "user.address", "user.address.zip", "products");
-        Set<String> result = FieldFetcher.determineMatchingNestedFieldPaths(Collections.singletonList(new FieldAndFormat("*", null)), nestedMappings);
+        Set<String> result = FieldFetcher.determineMatchingNestedFieldPaths(
+            Collections.singletonList(new FieldAndFormat("*", null)),
+            nestedMappings
+        );
         assertEquals(2, result.size());
         assertThat(result, containsInAnyOrder("user", "products"));
 
-        result = FieldFetcher.determineMatchingNestedFieldPaths(Collections.singletonList(new FieldAndFormat("user.address", null)), nestedMappings);
+        result = FieldFetcher.determineMatchingNestedFieldPaths(
+            Collections.singletonList(new FieldAndFormat("user.address", null)),
+            nestedMappings
+        );
         assertEquals(1, result.size());
         assertThat(result, containsInAnyOrder("user"));
 
-        result = FieldFetcher.determineMatchingNestedFieldPaths(Collections.singletonList(new FieldAndFormat("products.some_field.inside", null)), nestedMappings);
+        result = FieldFetcher.determineMatchingNestedFieldPaths(
+            Collections.singletonList(new FieldAndFormat("products.some_field.inside", null)),
+            nestedMappings
+        );
         assertEquals(1, result.size());
         assertThat(result, containsInAnyOrder("products"));
 
         nestedMappings = Arrays.asList("user.address", "user.address.zip", "products");
-        result = FieldFetcher.determineMatchingNestedFieldPaths(Collections.singletonList(new FieldAndFormat("user", null)), nestedMappings);
+        result = FieldFetcher.determineMatchingNestedFieldPaths(
+            Collections.singletonList(new FieldAndFormat("user", null)),
+            nestedMappings
+        );
         assertEquals(0, result.size());
 
-        result = FieldFetcher.determineMatchingNestedFieldPaths(Collections.singletonList(new FieldAndFormat("user.*", null)), nestedMappings);
+        result = FieldFetcher.determineMatchingNestedFieldPaths(
+            Collections.singletonList(new FieldAndFormat("user.*", null)),
+            nestedMappings
+        );
         assertEquals(1, result.size());
         assertThat(result, containsInAnyOrder("user.address"));
 
-        result = FieldFetcher.determineMatchingNestedFieldPaths(Collections.singletonList(new FieldAndFormat("different_field", null)), nestedMappings);
+        result = FieldFetcher.determineMatchingNestedFieldPaths(
+            Collections.singletonList(new FieldAndFormat("different_field", null)),
+            nestedMappings
+        );
         assertEquals(0, result.size());
     }
 

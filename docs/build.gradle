@@ -1311,6 +1311,14 @@ setups['seats'] = '''
               properties:
                 theatre:
                   type: keyword
+                play:
+                  type: keyword
+                actors:
+                  type: keyword
+                date:
+                  type: keyword
+                time:
+                  type: keyword
                 cost:
                   type: long
                 row:
@@ -1325,13 +1333,13 @@ setups['seats'] = '''
           refresh: true
           body: |
             {"index":{"_id": "1"}}
-            {"theatre": "Skyline", "cost": 37, "row": 1, "number": 7, "sold": false}
+            {"theatre": "Skyline", "play": "Rent", "actors": "Dave Christmas", "date": "2021-4-1", "time": "3:00PM", "cost": 37, "row": 1, "number": 7, "sold": false}
             {"index":{"_id": "2"}}
-            {"theatre": "Graye", "cost": 30, "row": 3, "number": 5, "sold": false}
+            {"theatre": "Graye", "play": "Rent", "actors": "Dave Christmas", "date": "2021-4-1", "time": "3:00PM", "cost": 30, "row": 3, "number": 5, "sold": false}
             {"index":{"_id": "3"}}
-            {"theatre": "Graye", "cost": 33, "row": 2, "number": 6, "sold": false}
+            {"theatre": "Graye", "play": "Rent", "actors": "Dave Christmas", "date": "2021-4-1", "time": "3:00PM", "cost": 33, "row": 2, "number": 6, "sold": false}
             {"index":{"_id": "4"}}
-            {"theatre": "Skyline", "cost": 20, "row": 5, "number": 2, "sold": false}'''
+            {"theatre": "Skyline", "play": "Rent", "actors": "Dave Christmas", "date": "2021-4-1", "time": "3:00PM", "cost": 20, "row": 5, "number": 2, "sold": false}'''
 setups['kibana_sample_data_ecommerce'] = '''
   - do:
         indices.create:

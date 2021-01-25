@@ -21,15 +21,17 @@ package org.elasticsearch.index.codec;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene80.Lucene80DocValuesFormat;
 import org.apache.lucene.codecs.lucene87.Lucene87Codec;
 import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat;
-import org.apache.lucene.codecs.lucene87.Lucene87StoredFieldsFormat.Mode;
+import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -59,16 +61,18 @@ public class CodecTests extends ESTestCase {
 
     public void testDefault() throws Exception {
         Codec codec = createCodecService().codec("default");
-        assertCompressionEquals(Mode.BEST_SPEED, codec);
+        assertStoredFieldsCompressionEquals(Lucene87StoredFieldsFormat.Mode.BEST_SPEED, codec);
+        assertDocValuesCompressionEquals(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION, codec);
     }
 
     public void testBestCompression() throws Exception {
         Codec codec = createCodecService().codec("best_compression");
-        assertCompressionEquals(Mode.BEST_COMPRESSION, codec);
+        assertStoredFieldsCompressionEquals(Lucene87StoredFieldsFormat.Mode.BEST_COMPRESSION, codec);
+        assertDocValuesCompressionEquals(Lucene80DocValuesFormat.Mode.BEST_COMPRESSION, codec);
     }
 
     // write some docs with it, inspect .si to see this was the used compression
-    private void assertCompressionEquals(Mode expected, Codec actual) throws Exception {
+    private void assertStoredFieldsCompressionEquals(Lucene87StoredFieldsFormat.Mode expected, Codec actual) throws Exception {
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig(null);
         iwc.setCodec(actual);
@@ -80,7 +84,27 @@ public class CodecTests extends ESTestCase {
         SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
         String v = sr.getSegmentInfo().info.getAttribute(Lucene87StoredFieldsFormat.MODE_KEY);
         assertNotNull(v);
-        assertEquals(expected, Mode.valueOf(v));
+        assertEquals(expected, Lucene87StoredFieldsFormat.Mode.valueOf(v));
+        ir.close();
+        dir.close();
+    }
+
+    // write some docs with it, inspect .si to see this was the used compression
+    private void assertDocValuesCompressionEquals(Lucene80DocValuesFormat.Mode expected, Codec actual) throws Exception {
+        Directory dir = newDirectory();
+        IndexWriterConfig iwc = newIndexWriterConfig(null);
+        iwc.setCodec(actual);
+        IndexWriter iw = new IndexWriter(dir, iwc);
+        Document doc = new Document();
+        doc.add(new BinaryDocValuesField("foo", new BytesRef("aaa")));
+        iw.addDocument(doc);
+        iw.commit();
+        iw.close();
+        DirectoryReader ir = DirectoryReader.open(dir);
+        SegmentReader sr = (SegmentReader) ir.leaves().get(0).reader();
+        String v = sr.getFieldInfos().fieldInfo("foo").getAttribute(Lucene80DocValuesFormat.MODE_KEY);
+        assertNotNull(v);
+        assertEquals(expected, Lucene80DocValuesFormat.Mode.valueOf(v));
         ir.close();
         dir.close();
     }

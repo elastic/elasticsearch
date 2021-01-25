@@ -44,4 +44,11 @@ public enum DataFrameAnalyticsState implements Writeable {
     public boolean isAnyOf(DataFrameAnalyticsState... candidates) {
         return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
+
+    /**
+     * @return {@code false} if state matches any of the given {@code candidates}
+     */
+    public boolean isNoneOf(DataFrameAnalyticsState... candidates) {
+        return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
+    }
 }

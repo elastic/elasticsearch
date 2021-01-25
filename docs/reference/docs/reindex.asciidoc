@@ -68,6 +68,33 @@ POST _reindex
 
 `POST /_reindex`
 
+[[docs-reindex-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the the following
+security privileges:
+
+** The `read` <<privileges-list-indices,index privilege>> for the source data
+stream, index, or index alias.
+
+** The `write` index privilege for the destination data stream, index, or index
+alias.
+
+** To automatically create a data stream or index with an reindex API request,
+you must have the `auto_configure`, `create_index`, or `manage` index
+privilege for the destination data stream, index, or index alias.
+
+** If reindexing from a remote cluster, the `source.remote.user` must have the
+`monitor` <<privileges-list-cluster,cluster privilege>> and the `read` index
+privilege for the source data stream, index, or index alias.
+
+* If reindexing from a remote cluster, you must explicitly allow the remote host
+in the `reindex.remote.whitelist` setting of `elasticsearch.yml`. See
+<<reindex-from-remote>>.
+
+* Automatic data stream creation requires a matching index template with data
+stream enabled. See <<set-up-a-data-stream>>.
+
 [[docs-reindex-api-desc]]
 ==== {api-description-title}
 

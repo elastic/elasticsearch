@@ -26,9 +26,6 @@ public class ToStringFunctionPipe extends Pipe {
 
     @Override
     public final ToStringFunctionPipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] children but received [" + newChildren.size() + "]");
-        }
         return new ToStringFunctionPipe(source(), expression(), newChildren.get(0));
     }
 

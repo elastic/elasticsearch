@@ -1,5 +1,5 @@
 ---
-apiVersion: 1
+apiVersion: v1
 
 # The repository name in registry1, excluding /ironbank/
 name: "elastic/elasticsearch/elasticsearch"

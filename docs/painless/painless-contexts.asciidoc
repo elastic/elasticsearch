@@ -14,6 +14,9 @@ specialized code may define new ways to use a Painless script.
 |====
 | Name                              | Painless Documentation
                                     | Elasticsearch Documentation
+| Runtime field                     | <<painless-runtime-fields-context,Painless Documentation>>
+                                    | {ref}/runtime.html[Elasticsearch Documentation]
+
 | Ingest processor                  | <<painless-ingest-processor-context, Painless Documentation>>
                                     | {ref}/script-processor.html[Elasticsearch Documentation]
 | Update                            | <<painless-update-context, Painless Documentation>>

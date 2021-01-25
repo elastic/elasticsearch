@@ -574,12 +574,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             );
         } catch (IOException e) {
             if (e instanceof AccessDeniedException) {
-
                 Path parent = esStdoutFile.getParent();
-
                 System.out.println("parent = " + parent);
                 try {
-                    Files.getPosixFilePermissions(parent.toAbsolutePath())
+                    Files.getPosixFilePermissions(parent.getParent().toAbsolutePath())
                         .forEach(perm -> { System.out.println("perm. = " + perm.name()); });
                 } catch (IOException ioException) {
                     ioException.printStackTrace();

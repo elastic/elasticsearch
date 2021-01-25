@@ -76,6 +76,7 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
+    // TODO geo_points are missing
     private static final Set<String> RUNTIME_TYPES = new HashSet<>(
         Arrays.asList(
             BooleanFieldMapper.CONTENT_TYPE,
@@ -87,18 +88,14 @@ public abstract class CoreTestTranslater {
         )
     );
 
-    protected abstract Map<String, Object> dynamicTemplateFor(String type);
+    protected abstract Map<String, Object> dynamicTemplateFor();
 
-    protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields(String type) {
-        return org.elasticsearch.common.collect.Map.of("type", type, "index", false, "doc_values", false);
+    protected static Map<String, Object> dynamicTemplateToDisableRuntimeCompatibleFields() {
+        return Collections.singletonMap("mapping", org.elasticsearch.common.collect.Map.of("index", false, "doc_values", false));
     }
 
-    // TODO there isn't yet a way to create fields in the runtime section from a dynamic template
-    protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
-        return org.elasticsearch.common.collect.Map.ofEntries(
-            org.elasticsearch.common.collect.Map.entry("type", "runtime"),
-            org.elasticsearch.common.collect.Map.entry("runtime_type", type)
-        );
+    protected static Map<String, Object> dynamicTemplateToAddRuntimeFields() {
+        return Collections.singletonMap("runtime", Collections.emptyMap());
     }
 
     protected static Map<String, Object> runtimeFieldLoadingFromSource(String type) {
@@ -117,39 +114,21 @@ public abstract class CoreTestTranslater {
                 Map<String, String> params = org.elasticsearch.common.collect.Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
                 for (String type : RUNTIME_TYPES) {
-                    if (type.equals("ip")) {
-                        // There isn't a dynamic template to pick up ips. They'll just look like strings.
+                    /*
+                     * It would be great to use dynamic:runtime rather than dynamic templates.
+                     * Unfortunately, string gets dynamically mapped as a multi-field (text + keyword) which we can't mimic as
+                     * runtime fields don't support text, and from a dynamic template a field can either be runtime of concrete.
+                     * We would like to define a keyword sub-field under runtime and leave the main field under properties but that
+                     * is not possible. What we do for now is skip strings: we register a dynamic template for each type besides string.
+                     * Ip fields never get dynamically mapped so they'll just look like strings.
+                     */
+                    if (type.equals(IpFieldMapper.CONTENT_TYPE) || type.equals(KeywordFieldMapper.CONTENT_TYPE)) {
                         continue;
                     }
-                    Map<String, Object> mapping = dynamicTemplateFor(type);
-                    if (type.equals("keyword")) {
-                        /*
-                         * For "string"-type dynamic mappings emulate our default
-                         * behavior with a top level text field and a `.keyword`
-                         * multi-field. In our case we disable the keyword field
-                         * and substitute it with an enabled one on the search
-                         * request.
-                         */
-                        mapping = org.elasticsearch.common.collect.Map.of(
-                            "type",
-                            "text",
-                            "fields",
-                            org.elasticsearch.common.collect.Map.of("keyword", mapping)
-                        );
-                        dynamicTemplates.add(
-                            org.elasticsearch.common.collect.Map.of(
-                                type,
-                                org.elasticsearch.common.collect.Map.of("match_mapping_type", "string", "mapping", mapping)
-                            )
-                        );
-                    } else {
-                        dynamicTemplates.add(
-                            org.elasticsearch.common.collect.Map.of(
-                                type,
-                                org.elasticsearch.common.collect.Map.of("match_mapping_type", type, "mapping", mapping)
-                            )
-                        );
-                    }
+                    HashMap<String, Object> map = new HashMap<>();
+                    map.put("match_mapping_type", type);
+                    map.putAll(dynamicTemplateFor());
+                    dynamicTemplates.add(org.elasticsearch.common.collect.Map.of(type, map));
                 }
                 Map<String, Object> indexTemplate = org.elasticsearch.common.collect.Map.of(
                     "settings",

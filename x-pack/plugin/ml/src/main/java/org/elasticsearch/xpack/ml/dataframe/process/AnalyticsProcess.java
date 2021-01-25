@@ -26,14 +26,6 @@ public interface AnalyticsProcess<ProcessResult> extends NativeProcess {
     Iterator<ProcessResult> readAnalyticsResults();
 
     /**
-     * Read anything left in the stream before
-     * closing the stream otherwise if the process
-     * tries to write more after the close it gets
-     * a SIGPIPE
-     */
-    void consumeAndCloseOutputStream();
-
-    /**
      *
      * @return the process config
      */

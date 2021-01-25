@@ -51,7 +51,7 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         lookup,
         ctx
     ) {
-        final private GeoPoint scratch = new GeoPoint();
+        private final GeoPoint scratch = new GeoPoint();
 
         @Override
         public void execute() {

@@ -35,9 +35,6 @@ public final class UnaryPipe extends Pipe {
 
     @Override
     public Pipe replaceChildren(List<Pipe> newChildren) {
-        if (newChildren.size() != 1) {
-            throw new IllegalArgumentException("expected [1] child but received [" + newChildren.size() + "]");
-        }
         return new UnaryPipe(source(), expression(), newChildren.get(0), action);
     }
 

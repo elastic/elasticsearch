@@ -240,14 +240,14 @@ public class CacheFile {
 
     private boolean assertRefCounted(boolean isReleased) {
         final boolean isEvicted = evicted.get();
-        final boolean notExists = Files.notExists(file);
-        assert isReleased == false || (isEvicted && notExists) : "fully released cache file should be deleted from disk but got ["
+        final boolean fileExists = Files.exists(file);
+        assert isReleased == false || (isEvicted && fileExists == false) : "fully released cache file should be deleted from disk but got ["
             + "released="
             + isReleased
             + ", evicted="
             + isEvicted
-            + ", file not exists="
-            + notExists
+            + ", file exists="
+            + fileExists
             + ']';
         return true;
     }
@@ -447,8 +447,8 @@ public class CacheFile {
         synchronized (listeners) {
             ensureOpen();
             reference = channelRef;
-            assert reference != null
-                && reference.refCount() > 0 : "impossible to run into a fully released channel reference under the listeners mutex";
+            assert reference != null && reference.refCount() > 0
+                : "impossible to run into a fully released channel reference under the listeners mutex";
             assert refCounter.refCount() > 0 : "file should not be fully released";
             reference.incRef();
         }

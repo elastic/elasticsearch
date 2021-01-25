@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.OneHotEncoding;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.PreProcessor;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -67,6 +68,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String jobId;
     private String sourceIndex;
     private String destIndex;
+
 
     @After
     public void cleanup() {
@@ -159,7 +161,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -208,7 +210,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertThat(stats.getDataCounts().getSkippedDocsCount(), equalTo(0L));
 
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -273,7 +275,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -303,11 +305,8 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         NodeAcknowledgedResponse response = startAnalytics(jobId);
         assertThat(response.getNode(), not(emptyString()));
 
-        // Wait until progress for first phase is over 1
-        assertBusy(() -> {
-            List<PhaseProgress> progress = getAnalyticsStats(jobId).getProgress();
-            assertThat(progress.get(0).getProgressPercent(), greaterThan(1));
-        });
+        String phaseToWait = randomFrom("reindexing", "loading_data", "feature_selection", "fine_tuning_parameters");
+        waitUntilSomeProgressHasBeenMadeForPhase(jobId, phaseToWait);
         stopAnalytics(jobId);
         waitUntilAnalyticsIsStopped(jobId);
 
@@ -337,7 +336,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertAtLeastOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
     }
 
@@ -393,7 +392,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
 
         // Call _delete_expired_data API and check nothing was deleted
@@ -482,7 +481,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -589,7 +588,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictionField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -646,7 +645,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         assertProgressComplete(jobId);
         assertThat(searchStoredProgress(jobId).getHits().getTotalHits().value, equalTo(1L));
         assertModelStatePersisted(stateDocId());
-        assertInferenceModelPersisted(jobId);
+        assertExactlyOneInferenceModelPersisted(jobId);
         assertMlResultsFieldMappings(destIndex, predictedClassField, "double");
         assertThatAuditMessagesMatch(jobId,
             "Created analytics with analysis type [regression]",
@@ -661,7 +660,7 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
             "Started writing results",
             "Finished analysis");
         GetTrainedModelsAction.Response response = client().execute(GetTrainedModelsAction.INSTANCE,
-            new GetTrainedModelsAction.Request(jobId + "*", true, Collections.emptyList())).actionGet();
+            new GetTrainedModelsAction.Request(jobId + "*", Collections.emptyList(), Collections.singleton("definition"))).actionGet();
         assertThat(response.getResources().results().size(), equalTo(1));
         TrainedModelConfig modelConfig = response.getResources().results().get(0);
         modelConfig.ensureParsedDefinition(xContentRegistry());

@@ -213,15 +213,14 @@ public class ReadOnlyEngineTests extends EngineTestCase {
                 if (numSegments > 1) {
                     final int target = between(1, numSegments - 1);
                     UnsupportedOperationException exception = expectThrows(UnsupportedOperationException.class,
-                            () -> readOnlyEngine.forceMerge(true, target, false, false, false, UUIDs.randomBase64UUID()));
+                            () -> readOnlyEngine.forceMerge(true, target, false, UUIDs.randomBase64UUID()));
                     assertThat(exception.getMessage(), equalTo("force merge is not supported on a read-only engine, " +
                             "target max number of segments[" + target + "], current number of segments[" + numSegments + "]."));
                 }
 
-                readOnlyEngine.forceMerge(true, ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS,
-                    false, false, false, UUIDs.randomBase64UUID());
-                readOnlyEngine.forceMerge(true, numSegments, false, false, false, UUIDs.randomBase64UUID());
-                readOnlyEngine.forceMerge(true, numSegments+1, false, false, false, UUIDs.randomBase64UUID());
+                readOnlyEngine.forceMerge(true, ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS, false, UUIDs.randomBase64UUID());
+                readOnlyEngine.forceMerge(true, numSegments, false, UUIDs.randomBase64UUID());
+                readOnlyEngine.forceMerge(true, numSegments+1, false, UUIDs.randomBase64UUID());
                 assertEquals(readOnlyEngine.getLastCommittedSegmentInfos().size(), numSegments);
             }
         }

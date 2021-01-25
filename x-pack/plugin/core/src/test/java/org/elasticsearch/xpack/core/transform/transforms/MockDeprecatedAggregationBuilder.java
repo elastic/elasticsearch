@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -91,7 +92,7 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     public static MockDeprecatedAggregationBuilder fromXContent(XContentParser p) {
-        deprecationLogger.deprecate("deprecated_mock", DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
         return new MockDeprecatedAggregationBuilder();
     }
 }

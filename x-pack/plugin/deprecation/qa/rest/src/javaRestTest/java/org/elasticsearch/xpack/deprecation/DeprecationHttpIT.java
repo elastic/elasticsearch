@@ -64,16 +64,16 @@ public class DeprecationHttpIT extends ESRestTestCase {
             .startObject("transient")
             .field(
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getKey(),
-                !TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY)
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE1.getDefault(Settings.EMPTY) == false
             )
             .field(
                 TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getKey(),
-                !TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY)
+                TestDeprecationHeaderRestAction.TEST_DEPRECATED_SETTING_TRUE2.getDefault(Settings.EMPTY) == false
             )
             // There should be no warning for this field
             .field(
                 TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getKey(),
-                !TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY)
+                TestDeprecationHeaderRestAction.TEST_NOT_DEPRECATED_SETTING.getDefault(Settings.EMPTY) == false
             )
             .endObject()
             .endObject();
@@ -279,6 +279,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasKey("elasticsearch.cluster.name"),
                             hasKey("elasticsearch.cluster.uuid"),
                             hasEntry(X_OPAQUE_ID_FIELD_NAME, "some xid"),
+                            hasEntry("elasticsearch.event.category", "settings"),
                             hasKey("elasticsearch.node.id"),
                             hasKey("elasticsearch.node.name"),
                             hasEntry("data_stream.dataset", "elasticsearch.deprecation"),
@@ -296,6 +297,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                             hasKey("elasticsearch.cluster.name"),
                             hasKey("elasticsearch.cluster.uuid"),
                             hasEntry(X_OPAQUE_ID_FIELD_NAME, "some xid"),
+                            hasEntry("elasticsearch.event.category", "api"),
                             hasKey("elasticsearch.node.id"),
                             hasKey("elasticsearch.node.name"),
                             hasEntry("data_stream.dataset", "elasticsearch.deprecation"),

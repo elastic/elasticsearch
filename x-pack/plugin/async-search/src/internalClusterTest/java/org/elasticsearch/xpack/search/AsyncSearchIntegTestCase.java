@@ -109,7 +109,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {
             final String fieldName = "expiration_time";
             final String script =
-                "if (ctx._source.expiration_time < params.expiration_time) ctx._source.expiration_time = params.expiration_time";
+                " if (ctx._source.expiration_time < params.expiration_time) { " +
+                "     ctx._source.expiration_time = params.expiration_time; " +
+                " } else { " +
+                "     ctx.op = \"noop\"; " +
+                " }";
             return Map.of(
                 script, vars -> {
                     Map<String, Object> params = (Map<String, Object>) vars.get("params");
@@ -121,8 +125,11 @@ public abstract class AsyncSearchIntegTestCase extends ESIntegTestCase {
                     assertNotNull(ctx);
                     Map<String, Object> source = (Map<String, Object>) ctx.get("_source");
                     long currentValue = (long) source.get(fieldName);
-
-                    source.put(fieldName, Math.max(currentValue, updatingValue));
+                    if (currentValue < updatingValue) {
+                        source.put(fieldName, updatingValue);
+                    } else {
+                        ctx.put("op", "noop");
+                    }
                     return ctx;
                 }
             );

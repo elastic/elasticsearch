@@ -49,7 +49,6 @@ import java.nio.ByteBuffer;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 
@@ -66,9 +65,12 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String HEADERS_FIELD = "headers";
     public static final String RESPONSE_HEADERS_FIELD = "response_headers";
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
-    public static final String EXPIRATION_TIME_SCRIPT = String.format(Locale.ROOT,
-        "if (ctx._source.%s < params.%s) ctx._source.%s = params.%s",
-        EXPIRATION_TIME_FIELD, EXPIRATION_TIME_FIELD, EXPIRATION_TIME_FIELD, EXPIRATION_TIME_FIELD);
+    public static final String EXPIRATION_TIME_SCRIPT =
+        " if (ctx._source.expiration_time < params.expiration_time) { " +
+        "     ctx._source.expiration_time = params.expiration_time; " +
+        " } else { " +
+        "     ctx.op = \"noop\"; " +
+        " }";
 
     public static final String RESULT_FIELD = "result";
 

@@ -62,6 +62,12 @@ POST /_ingest/pipeline/my-pipeline-id/_simulate
 
 `GET /_ingest/pipeline/_simulate`
 
+[[simulate-pipeline-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+<<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[simulate-pipeline-api-desc]]
 ==== {api-description-title}

@@ -30,6 +30,8 @@ the processor quietly exits without modifying the document.
 include::common-options.asciidoc[]
 |======
 
+[float]
+[[supported-named-network-ranges]]
 ===== Supported named network ranges:
 
 The named ranges supported for the `internal_networks` option are:

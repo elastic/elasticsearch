@@ -254,7 +254,8 @@ public class MockRepository extends FsRepository {
     /**
      * Enable blocking a single read of {@link org.elasticsearch.snapshots.SnapshotInfo} in case the repo is already blocked on another
      * file. This allows testing very specific timing issues where a read of {@code SnapshotInfo} is much slower than another concurrent
-     * repository operation.
+     * repository operation. See {@link #blockExecution()} for the exact mechanics of why we need a secondary block defined here.
+     * TODO: clean this up to not require a second block set
      */
     public void setBlockOnceOnReadSnapshotInfoIfAlreadyBlocked() {
         blockOnceOnReadSnapshotInfo.set(true);

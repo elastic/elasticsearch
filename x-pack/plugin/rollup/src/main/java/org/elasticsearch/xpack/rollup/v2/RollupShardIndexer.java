@@ -263,7 +263,7 @@ class RollupShardIndexer {
     private void indexBucket(BucketKey key,
                              List<FieldMetricsProducer> fieldsMetrics,
                              int docCount) {
-        IndexRequestBuilder request = client.prepareIndex("_doc", tmpIndex);
+        IndexRequestBuilder request = client.prepareIndex(tmpIndex, "_doc");
         Map<String, Object> doc = new HashMap<>(2 + key.groupFields.size() + fieldsMetrics.size());
         doc.put(DocCountFieldMapper.NAME, docCount);
         doc.put(timestampField.name(), timestampFormat.format(key.timestamp));

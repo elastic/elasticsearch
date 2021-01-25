@@ -16,7 +16,9 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ReindexSslConfig;
 import org.elasticsearch.index.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
@@ -66,5 +68,13 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
     @Override
     protected Client getBulkClient() {
         return bulkClient;
+    }
+
+    @Override
+    protected void validate(ReindexRequest request) {
+        // Validate the request in Enrich's security context, to be sure the validation can access system indices
+        try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashWithOrigin(ENRICH_ORIGIN)) {
+            reindexValidator.initialValidation(request);
+        }
     }
 }

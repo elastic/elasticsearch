@@ -44,7 +44,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     public static final Setting<List<String>> REMOTE_CLUSTER_WHITELIST =
             Setting.listSetting("reindex.remote.whitelist", emptyList(), Function.identity(), Property.NodeScope);
 
-    private final ReindexValidator reindexValidator;
+    protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;
 
     protected final Client client;
@@ -69,7 +69,7 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
 
     @Override
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
-        reindexValidator.initialValidation(request);
+        validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
         reindexer.initTask(bulkByScrollTask, request, new ActionListener<>() {
             @Override
@@ -91,5 +91,13 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      */
     protected Client getBulkClient() {
         return client;
+    }
+
+    /**
+     * This method can be overridden if different than usual validation is needed. This method should throw an exception if validation
+     * fails.
+     */
+    protected void validate(ReindexRequest request) {
+        reindexValidator.initialValidation(request);
     }
 }

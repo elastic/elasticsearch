@@ -88,6 +88,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                    final ActionListener<RolloverResponse> listener) throws Exception {
 
         Metadata metadata = preState.metadata();
+
+        if (rolloverRequest.getNewIndexName() != null) {
+            rolloverService.validateIndexName(preState, rolloverRequest.getNewIndexName());
+        }
+
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
             .indicesOptions(IndicesOptions.fromOptions(true, false, true, true))
@@ -107,6 +112,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                         rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest());
                 final String preSourceIndexName = preRolloverNames.sourceName;
                 final String preRolloverIndexName = preRolloverNames.rolloverName;
+
+                if (metadata.index(preRolloverIndexName) != null) {
+                    rolloverService.validateIndexName(preState, preRolloverIndexName);
+                }
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
                 final Map<String, Boolean> preConditionResults = evaluateConditions(rolloverRequest.getConditions().values(),

@@ -115,6 +115,10 @@ public class MetadataRolloverService {
         }
     }
 
+    public void validateIndexName(ClusterState state, String index) {
+        createIndexService.validateIndexName(index, state);
+    }
+
     /**
      * Returns the names that rollover would use, but does not perform the actual rollover
      */

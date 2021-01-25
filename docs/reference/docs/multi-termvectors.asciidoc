@@ -35,6 +35,12 @@ POST /_mtermvectors
 
 `POST /<index>/_mtermvectors`
 
+[[docs-multi-termvectors-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target index or index alias.
+
 [[docs-multi-termvectors-api-desc]]
 ==== {api-description-title}
 

@@ -43,8 +43,6 @@ subprojects {
         'suggest',
       ]
       if (project.name.equals('core-with-mapped')) {
-        //disabled until runtime fields can be created from a dynamic template
-        enabled = false
         suites += [
           // These two don't support runtime fields on the request. Should they?
           'field_caps',
@@ -57,15 +55,17 @@ subprojects {
       systemProperty 'tests.rest.blacklist',
         [
           /////// TO FIX ///////
-          'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // The plain highlighter is incompatible with runtime fields. Worth fixing?
+          'search.aggregation/40_range/Date range', //source only date field should also emit values for numbers, it expects strings only
           'search/115_multiple_field_collapsing/two levels fields collapsing', // Broken. Gotta fix.
           'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
-          'search.aggregation/10_histogram/*', // runtime doesn't support sub-fields. Maybe it should?
+          'search.aggregation/220_filters_bucket/cache', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
           /////// TO FIX ///////
 
           /////// NOT SUPPORTED ///////
+          'search.highlight/40_keyword_ignore/Plain Highligher should skip highlighting ignored keyword values', // The plain highlighter is incompatible with the prefix queries that we make for runtime fields, use unified highlighter instead.
           'search.aggregation/280_rare_terms/*', // Requires an index and we won't have it
+          'search.aggregation/10_histogram/*', // Runtime fields don't support sub-fields
           // Runtime fields don't have global ords
           'search.aggregation/20_terms/string profiler via global ordinals',
           'search.aggregation/20_terms/Global ordinals are loaded with the global_ordinals execution hint',

@@ -19,9 +19,6 @@ details on existing repositories and snapshots.
 `grant_api_key`::
 Privileges to create {es} API keys on behalf of other users.
 
-`monitor_snapshot`::
-Privileges to list and view details on existing repositories and snapshots.
-
 `manage`::
 Builds on `monitor` and adds cluster operations that change values in the cluster.
 This includes snapshotting, updating settings, and rerouting. It also includes
@@ -143,9 +140,6 @@ security roles of the user who created or updated them.
 All cluster read-only operations, like cluster health and state, hot threads,
 node info, node and cluster stats, and pending cluster tasks.
 
-`monitor_transform`::
-All read-only operations related to {transforms}.
-
 `monitor_ml`::
 All read-only {ml} operations, such as getting information about {dfeeds}, jobs,
 model snapshots, or results.
@@ -164,6 +158,15 @@ All read-only rollup operations, such as viewing the list of historical and
 currently running rollup jobs and their capabilities.
 
 endif::[]
+
+`monitor_snapshot`::
+Privileges to list and view details on existing repositories and snapshots.
+
+`monitor_text_structure`::
+All read-only operations related to the <<find-structure,find structure API>>.
+
+`monitor_transform`::
+All read-only operations related to {transforms}.
 
 `monitor_watcher`::
 All read-only watcher operations, such as getting a watch and watcher stats.
@@ -261,8 +264,8 @@ No privilege to read or write index data or otherwise manage the index.
 
 `manage`::
 All `monitor` privileges plus index and data stream administration (aliases,
-analyze, cache clear, close, delete, exists, flush, mapping, open, force merge,
-refresh, settings, search shards, templates, validate).
+analyze, cache clear, close, delete, exists, flush, mapping, open, field capabilties,
+force merge, refresh, settings, search shards, templates, validate query).
 
 `manage_follow_index`::
 All actions that are required to manage the lifecycle of a follower index, which
@@ -292,10 +295,10 @@ clear_scroll, search, suggest, tv).
 Read-only access to the search action from a <<cross-cluster-configuring,remote cluster>>.
 
 `view_index_metadata`::
-Read-only access to index and data stream metadata (aliases, aliases exists,
-get index, get data stream, exists, field mappings, mappings, search shards,
-type exists, validate, warmers, settings, ilm). This privilege is available
-for use primarily by {kib} users.
+Read-only access to index and data stream metadata (aliases, exists,
+field capabilities, field mappings, get index, get data stream, ilm explain,
+mappings, search shards, settings, validate query).
+This privilege is available for use primarily by {kib} users.
 
 `write`::
 Privilege to perform all write operations to documents, which includes the

@@ -37,7 +37,6 @@ import org.elasticsearch.test.ESTestCase;
 
 public class SegmentsStatsTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/65267")
     public void testFileExtensionDescriptions() throws Exception {
         try (Directory dir = newDirectory()) {
             try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig()
@@ -64,8 +63,13 @@ public class SegmentsStatsTests extends ESTestCase {
 
             for (String file : dir.listAll()) {
                 final String extension = IndexFileNames.getExtension(file);
+                if ("lock".equals(extension)) {
+                    // We should ignore lock files for stats file comparisons
+                    continue;
+                }
                 if (extension != null) {
-                    assertTrue(SegmentsStats.FILE_DESCRIPTIONS.get(extension) != null);
+                    assertNotNull("extension [" + extension + "] was not contained in the known segment stats files",
+                        SegmentsStats.FILE_DESCRIPTIONS.get(extension));
                 }
             }
         }

@@ -22,6 +22,7 @@ import java.time.temporal.TemporalField;
 import java.time.temporal.WeekFields;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeAtZone;
 
@@ -72,52 +73,139 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
 
     private final Formatter formatter;
 
-
     public enum Formatter {
-        FORMAT,
-        DATE_TIME_FORMAT,
-        DATE_FORMAT;
-
-        private String getJavaPattern(String pattern) {
-            if (this == FORMAT) {
-                pattern = replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS);
-            } else if (this == DATE_FORMAT) {
-                pattern = replacePatternForMySql(pattern);
+        FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                if (pattern.isEmpty()) {
+                    return null;
+                }
+                for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS) {
+                    pattern = pattern.replace(replacement[0], replacement[1]);
+                }
+                final String javaPattern = pattern;
+                return DateTimeFormatter.ofPattern(javaPattern, Locale.ROOT)::format;
             }
-            return pattern;
-        }
-
-        private String replacePatternForMySql(String pattern) {
-            // escape any chars that are not starts with '%' to avoid chars being interpreted by DateTimeFormatter
-            pattern = pattern.replaceAll(
-                "(%\\w)",
-                "{$0}");
-            pattern = pattern.replaceAll(
-                "([^(\\{%\\w\\})])?(\\w+)([^(\\{%\\w\\})])?",
-                "$1'$2'$3"
-            );
-            pattern = pattern.replaceAll(
-                "\\{%'(\\w)'\\}",
-                "%$1"
-            );
-
-            // replace %x with x, for any "x" not used in mysql date format specifiers
-            pattern = pattern.replaceAll(
-                "%([^abcDdefHhIijklMmprSsTUuVvWwXxYy])",
-                "'$1'"
-            );
-            pattern = pattern.replace("''", "");
-
-            return replacePattern(pattern, JAVA_TIME_FORMAT_REPLACEMENTS_FOR_MYSQL);
-        }
-
-        private String replacePattern(String pattern, String[][] javaTimeFormatReplacements) {
-            for (String[] replacement : javaTimeFormatReplacements) {
-                pattern = pattern.replace(replacement[0], replacement[1]);
+        },
+        DATE_TIME_FORMAT {
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return DateTimeFormatter.ofPattern(pattern, Locale.ROOT)::format;
             }
-            return pattern;
-        }
+        },
+        DATE_FORMAT {
+            private String replacePatternForMySql(String pattern) {
+                // escape any chars that are not starts with '%' to avoid chars being interpreted by DateTimeFormatter
+                pattern = pattern.replaceAll(
+                    "(%\\w)",
+                    "{$0}");
+                pattern = pattern.replaceAll(
+                    "([^(\\{%\\w\\})])?(\\w+)([^(\\{%\\w\\})])?",
+                    "$1'$2'$3"
+                );
+                pattern = pattern.replaceAll(
+                    "\\{%'(\\w)'\\}",
+                    "%$1"
+                );
 
+                // replace %x with x, for any "x" not used in mysql date format specifiers
+                pattern = pattern.replaceAll(
+                    "%([^abcDdefHhIijklMmprSsTUuVvWwXxYy])",
+                    "'$1'"
+                );
+                pattern = pattern.replace("''", "");
+
+                String pattern1 = pattern;
+                for (String[] replacement : JAVA_TIME_FORMAT_REPLACEMENTS_FOR_MYSQL) {
+                    pattern1 = pattern1.replace(replacement[0], replacement[1]);
+                }
+                return pattern1;
+            }
+
+            private String interpretXSpecifier(TemporalAccessor ta, String javaPattern) {
+                if (javaPattern.contains("%X")) {
+                    TemporalField weekBasedYearTempField = WeekFields.of(DayOfWeek.SUNDAY, 7).weekBasedYear();
+                    int weekBasedYear = ta.get(weekBasedYearTempField);
+                    String replacement = String.valueOf(weekBasedYear);
+                    javaPattern = javaPattern.replace("%X", replacement);
+                }
+                return javaPattern;
+            }
+
+            private String interpretVSpecifier(TemporalAccessor ta, String javaPattern) {
+                if (javaPattern.contains("%V")) {
+                    TemporalField weekOfWeekBasedYearTempField = WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfWeekBasedYear();
+                    int weekOfWeekBasedYear = ta.get(weekOfWeekBasedYearTempField);
+                    String replacement = String.valueOf(weekOfWeekBasedYear);
+                    if (weekOfWeekBasedYear < 10) {
+                        replacement = "0" + replacement;
+                    }
+                    javaPattern = javaPattern.replace("%V", replacement);
+                }
+                return javaPattern;
+            }
+
+            private String interpretUAnduSpecifier(TemporalAccessor ta, String javaPattern) {
+                if (javaPattern.contains("%U")) {
+                    TemporalField weekOfYearTempField = WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfYear();
+                    int weekOfYear = ta.get(weekOfYearTempField);
+                    String replacement = String.valueOf(weekOfYear);
+                    if (weekOfYear < 10) {
+                        replacement = "0" + replacement;
+                    }
+                    javaPattern = javaPattern.replace("%U", replacement);
+                }
+                if (javaPattern.contains("%u")) {
+                    TemporalField weekOfWeekBasedYearTempField = WeekFields.of(DayOfWeek.MONDAY, 4).weekOfWeekBasedYear();
+                    int weekOfWeekBasedYear = ta.get(weekOfWeekBasedYearTempField);
+                    String replacement = String.valueOf(weekOfWeekBasedYear);
+                    if (weekOfWeekBasedYear < 10) {
+                        replacement = "0" + replacement;
+                    }
+                    javaPattern = javaPattern.replace("%u", replacement);
+                }
+                return javaPattern;
+            }
+
+            private String interpretAndEscapeDayOfMonthWithOrdinalIndicator(TemporalAccessor ta, String javaPattern) {
+                if (javaPattern.contains("%D")) {
+                    String dayOfMonth = DateTimeFormatter.ofPattern("d", Locale.ROOT).format(ta);
+                    if (dayOfMonth.endsWith("1")) {
+                        dayOfMonth = "'" + dayOfMonth + "st'";
+                    } else if (dayOfMonth.endsWith("2")) {
+                        dayOfMonth = "'" + dayOfMonth + "nd'";
+                    } else if (dayOfMonth.endsWith("3")) {
+                        dayOfMonth = "'" + dayOfMonth + "rd'";
+                    } else {
+                        dayOfMonth = "'" + dayOfMonth + "th'";
+                    }
+                    javaPattern = javaPattern.replace("%D", dayOfMonth);
+                }
+                return javaPattern;
+            }
+            
+
+            @Override
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return ta -> {
+                    String javaPattern = replacePatternForMySql(pattern);
+                    javaPattern = interpretAndEscapeDayOfMonthWithOrdinalIndicator(ta, javaPattern);
+                    javaPattern = interpretUAnduSpecifier(ta, javaPattern);
+                    javaPattern = interpretVSpecifier(ta, javaPattern);
+                    javaPattern = interpretXSpecifier(ta, javaPattern);
+                    return DateTimeFormatter.ofPattern(javaPattern).format(ta);
+                };
+            }
+        },
+        TO_CHAR {
+            @Override 
+            protected Function<TemporalAccessor, String> formatterFor(String pattern) {
+                return ToCharFormatter.ofPattern(pattern);
+            }
+        };
+
+        protected abstract Function<TemporalAccessor, String> formatterFor(String pattern);
+        
         public Object format(Object timestamp, Object pattern, ZoneId zoneId) {
             if (timestamp == null || pattern == null) {
                 return null;
@@ -143,15 +231,7 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
                 ta = asTimeAtZone((OffsetTime) timestamp, zoneId);
             }
             try {
-                String javaPattern = getJavaPattern(patternString);
-                Locale locale = Locale.ROOT;
-                if (this == DATE_FORMAT) {
-                    javaPattern = interpretAndEscapeDayOfMonthWithOrdinalIndicator(ta, javaPattern, locale);
-                    javaPattern = interpretUAnduSpecifier(ta, javaPattern);
-                    javaPattern = interpretVSpecifier(ta, javaPattern);
-                    javaPattern = interpretXSpecifier(ta, javaPattern);
-                }
-                return DateTimeFormatter.ofPattern(javaPattern, locale).format(ta);
+                return formatterFor(patternString).apply(ta);
             } catch (IllegalArgumentException | DateTimeException e) {
                 throw new SqlIllegalArgumentException(
                     "Invalid pattern [{}] is received for formatting date/time [{}]; {}",
@@ -162,67 +242,6 @@ public class DateTimeFormatProcessor extends BinaryDateTimeProcessor {
             }
         }
 
-        private String interpretXSpecifier(TemporalAccessor ta, String javaPattern) {
-            if (javaPattern.contains("%X")) {
-                TemporalField weekBasedYearTempField = WeekFields.of(DayOfWeek.SUNDAY, 7).weekBasedYear();
-                int weekBasedYear = ta.get(weekBasedYearTempField);
-                String replacement = String.valueOf(weekBasedYear);
-                javaPattern = javaPattern.replace("%X", replacement);
-            }
-            return javaPattern;
-        }
-
-        private String interpretVSpecifier(TemporalAccessor ta, String javaPattern) {
-            if (javaPattern.contains("%V")) {
-                TemporalField weekOfWeekBasedYearTempField = WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfWeekBasedYear();
-                int weekOfWeekBasedYear = ta.get(weekOfWeekBasedYearTempField);
-                String replacement = String.valueOf(weekOfWeekBasedYear);
-                if (weekOfWeekBasedYear < 10) {
-                    replacement = "0" + replacement;
-                }
-                javaPattern = javaPattern.replace("%V", replacement);
-            }
-            return javaPattern;
-        }
-
-        private String interpretUAnduSpecifier(TemporalAccessor ta, String javaPattern) {
-            if (javaPattern.contains("%U")) {
-                TemporalField weekOfYearTempField = WeekFields.of(DayOfWeek.SUNDAY, 7).weekOfYear();
-                int weekOfYear = ta.get(weekOfYearTempField);
-                String replacement = String.valueOf(weekOfYear);
-                if (weekOfYear < 10) {
-                    replacement = "0" + replacement;
-                }
-                javaPattern = javaPattern.replace("%U", replacement);
-            }
-            if (javaPattern.contains("%u")) {
-                TemporalField weekOfWeekBasedYearTempField = WeekFields.of(DayOfWeek.MONDAY, 4).weekOfWeekBasedYear();
-                int weekOfWeekBasedYear = ta.get(weekOfWeekBasedYearTempField);
-                String replacement = String.valueOf(weekOfWeekBasedYear);
-                if (weekOfWeekBasedYear < 10) {
-                    replacement = "0" + replacement;
-                }
-                javaPattern = javaPattern.replace("%u", replacement);
-            }
-            return javaPattern;
-        }
-
-        private String interpretAndEscapeDayOfMonthWithOrdinalIndicator(TemporalAccessor ta, String javaPattern, Locale locale) {
-            if (javaPattern.contains("%D")) {
-                String dayOfMonth = DateTimeFormatter.ofPattern("d", locale).format(ta);
-                if (dayOfMonth.endsWith("1")) {
-                    dayOfMonth = "'" + dayOfMonth + "st'";
-                } else if (dayOfMonth.endsWith("2")) {
-                    dayOfMonth = "'" + dayOfMonth + "nd'";
-                } else if (dayOfMonth.endsWith("3")) {
-                    dayOfMonth = "'" + dayOfMonth + "rd'";
-                } else {
-                    dayOfMonth = "'" + dayOfMonth + "th'";
-                }
-                javaPattern = javaPattern.replace("%D", dayOfMonth);
-            }
-            return javaPattern;
-        }
     }
 
     public DateTimeFormatProcessor(Processor source1, Processor source2, ZoneId zoneId, Formatter formatter) {

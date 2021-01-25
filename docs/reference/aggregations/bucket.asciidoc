@@ -1,5 +1,5 @@
 [[search-aggregations-bucket]]
-== Bucket Aggregations
+== Bucket aggregations
 
 Bucket aggregations don't calculate metrics over fields like the metrics aggregations do, but instead, they create
 buckets of documents. Each bucket is associated with a criterion (depending on the aggregation type) which determines

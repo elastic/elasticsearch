@@ -49,6 +49,13 @@ configurations {
 dependencies {
   api "org.apache.hadoop:hadoop-client:${versions.hadoop2}"
   api project(path: 'hadoop-common', configuration: 'shadow')
+  if (isEclipse) {
+    /*
+     * Eclipse can't pick up the shadow dependency so we point it at *something*
+     * so it can compile things.
+     */
+    api project(path: 'hadoop-common')
+  }
   api "org.apache.hadoop:hadoop-annotations:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-auth:${versions.hadoop2}"
   api "org.apache.hadoop:hadoop-hdfs:${versions.hadoop2}"

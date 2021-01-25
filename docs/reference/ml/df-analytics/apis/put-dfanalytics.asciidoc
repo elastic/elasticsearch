@@ -120,6 +120,111 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=feature-bag-fraction]
 `feature_processors`::::
 (Optional, list)
 include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors]
++
+.Properties of `feature_processors`
+[%collapsible%open]
+======
+`frequency_encoding`::::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency]
++
+.Properties of `frequency_encoding`
+[%collapsible%open]
+=======
+`feature_name`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
+
+`field`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+
+`frequency_map`::::
+(Required, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-frequency-map]
+=======
+
+`multi_encoding`::::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi]
++
+.Properties of `multi_encoding`
+[%collapsible%open]
+=======
+`processors`::::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-multi-proc]
+=======
+
+`ngram_encoding`::::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram]
++
+.Properties of `ngram_encoding`
+[%collapsible%open]
+=======
+`feature_prefix`::::
+(Optional, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-feat-pref]
+
+`field`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-field]
+
+`length`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-length]
+
+`n_grams`::::
+(Required, array)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-ngrams]
+
+`start`::::
+(Optional, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-ngram-start]
+=======
+
+`one_hot_encoding`::::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot]
++
+.Properties of `one_hot_encoding`
+[%collapsible%open]
+=======
+`field`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+
+`hot_map`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-one-hot-map]
+=======
+
+`target_mean_encoding`::::
+(object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean]
++
+.Properties of `target_mean_encoding`
+[%collapsible%open]
+=======
+`default_value`::::
+(Required, integer)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-default]
+
+`feature_name`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-feat-name]
+
+`field`::::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-field]
+
+`target_map`::::
+(Required, object)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=dfas-feature-processors-target-mean-map]
+=======
+
+======
 
 `gamma`::::
 (Optional, double)

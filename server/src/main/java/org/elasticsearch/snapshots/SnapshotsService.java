@@ -132,6 +132,8 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     public static final Version INDEX_GEN_IN_REPO_DATA_VERSION = Version.V_7_9_0;
 
+    public static final Version REPOSITORY_UUID_IN_REPO_DATA_VERSION = Version.V_8_0_0; // TODO adjust after backport
+
     public static final Version OLD_SNAPSHOT_FORMAT = Version.V_7_5_0;
 
     private static final Logger logger = LogManager.getLogger(SnapshotsService.class);
@@ -1172,10 +1174,22 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             if (entry.isClone()) {
                 threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(
                         ActionRunnable.supply(metadataListener, () -> {
-                            final Metadata.Builder metaBuilder = Metadata.builder(repo.getSnapshotGlobalMetadata(entry.source()));
+                            final Metadata existing = repo.getSnapshotGlobalMetadata(entry.source());
+                            final Metadata.Builder metaBuilder = Metadata.builder(existing);
+                            final Set<Index> existingIndices = new HashSet<>();
                             for (IndexId index : entry.indices()) {
-                                metaBuilder.put(repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index), false);
+                                final IndexMetadata indexMetadata = repo.getSnapshotIndexMetaData(repositoryData, entry.source(), index);
+                                existingIndices.add(indexMetadata.getIndex());
+                                metaBuilder.put(indexMetadata, false);
                             }
+                            // remove those data streams from metadata for which we are missing indices
+                            Map<String, DataStream> dataStreamsToCopy = new HashMap<>();
+                            for (Map.Entry<String, DataStream> dataStreamEntry : existing.dataStreams().entrySet()) {
+                                if (existingIndices.containsAll(dataStreamEntry.getValue().getIndices())) {
+                                    dataStreamsToCopy.put(dataStreamEntry.getKey(), dataStreamEntry.getValue());
+                                }
+                            }
+                            metaBuilder.dataStreams(dataStreamsToCopy);
                             return metaBuilder.build();
                         }));
             } else {
@@ -1729,6 +1743,16 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     public static boolean useIndexGenerations(Version repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(INDEX_GEN_IN_REPO_DATA_VERSION);
+    }
+
+    /**
+     * Checks whether the metadata version supports writing {@link ShardGenerations} to the repository.
+     *
+     * @param repositoryMetaVersion version to check
+     * @return true if version supports {@link ShardGenerations}
+     */
+    public static boolean includesRepositoryUuid(Version repositoryMetaVersion) {
+        return repositoryMetaVersion.onOrAfter(REPOSITORY_UUID_IN_REPO_DATA_VERSION);
     }
 
     /** Deletes snapshot from repository

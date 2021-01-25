@@ -50,6 +50,7 @@ import org.elasticsearch.xpack.ccr.CcrSettings;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ccr.action.FollowParameters;
 import org.elasticsearch.xpack.core.ccr.action.ResumeFollowAction;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.io.IOException;
 import java.util.Iterator;

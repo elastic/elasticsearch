@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.ValueSource;
+import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.TemplateScript;
 
@@ -110,10 +111,11 @@ public final class SetProcessor extends AbstractProcessor {
                                    String description, Map<String, Object> config) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String copyFrom = ConfigurationUtils.readOptionalStringProperty(TYPE, processorTag, config, "copy_from");
+            String mimeType = ConfigurationUtils.readMimeTypeProperty(TYPE, processorTag, config, "mime_type", "application/json");
             ValueSource valueSource = null;
             if (copyFrom == null) {
                 Object value = ConfigurationUtils.readObject(TYPE, processorTag, config, "value");
-                valueSource = ValueSource.wrap(value, scriptService);
+                valueSource = ValueSource.wrap(value, scriptService, Map.of(Script.CONTENT_TYPE_OPTION, mimeType));
             } else {
                 Object value = config.remove("value");
                 if (value != null) {
@@ -123,8 +125,7 @@ public final class SetProcessor extends AbstractProcessor {
             }
 
             boolean overrideEnabled = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "override", true);
-            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag,
-                "field", field, scriptService);
+            TemplateScript.Factory compiledTemplate = ConfigurationUtils.compileTemplate(TYPE, processorTag, "field", field, scriptService);
             boolean ignoreEmptyValue = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_empty_value", false);
 
             return new SetProcessor(

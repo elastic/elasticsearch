@@ -109,7 +109,6 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
         headTestCase("/test/_alias/test_alias", emptyMap(), NOT_FOUND.getStatus(), greaterThan(0));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66820")
     public void testTemplateExists() throws IOException {
         try (XContentBuilder builder = jsonBuilder()) {
             builder.startObject();
@@ -127,13 +126,13 @@ public class Netty4HeadBodyIsEmptyIT extends ESRestTestCase {
             if (inFipsJvm()) {
                 request.setOptions(expectWarnings(
                     "legacy template [template] has index patterns [*] matching patterns from existing composable templates " +
-                    "[ilm-history,.triggered_watches,.watch-history-14,.slm-history,synthetics,metrics,.deprecation-indexing-template," +
-                    ".watches,logs] with patterns (ilm-history => [ilm-history-5*],.triggered_watches => [.triggered_watches*]," +
-                    ".watch-history-14 => [.watcher-history-14*],.slm-history => [.slm-history-5*],synthetics => [synthetics-*-*]" +
-                    ",metrics => [metrics-*-*],.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
-                    ".watches => [.watches*],logs => [logs-*-*]); this template [template] may be ignored in favor " +
-                    "of a composable template at index creation time"));
-                }
+                    "[.deprecation-indexing-template,.slm-history,.triggered_watches,.watch-history-14,.watches,ilm-history,logs," +
+                    "metrics,synthetics] with patterns (.deprecation-indexing-template => [.logs-deprecation-elasticsearch]," +
+                    ".slm-history => [.slm-history-5*],.triggered_watches => [.triggered_watches*]," +
+                    ".watch-history-14 => [.watcher-history-14*],.watches => [.watches*],ilm-history => [ilm-history-5*]," +
+                    "logs => [logs-*-*],metrics => [metrics-*-*],synthetics => [synthetics-*-*]" +
+                    "); this template [template] may be ignored in favor of a composable template at index creation time"));
+            }
             request.setJsonEntity(Strings.toString(builder));
             client().performRequest(request);
             headTestCase("/_template/template", emptyMap(), greaterThan(0));

@@ -226,4 +226,10 @@ public abstract class GradleUtils {
         int lastDelimiterIndex = taskPath.lastIndexOf(":");
         return lastDelimiterIndex == 0 ? ":" : taskPath.substring(0, lastDelimiterIndex);
     }
+
+    public static boolean isModuleProject(String projectPath) {
+        return projectPath.contains("modules:")
+            || projectPath.startsWith(":x-pack:plugin")
+            || projectPath.startsWith(":x-pack:quota-aware-fs");
+    }
 }

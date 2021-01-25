@@ -576,11 +576,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         if (result == null || result.getType() != IndexAbstraction.Type.ALIAS) {
             return routing;
         }
-        IndexAbstraction.Alias alias = (IndexAbstraction.Alias) result;
         if (result.getIndices().size() > 1) {
             rejectSingleIndexOperation(aliasOrIndex, result);
         }
-        return resolveRouting(routing, aliasOrIndex, alias.getFirstAliasMetadata());
+        return resolveRouting(routing, aliasOrIndex, AliasMetadata.getFirstAliasMetadata(result));
     }
 
     private static String resolveRouting(@Nullable String routing, String aliasOrIndex, AliasMetadata aliasMd) {
@@ -1389,7 +1388,11 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 IndexAbstraction.Index index;
                 DataStream parent = indexToDataStreamLookup.get(indexMetadata.getIndex().getName());
                 if (parent != null) {
-                    assert parent.getIndices().contains(indexMetadata.getIndex());
+                    assert parent.getIndices().stream()
+                        .map(Index::getName)
+                        .collect(Collectors.toList())
+                        .contains(indexMetadata.getIndex().getName()) :
+                        "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                     index = new IndexAbstraction.Index(indexMetadata, (IndexAbstraction.DataStream) indicesLookup.get(parent.getName()));
                 } else {
                     index = new IndexAbstraction.Index(indexMetadata);

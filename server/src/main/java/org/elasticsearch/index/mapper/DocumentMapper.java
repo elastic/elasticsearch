@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,10 +33,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -94,13 +91,9 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     private final String type;
-    private final Text typeText;
     private final CompressedXContent mappingSource;
-    private final Mapping mapping;
     private final DocumentParser documentParser;
-    private final MappingLookup fieldMappers;
-    private final IndexSettings indexSettings;
-    private final IndexAnalyzers indexAnalyzers;
+    private final MappingLookup mappingLookup;
     private final MetadataFieldMapper[] deleteTombstoneMetadataFieldMappers;
     private final MetadataFieldMapper[] noopTombstoneMetadataFieldMappers;
 
@@ -109,12 +102,8 @@ public class DocumentMapper implements ToXContentFragment {
                            DocumentParser documentParser,
                            Mapping mapping) {
         this.type = mapping.root().name();
-        this.typeText = new Text(this.type);
-        this.mapping = mapping;
         this.documentParser = documentParser;
-        this.indexSettings = indexSettings;
-        this.indexAnalyzers = indexAnalyzers;
-        this.fieldMappers = MappingLookup.fromMapping(mapping, this::parse);
+        this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
 
         try {
             mappingSource = new CompressedXContent(this, XContentType.JSON, ToXContent.EMPTY_PARAMS);
@@ -133,19 +122,15 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public Mapping mapping() {
-        return mapping;
+        return mappingLookup.getMapping();
     }
 
     public String type() {
         return this.type;
     }
 
-    public Text typeText() {
-        return this.typeText;
-    }
-
     public Map<String, Object> meta() {
-        return mapping.meta;
+        return mapping().meta;
     }
 
     public CompressedXContent mappingSource() {
@@ -153,11 +138,11 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     public RootObjectMapper root() {
-        return mapping.root;
+        return mapping().root;
     }
 
     public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
-        return mapping.metadataMapper(type);
+        return mapping().metadataMapper(type);
     }
 
     public SourceFieldMapper sourceMapper() {
@@ -176,143 +161,53 @@ public class DocumentMapper implements ToXContentFragment {
         return metadataMapper(IndexFieldMapper.class);
     }
 
-    public boolean hasNestedObjects() {
-        return mappers().hasNested();
-    }
-
     public MappingLookup mappers() {
-        return this.fieldMappers;
+        return this.mappingLookup;
     }
 
     public ParsedDocument parse(SourceToParse source) throws MapperParsingException {
-        return documentParser.parseDocument(source, mapping, fieldMappers, indexSettings, indexAnalyzers);
+        return documentParser.parseDocument(source, mappingLookup);
     }
 
     public ParsedDocument createDeleteTombstoneDoc(String index, String id) throws MapperParsingException {
         final SourceToParse emptySource = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        return documentParser.parseDocument(emptySource, mapping, deleteTombstoneMetadataFieldMappers, fieldMappers,
-            indexSettings, indexAnalyzers).toTombstone();
+        return documentParser.parseDocument(emptySource, deleteTombstoneMetadataFieldMappers, mappingLookup).toTombstone();
     }
 
     public ParsedDocument createNoopTombstoneDoc(String index, String reason) throws MapperParsingException {
         final String id = ""; // _id won't be used.
         final SourceToParse sourceToParse = new SourceToParse(index, id, new BytesArray("{}"), XContentType.JSON);
-        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, mapping, noopTombstoneMetadataFieldMappers,
-            fieldMappers, indexSettings, indexAnalyzers).toTombstone();
+        final ParsedDocument parsedDoc = documentParser.parseDocument(sourceToParse, noopTombstoneMetadataFieldMappers, mappingLookup)
+            .toTombstone();
         // Store the reason of a noop as a raw string in the _source field
         final BytesRef byteRef = new BytesRef(reason);
         parsedDoc.rootDoc().add(new StoredField(SourceFieldMapper.NAME, byteRef.bytes, byteRef.offset, byteRef.length));
         return parsedDoc;
     }
 
-    /**
-     * Given an object path, checks to see if any of its parents are non-nested objects
-     */
-    public boolean hasNonNestedParent(String path) {
-        ObjectMapper mapper = mappers().objectMappers().get(path);
-        if (mapper == null) {
-            return false;
-        }
-        while (mapper != null) {
-            if (mapper.nested().isNested() == false) {
-                return true;
-            }
-            if (path.contains(".") == false) {
-                return false;
-            }
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = mappers().objectMappers().get(path);
-        }
-        return false;
-    }
-
-    /**
-     * Returns all nested object mappers
-     */
-    public List<ObjectMapper> getNestedMappers() {
-        List<ObjectMapper> childMappers = new ArrayList<>();
-        for (ObjectMapper mapper : mappers().objectMappers().values()) {
-            if (mapper.nested().isNested() == false) {
-                continue;
-            }
-            childMappers.add(mapper);
-        }
-        return childMappers;
-    }
-
-    /**
-     * Returns all nested object mappers which contain further nested object mappers
-     *
-     * Used by BitSetProducerWarmer
-     */
-    public List<ObjectMapper> getNestedParentMappers() {
-        List<ObjectMapper> parents = new ArrayList<>();
-        for (ObjectMapper mapper : mappers().objectMappers().values()) {
-            String nestedParentPath = getNestedParent(mapper.fullPath());
-            if (nestedParentPath == null) {
-                continue;
-            }
-            ObjectMapper parent = mappers().objectMappers().get(nestedParentPath);
-            if (parent.nested().isNested()) {
-                parents.add(parent);
-            }
-        }
-        return parents;
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String path) {
-        ObjectMapper mapper = mappers().objectMappers().get(path);
-        if (mapper == null) {
-            return null;
-        }
-        if (path.contains(".") == false) {
-            return null;
-        }
-        do {
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = mappers().objectMappers().get(path);
-            if (mapper == null) {
-                return null;
-            }
-            if (mapper.nested().isNested()) {
-                return path;
-            }
-            if (path.contains(".") == false) {
-                return null;
-            }
-        } while(true);
-    }
-
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
-        Mapping merged = this.mapping.merge(mapping, reason);
-        return new DocumentMapper(this.indexSettings, this.indexAnalyzers, this.documentParser, merged);
+        Mapping merged = this.mapping().merge(mapping, reason);
+        return new DocumentMapper(mappingLookup.getIndexSettings(), mappingLookup.getIndexAnalyzers(), documentParser, merged);
     }
 
     public void validate(IndexSettings settings, boolean checkLimits) {
-        this.mapping.validate(this.fieldMappers);
+        this.mapping().validate(this.mappingLookup);
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
             if (routingFieldMapper().required() == false) {
                 throw new IllegalArgumentException("mapping type [" + type() + "] must have routing "
                     + "required for partitioned index [" + settings.getIndex().getName() + "]");
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         if (checkLimits) {
-            this.fieldMappers.checkLimits(settings);
+            this.mappingLookup.checkLimits(settings);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return mapping.toXContent(builder, params);
+        return mapping().toXContent(builder, params);
     }
 }

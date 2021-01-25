@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -15,9 +16,12 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapshotsIntegTestCase {
@@ -60,6 +64,46 @@ public class SearchableSnapshotAllocationIntegTests extends BaseSearchableSnapsh
             state.nodes().resolveNode(firstDataNode).getId(),
             state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId()
         );
+    }
+
+    public void testAllocatesReplicaToBestAvailableNodeOnRestart() throws Exception {
+        internalCluster().startMasterOnlyNode();
+        final String firstDataNode = internalCluster().startDataOnlyNode();
+        final String secondDataNode = internalCluster().startDataOnlyNode();
+        final String index = "test-idx";
+        createIndexWithContent(index, indexSettingsNoReplicas(1).put(INDEX_SOFT_DELETES_SETTING.getKey(), true).build());
+        final String repoName = "test-repo";
+        createRepository(repoName, "fs");
+        final String snapshotName = "test-snapshot";
+        createSnapshot(repoName, snapshotName, List.of(index));
+        assertAcked(client().admin().indices().prepareDelete(index));
+        final String restoredIndex = mountSnapshot(
+            repoName,
+            snapshotName,
+            index,
+            Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build()
+        );
+        ensureGreen(restoredIndex);
+        internalCluster().startDataOnlyNodes(randomIntBetween(1, 4));
+
+        setAllocation(EnableAllocationDecider.Allocation.NONE);
+
+        internalCluster().getInstance(CacheService.class, firstDataNode).synchronizeCache();
+        internalCluster().getInstance(CacheService.class, secondDataNode).synchronizeCache();
+        internalCluster().restartNode(firstDataNode);
+        internalCluster().restartNode(secondDataNode);
+        ensureStableCluster(internalCluster().numDataAndMasterNodes());
+
+        setAllocation(EnableAllocationDecider.Allocation.ALL);
+        ensureGreen(restoredIndex);
+
+        final ClusterState state = client().admin().cluster().prepareState().get().getState();
+        final Set<String> nodesWithCache = Set.of(
+            state.nodes().resolveNode(firstDataNode).getId(),
+            state.nodes().resolveNode(secondDataNode).getId()
+        );
+        assertThat(state.routingTable().index(restoredIndex).shard(0).primaryShard().currentNodeId(), is(in(nodesWithCache)));
+        assertThat(state.routingTable().index(restoredIndex).shard(0).replicaShards().get(0).currentNodeId(), is(in(nodesWithCache)));
     }
 
     private void setAllocation(EnableAllocationDecider.Allocation allocation) {

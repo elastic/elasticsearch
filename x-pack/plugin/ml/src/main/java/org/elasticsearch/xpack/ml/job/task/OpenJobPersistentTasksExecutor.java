@@ -24,6 +24,7 @@ import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskId;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.ml.datafeed.persistence.DatafeedConfigProvider;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
+import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
@@ -58,6 +60,7 @@ import java.util.Set;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksExecutor<OpenJobAction.JobParams> {
 
@@ -80,23 +83,28 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final Client client;
     private final JobResultsProvider jobResultsProvider;
+    private final AnomalyDetectionAuditor auditor;
 
     private volatile ClusterState clusterState;
 
-    public OpenJobPersistentTasksExecutor(Settings settings, ClusterService clusterService,
+    public OpenJobPersistentTasksExecutor(Settings settings,
+                                          ClusterService clusterService,
                                           AutodetectProcessManager autodetectProcessManager,
-                                          DatafeedConfigProvider datafeedConfigProvider, MlMemoryTracker memoryTracker, Client client,
+                                          DatafeedConfigProvider datafeedConfigProvider,
+                                          MlMemoryTracker memoryTracker,
+                                          Client client,
                                           IndexNameExpressionResolver expressionResolver) {
         super(MlTasks.JOB_TASK_NAME, MachineLearning.UTILITY_THREAD_POOL_NAME, settings, clusterService, memoryTracker, expressionResolver);
         this.autodetectProcessManager = Objects.requireNonNull(autodetectProcessManager);
         this.datafeedConfigProvider = Objects.requireNonNull(datafeedConfigProvider);
         this.client = Objects.requireNonNull(client);
         this.jobResultsProvider = new JobResultsProvider(client, settings, expressionResolver);
+        this.auditor = new AnomalyDetectionAuditor(client, clusterService);
         clusterService.addListener(event -> clusterState = event.state());
     }
 
     @Override
-    public PersistentTasksCustomMetadata.Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
+    public Assignment getAssignment(OpenJobAction.JobParams params, ClusterState clusterState) {
         // If the task parameters do not have a job field then the job
         // was first opened on a pre v6.6 node and has not been migrated
         Job job = params.getJob();
@@ -104,20 +112,22 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             return AWAITING_MIGRATION;
         }
         boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
-        Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
+        Optional<Assignment> optionalAssignment = getPotentialAssignment(params, clusterState);
         if (optionalAssignment.isPresent()) {
             return optionalAssignment.get();
         }
 
         JobNodeSelector jobNodeSelector = new JobNodeSelector(clusterState, params.getJobId(), MlTasks.JOB_TASK_NAME, memoryTracker,
             job.allowLazyOpen() ? Integer.MAX_VALUE : maxLazyMLNodes, node -> nodeFilter(node, job));
-        return jobNodeSelector.selectNode(
+        Assignment assignment = jobNodeSelector.selectNode(
             maxOpenJobs,
             maxConcurrentJobAllocations,
             maxMachineMemoryPercent,
             maxNodeMemory,
             isMemoryTrackerRecentlyRefreshed,
             useAutoMemoryPercentage);
+        auditRequireMemoryIfNecessary(params.getJobId(), auditor, assignment, jobNodeSelector, isMemoryTrackerRecentlyRefreshed);
+        return assignment;
     }
 
     private static boolean nodeSupportsModelSnapshotVersion(DiscoveryNode node, Job job) {
@@ -173,7 +183,7 @@ public class OpenJobPersistentTasksExecutor extends AbstractJobPersistentTasksEx
             throw makeCurrentlyBeingUpgradedException(logger, params.getJobId());
         }
 
-        if (assignment.getExecutorNode() == null && assignment.equals(JobNodeSelector.AWAITING_LAZY_ASSIGNMENT) == false) {
+        if (assignment.getExecutorNode() == null && assignment.equals(AWAITING_LAZY_ASSIGNMENT) == false) {
             throw makeNoSuitableNodesException(logger, params.getJobId(), assignment.getExplanation());
         }
     }

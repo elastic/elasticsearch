@@ -29,16 +29,23 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.common.CheckedConsumer;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.junit.Before;
 
@@ -289,4 +296,44 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             ft
         );
     }
+
+    /**
+     * Check that we don't accidentally find nested documents when the filter
+     * matches it.
+     */
+    public void testNested() throws IOException {
+        KeywordFieldType ft = new KeywordFieldType("author");
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> iw.addDocuments(
+            NestedAggregatorTests.generateBook("test", new String[] { "foo", "bar" }, new int[] { 5, 10, 15, 20 })
+        );
+        testCase(
+            new FiltersAggregationBuilder("test", new KeyedFilter("q1", new TermQueryBuilder("author", "foo"))),
+            Queries.newNonNestedFilter(),
+            buildIndex,
+            result -> {
+                InternalFilters filters = (InternalFilters) result;
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+            },
+            ft
+        );
+        testCase(
+            new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder())),
+            Queries.newNonNestedFilter(),
+            buildIndex,
+            result -> {
+                InternalFilters filters = (InternalFilters) result;
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(1L));
+            },
+            ft
+        );
+    }
+
+    @Override
+    protected List<ObjectMapper> objectMappers() {
+        return MOCK_OBJECT_MAPPERS;
+    }
+
+    static final List<ObjectMapper> MOCK_OBJECT_MAPPERS = List.of(NestedAggregatorTests.nestedObject("nested_chapters"));
 }

@@ -70,11 +70,14 @@ public class DataTierAllocationDecider extends AllocationDecider {
         }
     }
 
-    private volatile String clusterRequire = null;
-    private volatile String clusterInclude = null;
-    private volatile String clusterExclude = null;
+    private volatile String clusterRequire;
+    private volatile String clusterInclude;
+    private volatile String clusterExclude;
 
-    public DataTierAllocationDecider(ClusterSettings clusterSettings) {
+    public DataTierAllocationDecider(Settings settings, ClusterSettings clusterSettings) {
+        clusterRequire = CLUSTER_ROUTING_REQUIRE_SETTING.get(settings);
+        clusterInclude = CLUSTER_ROUTING_INCLUDE_SETTING.get(settings);
+        clusterExclude = CLUSTER_ROUTING_EXCLUDE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_REQUIRE_SETTING, s -> this.clusterRequire = s);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_INCLUDE_SETTING, s -> this.clusterInclude = s);
         clusterSettings.addSettingsUpdateConsumer(CLUSTER_ROUTING_EXCLUDE_SETTING, s -> this.clusterExclude = s);

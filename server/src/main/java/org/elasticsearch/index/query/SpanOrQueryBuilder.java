@@ -149,7 +149,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         SpanQuery[] spanQueries = new SpanQuery[clauses.size()];
         for (int i = 0; i < clauses.size(); i++) {
             Query query = clauses.get(i).toQuery(context);

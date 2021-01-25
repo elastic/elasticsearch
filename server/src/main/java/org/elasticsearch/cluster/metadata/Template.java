@@ -100,14 +100,17 @@ public class Template extends AbstractDiffable<Template> implements ToXContentOb
         }
     }
 
+    @Nullable
     public Settings settings() {
         return settings;
     }
 
+    @Nullable
     public CompressedXContent mappings() {
         return mappings;
     }
 
+    @Nullable
     public Map<String, AliasMetadata> aliases() {
         return aliases;
     }

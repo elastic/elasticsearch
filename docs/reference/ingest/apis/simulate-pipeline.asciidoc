@@ -294,7 +294,7 @@ you can add the `verbose` parameter to the request.
 
 [source,console]
 ----
-POST /_ingest/pipeline/_simulate?verbose
+POST /_ingest/pipeline/_simulate?verbose=true
 {
   "pipeline" :
   {

@@ -74,7 +74,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         AllocationDeciders allocationDeciders = new AllocationDeciders(List.of(
             new FilterAllocationDecider(clusterState.getMetadata().settings(),
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            new DataTierAllocationDecider(new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
+            new DataTierAllocationDecider(clusterState.getMetadata().settings(), new ClusterSettings(Settings.EMPTY, ALL_CLUSTER_SETTINGS)),
             new NodeVersionAllocationDecider()
         ));
         final RoutingNodes routingNodes = clusterState.getRoutingNodes();

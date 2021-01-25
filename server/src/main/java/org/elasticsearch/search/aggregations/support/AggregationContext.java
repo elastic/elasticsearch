@@ -35,7 +35,7 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
@@ -64,12 +64,12 @@ import java.util.function.Supplier;
  * <p>
  * In production we always use the {@link ProductionAggregationContext} but
  * this is {@code abstract} so that tests can build it without creating the
- * massing {@link QueryShardContext}.
+ * massing {@link SearchExecutionContext}.
  * <p>
  * {@linkplain AggregationContext}s are {@link Releasable} because they track
  * the {@link Aggregator}s they build and {@link Aggregator#close} them when
  * the request is done. {@linkplain AggregationContext} may also preallocate
- * bytes on the "REQUEST" breaker and is responsible for releasing those bytes. 
+ * bytes on the "REQUEST" breaker and is responsible for releasing those bytes.
  */
 public abstract class AggregationContext implements Releasable {
     /**
@@ -191,7 +191,7 @@ public abstract class AggregationContext implements Releasable {
     public abstract SubSearchContext subSearchContext();
 
     /**
-     * Cause this aggregation to be released when the search is finished. 
+     * Cause this aggregation to be released when the search is finished.
      */
     public abstract void addReleasable(Aggregator aggregator);
 
@@ -244,16 +244,16 @@ public abstract class AggregationContext implements Releasable {
 
     /**
      * Implementation of {@linkplain AggregationContext} for production usage
-     * that wraps our ubiquitous {@link QueryShardContext} and anything else
+     * that wraps our ubiquitous {@link SearchExecutionContext} and anything else
      * specific to aggregations. Unit tests should generally avoid using this
      * because it requires a <strong>huge</strong> portion of a real
      * Elasticsearch node.
      */
     public static class ProductionAggregationContext extends AggregationContext {
-        private final QueryShardContext context;
-        private final PreallocatedCircuitBreakerService breakerService;
+        private final SearchExecutionContext context;
+        private final PreallocatedCircuitBreakerService preallocatedBreakerService;
         private final BigArrays bigArrays;
-        private final Query topLevelQuery;
+        private final Supplier<Query> topLevelQuery;
         private final AggregationProfiler profiler;
         private final MultiBucketConsumer multiBucketConsumer;
         private final Supplier<SubSearchContext> subSearchContextBuilder;
@@ -265,9 +265,10 @@ public abstract class AggregationContext implements Releasable {
         private final List<Aggregator> releaseMe = new ArrayList<>();
 
         public ProductionAggregationContext(
-            QueryShardContext context,
+            SearchExecutionContext context,
+            BigArrays bigArrays,
             long bytesToPreallocate,
-            Query topLevelQuery,
+            Supplier<Query> topLevelQuery,
             @Nullable AggregationProfiler profiler,
             MultiBucketConsumer multiBucketConsumer,
             Supplier<SubSearchContext> subSearchContextBuilder,
@@ -285,16 +286,16 @@ public abstract class AggregationContext implements Releasable {
                  * anything. Setting the breakerService reference to null will
                  * cause us to skip it when we close this context.
                  */
-                this.breakerService = null;
-                this.bigArrays = context.bigArrays().withCircuitBreaking();
+                this.preallocatedBreakerService = null;
+                this.bigArrays = bigArrays.withCircuitBreaking();
             } else {
-                this.breakerService = new PreallocatedCircuitBreakerService(
-                    context.bigArrays().breakerService(),
+                this.preallocatedBreakerService = new PreallocatedCircuitBreakerService(
+                    bigArrays.breakerService(),
                     CircuitBreaker.REQUEST,
                     bytesToPreallocate,
                     "aggregations"
                 );
-                this.bigArrays = context.bigArrays().withBreakerService(breakerService).withCircuitBreaking();
+                this.bigArrays = bigArrays.withBreakerService(preallocatedBreakerService).withCircuitBreaking();
             }
             this.topLevelQuery = topLevelQuery;
             this.profiler = profiler;
@@ -308,7 +309,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public Query query() {
-            return topLevelQuery;
+            return topLevelQuery.get();
         }
 
         @Override
@@ -416,7 +417,7 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public BucketedSort buildBucketedSort(SortBuilder<?> sort, int bucketSize, BucketedSort.ExtraData extra) throws IOException {
-            return sort.buildBucketedSort(context, bucketSize, extra);
+            return sort.buildBucketedSort(context, bigArrays, bucketSize, extra);
         }
 
         @Override
@@ -436,7 +437,8 @@ public abstract class AggregationContext implements Releasable {
 
         @Override
         public CircuitBreaker breaker() {
-            return context.bigArrays().breakerService().getBreaker(CircuitBreaker.REQUEST);
+            // preallocatedBreakerService may be null if we haven't preallocated so use the one in bigArrays.
+            return bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
         }
 
         @Override
@@ -456,7 +458,7 @@ public abstract class AggregationContext implements Releasable {
              * after all the aggregations that allocate bytes on it.
              */
             List<Releasable> releaseMe = new ArrayList<>(this.releaseMe);
-            releaseMe.add(breakerService);
+            releaseMe.add(preallocatedBreakerService);
             Releasables.close(releaseMe);
         }
     }

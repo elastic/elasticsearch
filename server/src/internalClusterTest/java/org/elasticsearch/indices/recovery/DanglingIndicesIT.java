@@ -25,7 +25,11 @@ import org.elasticsearch.action.admin.indices.dangling.import_index.ImportDangli
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesRequest;
 import org.elasticsearch.action.admin.indices.dangling.list.ListDanglingIndicesResponse;
 import org.elasticsearch.action.admin.indices.dangling.list.NodeListDanglingIndicesResponse;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -34,7 +38,9 @@ import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.cluster.metadata.IndexGraveyard.SETTING_MAX_TOMBSTONES;
@@ -269,6 +275,73 @@ public class DanglingIndicesIT extends ESIntegTestCase {
         );
 
         assertThat(e.getMessage(), containsString("accept_data_loss must be set to true"));
+    }
+
+    /**
+     * Check that import-and-delete of a dangling index doesn't have a race condition that bypasses the graveyard and permits a re-import.
+     */
+    public void testDanglingIndicesImportedAndDeletedCannotBeReimported() throws Exception {
+
+        final Settings settings = buildSettings(1, true);
+        internalCluster().startNodes(3, settings);
+
+        final String stoppedNodeName = createDanglingIndices(INDEX_NAME, OTHER_INDEX_NAME);
+        final String danglingIndexUUID = findDanglingIndexForNode(stoppedNodeName, INDEX_NAME);
+
+        final CountDownLatch startLatch = new CountDownLatch(1);
+        final AtomicBoolean isImporting = new AtomicBoolean(true);
+        final Thread[] importThreads = new Thread[2];
+        for (int i = 0; i < importThreads.length; i++) {
+            importThreads[i] = new Thread(() -> {
+                try {
+                    startLatch.await(10, TimeUnit.SECONDS);
+                } catch (InterruptedException e) {
+                    throw new AssertionError(e);
+                }
+
+                while (isImporting.get()) {
+                    try {
+                        client().admin().cluster().importDanglingIndex(new ImportDanglingIndexRequest(danglingIndexUUID, true)).get();
+                    } catch (Exception e) {
+                        // failures are expected
+                    }
+                }
+            });
+            importThreads[i].start();
+        }
+
+        startLatch.countDown();
+
+        final TimeValue timeout = TimeValue.timeValueSeconds(10);
+        final long endTimeMillis = System.currentTimeMillis() + timeout.millis();
+        while (isImporting.get() && System.currentTimeMillis() < endTimeMillis) {
+            try {
+                client().admin().indices().prepareDelete(INDEX_NAME).get(timeout);
+                isImporting.set(false);
+            } catch (Exception e) {
+                // failures are expected
+            }
+        }
+
+        try {
+            if (isImporting.get()) {
+                isImporting.set(false);
+                try {
+                    client().admin().indices().prepareDelete(INDEX_NAME).get(timeout);
+                } catch (Exception e) {
+                    throw new AssertionError("delete index never succeeded", e);
+                }
+                throw new AssertionError("delete index succeeded but too late");
+            }
+        } finally {
+            for (final Thread importThread : importThreads) {
+                importThread.join();
+            }
+        }
+
+        final Metadata metadata = client().admin().cluster().prepareState().clear().setMetadata(true).get().getState().metadata();
+        assertTrue(metadata.indexGraveyard().toString(), metadata.indexGraveyard().containsIndex(new Index(INDEX_NAME, danglingIndexUUID)));
+        assertNull(Strings.toString(metadata, true, true), metadata.index(INDEX_NAME));
     }
 
     /**

@@ -86,7 +86,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * The purpose of this test is to ensure that when a job is open through a rolling upgrade we upgrade the results
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67059")
     public void testSnapshotUpgrader() throws Exception {
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
@@ -238,7 +237,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         }
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(bucketSpan);
-        if (randomBoolean()) {
+        if (isCategorization) {
             analysisConfig.setCategorizationFieldName("text");
         }
         Job.Builder job = new Job.Builder(jobId);

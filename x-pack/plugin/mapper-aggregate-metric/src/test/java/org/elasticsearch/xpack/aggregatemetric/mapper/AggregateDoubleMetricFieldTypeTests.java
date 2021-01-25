@@ -21,7 +21,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -115,14 +115,14 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                QueryShardContext queryShardContext = mock(QueryShardContext.class);
-                when(queryShardContext.getFieldType(anyString())).thenReturn(mappedFieldType);
-                when(queryShardContext.allowExpensiveQueries()).thenReturn(true);
+                SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+                when(searchExecutionContext.getFieldType(anyString())).thenReturn(mappedFieldType);
+                when(searchExecutionContext.allowExpensiveQueries()).thenReturn(true);
                 SearchLookup lookup = new SearchLookup(
-                    queryShardContext::getFieldType,
+                    searchExecutionContext::getFieldType,
                     (mft, lookupSupplier) -> mft.fielddataBuilder("test", lookupSupplier).build(null, null)
                 );
-                when(queryShardContext.lookup()).thenReturn(lookup);
+                when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
@@ -132,7 +132,7 @@ public class AggregateDoubleMetricFieldTypeTests extends FieldTypeTestCase {
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), queryShardContext.lookup(), ctx) {
+                        return new ScoreScript(Map.of(), searchExecutionContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 Map<String, ScriptDocValues<?>> doc = getDoc();

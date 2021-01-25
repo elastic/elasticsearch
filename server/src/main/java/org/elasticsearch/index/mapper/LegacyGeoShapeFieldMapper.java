@@ -44,7 +44,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.query.LegacyGeoShapeQueryProcessor;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.locationtech.spatial4j.shape.Shape;
 
 import java.io.IOException;
@@ -365,13 +365,13 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, QueryShardContext context) {
+        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
         public Query geoShapeQuery(Geometry shape, String fieldName, SpatialStrategy strategy, ShapeRelation relation,
-                            QueryShardContext context) {
+                            SearchExecutionContext context) {
             return queryProcessor.geoShapeQuery(shape, fieldName, strategy, relation, context);
         }
 

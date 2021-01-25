@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
@@ -27,10 +26,9 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public static RollupActionConfig randomConfig(Random random) {
-        final TimeValue timeout = random.nextBoolean() ? null : ConfigTestHelpers.randomTimeout(random);
         final RollupActionGroupConfig groupConfig = ConfigTestHelpers.randomRollupActionGroupConfig(random);
         final List<MetricConfig> metricConfigs = ConfigTestHelpers.randomMetricsConfigs(random);
-        return new RollupActionConfig(groupConfig, metricConfigs, timeout);
+        return new RollupActionConfig(groupConfig, metricConfigs);
     }
 
     @Override
@@ -44,9 +42,15 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public void testEmptyGroupAndMetrics() {
-        final RollupActionConfig sample = createTestInstance();
         Exception e = expectThrows(IllegalArgumentException.class, () ->
-            new RollupActionConfig(null, randomBoolean() ? null : emptyList(), sample.getTimeout()));
+            new RollupActionConfig(null, randomBoolean() ? null : emptyList()));
         assertThat(e.getMessage(), equalTo("At least one grouping or metric must be configured"));
+    }
+
+    public void testEmptyMetrics() {
+        final RollupActionGroupConfig groupConfig = ConfigTestHelpers.randomRollupActionGroupConfig(random());
+        Exception e = expectThrows(IllegalArgumentException.class, () ->
+            new RollupActionConfig(groupConfig, randomBoolean() ? null : emptyList()));
+        assertThat(e.getMessage(), equalTo("At least one metric must be configured"));
     }
 }

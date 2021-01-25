@@ -44,7 +44,7 @@ import org.elasticsearch.index.query.InnerHitContextBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.join.mapper.Joiner;
 
@@ -296,7 +296,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[joining] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
@@ -460,8 +460,8 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
-        QueryBuilder rewrittenQuery = query.rewrite(queryShardContext);
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
+        QueryBuilder rewrittenQuery = query.rewrite(queryRewriteContext);
         if (rewrittenQuery != query) {
             HasChildQueryBuilder hasChildQueryBuilder =
                 new HasChildQueryBuilder(type, rewrittenQuery, minChildren, maxChildren, scoreMode, innerHitBuilder);

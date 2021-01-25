@@ -20,8 +20,10 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystems;
+import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileAttribute;
 import java.nio.file.spi.FileSystemProvider;
 import java.security.PrivilegedActionException;
 import java.util.Properties;
@@ -275,6 +277,48 @@ public class QuotaAwareFileSystemProviderTests extends LuceneTestCase {
         try (QuotaAwareFileSystemProvider provider = new QuotaAwareFileSystemProvider(cyclicProvider, quotaFile.toUri())) {
             cyclicProvider.cyclicReference = provider;
             assertNotNull(provider.getPath(new URI("file:///")));
+        }
+    }
+
+    /**
+     * If the implementation of {@link QuotaAwareFileSystemProvider#createLink(Path, Path)}
+     * doesn't unwrap its {@link Path} arguments, it causes a runtime exception, so exercise
+     * this method to check that it unwraps correctly.
+     */
+    public void testCreateLinkUnwrapsPaths() throws Exception {
+        final Path tempDir = createTempDir();
+        Path quotaFile = tempDir.resolve("quota.properties");
+        FileSystemProvider systemProvider = quotaFile.getFileSystem().provider();
+        writeQuota(500, 200, systemProvider, quotaFile);
+
+        try (QuotaAwareFileSystemProvider provider = new QuotaAwareFileSystemProvider(systemProvider, quotaFile.toUri())) {
+            final Path quotaFilePath = provider.getPath(tempDir.resolve("path1.txt").toUri());
+            final Path quotaLinkPath = provider.getPath(tempDir.resolve("path2.txt").toUri());
+
+            Files.writeString(quotaFilePath, "some text");
+
+            provider.createLink(quotaLinkPath, quotaFilePath);
+        }
+    }
+
+    /**
+     * If the implementation of {@link QuotaAwareFileSystemProvider#createSymbolicLink(Path, Path, FileAttribute[])}
+     * doesn't unwrap its {@link Path} arguments, it causes a runtime exception, so exercise
+     * this method to check that it unwraps correctly.
+     */
+    public void testCreateSymbolicLinkUnwrapsPaths() throws Exception {
+        final Path tempDir = createTempDir();
+        Path quotaFile = tempDir.resolve("quota.properties");
+        FileSystemProvider systemProvider = quotaFile.getFileSystem().provider();
+        writeQuota(500, 200, systemProvider, quotaFile);
+
+        try (QuotaAwareFileSystemProvider provider = new QuotaAwareFileSystemProvider(systemProvider, quotaFile.toUri())) {
+            final Path quotaFilePath = provider.getPath(tempDir.resolve("path1.txt").toUri());
+            final Path quotaLinkPath = provider.getPath(tempDir.resolve("path2.txt").toUri());
+
+            Files.writeString(quotaFilePath, "some text");
+
+            provider.createSymbolicLink(quotaLinkPath, quotaFilePath);
         }
     }
 

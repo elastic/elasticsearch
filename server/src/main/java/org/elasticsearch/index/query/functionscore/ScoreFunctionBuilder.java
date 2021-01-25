@@ -26,7 +26,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -139,7 +139,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
     /**
      * Called on a data node, converts this ScoreFunctionBuilder into its corresponding Lucene function object.
      */
-    public final ScoreFunction toFunction(QueryShardContext context) throws IOException {
+    public final ScoreFunction toFunction(SearchExecutionContext context) throws IOException {
         ScoreFunction scoreFunction = doToFunction(context);
         if (weight == null) {
             return scoreFunction;
@@ -151,5 +151,5 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
      * Build the Lucene ScoreFunction for this builder. Implementers should ignore things defined in ScoreFunctionBuilder like weight as
      * they will be handled by the function that calls this one.
      */
-    protected abstract ScoreFunction doToFunction(QueryShardContext context) throws IOException;
+    protected abstract ScoreFunction doToFunction(SearchExecutionContext context) throws IOException;
 }

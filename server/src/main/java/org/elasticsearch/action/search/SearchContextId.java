@@ -32,6 +32,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.io.IOException;
@@ -43,14 +44,17 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
-public class SearchContextId {
+public final class SearchContextId {
     private final Map<ShardId, SearchContextIdForNode> shards;
     private final Map<String, AliasFilter> aliasFilter;
+    private transient Set<ShardSearchContextId> contextIds;
 
-    private SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
+    SearchContextId(Map<ShardId, SearchContextIdForNode> shards, Map<String, AliasFilter> aliasFilter) {
         this.shards = shards;
         this.aliasFilter = aliasFilter;
+        this.contextIds = shards.values().stream().map(SearchContextIdForNode::getSearchContextId).collect(Collectors.toSet());
     }
 
     public Map<ShardId, SearchContextIdForNode> shards() {
@@ -59,6 +63,10 @@ public class SearchContextId {
 
     public Map<String, AliasFilter> aliasFilter() {
         return aliasFilter;
+    }
+
+    public boolean contains(ShardSearchContextId contextId) {
+        return contextIds.contains(contextId);
     }
 
     public static String encode(List<SearchPhaseResult> searchPhaseResults, Map<String, AliasFilter> aliasFilter, Version version) {

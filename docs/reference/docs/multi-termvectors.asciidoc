@@ -40,7 +40,7 @@ POST /_mtermvectors
 
 You can specify existing documents by index and ID or 
 provide artificial documents in the body of the request.  
-The index can be specified the body of the request or in the request URI.
+You can specify the index in the request body or request URI.
 
 The response contains a `docs` array with all the fetched termvectors. 
 Each element has the structure provided by the <<docs-termvectors,termvectors>>

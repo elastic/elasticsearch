@@ -36,6 +36,7 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
     public static final String VENDOR_ADOPTOPENJDK = "adoptopenjdk";
     public static final String VENDOR_OPENJDK = "openjdk";
+    public static final String VENDOR_AZUL = "azul";
 
     private static final String REPO_NAME_PREFIX = "jdk_repo_";
     private static final String EXTENSION_NAME = "jdks";
@@ -130,6 +131,22 @@ public class JdkDownloadPlugin implements Plugin<Project> {
                     + "/"
                     + jdk.getBuild()
                     + "/GPL/openjdk-[revision]_[module]-[classifier]_bin.[ext]";
+            }
+        } else if (jdk.getVendor().equals(VENDOR_AZUL)) {
+            repoUrl = "https://cdn.azul.com";
+
+            // The following is an absolute hack until AdoptOpenJdk provides Apple aarch64 builds
+            switch (jdk.getMajor()) {
+                case "15":
+                    artifactPattern = "zulu/bin/zulu" + jdk.getMajor() + ".28.1013-ca-jdk15.0.1-macosx_[classifier].[ext]";
+                    break;
+
+                case "11":
+                    artifactPattern = "zulu/bin/zulu" + jdk.getMajor() + ".43.1021-ca-jdk11.0.9.1-macosx_[classifier].[ext]";
+                    break;
+
+                default:
+                    throw new GradleException("Unknown Azul JDK major version  [" + jdk.getMajor() + "]");
             }
         } else {
             throw new GradleException("Unknown JDK vendor [" + jdk.getVendor() + "]");

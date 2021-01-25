@@ -48,10 +48,10 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         Batch finish = new Batch("Finish query", Limiter.ONCE,
                 new PlanOutputToQueryRef()
         );
-        
+
         return Arrays.asList(fold, finish);
     }
-    
+
 
     private static class FoldProject extends QueryFoldingRule<ProjectExec> {
 
@@ -76,7 +76,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
             return exec.with(qContainer);
         }
     }
-    
+
     private static class FoldOrderBy extends QueryFoldingRule<OrderExec> {
 
         @Override
@@ -143,7 +143,7 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
 
         @Override
         public final PhysicalPlan apply(PhysicalPlan plan) {
-            return plan.transformUp(this::rule, typeToken());
+            return plan.transformUp(typeToken(), this::rule);
         }
 
         @Override

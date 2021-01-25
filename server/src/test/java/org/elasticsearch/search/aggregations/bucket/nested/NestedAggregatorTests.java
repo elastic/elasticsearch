@@ -858,7 +858,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         return values;
     }
 
-    private List<Document> generateBook(String id, String[] authors, int[] numPages) {
+    public static List<Document> generateBook(String id, String[] authors, int[] numPages) {
         List<Document> documents = new ArrayList<>();
 
         for (int numPage : numPages) {
@@ -874,6 +874,7 @@ public class NestedAggregatorTests extends AggregatorTestCase {
         document.add(new Field(NestedPathFieldMapper.NAME, "book", NestedPathFieldMapper.Defaults.FIELD_TYPE));
         document.add(sequenceIDFields.primaryTerm);
         for (String author : authors) {
+            document.add(new Field("author", author, KeywordFieldMapper.Defaults.FIELD_TYPE));
             document.add(new SortedSetDocValuesField("author", new BytesRef(author)));
         }
         documents.add(document);

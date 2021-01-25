@@ -180,7 +180,7 @@ definition>>, the index operation automatically creates the data stream. See
 
 If the target doesn't exist and doesn't match a data stream template,
 the operation automatically creates the index and applies any matching
-<<indices-templates,index templates>>.
+<<index-templates,index templates>>.
 
 [IMPORTANT]
 ====

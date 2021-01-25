@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.rollover;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
@@ -57,6 +59,7 @@ import java.util.stream.Collectors;
  */
 public class TransportRolloverAction extends TransportMasterNodeAction<RolloverRequest, RolloverResponse> {
 
+    private static final Logger logger = LogManager.getLogger(TransportRolloverAction.class);
     private final MetadataRolloverService rolloverService;
     private final ActiveShardsObserver activeShardsObserver;
     private final Client client;
@@ -89,6 +92,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
             rolloverService.rolloverClusterState(state,
                 rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest(),
                 Collections.emptyList(), true, true);
+        logger.trace("rollover pre-result [{}]", preResult);
         Metadata metadata = state.metadata();
         String sourceIndexName = preResult.sourceIndexName;
         String rolloverIndexName = preResult.rolloverIndexName;
@@ -119,9 +123,11 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 MetadataRolloverService.RolloverResult rolloverResult = rolloverService.rolloverClusterState(currentState,
                                     rolloverRequest.getRolloverTarget(), rolloverRequest.getNewIndexName(),
                                     rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
+                                logger.trace("rollover result [{}]", rolloverResult);
                                 if (rolloverResult.sourceIndexName.equals(sourceIndexName) == false) {
-                                    throw new ElasticsearchException("Concurrent modification of alias [{}] during rollover",
-                                        rolloverRequest.getRolloverTarget());
+                                    throw new ElasticsearchException("Concurrent modification of alias or data stream [{}] during " +
+                                        "rollover (expected [{}] but found [{}])",
+                                        rolloverRequest.getRolloverTarget(), sourceIndexName, rolloverResult.sourceIndexName);
                                 }
                                 return rolloverResult.clusterState;
                             }

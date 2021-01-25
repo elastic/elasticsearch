@@ -153,11 +153,6 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
     public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, null, parentTaskId, headers) {
             @Override
-            public boolean shouldCancelChildrenOnCancellation() {
-                return true;
-            }
-
-            @Override
             public String getDescription() {
                 // generating description in a lazy way since source can be quite big
                 return "waitForCompletionTimeout[" + waitForCompletionTimeout +

@@ -365,7 +365,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         return new AllocationDeciders(
             Stream.of(
                 Stream.of(extraDeciders),
-                Stream.of(new DataTierAllocationDecider(clusterSettings)),
+                Stream.of(new DataTierAllocationDecider(Settings.EMPTY, clusterSettings)),
                 systemAllocationDeciders.stream()
             ).flatMap(s -> s).collect(Collectors.toList())
         );

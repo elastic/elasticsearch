@@ -13,13 +13,21 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
+import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.autoscaling.NativeMemoryCapacity;
+import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.ArrayList;
@@ -28,9 +36,11 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static org.elasticsearch.xpack.core.ml.MlTasks.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.ml.job.messages.Messages.JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_ML_NODE_SIZE;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_OPEN_JOBS_PER_NODE;
 import static org.elasticsearch.xpack.ml.MachineLearning.USE_AUTO_MACHINE_MEMORY_PERCENT;
+import static org.elasticsearch.xpack.ml.job.JobNodeSelector.AWAITING_LAZY_ASSIGNMENT;
 
 public abstract class AbstractJobPersistentTasksExecutor<Params extends PersistentTaskParams> extends PersistentTasksExecutor<Params> {
 
@@ -64,6 +74,11 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
 
     protected final MlMemoryTracker memoryTracker;
     protected final IndexNameExpressionResolver expressionResolver;
+    protected final Cache<String, Long> auditedJobCapacity = CacheBuilder.<String, Long>builder()
+        // Using a TTL cache here so jobs that are awaiting assignment but get killed via the `_stop` API are gracefully removed
+        // Also, if a job is awaiting assignment for 30 minutes, writing another audit message is probably acceptable.
+        .setExpireAfterWrite(TimeValue.timeValueMinutes(30))
+        .build();
 
     protected volatile int maxConcurrentJobAllocations;
     protected volatile int maxMachineMemoryPercent;
@@ -95,6 +110,39 @@ public abstract class AbstractJobPersistentTasksExecutor<Params extends Persiste
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_OPEN_JOBS_PER_NODE, this::setMaxOpenJobs);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(USE_AUTO_MACHINE_MEMORY_PERCENT, this::setUseAutoMemoryPercentage);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_ML_NODE_SIZE, this::setMaxNodeSize);
+    }
+
+    protected String getUniqueId(String jobId) {
+        return getTaskName() + "-" + jobId;
+    }
+
+    protected void auditRequireMemoryIfNecessary(String jobId,
+                                                 AbstractAuditor<?> auditor,
+                                                 PersistentTasksCustomMetadata.Assignment assignment,
+                                                 JobNodeSelector jobNodeSelector,
+                                                 boolean isMemoryTrackerRecentlyRefreshed) {
+        if (assignment.equals(AWAITING_LAZY_ASSIGNMENT)) {
+            if (isMemoryTrackerRecentlyRefreshed) {
+                Tuple<NativeMemoryCapacity, Long> capacityAndFreeMemory = jobNodeSelector.perceivedCapacityAndMaxFreeMemory(
+                    maxMachineMemoryPercent,
+                    useAutoMemoryPercentage,
+                    maxOpenJobs,
+                    true
+                );
+                Long previouslyAuditedFreeMemory = auditedJobCapacity.get(getUniqueId(jobId));
+                if (capacityAndFreeMemory.v2().equals(previouslyAuditedFreeMemory) == false) {
+                    auditor.info(jobId,
+                        Messages.getMessage(JOB_AUDIT_REQUIRES_MORE_MEMORY_TO_RUN,
+                            ByteSizeValue.ofBytes(memoryTracker.getJobMemoryRequirement(getTaskName(), jobId)),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v2()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getTier()),
+                            ByteSizeValue.ofBytes(capacityAndFreeMemory.v1().getNode())));
+                    auditedJobCapacity.put(getUniqueId(jobId), capacityAndFreeMemory.v2());
+                }
+            }
+        } else {
+            auditedJobCapacity.invalidate(getUniqueId(jobId));
+        }
     }
 
     protected abstract String[] indicesOfInterest(Params params);

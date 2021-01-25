@@ -38,11 +38,6 @@ public abstract class StoredAsyncTask<Response extends ActionResponse> extends C
     }
 
     @Override
-    public boolean shouldCancelChildrenOnCancellation() {
-        return true;
-    }
-
-    @Override
     public Map<String, String> getOriginHeaders() {
         return originHeaders;
     }

@@ -831,7 +831,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         String rewrittenQueryString = escape ? org.apache.lucene.queryparser.classic.QueryParser.escape(this.queryString) : queryString;
         if (fieldsAndWeights.size() > 0 && this.defaultField != null) {
             throw addValidationError("cannot use [fields] parameter in conjunction with [default_field]", null);

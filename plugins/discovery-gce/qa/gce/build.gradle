@@ -19,8 +19,6 @@
 
 
 import org.elasticsearch.gradle.MavenFilteringHack
-import org.elasticsearch.gradle.info.BuildParams
-import org.elasticsearch.gradle.test.AntFixture
 
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 

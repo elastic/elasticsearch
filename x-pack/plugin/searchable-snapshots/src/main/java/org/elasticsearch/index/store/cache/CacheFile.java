@@ -169,7 +169,7 @@ public class CacheFile {
     }
 
     // Only used in tests
-    SortedSet<Tuple<Long, Long>> getCompletedRanges() {
+    public SortedSet<Tuple<Long, Long>> getCompletedRanges() {
         return tracker.getCompletedRanges();
     }
 

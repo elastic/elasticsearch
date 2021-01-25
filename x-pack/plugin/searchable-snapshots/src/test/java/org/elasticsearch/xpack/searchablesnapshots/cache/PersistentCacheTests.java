@@ -12,6 +12,7 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.mockfile.FilterFileChannel;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.mockfile.FilterPath;
+import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,10 +47,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCacheFileEquals;
+import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache.createCacheIndexWriter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache.resolveCacheIndexFolder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -210,8 +214,53 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
 
                 logger.debug("creating cache files");
                 final CacheFile randomCacheFile = randomFrom(randomCacheFiles(cacheService));
+                final CacheKey cacheKey = randomCacheFile.getCacheKey();
 
-                final boolean fsyncFailure = randomBoolean();
+                final SnapshotId snapshotId = new SnapshotId("_ignored_", cacheKey.getSnapshotUUID());
+                if (randomBoolean()) {
+                    final Tuple<Long, Long> absent = randomCacheFile.getAbsentRangeWithin(0L, randomCacheFile.getLength());
+                    if (absent != null) {
+                        assertThat(
+                            "Persistent cache should not contain any cached data",
+                            persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId),
+                            equalTo(0L)
+                        );
+
+                        cacheService.synchronizeCache();
+
+                        final long sizeInCache = persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId);
+                        final long sizeInCacheFile = randomCacheFile.getCompletedRanges()
+                            .stream()
+                            .mapToLong(range -> range.v2() - range.v1())
+                            .sum();
+                        assertThat(
+                            "Persistent cache should contain cached data for at least 1 cache file",
+                            sizeInCache,
+                            greaterThanOrEqualTo(sizeInCacheFile)
+                        );
+
+                        final CacheFile.EvictionListener listener = evictedCacheFile -> {};
+                        randomCacheFile.acquire(listener);
+                        try {
+                            SortedSet<Tuple<Long, Long>> ranges = null;
+                            while (ranges == null || ranges.isEmpty()) {
+                                ranges = randomPopulateAndReads(randomCacheFile);
+                            }
+                            assertTrue(cacheService.isCacheFileToSync(randomCacheFile));
+                        } finally {
+                            randomCacheFile.release(listener);
+                        }
+
+                        assertThat(
+                            "Persistent cache should contain cached data for at least 1 cache file",
+                            persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId),
+                            equalTo(sizeInCache)
+                        );
+                    }
+                }
+
+                final boolean fsyncFailure = true;
+                randomBoolean();
                 logger.debug("blocking fsync for cache file [{}] with failure [{}]", randomCacheFile.getFile(), fsyncFailure);
                 fileSystem.blockFSyncForPath(randomCacheFile.getFile(), fsyncFailure);
 
@@ -222,7 +271,6 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 logger.debug("waiting for synchronization of cache files to be blocked");
                 fileSystem.waitForBlock();
 
-                final CacheKey cacheKey = randomCacheFile.getCacheKey();
                 logger.debug("starting eviction of shard [{}]", cacheKey);
                 cacheService.markShardAsEvictedInCache(cacheKey.getSnapshotUUID(), cacheKey.getSnapshotIndexName(), cacheKey.getShardId());
 
@@ -236,10 +284,6 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 logger.debug("unblocking synchronization of cache files");
                 fileSystem.unblock();
                 fsyncThread.join();
-
-                if (fsyncFailure) {
-                    cacheService.synchronizeCache();
-                }
 
                 assertThat(
                     "Persistent cache should not contain any cached data for the evicted shard",

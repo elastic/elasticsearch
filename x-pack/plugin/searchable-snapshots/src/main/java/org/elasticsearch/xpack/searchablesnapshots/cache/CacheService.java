@@ -518,7 +518,9 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
 
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
-        return cacheFilesEventsQueue.stream().anyMatch(event -> event.value == cacheFile);
+        return cacheFilesEventsQueue.stream()
+            .filter(event -> event.type == CacheFileEventType.UPDATE)
+            .anyMatch(event -> event.value == cacheFile);
     }
 
     // used in tests
@@ -531,7 +533,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
      *
      * This method synchronizes the cache files that have been updated since the last time the method was invoked. To be able to do this,
      * the cache files must notify the {@link CacheService} when they need to be fsync. When a {@link CacheFile} notifies the service the
-     * {@link CacheFile} instance is added to the current queue of cache files to synchronize referenced by {@link #cacheFilesEventsQueue}.
+     * {@link CacheFile} instance is added to the current queue of cache files events referenced by {@link #cacheFilesEventsQueue}.
      *
      * Cache files are serially synchronized using the {@link CacheFile#fsync()} method. When the {@link CacheFile#fsync()} call returns a
      * non empty set of completed ranges this method also fsync the shard's snapshot cache directory, which is the parent directory of the
@@ -556,7 +558,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
                 }
                 final CacheFileEvent event = cacheFilesEventsQueue.poll();
                 if (event == null) {
-                    logger.debug("stopping cache synchronization (cache service is closing)");
+                    logger.debug("stopping cache synchronization (no more events to synchronize)");
                     break;
                 }
                 final CacheFile cacheFile = event.value;
@@ -570,12 +572,12 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
 
                         case UPDATE:
                             final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
+                            logger.trace(
+                                "cache file [{}] synchronized with [{}] completed range(s)",
+                                cacheFile.getFile().getFileName(),
+                                ranges.size()
+                            );
                             if (ranges.isEmpty() == false) {
-                                logger.trace(
-                                    "cache file [{}] synchronized with [{}] completed range(s)",
-                                    cacheFile.getFile().getFileName(),
-                                    ranges.size()
-                                );
                                 final Path cacheDir = cacheFile.getFile().toAbsolutePath().getParent();
                                 boolean shouldPersist = cacheDirs.contains(cacheDir);
                                 if (shouldPersist == false) {
@@ -585,12 +587,12 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
                                         cacheDirs.add(cacheDir);
                                         shouldPersist = true;
                                     } catch (Exception e) {
-                                        assert e instanceof IOException : e;
-                                        shouldPersist = false;
                                         logger.warn(
                                             () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
                                             e
                                         );
+                                        assert e instanceof IOException : e;
+                                        shouldPersist = false;
                                     }
                                 }
                                 if (shouldPersist) {
@@ -723,6 +725,9 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
         DELETE
     }
 
+    /**
+     * Represents an event that occurred on a specified {@link CacheFile}
+     */
     public static class CacheFileEvent {
 
         public final CacheFileEventType type;
@@ -737,9 +742,13 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            CacheFileEvent event = (CacheFileEvent) o;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            final CacheFileEvent event = (CacheFileEvent) o;
             return type == event.type && value == event.value;
         }
 

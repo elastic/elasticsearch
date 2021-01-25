@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
@@ -221,7 +222,11 @@ public class LeaderCheckerTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    handleResponse(requestId, new TransportService.HandshakeResponse(
+                            Version.CURRENT,
+                            Build.CURRENT.hash(),
+                            node,
+                            ClusterName.DEFAULT));
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));
@@ -330,7 +335,11 @@ public class LeaderCheckerTests extends ESTestCase {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
-                    handleResponse(requestId, new TransportService.HandshakeResponse(node, ClusterName.DEFAULT, Version.CURRENT));
+                    handleResponse(requestId, new TransportService.HandshakeResponse(
+                            Version.CURRENT,
+                            Build.CURRENT.hash(),
+                            node,
+                            ClusterName.DEFAULT));
                     return;
                 }
                 assertThat(action, equalTo(LEADER_CHECK_ACTION_NAME));

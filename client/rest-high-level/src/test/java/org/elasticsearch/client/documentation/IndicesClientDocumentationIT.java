@@ -1034,7 +1034,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::flush-synced-execute
             SyncedFlushResponse flushSyncedResponse = client.indices().flushSynced(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead."
             ));
             // end::flush-synced-execute
 
@@ -1080,7 +1080,7 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
 
             // tag::flush-synced-execute-async
             client.indices().flushSyncedAsync(request, expectWarnings(
-                "Synced flush is deprecated and will be removed in 8.0. Use flush at _/flush or /{index}/_flush instead."
+                "Synced flush is deprecated and will be removed in 8.0. Use flush at /_flush or /{index}/_flush instead."
             ), listener); // <1>
             // end::flush-synced-execute-async
 
@@ -1468,6 +1468,8 @@ public class IndicesClientDocumentationIT extends ESRestHighLevelClientTestCase 
             // tag::close-index-request
             CloseIndexRequest request = new CloseIndexRequest("index"); // <1>
             // end::close-index-request
+
+            request.waitForActiveShards(ActiveShardCount.from(0));
 
             // tag::close-index-request-timeout
             request.setTimeout(TimeValue.timeValueMinutes(2)); // <1>

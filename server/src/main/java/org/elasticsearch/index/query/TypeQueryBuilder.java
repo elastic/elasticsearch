@@ -127,9 +127,9 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         deprecationLogger.deprecate("type_query", TYPES_DEPRECATION_MESSAGE);
-        if (context.typeExists(type)) {
+        if (context.getType().equals(type)) {
             return Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {
             // no type means no documents

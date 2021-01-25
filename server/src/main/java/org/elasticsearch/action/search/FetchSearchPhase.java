@@ -153,7 +153,7 @@ final class FetchSearchPhase extends SearchPhase {
                         ShardFetchSearchRequest fetchSearchRequest = createFetchRequest(queryResult.queryResult().getContextId(), i, entry,
                             lastEmittedDocPerShard, searchShardTarget.getOriginalIndices(), queryResult.getShardSearchRequest(),
                             queryResult.getRescoreDocIds());
-                        executeFetch(i, searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
+                        executeFetch(queryResult.getShardIndex(), searchShardTarget, counter, fetchSearchRequest, queryResult.queryResult(),
                             connection);
                     }
                 }
@@ -210,7 +210,7 @@ final class FetchSearchPhase extends SearchPhase {
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         if (queryResult.hasSearchContext()
                 && context.getRequest().scroll() == null
-                && context.getRequest().pointInTimeBuilder() == null) {
+                && (context.isPartOfPointInTime(queryResult.getContextId()) == false)) {
             try {
                 SearchShardTarget searchShardTarget = queryResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());

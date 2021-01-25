@@ -83,7 +83,7 @@ public class ClusterChangedEvent {
     }
 
     /**
-     * Returns <code>true</code> iff the routing tables (for all indices) have
+     * Returns <code>true</code> if the routing tables (for all indices) have
      * changed between the previous cluster state and the current cluster state.
      * Note that this is an object reference equality test, not an equals test.
      */

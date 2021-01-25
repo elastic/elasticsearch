@@ -6,7 +6,7 @@
 ifdef::permanently-unreleased-branch[]
 
 A rollup aggregates an index's time series data and stores the results in
-another index. For example, you can roll up hourly data into daily or weekly
+a new index. For example, you can roll up hourly data into daily or weekly
 summaries.
 
 * <<rollup-api,Rollup API>>
@@ -15,31 +15,30 @@ summaries.
 [[legacy-rollup-apis]]
 === Legacy rollup APIs
 
-Prior to {es} 7.x, you could only create rollups using periodic cron jobs.
-Special APIs were required to manage the jobs and search the resulting rollup
-indices. These rollup APIs are now deprecated and will be removed in a future
-release.
+Before {es} 7.x, you could only create rollups using periodic cron jobs. Special
+APIs were required to manage these jobs and search the resulting rollup indices.
+These rollup APIs are now deprecated and will be removed in a future release.
 
 [discrete]
 [[rollup-jobs-endpoint]]
 ==== Jobs
 
-* <<rollup-put-job,Create>> or <<rollup-delete-job,delete {rollup-jobs}>>
-* <<rollup-start-job,Start>> or <<rollup-stop-job,stop {rollup-jobs}>>
-* <<rollup-get-job,Get {rollup-jobs}>>
+* <<rollup-put-job,Create>> or <<rollup-delete-job,delete legacy {rollup-jobs}>>
+* <<rollup-start-job,Start>> or <<rollup-stop-job,stop legacy {rollup-jobs}>>
+* <<rollup-get-job,Get legacy {rollup-jobs}>>
 
 [discrete]
 [[rollup-data-endpoint]]
 ==== Data
 
-* <<rollup-get-rollup-caps,Get rollup capabilities>>
-* <<rollup-get-rollup-index-caps,Get rollup index capabilities>>
+* <<rollup-get-rollup-caps,Get legacy rollup capabilities>>
+* <<rollup-get-rollup-index-caps,Get legacy rollup index capabilities>>
 
 [discrete]
 [[rollup-search-endpoint]]
 ==== Search
 
-* <<rollup-search,Rollup search>>
+* <<rollup-search,Legacy rollup search>>
 
 include::apis/rollup-api.asciidoc[]
 include::apis/put-job.asciidoc[]

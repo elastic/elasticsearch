@@ -224,16 +224,11 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testNullAllowAutoCreateInTemplateDoesNotOverrideMatchingAutoCreateIndexSetting() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            null
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+            .componentTemplates(emptyList())
+            .metadata(emptyMap())
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -250,16 +245,11 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testCanHandleNullAutoCreateSettingInTemplate() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            null
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+            .componentTemplates(emptyList())
+            .metadata(emptyMap())
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -277,16 +267,12 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testDisabledAutoCreateTemplateSettingDoesNotOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            false
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+           .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+           .componentTemplates(emptyList())
+           .metadata(emptyMap())
+           .allowAutoCreate(false)
+           .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();
@@ -304,16 +290,12 @@ public class AutoCreateIndexTests extends ESTestCase {
      */
     public void testEnabledAutoCreateTemplateSettingDoesOverride() {
         String randomIndex = randomAlphaOfLengthBetween(2, 10);
-        final ComposableIndexTemplate template = new ComposableIndexTemplate(
-            singletonList(randomIndex.charAt(0) + "*"),
-            null,
-            emptyList(),
-            null,
-            null,
-            emptyMap(),
-            null,
-            true
-        );
+        final ComposableIndexTemplate template = new ComposableIndexTemplate.Builder()
+            .indexPatterns(singletonList(randomIndex.charAt(0) + "*"))
+            .componentTemplates(emptyList())
+            .metadata(emptyMap())
+            .allowAutoCreate(true)
+            .build();
 
         final Metadata metadata = Metadata.builder().indexTemplates(singletonMap("test_template", template)).build();
         final ClusterState clusterState = ClusterState.builder(buildClusterState()).metadata(metadata).build();

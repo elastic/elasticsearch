@@ -1,3 +1,156 @@
+[[release-notes-7.10.2]]
+== {es} version 7.10.2
+
+Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
+
+[discrete]
+[[security-updates-7.10.2]]
+=== Security updates
+
+* An information disclosure flaw was found in the {es} async search API.
+Users who execute an async search will store the HTTP headers.
+A user with the ability to read the `.tasks` index could obtain
+sensitive request headers of other users in the cluster.
+All versions of {es} between 7.7.0 and 7.10.1 are affected by this flaw.
+You must upgrade to {es} version 7.10.2 to obtain the fix.
+https://cve.mitre.org/cgi-bin/cvename.cgi?name=CVE-2021-22132[CVE-2021-22132]
+
+[[bug-7.10.2]]
+[float]
+=== Bug fixes
+
+EQL::
+* Fix early trimming of in-flight data {es-pull}66493[#66493]
+
+Engine::
+* Fix the earliest last modified age of translog issue. {es-pull}64753[#64753]
+* Fix the version and term field initialization error of NoOpResult {es-pull}66269[#66269] (issue: {es-issue}66267[#66267])
+
+Features/Data streams::
+* Allow more legit cases in Metadata.Builder.validateDataStreams {es-pull}65791[#65791]
+
+Features/Features::
+* Make FilterAllocationDecider totally ignore tier-based allocation settings {es-pull}67019[#67019] (issue: {es-issue}66679[#66679])
+
+Features/Ingest::
+* Fix whitespace as a separator in CSV processor {es-pull}67045[#67045] (issue: {es-issue}67013[#67013])
+
+Highlighting::
+* Fix bug where fvh fragments could be loaded from wrong doc {es-pull}65641[#65641] (issues: {es-issue}60179[#60179], {es-issue}65533[#65533])
+
+Features/ILM+SLM::
+* Create AllocationDeciders in the main method of the ILM step {es-pull}65037[#65037] (issue: {es-issue}64529[#64529])
+
+Infra/REST API::
+* Fix cat tasks api params in spec and handler {es-pull}66272[#66272] (issue: {es-issue}59493[#59493])
+* Mark Cat Tasks API as experimental in rest-api-spec {es-pull}66536[#66536] (issues: {es-issue}51628[#51628], {es-issue}65823[#65823])
+* Mark Task APIs as experimental in rest-api-spec {es-pull}65823[#65823] (issue: {es-issue}51628[#51628])
+
+Infra/Scripting::
+* Fix static inner class resolution in Painless {es-pull}67027[#67027] (issue: {es-issue}66823[#66823])
+
+Infra/Settings::
+* Correctly determine defaults of settings which depend on other settings {es-pull}65989[#65989] (issue: {es-issue}47890[#47890])
+* Do not interpret SecurityException in KeystoreAwareCommand {es-pull}65366[#65366]
+
+QL::
+* Handle IP type fields extraction with ignore_malformed property {es-pull}66622[#66622] (issue: {es-issue}66675[#66675])
+
+Machine Learning::
+* Change to only calculate model size on initial load to prevent slow cache promotions {es-pull}66451[#66451]
+
+Network::
+* Ensure notify when proxy connections disconnect {es-pull}65697[#65697] (issue: {es-issue}65443[#65443])
+* Fix AbstractClient#execute Listener Leak {es-pull}65415[#65415] (issue: {es-issue}65405[#65405])
+
+SQL::
+* Abort sorting in case of local agg sort queue overflow {es-pull}65687[#65687] (issue: {es-issue}65685[#65685])
+* Verify filter's condition type {es-pull}66268[#66268] (issue: {es-issue}66254[#66254])
+
+Search::
+* Fix regressions around nested hits and disabled _source {es-pull}66572[#66572] (issues: {es-issue}60494[#60494], {es-issue}66524[#66524])
+* Make sure shared source always represents the top-level root document {es-pull}66725[#66725] (issues: {es-issue}60494[#60494], {es-issue}66577[#66577])
+
+Security::
+* Store and use only internal security headers {es-pull}66365[#66365]
+
+Snapshot/Restore::
+* Also reroute after shard snapshot size fetch failure {es-pull}65436[#65436] (issues: {es-issue}61906[#61906], {es-issue}64372[#64372])
+
+
+[[release-notes-7.10.1]]
+== {es} version 7.10.1
+
+Also see <<breaking-changes-7.10,Breaking changes in 7.10>>.
+
+[[known-issues-7.10.1]]
+[discrete]
+=== Known issues
+* In {es} 7.10.0 there were several regressions around loading nested documents. These have been addressed in {es} 7.10.2.
+** With multiple layers of nested `inner_hits`, we can fail to load the _source. ({es-issue}66577[#66577])
+** With nested `inner_hits`, the fast vector highlighter may load snippets from the wrong document. ({es-issue}65533[#65533])
+** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
+
+[[bug-7.10.1]]
+[float]
+=== Bug fixes
+
+Allocation::
+* Fix NPE in toString of FailedShard {es-pull}64770[#64770]
+
+CCR::
+* Stop renew retention leases when follow task fails {es-pull}65168[#65168]
+
+CRUD::
+* Propogate rejected execution during bulk actions {es-pull}64842[#64842] (issue: {es-issue}64450[#64450])
+
+Cluster Coordination::
+* Fix up roles after rolling upgrade {es-pull}64693[#64693] (issue: {es-issue}62840[#62840])
+
+EQL::
+* Allow null tiebreakers inside ordinals/sequences {es-pull}65033[#65033] (issue: {es-issue}64706[#64706])
+* Fix "resource not found" exception on existing EQL async search {es-pull}65167[#65167] (issue: {es-issue}65108[#65108])
+* Fix aggressive/incorrect until policy in sequences {es-pull}65156[#65156]
+
+Features/ILM+SLM::
+* Fix SetSingleNodeAllocateStep for data tier deployments {es-pull}64679[#64679]
+
+Features/Watcher::
+* Watcher understands hidden expand wildcard value {es-pull}65332[#65332] (issue: {es-issue}65148[#65148])
+
+Geo::
+* Fix handling of null values in geo_point {es-pull}65307[#65307] (issue: {es-issue}65306[#65306])
+
+Infra/Core::
+* Fix date math hidden index resolution {es-pull}65236[#65236] (issue: {es-issue}65157[#65157])
+
+Infra/Scripting::
+* Fix Painless casting bug in compound assignment for String {es-pull}65329[#65329]
+* Revert null-safe behavior to error at run-time instead of compile-time {es-pull}65099[#65099] (issue: {es-issue}65098[#65098])
+
+Machine Learning::
+* Extract dependent variable's mapping correctly in case of a multi-field {es-pull}63813[#63813]
+* Fix bug with data frame analytics classification test data sampling when using custom feature processors {es-pull}64727[#64727]
+* Fix custom feature processor extraction bugs around boolean fields and custom one_hot feature output order {es-pull}64937[#64937]
+* Protect against stack overflow while loading data frame analytics data {es-pull}64947[#64947]
+* Fix a bug where the peak_model_bytes value of the model_size_stats object was not restored from the anomaly detector job snapshots {ml-pull}1572[#1572]
+
+Mapping::
+* Correctly serialize search-as-you-type analyzer {es-pull}65359[#65359] (issue: {es-issue}65319[#65319])
+* Unused boost parameter should not throw mapping exception {es-pull}64999[#64999] (issue: {es-issue}64982[#64982])
+
+SQL::
+* Fix the return type problem in the sign function {es-pull}64845[#64845]
+
+Search::
+* Fix cacheability of custom LongValuesSource in TermsSetQueryBuilder {es-pull}65367[#65367]
+* SourceValueFetcher should check all possible source fields {es-pull}65375[#65375]
+
+Snapshot/Restore::
+* Fix Broken Error Handling in CacheFile#acquire {es-pull}65342[#65342] (issue: {es-issue}65302[#65302])
+* Fix Two Snapshot Clone State Machine Bugs {es-pull}65042[#65042]
+
+
 [[release-notes-7.10.0]]
 == {es} version 7.10.0
 
@@ -15,6 +168,11 @@ with a `NOT IN` operator.
 +
 We have fixed this issue in {es} 7.10.1 and later versions. For more details,
 see {es-issue}65488[#65488].
+
+* There were several regressions around loading nested documents. These have been addressed in {es} 7.10.2.
+** With multiple layers of nested `inner_hits`, we can fail to load the _source. ({es-issue}66577[#66577])
+** With nested `inner_hits`, the fast vector highlighter may load snippets from the wrong document. ({es-issue}65533[#65533])
+** When _source is disabled, we can fail load nested `inner_hits` and `top_hits`. ({es-issue}66572[#66572])
 
 [[breaking-7.10.0]]
 [float]

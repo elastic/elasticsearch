@@ -1,5 +1,9 @@
 ---
 "cluster stats test":
+  - skip:
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/66629"
+
   - do:
       cluster.stats: {}
 
@@ -33,8 +37,10 @@
 ---
 "get cluster stats returns cluster_uuid at the top level":
   - skip:
-      version: " - 6.99.99"
-      reason:  "cluster stats including cluster_uuid at the top level is new in v6.5.0 and higher"
+      version: "all"
+      reason: "https://github.com/elastic/elasticsearch/issues/66629"
+      #version: " - 6.99.99"
+      #reason:  "cluster stats including cluster_uuid at the top level is new in v6.5.0 and higher"
 
   - do:
       cluster.stats: {}

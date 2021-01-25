@@ -17,7 +17,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.RuntimeFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -27,7 +27,8 @@ import org.elasticsearch.xpack.runtimefields.query.BooleanScriptFieldTermQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -46,6 +47,10 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
 
     private BooleanScriptFieldType(String name, BooleanFieldScript.Factory scriptFactory, Builder builder) {
         super(name, scriptFactory::newFactory, builder);
+    }
+
+    BooleanScriptFieldType(String name) {
+        this(name, BooleanFieldScript.PARSE_FROM_SOURCE, null, Collections.emptyMap(), (builder, includeDefaults) -> {});
     }
 
     BooleanScriptFieldType(
@@ -95,7 +100,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public Query existsQuery(QueryShardContext context) {
+    public Query existsQuery(SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new BooleanScriptFieldExistsQuery(script, leafFactory(context), name());
     }
@@ -108,7 +113,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         boolean includeUpper,
         ZoneId timeZone,
         DateMathParser parser,
-        QueryShardContext context
+        SearchExecutionContext context
     ) {
         boolean trueAllowed;
         boolean falseAllowed;
@@ -166,19 +171,19 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
     }
 
     @Override
-    public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+    public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context.lookup()), name(), toBoolean(value, true));
     }
 
     @Override
-    public Query termQuery(Object value, QueryShardContext context) {
+    public Query termQuery(Object value, SearchExecutionContext context) {
         checkAllowExpensiveQueries(context);
         return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), toBoolean(value, false));
     }
 
     @Override
-    public Query termsQuery(List<?> values, QueryShardContext context) {
+    public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
             return Queries.newMatchNoDocsQuery("Empty terms query");
         }
@@ -194,7 +199,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         return termsQuery(trueAllowed, falseAllowed, context);
     }
 
-    private Query termsQuery(boolean trueAllowed, boolean falseAllowed, QueryShardContext context) {
+    private Query termsQuery(boolean trueAllowed, boolean falseAllowed, SearchExecutionContext context) {
         if (trueAllowed) {
             if (falseAllowed) {
                 // Either true or false

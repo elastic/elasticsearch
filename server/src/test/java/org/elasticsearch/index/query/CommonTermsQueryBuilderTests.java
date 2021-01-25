@@ -94,7 +94,9 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
 
     @Override
-    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(CommonTermsQueryBuilder queryBuilder,
+                                       Query query,
+                                       SearchExecutionContext context) throws IOException {
         assertThat(query, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery extendedCommonTermsQuery = (ExtendedCommonTermsQuery) query;
 
@@ -174,7 +176,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testCommonTermsQuery1() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query1.json");
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
@@ -185,7 +187,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testCommonTermsQuery2() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query2.json");
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), equalTo("50%"));
@@ -196,7 +198,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     public void testCommonTermsQuery3() throws IOException {
         String query = copyToStringFromClasspath("/org/elasticsearch/index/query/commonTerms-query3.json");
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
         ExtendedCommonTermsQuery ectQuery = (ExtendedCommonTermsQuery) parsedQuery;
         assertThat(ectQuery.getHighFreqMinimumNumberShouldMatchSpec(), nullValue());
@@ -207,7 +209,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
 
     // see #11730
     public void testCommonTermsQuery4() throws IOException {
-        Query parsedQuery = parseQuery(commonTermsQuery(TEXT_FIELD_NAME, "text")).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(commonTermsQuery(TEXT_FIELD_NAME, "text")).toQuery(createSearchExecutionContext());
         assertThat(parsedQuery, instanceOf(ExtendedCommonTermsQuery.class));
 
         assertDeprecationWarning();

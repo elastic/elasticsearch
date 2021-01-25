@@ -304,7 +304,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test60DockerEnvironmentVariablePassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);
@@ -328,7 +328,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         try {
             tempDir = createTempDir(DockerTests.class.getSimpleName());
 
-            String password = "password";
+            String password = "keystore-password";
             String passwordFilename = "password.txt";
             Files.write(tempDir.resolve(passwordFilename), singletonList(password));
             Files.setPosixFilePermissions(tempDir.resolve(passwordFilename), p600);
@@ -362,7 +362,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
      */
     public void test62DockerEnvironmentVariableBadPassword() throws Exception {
         assumeTrue(distribution().isDocker());
-        String password = "password";
+        String password = "keystore-password";
         Path dockerKeystore = installation.config("elasticsearch.keystore");
 
         Path localKeystoreFile = getKeystoreFileFromDockerContainer(password, dockerKeystore);

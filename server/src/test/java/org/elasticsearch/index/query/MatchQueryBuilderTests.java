@@ -144,7 +144,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     @Override
-    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         assertThat(query, notNullValue());
 
         if (query instanceof MatchAllDocsQuery) {
@@ -253,7 +253,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
         matchQuery.analyzer("bogusAnalyzer");
         {
-            QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createShardContext()));
+            QueryShardException e = expectThrows(QueryShardException.class, () -> matchQuery.toQuery(createSearchExecutionContext()));
             assertThat(e.getMessage(), containsString("analyzer [bogusAnalyzer] not found"));
         }
     }
@@ -284,7 +284,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testFuzzinessOnNonStringField() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(INT_FIELD_NAME, 42);
         query.fuzziness(randomFuzziness(INT_FIELD_NAME));
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
             () -> query.toQuery(context));
         assertEquals("Can only use fuzzy queries on keyword and text fields - not on [mapped_int] which is of type [integer]",
@@ -303,7 +303,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testExactOnUnsupportedField() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(GEO_POINT_FIELD_NAME, "2,3");
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Field [mapped_geo_point] of type [geo_point] does not support match queries", e.getMessage());
         query.lenient(true);
@@ -312,7 +312,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
     public void testLenientFlag() throws Exception {
         MatchQueryBuilder query = new MatchQueryBuilder(BINARY_FIELD_NAME, "test");
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> query.toQuery(context));
         assertEquals("Field [mapped_binary] of type [binary] does not support match queries", e.getMessage());
         query.lenient(true);
@@ -363,10 +363,10 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testExceptionUsingAnalyzerOnNumericField() {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
         MatchQueryBuilder matchQueryBuilder = new MatchQueryBuilder(DOUBLE_FIELD_NAME, 6.075210893508043E-4);
         matchQueryBuilder.analyzer("simple");
-        NumberFormatException e = expectThrows(NumberFormatException.class, () -> matchQueryBuilder.toQuery(shardContext));
+        NumberFormatException e = expectThrows(NumberFormatException.class, () -> matchQueryBuilder.toQuery(searchExecutionContext));
         assertEquals("For input string: \"e\"", e.getMessage());
     }
 
@@ -381,7 +381,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMatchPhrasePrefixWithBoost() throws Exception {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         {
             // field boost is ignored on a single term query
             MatchPhrasePrefixQueryBuilder builder = new MatchPhrasePrefixQueryBuilder("string_boost", "foo");
@@ -398,7 +398,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testLenientPhraseQuery() throws Exception {
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         MatchQuery b = new MatchQuery(context);
         b.setLenient(true);
         Query query = b.parse(Type.PHRASE, "string_no_pos", "foo bar");
@@ -408,7 +408,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testAutoGenerateSynonymsPhraseQuery() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        final MatchQuery matchQuery = new MatchQuery(createSearchExecutionContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
 
         {
@@ -478,7 +478,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMultiWordSynonymsPhrase() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        final MatchQuery matchQuery = new MatchQuery(createSearchExecutionContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
         final Query actual = matchQuery.parse(Type.PHRASE, TEXT_FIELD_NAME, "guinea pig dogs");
         Query expected = SpanNearQuery.newOrderedNearQuery(TEXT_FIELD_NAME)
@@ -502,7 +502,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
 
 
     public void testAliasWithSynonyms() throws Exception {
-        final MatchQuery matchQuery = new MatchQuery(createShardContext());
+        final MatchQuery matchQuery = new MatchQuery(createSearchExecutionContext());
         matchQuery.setAnalyzer(new MockSynonymAnalyzer());
         final Query actual = matchQuery.parse(Type.PHRASE, TEXT_ALIAS_FIELD_NAME, "dogs");
         Query expected = new SynonymQuery.Builder(TEXT_FIELD_NAME)
@@ -513,7 +513,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     }
 
     public void testMaxBooleanClause() {
-        MatchQuery query = new MatchQuery(createShardContext());
+        MatchQuery query = new MatchQuery(createSearchExecutionContext());
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraph(40)));
         expectThrows(BooleanQuery.TooManyClauses.class, () -> query.parse(Type.PHRASE, TEXT_FIELD_NAME, ""));
         query.setAnalyzer(new MockGraphAnalyzer(createGiantGraphMultiTerms()));
@@ -578,14 +578,14 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
     public void testCachingStrategiesWithNow() throws IOException {
         // if we hit a date field with "now", this should diable cachability
         MatchQueryBuilder queryBuilder = new MatchQueryBuilder(DATE_FIELD_NAME, "now");
-        QueryShardContext context = createShardContext();
+        SearchExecutionContext context = createSearchExecutionContext();
         assert context.isCacheable();
         /*
          * We use a private rewrite context here since we want the most realistic way of asserting that we are cacheable or not. We do it
          * this way in SearchService where we first rewrite the query with a private context, then reset the context and then build the
          * actual lucene query
          */
-        QueryBuilder rewritten = rewriteQuery(queryBuilder, new QueryShardContext(context));
+        QueryBuilder rewritten = rewriteQuery(queryBuilder, new SearchExecutionContext(context));
         assertNotNull(rewritten.toQuery(context));
         assertFalse("query should not be cacheable: " + queryBuilder.toString(), context.isCacheable());
     }

@@ -10,6 +10,15 @@ The following limitations and known problems apply to the {version} release of
 the Elastic {transform} feature:
 
 [discrete]
+[[transform-space-limitations]]
+== {transforms-cap} are visible in all {kib} spaces
+
+{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
+destination indices and other saved objects in {kib} and to see only the objects 
+that belong to your space. However, this limited scope does not apply to 
+{transforms}; they are visible in all spaces.
+
+[discrete]
 [[transform-ui-limitation]]
 == {transforms-cap} UI will not work during a rolling upgrade from 7.2
 

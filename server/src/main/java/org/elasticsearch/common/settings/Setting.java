@@ -487,7 +487,14 @@ public class Setting<T> implements ToXContentObject {
      */
     public void diff(Settings.Builder builder, Settings source, Settings defaultSettings) {
         if (exists(source) == false) {
-            builder.put(getKey(), getRaw(defaultSettings));
+            if (exists(defaultSettings)) {
+                // If the setting is only in the defaults, use the value from the defaults
+                builder.put(getKey(), getRaw(defaultSettings));
+            } else {
+                // If the setting is in neither `source` nor `default`, get the value
+                // from `source` as it may depend on the value of other settings
+                builder.put(getKey(), getRaw(source));
+            }
         }
     }
 
@@ -1367,6 +1374,20 @@ public class Setting<T> implements ToXContentObject {
             throw new IllegalArgumentException(message);
         }
         return value;
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
+     * @param clazz the enum class
+     * @param key the key for the setting
+     * @param defaultValue the default value for this setting
+     * @param properties properties for this setting like scope, filtering...
+     * @param <T> the generics type parameter reflecting the actual type of the enum
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(Class<T> clazz, String key, T defaultValue, Property... properties) {
+        return new Setting<>(key, defaultValue.toString(), e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), properties);
     }
 
     /**

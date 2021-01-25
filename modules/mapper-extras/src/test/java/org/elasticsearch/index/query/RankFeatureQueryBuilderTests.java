@@ -60,7 +60,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     protected RankFeatureQueryBuilder doCreateTestQueryBuilder() {
         ScoreFunction function;
         boolean mayUseNegativeField = true;
-        switch (random().nextInt(3)) {
+        switch (random().nextInt(4)) {
         case 0:
             mayUseNegativeField = false;
             function = new ScoreFunction.Log(1 + randomFloat());
@@ -74,6 +74,9 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
             break;
         case 2:
             function = new ScoreFunction.Sigmoid(randomFloat(), randomFloat());
+            break;
+        case 3:
+            function = new ScoreFunction.Linear();
             break;
         default:
             throw new AssertionError();
@@ -91,7 +94,7 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
     }
 
     @Override
-    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(RankFeatureQueryBuilder queryBuilder, Query query, SearchExecutionContext context) {
         Class<?> expectedClass = FeatureField.newSaturationQuery("", "", 1, 1).getClass();
         assertThat(query, either(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(expectedClass)));
     }
@@ -102,22 +105,23 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
                 "        \"field\": \"my_feature_field\"\n" +
                 "    }\n" +
                 "}";
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         assertEquals(FeatureField.newSaturationQuery("_feature", "my_feature_field"), parsedQuery);
     }
 
-    public void testIllegalField() throws IOException {
+    public void testIllegalField() {
         String query = "{\n" +
                 "    \"rank_feature\" : {\n" +
                 "        \"field\": \"" + TEXT_FIELD_NAME + "\"\n" +
                 "    }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertEquals("[rank_feature] query only works on [rank_feature] fields and features of [rank_features] fields, not [text]",
             e.getMessage());
     }
 
-    public void testIllegalCombination() throws IOException {
+    public void testIllegalCombination() {
         String query = "{\n" +
                 "    \"rank_feature\" : {\n" +
                 "        \"field\": \"my_negative_feature_field\",\n" +
@@ -126,7 +130,8 @@ public class RankFeatureQueryBuilderTests extends AbstractQueryTestCase<RankFeat
                 "        }\n" +
                 "    }\n" +
                 "}";
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parseQuery(query).toQuery(createShardContext()));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
+            () -> parseQuery(query).toQuery(createSearchExecutionContext()));
         assertEquals(
                 "Cannot use the [log] function with a field that has a negative score impact as it would trigger negative scores",
                 e.getMessage());

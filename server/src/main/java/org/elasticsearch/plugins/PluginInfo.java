@@ -393,9 +393,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     }
 
     /**
-     * Whether a license must be accepted before this plugin can be installed.
-     *
-     * @return {@code true} if a license must be accepted.
+     * Whether this plugin is subject to the Elastic License.
      */
     public boolean isLicensed() {
         return isLicensed;
@@ -413,6 +411,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             builder.field("classname", classname);
             builder.field("extended_plugins", extendedPlugins);
             builder.field("has_native_controller", hasNativeController);
+            builder.field("licensed", isLicensed);
             builder.field("type", type);
             if (type == PluginType.BOOTSTRAP) {
                 builder.field("java_opts", javaOpts);
@@ -456,6 +455,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             .append(prefix).append("Elasticsearch Version: ").append(elasticsearchVersion).append("\n")
             .append(prefix).append("Java Version: ").append(javaVersion).append("\n")
             .append(prefix).append("Native Controller: ").append(hasNativeController).append("\n")
+            .append(prefix).append("Licensed: ").append(isLicensed).append("\n")
             .append(prefix).append("Type: ").append(type).append("\n");
 
         if (type == PluginType.BOOTSTRAP) {

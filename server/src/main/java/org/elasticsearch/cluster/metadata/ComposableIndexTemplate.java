@@ -113,6 +113,12 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
     }
 
     public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
+        @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
+        @Nullable DataStreamTemplate dataStreamTemplate) {
+        this(indexPatterns, template, componentTemplates, priority, version, metadata, dataStreamTemplate, null);
+    }
+
+    public ComposableIndexTemplate(List<String> indexPatterns, @Nullable Template template, @Nullable List<String> componentTemplates,
                                    @Nullable Long priority, @Nullable Long version, @Nullable Map<String, Object> metadata,
                                    @Nullable DataStreamTemplate dataStreamTemplate, @Nullable Boolean allowAutoCreate) {
         this.indexPatterns = indexPatterns;
@@ -164,6 +170,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return componentTemplates;
     }
 
+    @Nullable
     public Long priority() {
         return priority;
     }
@@ -175,14 +182,17 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         return priority;
     }
 
+    @Nullable
     public Long version() {
         return version;
     }
 
+    @Nullable
     public Map<String, Object> metadata() {
         return metadata;
     }
 
+    @Nullable
     public DataStreamTemplate getDataStreamTemplate() {
         return dataStreamTemplate;
     }
@@ -296,7 +306,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         }
 
         DataStreamTemplate(StreamInput in) throws IOException {
-            hidden = in.getVersion().onOrAfter(DataStream.HIDDEN_VERSION) && in.readBoolean();
+            hidden = in.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION) && in.readBoolean();
         }
 
         public String getTimestampField() {
@@ -318,7 +328,7 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getVersion().onOrAfter(DataStream.HIDDEN_VERSION)) {
+            if (out.getVersion().onOrAfter(DataStream.NEW_FEATURES_VERSION)) {
                 out.writeBoolean(hidden);
             }
         }
@@ -342,6 +352,65 @@ public class ComposableIndexTemplate extends AbstractDiffable<ComposableIndexTem
         @Override
         public int hashCode() {
             return Objects.hash(hidden);
+        }
+    }
+    
+    public static class Builder{
+        private List<String> indexPatterns;
+        private Template template;
+        private List<String> componentTemplates;
+        private Long priority;
+        private Long version;
+        private Map<String, Object> metadata;
+        private DataStreamTemplate dataStreamTemplate;
+        private Boolean allowAutoCreate;
+        
+        public Builder() {
+        }
+        
+        public Builder indexPatterns(List<String> indexPatterns) { 
+            this.indexPatterns = indexPatterns;
+            return this;
+        }
+        
+        public Builder template(Template template) { 
+            this.template = template;
+            return this;
+        }
+        
+        public Builder componentTemplates(List<String> componentTemplates) { 
+            this.componentTemplates = componentTemplates;
+            return this;
+        }
+        
+        public Builder priority(Long priority) { 
+            this.priority = priority;
+            return this;
+        }
+        
+        public Builder version(Long version) { 
+            this.version = version;
+            return this;
+        }
+        
+        public Builder metadata(Map<String, Object> metadata) { 
+            this.metadata = metadata;
+            return this;
+        }
+        
+        public Builder dataStreamTemplate(DataStreamTemplate dataStreamTemplate) { 
+            this.dataStreamTemplate = dataStreamTemplate;
+            return this;
+        }
+        
+        public Builder allowAutoCreate(Boolean allowAutoCreate) { 
+            this.allowAutoCreate = allowAutoCreate;
+            return this;
+        }
+        
+        public ComposableIndexTemplate build() { 
+            return new ComposableIndexTemplate(this.indexPatterns,this.template,this.componentTemplates,
+                    this.priority,this.version,this.metadata,this.dataStreamTemplate,this.allowAutoCreate);
         }
     }
 }

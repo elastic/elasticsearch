@@ -28,6 +28,8 @@ import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.BeforeClass;
 
+import java.io.IOException;
+
 //TODO: This is a *temporary* workaround to ensure a timeout does not mask other problems
 @TimeoutSuite(millis = 30 * TimeUnits.MINUTE)
 public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
@@ -44,4 +46,9 @@ public class Netty4ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         return ESClientYamlSuiteTestCase.createParameters();
     }
 
+    @Override
+    public void test() throws IOException {
+        assumeFalse("FIPS JVMs are configured to use the 'security4' transport rather than 'netty4'", inFipsJvm());
+        super.test();
+    }
 }

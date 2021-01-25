@@ -30,10 +30,14 @@ import org.elasticsearch.test.rest.yaml.section.SetupSection;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;
@@ -72,41 +76,14 @@ public abstract class CoreTestTranslater {
 
     protected abstract Suite suite(ClientYamlTestCandidate candidate);
 
-    private static String painlessToLoadFromSource(String name, String type) {
-        String emit = PAINLESS_TO_EMIT.get(type);
-        if (emit == null) {
-            return null;
-        }
-        StringBuilder b = new StringBuilder();
-        b.append("def v = params._source['").append(name).append("'];\n");
-        b.append("if (v instanceof Iterable) {\n");
-        b.append("  for (def vv : ((Iterable) v)) {\n");
-        b.append("    if (vv != null) {\n");
-        b.append("      def value = vv;\n");
-        b.append("      ").append(emit).append("\n");
-        b.append("    }\n");
-        b.append("  }\n");
-        b.append("} else {\n");
-        b.append("  if (v != null) {\n");
-        b.append("    def value = v;\n");
-        b.append("    ").append(emit).append("\n");
-        b.append("  }\n");
-        b.append("}\n");
-        return b.toString();
-    }
-
-    private static final Map<String, String> PAINLESS_TO_EMIT = org.elasticsearch.common.collect.Map.ofEntries(
-        org.elasticsearch.common.collect.Map.entry(BooleanFieldMapper.CONTENT_TYPE, "emit(Boolean.parseBoolean(value.toString()));"),
-        org.elasticsearch.common.collect.Map.entry(DateFieldMapper.CONTENT_TYPE, "emit(parse(value.toString()));"),
-        org.elasticsearch.common.collect.Map.entry(
+    private static final Set<String> RUNTIME_TYPES = new HashSet<>(
+        Arrays.asList(
+            BooleanFieldMapper.CONTENT_TYPE,
+            DateFieldMapper.CONTENT_TYPE,
             NumberType.DOUBLE.typeName(),
-            "emit(value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString()));"
-        ),
-        org.elasticsearch.common.collect.Map.entry(KeywordFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
-        org.elasticsearch.common.collect.Map.entry(IpFieldMapper.CONTENT_TYPE, "emit(value.toString());"),
-        org.elasticsearch.common.collect.Map.entry(
-            NumberType.LONG.typeName(),
-            "emit(value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString()));"
+            KeywordFieldMapper.CONTENT_TYPE,
+            IpFieldMapper.CONTENT_TYPE,
+            NumberType.LONG.typeName()
         )
     );
 
@@ -120,13 +97,12 @@ public abstract class CoreTestTranslater {
     protected static Map<String, Object> dynamicTemplateToAddRuntimeFields(String type) {
         return org.elasticsearch.common.collect.Map.ofEntries(
             org.elasticsearch.common.collect.Map.entry("type", "runtime"),
-            org.elasticsearch.common.collect.Map.entry("runtime_type", type),
-            org.elasticsearch.common.collect.Map.entry("script", painlessToLoadFromSource("{name}", type))
+            org.elasticsearch.common.collect.Map.entry("runtime_type", type)
         );
     }
 
-    protected static Map<String, Object> runtimeFieldLoadingFromSource(String name, String type) {
-        return org.elasticsearch.common.collect.Map.of("type", type, "script", painlessToLoadFromSource(name, type));
+    protected static Map<String, Object> runtimeFieldLoadingFromSource(String type) {
+        return Collections.singletonMap("type", type);
     }
 
     private ExecutableSection addIndexTemplate() {
@@ -140,7 +116,7 @@ public abstract class CoreTestTranslater {
             public void execute(ClientYamlTestExecutionContext executionContext) throws IOException {
                 Map<String, String> params = org.elasticsearch.common.collect.Map.of("name", "hack_dynamic_mappings", "create", "true");
                 List<Map<String, Object>> dynamicTemplates = new ArrayList<>();
-                for (String type : PAINLESS_TO_EMIT.keySet()) {
+                for (String type : RUNTIME_TYPES) {
                     if (type.equals("ip")) {
                         // There isn't a dynamic template to pick up ips. They'll just look like strings.
                         continue;
@@ -347,13 +323,11 @@ public abstract class CoreTestTranslater {
                     // Our source reading script doesn't emulate ignore_malformed
                     continue;
                 }
-                String toLoad = painlessToLoadFromSource(name, type);
-                if (toLoad == null) {
+                if (RUNTIME_TYPES.contains(type) == false) {
                     continue;
                 }
                 Map<String, Object> runtimeConfig = new HashMap<>(propertyMap);
                 runtimeConfig.put("type", type);
-                runtimeConfig.put("script", toLoad);
                 runtimeConfig.remove("store");
                 runtimeConfig.remove("index");
                 runtimeConfig.remove("doc_values");

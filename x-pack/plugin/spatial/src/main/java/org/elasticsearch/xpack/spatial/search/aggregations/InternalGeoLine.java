@@ -125,7 +125,7 @@ public class InternalGeoLine extends InternalAggregation {
     }
 
     public int length() {
-        return line.length;
+        return line == null ? 0 : line.length;
     }
 
     public boolean isComplete() {

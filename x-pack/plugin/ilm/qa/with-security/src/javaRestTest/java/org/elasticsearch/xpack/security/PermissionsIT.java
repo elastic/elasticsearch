@@ -143,7 +143,8 @@ public class PermissionsIT extends ESRestTestCase {
                 assertThat(indexExplain.get("failed_step"), equalTo("wait-for-shard-history-leases"));
                 Map<String, String> stepInfo = (Map<String, String>) indexExplain.get("step_info");
                 assertThat(stepInfo.get("type"), equalTo("security_exception"));
-                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized for user [test_ilm]"));
+                assertThat(stepInfo.get("reason"), equalTo("action [indices:monitor/stats] is unauthorized for user [test_ilm]" +
+                    " on indices [not-ilm], this action is granted by the privileges [monitor,manage,all]"));
             }
         });
     }
@@ -161,14 +162,14 @@ public class PermissionsIT extends ESRestTestCase {
             "\"indices\": [{ \"names\": [\".slm-history*\"],\"privileges\": [\"all\"] }] }");
         assertOK(adminClient().performRequest(roleRequest));
 
-        createUser("slm_admin", "slm-pass", "slm-manage");
-        createUser("slm_user", "slm-user-pass", "slm-read");
+        createUser("slm_admin", "slm-admin-password", "slm-manage");
+        createUser("slm_user", "slm-user-password", "slm-read");
 
         final HighLevelClient hlAdminClient = new HighLevelClient(adminClient());
 
         // Build two high level clients, each using a different user
         final RestClientBuilder adminBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-pass".toCharArray()));
+        final String adminToken = basicAuthHeaderValue("slm_admin", new SecureString("slm-admin-password".toCharArray()));
         configureClient(adminBuilder, Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", adminToken)
             .build());
@@ -176,7 +177,7 @@ public class PermissionsIT extends ESRestTestCase {
         final RestHighLevelClient adminHLRC = new RestHighLevelClient(adminBuilder);
 
         final RestClientBuilder userBuilder = RestClient.builder(adminClient().getNodes().toArray(new Node[0]));
-        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-pass".toCharArray()));
+        final String userToken = basicAuthHeaderValue("slm_user", new SecureString("slm-user-password".toCharArray()));
         configureClient(userBuilder, Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", userToken)
             .build());

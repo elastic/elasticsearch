@@ -15,6 +15,8 @@ import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotAct
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusAction;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
+import org.elasticsearch.action.ingest.GetPipelineAction;
+import org.elasticsearch.action.ingest.SimulatePipelineAction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
@@ -53,6 +55,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MANAGE_API_KEY_PATTERN = Collections.singleton("cluster:admin/xpack/security/api_key/*");
     private static final Set<String> GRANT_API_KEY_PATTERN = Collections.singleton(GrantApiKeyAction.NAME + "*");
     private static final Set<String> MONITOR_PATTERN = Collections.singleton("cluster:monitor/*");
+    private static final Set<String> MONITOR_TEXT_STRUCTURE_PATTERN = Collections.singleton("cluster:monitor/text_structure/*");
     private static final Set<String> MONITOR_TRANSFORM_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/data_frame/*", "cluster:monitor/transform/*"));
     private static final Set<String> MONITOR_ML_PATTERN = Collections.singleton("cluster:monitor/xpack/ml/*");
@@ -70,8 +73,10 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> TRANSPORT_CLIENT_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:monitor/nodes/liveness", "cluster:monitor/state"));
     private static final Set<String> MANAGE_IDX_TEMPLATE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet("indices:admin/template/*",
-            "indices:admin/index_template/*"));
+            "indices:admin/index_template/*", "cluster:admin/component_template/*"));
     private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Collections.singleton("cluster:admin/ingest/pipeline/*");
+    private static final Set<String> READ_PIPELINE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet(GetPipelineAction.NAME,
+        SimulatePipelineAction.NAME));
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Collections.unmodifiableSet(
         Sets.newHashSet("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*"));
     private static final Set<String> MANAGE_CCR_PATTERN =
@@ -98,6 +103,8 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED =
         new ActionClusterPrivilege("monitor_data_frame_transforms", MONITOR_TRANSFORM_PATTERN);
+    public static final NamedClusterPrivilege MONITOR_TEXT_STRUCTURE =
+        new ActionClusterPrivilege("monitor_text_structure", MONITOR_TEXT_STRUCTURE_PATTERN);
     public static final NamedClusterPrivilege MONITOR_TRANSFORM =
             new ActionClusterPrivilege("monitor_transform", MONITOR_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MONITOR_WATCHER = new ActionClusterPrivilege("monitor_watcher", MONITOR_WATCHER_PATTERN);
@@ -115,6 +122,8 @@ public class ClusterPrivilegeResolver {
         new ActionClusterPrivilege("manage_index_templates", MANAGE_IDX_TEMPLATE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INGEST_PIPELINES =
         new ActionClusterPrivilege("manage_ingest_pipelines", MANAGE_INGEST_PIPELINE_PATTERN);
+    public static final NamedClusterPrivilege READ_PIPELINE =
+        new ActionClusterPrivilege("read_pipeline", READ_PIPELINE_PATTERN);
     public static final NamedClusterPrivilege TRANSPORT_CLIENT = new ActionClusterPrivilege("transport_client",
         TRANSPORT_CLIENT_PATTERN);
     public static final NamedClusterPrivilege MANAGE_SECURITY = new ActionClusterPrivilege("manage_security", ALL_SECURITY_PATTERN,
@@ -151,6 +160,7 @@ public class ClusterPrivilegeResolver {
         ALL,
         MONITOR,
         MONITOR_ML,
+        MONITOR_TEXT_STRUCTURE,
         MONITOR_TRANSFORM_DEPRECATED,
         MONITOR_TRANSFORM,
         MONITOR_WATCHER,
@@ -163,6 +173,7 @@ public class ClusterPrivilegeResolver {
         MANAGE_WATCHER,
         MANAGE_IDX_TEMPLATES,
         MANAGE_INGEST_PIPELINES,
+        READ_PIPELINE,
         TRANSPORT_CLIENT,
         MANAGE_SECURITY,
         MANAGE_SAML,

@@ -74,7 +74,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                                          TransportService transportService, ActionFilters actionFilters,
                                          IndexNameExpressionResolver indexNameExpressionResolver, Writeable.Reader<Request> request,
                                          String executor) {
-        super(actionName, actionFilters, transportService.getTaskManager());
+        super(actionName, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.transportService = transportService;

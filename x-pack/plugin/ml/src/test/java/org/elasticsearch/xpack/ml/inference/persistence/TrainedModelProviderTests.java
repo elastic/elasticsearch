@@ -42,7 +42,10 @@ public class TrainedModelProviderTests extends ESTestCase {
         // Should be OK as we don't make any client calls
         trainedModelProvider.deleteTrainedModel("lang_ident_model_1", future);
         ElasticsearchException ex = expectThrows(ElasticsearchException.class, future::actionGet);
-        assertThat(ex.getMessage(), equalTo(Messages.getMessage(Messages.INFERENCE_CANNOT_DELETE_MODEL, "lang_ident_model_1")));
+        assertThat(ex.getMessage(), equalTo(Messages.getMessage(
+            Messages.INFERENCE_CANNOT_DELETE_ML_MANAGED_MODEL,
+            "lang_ident_model_1"
+        )));
     }
 
     public void testPutModelThatExistsAsResource() {

@@ -136,17 +136,13 @@ public class AllocationIdIT extends ESIntegTestCase {
             assertThat(shardRouting.unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         });
 
+        internalCluster().stopNode(node1);
         try(Store store = new Store(shardId, indexSettings, new SimpleFSDirectory(indexPath), new DummyShardLock(shardId))) {
             store.removeCorruptionMarker();
         }
+        node1 = internalCluster().startNode(node1DataPathSettings);
 
         // index is red: no any shard is allocated (allocation id is a fake id that does not match to anything)
-        checkHealthStatus(indexName, ClusterHealthStatus.RED);
-        checkNoValidShardCopy(indexName, shardId);
-
-        internalCluster().restartNode(node1, InternalTestCluster.EMPTY_CALLBACK);
-
-        // index is still red due to mismatch of allocation id
         checkHealthStatus(indexName, ClusterHealthStatus.RED);
         checkNoValidShardCopy(indexName, shardId);
 

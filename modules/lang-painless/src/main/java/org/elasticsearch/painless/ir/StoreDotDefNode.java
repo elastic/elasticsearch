@@ -22,21 +22,9 @@ package org.elasticsearch.painless.ir;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-public class StoreDotDefNode extends StoreNode {
+public class StoreDotDefNode extends UnaryNode {
 
-    /* ---- begin node data ---- */
-
-    private String value;
-
-    public void setValue(String value) {
-        this.value = value;
-    }
-
-    public String getValue() {
-        return value;
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

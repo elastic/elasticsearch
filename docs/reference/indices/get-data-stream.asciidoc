@@ -50,7 +50,7 @@ PUT /_data_stream/my-data-stream
 
 POST /my-data-stream/_rollover
 
-PUT /_data_stream/my-data-stream_two
+PUT /_data_stream/my-data-stream-two
 ----
 // TESTSETUP
 ////
@@ -75,6 +75,13 @@ GET /_data_stream/my-data-stream
 
 `GET /_data_stream/<data-stream>`
 
+[[get-data-stream-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the data stream.
+
 [[get-data-stream-api-path-params]]
 ==== {api-path-parms-title}
 
@@ -83,6 +90,14 @@ GET /_data_stream/my-data-stream
 Comma-separated list of data stream names used to limit the request. Wildcard
 (`*`) expressions are supported. If omitted, all data streams will be
 returned.
+
+[role="child_attributes"]
+[[get-data-stream-api-query-parms]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=ds-expand-wildcards]
++
+Defaults to `open`.
 
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]
@@ -184,6 +199,10 @@ included in the response.
 NOTE: A data stream's backing indices may be assigned different lifecycle
 policies. To retrieve the lifecycle policy for individual backing indices,
 use the <<indices-get-settings,get index settings API>>.
+
+`hidden`::
+(Boolean)
+If `true`, the data stream is <<hidden-indices,hidden>>.
 ====
 
 [[get-data-stream-api-example]]
@@ -207,11 +226,11 @@ The API returns the following response:
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream-000001",
+          "index_name": ".ds-my-data-stream-2099.03.07-000001",
           "index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"
         },
         {
-          "index_name": ".ds-my-data-stream-000002",
+          "index_name": ".ds-my-data-stream-2099.03.08-000002",
           "index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"
         }
       ],
@@ -225,13 +244,13 @@ The API returns the following response:
       "hidden": false
     },
     {
-      "name": "my-data-stream_two",
+      "name": "my-data-stream-two",
       "timestamp_field": {
         "name": "@timestamp"
       },
       "indices": [
         {
-          "index_name": ".ds-my-data-stream_two-000001",
+          "index_name": ".ds-my-data-stream-two-2099.03.08-000001",
           "index_uuid": "3liBu2SYS5axasRt6fUIpA"
         }
       ],
@@ -247,7 +266,10 @@ The API returns the following response:
   ]
 }
 ----
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.07-000001"/"index_name": $body.data_streams.0.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "xCEhwsp8Tey0-FLNFYVwSg"/"index_uuid": $body.data_streams.0.indices.0.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-2099.03.08-000002"/"index_name": $body.data_streams.0.indices.1.index_name/]
 // TESTRESPONSE[s/"index_uuid": "PA_JquKGSiKcAKBA8DJ5gw"/"index_uuid": $body.data_streams.0.indices.1.index_uuid/]
+// TESTRESPONSE[s/"index_name": ".ds-my-data-stream-two-2099.03.08-000001"/"index_name": $body.data_streams.1.indices.0.index_name/]
 // TESTRESPONSE[s/"index_uuid": "3liBu2SYS5axasRt6fUIpA"/"index_uuid": $body.data_streams.1.indices.0.index_uuid/]
 // TESTRESPONSE[s/"status": "GREEN"/"status": "YELLOW"/]

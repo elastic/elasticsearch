@@ -62,6 +62,8 @@ import static org.hamcrest.Matchers.is;
 public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
 
     private static final String JOB_ID = "ml-snapshots-upgrade-job";
+    // min version in upgraded 7.series is 7.11.0
+    private static final Version CPP_COMPATIBILTIY_VERSION = Version.V_7_11_0;
 
     private static class HLRC extends RestHighLevelClient {
         HLRC(RestClient restClient) {
@@ -136,8 +138,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
         assertThat(snapshots, hasSize(1));
         snapshot = snapshots.get(0);
         assertThat(snapshot.getLatestRecordTimeStamp(), equalTo(snapshots.get(0).getLatestRecordTimeStamp()));
-        // min version in upgraded 7.series is 7.9.0
-        assertThat(snapshot.getMinVersion(), equalTo(Version.V_7_9_0));
+        assertThat(snapshot.getMinVersion(), equalTo(CPP_COMPATIBILTIY_VERSION));
 
         // Does the snapshot still work?
         assertThat(hlrc.getJobStats(new GetJobStatsRequest(JOB_ID), RequestOptions.DEFAULT)
@@ -202,8 +203,17 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     private PutJobResponse buildAndPutJob(String jobId, TimeValue bucketSpan) throws Exception {
         Detector.Builder detector = new Detector.Builder("mean", "value");
         detector.setPartitionFieldName("series");
-        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(Arrays.asList(detector.build()));
+        List<Detector> detectors = new ArrayList<>();
+        detectors.add(detector.build());
+        boolean isCategorization = randomBoolean();
+        if (isCategorization) {
+            detectors.add(new Detector.Builder("count", null).setByFieldName("mlcategory").build());
+        }
+        AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(detectors);
         analysisConfig.setBucketSpan(bucketSpan);
+        if (isCategorization) {
+            analysisConfig.setCategorizationFieldName("text");
+        }
         Job.Builder job = new Job.Builder(jobId);
         job.setAnalysisConfig(analysisConfig);
         DataDescription.Builder dataDescription = new DataDescription.Builder();
@@ -220,6 +230,7 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
                 Map<String, Object> record = new HashMap<>();
                 record.put("time", now);
                 record.put("value", timeAndSeriesToValueFunction.apply(i, field));
+                record.put("text", randomFrom("foo has landed 3", "bar has landed 5", "bar has finished 2", "foo has finished 10"));
                 record.put("series", field);
                 data.add(createJsonRecord(record));
 
@@ -247,7 +258,19 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     protected PostDataResponse postData(String jobId, String data) throws IOException {
-        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), RequestOptions.DEFAULT);
+        // Post data is deprecated, so a deprecation warning is possible (depending on the old version)
+        RequestOptions postDataOptions = RequestOptions.DEFAULT.toBuilder()
+            .setWarningsHandler(warnings -> {
+                if (warnings.isEmpty()) {
+                    // No warning is OK - it means we hit an old node where post data is not deprecated
+                    return false;
+                } else if (warnings.size() > 1) {
+                    return true;
+                }
+                return warnings.get(0).equals("Posting data directly to anomaly detection jobs is deprecated, " +
+                    "in a future major version it will be compulsory to use a datafeed") == false;
+            }).build();
+        return hlrc.postData(new PostDataRequest(jobId, XContentType.JSON, new BytesArray(data)), postDataOptions);
     }
 
     protected FlushJobResponse flushJob(String jobId) throws IOException {

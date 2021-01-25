@@ -29,11 +29,9 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -42,7 +40,7 @@ import org.elasticsearch.index.mapper.TypeFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.NestedHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.aggregations.SearchContextAggregations;
@@ -86,9 +84,7 @@ final class DefaultSearchContext extends SearchContext {
     private final SearchShardTarget shardTarget;
     private final LongSupplier relativeTimeSupplier;
     private SearchType searchType;
-    private final BigArrays bigArrays;
     private final IndexShard indexShard;
-    private final ClusterService clusterService;
     private final IndexService indexService;
     private final ContextIndexSearcher searcher;
     private final DfsSearchResult dfsResult;
@@ -144,14 +140,12 @@ final class DefaultSearchContext extends SearchContext {
 
     private final Map<String, SearchExtBuilder> searchExtBuilders = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
-    private final QueryShardContext queryShardContext;
+    private final SearchExecutionContext searchExecutionContext;
     private final FetchPhase fetchPhase;
 
     DefaultSearchContext(ReaderContext readerContext,
                          ShardSearchRequest request,
                          SearchShardTarget shardTarget,
-                         ClusterService clusterService,
-                         BigArrays bigArrays,
                          LongSupplier relativeTimeSupplier,
                          TimeValue timeout,
                          FetchPhase fetchPhase,
@@ -162,14 +156,11 @@ final class DefaultSearchContext extends SearchContext {
         this.fetchPhase = fetchPhase;
         this.searchType = request.searchType();
         this.shardTarget = shardTarget;
-        // SearchContexts use a BigArrays that can circuit break
-        this.bigArrays = bigArrays.withCircuitBreaking();
         this.dfsResult = new DfsSearchResult(readerContext.id(), shardTarget, request);
         this.queryResult = new QuerySearchResult(readerContext.id(), shardTarget, request);
         this.fetchResult = new FetchSearchResult(readerContext.id(), shardTarget);
         this.indexService = readerContext.indexService();
         this.indexShard = readerContext.indexShard();
-        this.clusterService = clusterService;
 
         Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
         this.searcher = new ContextIndexSearcher(engineSearcher.getIndexReader(), engineSearcher.getSimilarity(),
@@ -179,14 +170,15 @@ final class DefaultSearchContext extends SearchContext {
         this.relativeTimeSupplier = relativeTimeSupplier;
         this.timeout = timeout;
         this.minNodeVersion = minNodeVersion;
-        queryShardContext = indexService.newQueryShardContext(
+        searchExecutionContext = indexService.newSearchExecutionContext(
             request.shardId().id(),
-            this.searcher,
+            request.shardRequestIndex(),
+            searcher,
             request::nowInMillis,
             shardTarget.getClusterAlias(),
             request.getRuntimeMappings()
         );
-        queryShardContext.setTypes(request.types());
+        searchExecutionContext.setTypes(request.types());
         queryBoost = request.indexBoost();
         this.lowLevelCancellation = lowLevelCancellation;
     }
@@ -245,7 +237,7 @@ final class DefaultSearchContext extends SearchContext {
         // initialize the filtering alias based on the provided filters
         try {
             final QueryBuilder queryBuilder = request.getAliasFilter().getQueryBuilder();
-            aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(queryShardContext);
+            aliasFilter = queryBuilder == null ? null : queryBuilder.toQuery(searchExecutionContext);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -269,16 +261,16 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public Query buildFilteredQuery(Query query) {
         List<Query> filters = new ArrayList<>();
-        Query typeFilter = createTypeFilter(queryShardContext.getTypes());
+        Query typeFilter = createTypeFilter(searchExecutionContext.getTypes());
         if (typeFilter != null) {
             filters.add(typeFilter);
         }
 
-        NestedHelper nestedHelper = new NestedHelper(queryShardContext::getObjectMapper, queryShardContext::isFieldMapped);
-        if (queryShardContext.hasNested()
+        NestedHelper nestedHelper = new NestedHelper(searchExecutionContext::getObjectMapper, searchExecutionContext::isFieldMapped);
+        if (searchExecutionContext.hasNested()
                 && nestedHelper.mightMatchNestedDocs(query)
                 && (aliasFilter == null || nestedHelper.mightMatchNestedDocs(aliasFilter))) {
-            filters.add(Queries.newNonNestedFilter(queryShardContext.indexVersionCreated()));
+            filters.add(Queries.newNonNestedFilter(searchExecutionContext.indexVersionCreated()));
         }
 
         if (aliasFilter != null) {
@@ -286,7 +278,7 @@ final class DefaultSearchContext extends SearchContext {
         }
 
         if (sliceBuilder != null) {
-            Query slicedQuery = sliceBuilder.toFilter(clusterService, request, queryShardContext, minNodeVersion);
+            Query slicedQuery = sliceBuilder.toFilter(request, searchExecutionContext);
             if (slicedQuery instanceof MatchNoDocsQuery) {
                 return slicedQuery;
             } else {
@@ -308,7 +300,7 @@ final class DefaultSearchContext extends SearchContext {
 
     private Query createTypeFilter(String[] types) {
         if (types != null && types.length >= 1) {
-            QueryShardContext queryShardContext = getQueryShardContext();
+            SearchExecutionContext queryShardContext = getSearchExecutionContext();
             if (queryShardContext.getType() == null) {
                 return null;
             }
@@ -479,11 +471,6 @@ final class DefaultSearchContext extends SearchContext {
     @Override
     public IndexShard indexShard() {
         return this.indexShard;
-    }
-
-    @Override
-    public BigArrays bigArrays() {
-        return bigArrays;
     }
 
     @Override
@@ -725,11 +712,6 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public NestedDocuments getNestedDocuments() {
-        return new NestedDocuments(indexService.mapperService(), bitsetFilterCache()::getBitSetProducer);
-    }
-
-    @Override
     public FetchPhase fetchPhase() {
         return fetchPhase;
     }
@@ -750,8 +732,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public QueryShardContext getQueryShardContext() {
-        return queryShardContext;
+    public SearchExecutionContext getSearchExecutionContext() {
+        return searchExecutionContext;
     }
 
     @Override

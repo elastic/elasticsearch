@@ -38,13 +38,13 @@ PUT _snapshot/my_repository/snapshot_2?wait_for_completion=true
   }
 }
 
-POST /index_1/_close
+POST /index_1/_close?wait_for_active_shards=0
 
-POST /index_2/_close
+POST /index_2/_close?wait_for_active_shards=0
 
-POST /index_3/_close
+POST /index_3/_close?wait_for_active_shards=0
 
-POST /index_4/_close
+POST /index_4/_close?wait_for_active_shards=0
 
 ----
 // TESTSETUP
@@ -80,7 +80,7 @@ If a data stream is restored, its backing indices are also restored.
 Alternatively, you can restore individual backing indices without restoring an
 entire data stream. If you restore individual backing indices, they are not
 automatically added to any existing data stream. For example, if only the
-`.ds-logs-00003` backing index is restored from a snapshot, it is not
+`.ds-logs-2099.03.08-00003` backing index is restored from a snapshot, it is not
 automatically added to the existing `logs` data stream.
 
 include::{es-ref-dir}/snapshot-restore/restore-snapshot.asciidoc[tag=index-settings-data-stream-warning]

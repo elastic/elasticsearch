@@ -51,10 +51,8 @@ public class SqlFeatureSetTests extends ESTestCase {
     }
 
     public void testAvailable() {
-        SqlFeatureSet featureSet = new SqlFeatureSet(licenseState, client);
-        boolean available = randomBoolean();
-        when(licenseState.isAllowed(XPackLicenseState.Feature.SQL)).thenReturn(available);
-        assertThat(featureSet.available(), is(available));
+        SqlFeatureSet featureSet = new SqlFeatureSet(client);
+        assertThat(featureSet.available(), is(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -85,7 +83,7 @@ public class SqlFeatureSetTests extends ESTestCase {
         }).when(client).execute(eq(SqlStatsAction.INSTANCE), any(), any());
 
         PlainActionFuture<SqlFeatureSet.Usage> future = new PlainActionFuture<>();
-        new SqlFeatureSet(licenseState, client).usage(future);
+        new SqlFeatureSet(client).usage(future);
         SqlFeatureSetUsage sqlUsage = (SqlFeatureSetUsage) future.get();
 
         long fooBarBaz = ObjectPath.eval("foo.bar.baz", sqlUsage.stats());

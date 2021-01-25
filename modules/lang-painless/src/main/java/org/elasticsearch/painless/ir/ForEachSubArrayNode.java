@@ -20,104 +20,11 @@
 package org.elasticsearch.painless.ir;
 
 import org.elasticsearch.painless.Location;
-import org.elasticsearch.painless.lookup.PainlessCast;
-import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.phase.IRTreeVisitor;
 
-public class ForEachSubArrayNode extends LoopNode {
+public class ForEachSubArrayNode extends ConditionNode {
 
-    /* ---- begin node data ---- */
-
-    private Class<?> variableType;
-    private String variableName;
-    private PainlessCast cast;
-    private Class<?> arrayType;
-    private String arrayName;
-    private Class<?> indexType;
-    private String indexName;
-    private Class<?> indexedType;
-
-    public void setVariableType(Class<?> variableType) {
-        this.variableType = variableType;
-    }
-
-    public Class<?> getVariableType() {
-        return variableType;
-    }
-
-    public String getVariableCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(variableType);
-    }
-
-    public void setVariableName(String variableName) {
-        this.variableName = variableName;
-    }
-
-    public String getVariableName() {
-        return variableName;
-    }
-
-    public void setCast(PainlessCast cast) {
-        this.cast = cast;
-    }
-
-    public PainlessCast getCast() {
-        return cast;
-    }
-
-    public void setArrayType(Class<?> arrayType) {
-        this.arrayType = arrayType;
-    }
-
-    public Class<?> getArrayType() {
-        return arrayType;
-    }
-
-    public String getArrayCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(arrayType);
-    }
-
-    public void setArrayName(String arrayName) {
-        this.arrayName = arrayName;
-    }
-
-    public String getArrayName() {
-        return arrayName;
-    }
-
-    public void setIndexType(Class<?> indexType) {
-        this.indexType = indexType;
-    }
-
-    public Class<?> getIndexType() {
-        return indexType;
-    }
-
-    public String getIndexCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(indexType);
-    }
-
-    public void setIndexName(String indexName) {
-        this.indexName = indexName;
-    }
-
-    public String getIndexName() {
-        return indexName;
-    }
-
-    public void setIndexedType(Class<?> indexedType) {
-        this.indexedType = indexedType;
-    }
-
-    public Class<?> getIndexedType() {
-        return indexedType;
-    }
-
-    public String getIndexedCanonicalTypeName() {
-        return PainlessLookupUtility.typeToCanonicalTypeName(indexedType);
-    }
-
-    /* ---- end node data, begin visitor ---- */
+    /* ---- begin visitor ---- */
 
     @Override
     public <Scope> void visit(IRTreeVisitor<Scope> irTreeVisitor, Scope scope) {

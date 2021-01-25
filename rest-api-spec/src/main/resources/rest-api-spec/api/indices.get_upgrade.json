@@ -5,6 +5,10 @@
       "description":"DEPRECATED Returns a progress status of current upgrade."
     },
     "stability":"stable",
+    "visibility": "public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
     "url":{
       "paths":[
         {

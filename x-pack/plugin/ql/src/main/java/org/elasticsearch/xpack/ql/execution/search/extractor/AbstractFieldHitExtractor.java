@@ -128,16 +128,13 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             // if the field was ignored because it was malformed and ignore_malformed was turned on
             if (fullFieldName != null
                     && hit.getFields().containsKey(IgnoredFieldMapper.NAME)
-                    && isFromDocValuesOnly(dataType) == false
-                    && dataType.isNumeric()) {
+                    && isFromDocValuesOnly(dataType) == false) {
                 /*
-                 * ignore_malformed makes sense for extraction from _source for numeric fields only.
-                 * And we check here that the data type is actually a numeric one to rule out
-                 * any non-numeric sub-fields (for which the "parent" field should actually be extracted from _source).
+                 * We check here the presence of the field name (fullFieldName including the parent name) in the list
+                 * of _ignored fields (due to malformed data, which was ignored).
                  * For example, in the case of a malformed number, a "byte" field with "ignore_malformed: true"
                  * with a "text" sub-field should return "null" for the "byte" parent field and the actual malformed
-                 * data for the "text" sub-field. Also, the _ignored section of the response contains the full field
-                 * name, thus the need to do the comparison with that and not only the field name.
+                 * data for the "text" sub-field.
                  */
                 if (hit.getFields().get(IgnoredFieldMapper.NAME).getValues().contains(fullFieldName)) {
                     return null;
@@ -201,7 +198,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
                     }
                     return result;
                 }
-            } else if (DataTypes.isString(dataType)) {
+            } else if (DataTypes.isString(dataType) || dataType == DataTypes.IP) {
                 return values.toString();
             } else {
                 return values;

@@ -603,7 +603,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         String jobId = jobTask.getJobId();
         notifyLoadingSnapshot(jobId, autodetectParams);
 
-        if (autodetectParams.dataCounts().getProcessedRecordCount() > 0) {
+        if (autodetectParams.dataCounts().getLatestRecordTimeStamp() != null) {
             if (autodetectParams.modelSnapshot() == null) {
                 String msg = "No model snapshot could be found for a job with processed records";
                 logger.warn("[{}] {}", jobId, msg);

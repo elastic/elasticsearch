@@ -86,7 +86,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
     public TransportRollupSearchAction(TransportService transportService,
                                  ActionFilters actionFilters, Client client, NamedWriteableRegistry registry, BigArrays bigArrays,
                                  ScriptService scriptService, ClusterService clusterService, IndexNameExpressionResolver resolver) {
-        super(RollupSearchAction.NAME, actionFilters, transportService.getTaskManager());
+        super(RollupSearchAction.NAME, actionFilters, transportService.getLocalNodeConnection(), transportService.getTaskManager());
         this.client = client;
         this.registry = registry;
         this.bigArrays = bigArrays;
@@ -310,7 +310,7 @@ public class TransportRollupSearchAction extends TransportAction<SearchRequest, 
             TermsQueryBuilder terms = (TermsQueryBuilder) builder;
             String fieldName = terms.fieldName();
             String rewrittenFieldName =  rewriteFieldName(jobCaps, TermQueryBuilder.NAME, fieldName);
-            return new TermsQueryBuilder(rewrittenFieldName, terms.values());
+            return new TermsQueryBuilder(rewrittenFieldName, terms.getValues());
         } else if (builder.getWriteableName().equals(MatchAllQueryBuilder.NAME)) {
             // no-op
             return builder;

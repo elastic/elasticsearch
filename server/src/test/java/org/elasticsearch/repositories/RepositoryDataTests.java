@@ -140,12 +140,24 @@ public class RepositoryDataTests extends ESTestCase {
             snapshotStates.put(snapshotId.getUUID(), randomFrom(SnapshotState.values()));
             snapshotVersions.put(snapshotId.getUUID(), randomFrom(Version.CURRENT, Version.CURRENT.minimumCompatibilityVersion()));
         }
-        RepositoryData repositoryData = new RepositoryData(EMPTY_REPO_GEN, snapshotIds, Collections.emptyMap(), Collections.emptyMap(),
-            Collections.emptyMap(), ShardGenerations.EMPTY,  IndexMetaDataGenerations.EMPTY);
+        RepositoryData repositoryData = new RepositoryData(
+                EMPTY_REPO_GEN,
+                snapshotIds,
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                Collections.emptyMap(),
+                ShardGenerations.EMPTY,
+                IndexMetaDataGenerations.EMPTY);
         // test that initializing indices works
         Map<IndexId, List<SnapshotId>> indices = randomIndices(snapshotIds);
-        RepositoryData newRepoData = new RepositoryData(repositoryData.getGenId(), snapshotIds, snapshotStates, snapshotVersions, indices,
-                ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
+        RepositoryData newRepoData = new RepositoryData(
+                repositoryData.getGenId(),
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indices,
+                ShardGenerations.EMPTY,
+                IndexMetaDataGenerations.EMPTY);
         List<SnapshotId> expected = new ArrayList<>(repositoryData.getSnapshotIds());
         Collections.sort(expected);
         List<SnapshotId> actual = new ArrayList<>(newRepoData.getSnapshotIds());
@@ -228,8 +240,14 @@ public class RepositoryDataTests extends ESTestCase {
         }
         assertNotNull(corruptedIndexId);
 
-        RepositoryData corruptedRepositoryData = new RepositoryData(parsedRepositoryData.getGenId(), snapshotIds, snapshotStates,
-            snapshotVersions, indexSnapshots, shardGenBuilder.build(), IndexMetaDataGenerations.EMPTY);
+        RepositoryData corruptedRepositoryData = new RepositoryData(
+                parsedRepositoryData.getGenId(),
+                snapshotIds,
+                snapshotStates,
+                snapshotVersions,
+                indexSnapshots,
+                shardGenBuilder.build(),
+                IndexMetaDataGenerations.EMPTY);
 
         final XContentBuilder corruptedBuilder = XContentBuilder.builder(xContent);
         corruptedRepositoryData.snapshotsToXContent(corruptedBuilder, Version.CURRENT);
@@ -328,6 +346,25 @@ public class RepositoryDataTests extends ESTestCase {
                 newIndices.entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey,
                         e -> Collections.singleton(newIdentifiers.get(e.getValue())))));
         assertEquals(newRepoData.indexMetaDataToRemoveAfterRemovingSnapshots(Collections.singleton(otherSnapshotId)), removeFromOther);
+    }
+
+    public void testFailsIfMinVersionNotSatisfied() throws IOException {
+        final Version futureVersion = Version.fromString((Version.CURRENT.major + 1) + ".0.0");
+
+        final XContentBuilder builder = XContentBuilder.builder(randomFrom(XContentType.JSON).xContent());
+        builder.startObject();
+        {
+            builder.field("min_version", futureVersion);
+            builder.field("junk", "should not get this far");
+        }
+        builder.endObject();
+
+        try (XContentParser xParser = createParser(builder)) {
+            IllegalStateException e = expectThrows(IllegalStateException.class, () ->
+                    RepositoryData.snapshotsFromXContent(xParser, randomNonNegativeLong(), randomBoolean()));
+            assertThat(e.getMessage(), equalTo(
+                    "this snapshot repository format requires Elasticsearch version [" + futureVersion + "] or later"));
+        }
     }
 
     public static RepositoryData generateRandomRepoData() {

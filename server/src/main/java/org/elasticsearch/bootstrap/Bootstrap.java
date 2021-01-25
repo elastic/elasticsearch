@@ -235,6 +235,10 @@ final class Bootstrap {
     }
 
     static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
+        return loadSecureSettings(initialEnv, System.in);
+    }
+
+    static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
         final KeyStoreWrapper keystore;
         try {
             keystore = KeyStoreWrapper.load(initialEnv.configFile());
@@ -245,7 +249,7 @@ final class Bootstrap {
         SecureString password;
         try {
             if (keystore != null && keystore.hasPassword()) {
-                password = readPassphrase(System.in, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
+                password = readPassphrase(stdin, KeyStoreAwareCommand.MAX_PASSPHRASE_LENGTH);
             } else {
                 password = new SecureString(new char[0]);
             }
@@ -363,6 +367,14 @@ final class Bootstrap {
                     + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
                 System.getProperty("java.home"));
             DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
+        }
+        if (BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection") != null) {
+            final String message = String.format(
+                Locale.ROOT,
+                "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; " +
+                    "this option is deprecated and non-functional and should be removed from Java configuration.",
+                BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection"));
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate("strict_duplicate_detection_setting_removed", message);
         }
         if (environment.pidFile() != null) {
             try {

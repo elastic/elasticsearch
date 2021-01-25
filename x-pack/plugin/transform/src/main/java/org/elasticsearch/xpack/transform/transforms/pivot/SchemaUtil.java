@@ -12,7 +12,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
-import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.collect.Tuple;
@@ -24,11 +23,14 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.PivotConfig;
 
 import java.math.BigDecimal;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
+import static org.elasticsearch.xpack.transform.transforms.common.DocumentConversionUtils.extractFieldMappings;
 
 public final class SchemaUtil {
     private static final Logger logger = LogManager.getLogger(SchemaUtil.class);
@@ -249,12 +251,11 @@ public final class SchemaUtil {
     /*
      * Very "magic" helper method to extract the source mappings
      */
-    private static void getSourceFieldMappings(
-        Client client,
-        String[] index,
-        String[] fields,
-        ActionListener<Map<String, String>> listener
-    ) {
+    static void getSourceFieldMappings(Client client, String[] index, String[] fields, ActionListener<Map<String, String>> listener) {
+        if (index == null || index.length == 0 || fields == null || fields.length == 0) {
+            listener.onResponse(Collections.emptyMap());
+            return;
+        }
         FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest().indices(index)
             .fields(fields)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
@@ -263,23 +264,6 @@ public final class SchemaUtil {
             fieldCapabilitiesRequest,
             ActionListener.wrap(response -> listener.onResponse(extractFieldMappings(response)), listener::onFailure)
         );
-    }
-
-    private static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
-        Map<String, String> extractedTypes = new HashMap<>();
-
-        response.get()
-            .forEach(
-                (fieldName, capabilitiesMap) -> {
-                    // TODO: overwrites types, requires resolve if
-                    // types are mixed
-                    capabilitiesMap.forEach((name, capability) -> {
-                        logger.trace(() -> new ParameterizedMessage("Extracted type for [{}] : [{}]", fieldName, capability.getType()));
-                        extractedTypes.put(fieldName, capability.getType());
-                    });
-                }
-            );
-        return extractedTypes;
     }
 
     /**

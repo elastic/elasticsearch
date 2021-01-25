@@ -321,6 +321,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(unfollowResponse.isAcknowledged(), is(true));
 
             CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followIndex);
+            closeIndexRequest.waitForActiveShards(ActiveShardCount.from(0));
             assertThat(client.indices().close(closeIndexRequest, RequestOptions.DEFAULT).isAcknowledged(), is(true));
         }
 
@@ -353,6 +354,7 @@ public class CCRDocumentationIT extends ESRestHighLevelClientTestCase {
             assertThat(unfollowResponse.isAcknowledged(), is(true));
 
             CloseIndexRequest closeIndexRequest = new CloseIndexRequest(followIndex);
+            closeIndexRequest.waitForActiveShards(ActiveShardCount.from(0));
             assertThat(client.indices().close(closeIndexRequest, RequestOptions.DEFAULT).isAcknowledged(), is(true));
         }
 

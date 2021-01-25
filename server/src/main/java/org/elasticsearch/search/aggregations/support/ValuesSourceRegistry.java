@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.support;
 
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 
@@ -33,8 +33,8 @@ import java.util.stream.Collectors;
 
 /**
  * {@link ValuesSourceRegistry} holds the mapping from {@link ValuesSourceType}s to functions for building aggregation components.  DO NOT
- * directly instantiate this class, instead get an already-configured copy from {@link QueryShardContext#getValuesSourceRegistry()}, or (in
- * the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
+ * directly instantiate this class, instead get an already-configured copy from {@link SearchExecutionContext#getValuesSourceRegistry()},
+ * or (in the case of some test scenarios only) directly from {@link SearchModule#getValuesSourceRegistry()}
  *
  */
 public class ValuesSourceRegistry {

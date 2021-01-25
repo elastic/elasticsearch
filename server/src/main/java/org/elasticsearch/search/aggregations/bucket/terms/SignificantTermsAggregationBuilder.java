@@ -129,7 +129,7 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
 
     @Override
     protected ValuesSourceType defaultValueSourceType() {
-        return CoreValuesSourceType.BYTES;
+        return CoreValuesSourceType.KEYWORD;
     }
 
     @Override
@@ -137,16 +137,16 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
         return new SignificantTermsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (filterBuilder != null) {
-            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryShardContext);
+            QueryBuilder rewrittenFilter = filterBuilder.rewrite(queryRewriteContext);
             if (rewrittenFilter != filterBuilder) {
                 SignificantTermsAggregationBuilder rewritten = shallowCopy(factoriesBuilder, metadata);
                 rewritten.backgroundFilter(rewrittenFilter);
                 return rewritten;
             }
         }
-        return super.doRewrite(queryShardContext);
+        return super.doRewrite(queryRewriteContext);
     }
 
     @Override
@@ -297,8 +297,11 @@ public class SignificantTermsAggregationBuilder extends ValuesSourceAggregationB
                                                        AggregatorFactory parent,
                                                        AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
         SignificanceHeuristic executionHeuristic = significanceHeuristic.rewrite(context);
+
+        SignificantTermsAggregatorSupplier aggregatorSupplier =
+            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
         return new SignificantTermsAggregatorFactory(name, config, includeExclude, executionHint, filterBuilder,
-                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metadata);
+                bucketCountThresholds, executionHeuristic, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override

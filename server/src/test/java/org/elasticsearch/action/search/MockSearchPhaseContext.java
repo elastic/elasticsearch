@@ -118,7 +118,7 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     }
 
     @Override
-    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt) {
+    public ShardSearchRequest buildShardSearchRequest(SearchShardIterator shardIt, int shardIndex) {
         Assert.fail("should not be called");
         return null;
     }
@@ -150,5 +150,10 @@ public final class MockSearchPhaseContext implements SearchPhaseContext {
     @Override
     public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
         releasedSearchContexts.add(contextId);
+    }
+
+    @Override
+    public boolean isPartOfPointInTime(ShardSearchContextId contextId) {
+        return false;
     }
 }

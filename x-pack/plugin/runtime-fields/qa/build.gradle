@@ -27,12 +27,12 @@ subprojects {
       }
     }
 
-    testClusters.yamlRestTest {
+    testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       testDistribution = 'DEFAULT'
       setting 'xpack.license.self_generated.type', 'trial'
     }
 
-    yamlRestTest {
+    tasks.named("yamlRestTest").configure {
       def suites = [
         'async_search',
         'search',
@@ -44,7 +44,7 @@ subprojects {
       ]
       if (project.name.equals('core-with-mapped')) {
         //disabled until runtime fields can be created from a dynamic template
-        yamlRestTest.enabled = false
+        enabled = false
         suites += [
           // These two don't support runtime fields on the request. Should they?
           'field_caps',
@@ -73,6 +73,7 @@ subprojects {
           //dynamic template causes a type _doc to be created, these tests use another type but only one type is allowed 
           'search.aggregation/51_filter_with_types/*',
           'search/171_terms_query_with_types/*',
+          'search/340_type_query/type query',
           'msearch/12_basic_with_types/*'
           /////// NOT SUPPORTED ///////
         ].join(',')

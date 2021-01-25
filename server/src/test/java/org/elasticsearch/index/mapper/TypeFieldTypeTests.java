@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
 
@@ -30,7 +30,7 @@ import java.util.Arrays;
 public class TypeFieldTypeTests extends ESTestCase {
 
     public void testTermsQuery() {
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
 
         TypeFieldMapper.TypeFieldType ft = new TypeFieldMapper.TypeFieldType("_doc");
         Query query = ft.termQuery("my_type", context);

@@ -198,5 +198,14 @@ public class RemoteConnectionManager implements ConnectionManager {
         public Version getVersion() {
             return connection.getVersion();
         }
+
+        @Override
+        public Object getCacheKey() {
+            return connection.getCacheKey();
+        }
+
+        Transport.Connection getConnection() {
+            return connection;
+        }
     }
 }

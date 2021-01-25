@@ -84,8 +84,12 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
                 // Since we use a multi-stage Docker build, check the Docker version meets minimum requirement
                 lastResult = runCommand(dockerPath, "version", "--format", "{{.Server.Version}}");
 
-                if (lastResult.isSuccess()) {
-                    version = Version.fromString(lastResult.stdout.trim(), Version.Mode.RELAXED);
+                var lastResultOutput = lastResult.stdout.trim();
+                // docker returns 0/success if the daemon is not running, so we need to check the
+                // output before continuing
+                if (lastResult.isSuccess() && dockerDaemonIsRunning(lastResultOutput)) {
+
+                    version = Version.fromString(lastResultOutput, Version.Mode.RELAXED);
 
                     isVersionHighEnough = version.onOrAfter(MINIMUM_DOCKER_VERSION);
 
@@ -115,6 +119,10 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         }
 
         return this.dockerAvailability;
+    }
+
+    private boolean dockerDaemonIsRunning(String lastResultOutput) {
+        return lastResultOutput.contains("Cannot connect to the Docker daemon") == false;
     }
 
     /**

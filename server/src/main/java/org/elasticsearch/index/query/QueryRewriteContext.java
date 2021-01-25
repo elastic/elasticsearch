@@ -69,9 +69,13 @@ public class QueryRewriteContext {
     }
 
     /**
-     * Returns an instance of {@link QueryShardContext} if available of null otherwise
+     * Returns an instance of {@link SearchExecutionContext} if available of null otherwise
      */
-    public QueryShardContext convertToShardContext() {
+    public SearchExecutionContext convertToSearchExecutionContext() {
+        return null;
+    }
+
+    public CoordinatorRewriteContext convertToCoordinatorRewriteContext() {
         return null;
     }
 

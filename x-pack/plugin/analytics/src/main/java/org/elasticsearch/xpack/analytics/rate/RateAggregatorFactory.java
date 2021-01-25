@@ -26,6 +26,8 @@ import java.util.Map;
 
 class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    private final RateAggregatorSupplier aggregatorSupplier;
+
     private final Rounding.DateTimeUnit rateUnit;
 
     private final RateMode rateMode;
@@ -38,9 +40,12 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
-        Map<String, Object> metadata
+        Map<String, Object> metadata,
+        RateAggregatorSupplier aggregatorSupplier
     ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
+
+        this.aggregatorSupplier = aggregatorSupplier;
         this.rateUnit = rateUnit;
         this.rateMode = rateMode;
     }
@@ -76,8 +81,7 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
         CardinalityUpperBound bucketCardinality,
         Map<String, Object> metadata
     ) throws IOException {
-        return context.getValuesSourceRegistry()
-            .getAggregator(RateAggregationBuilder.REGISTRY_KEY, config)
+        return aggregatorSupplier
             .build(name, config, rateUnit, rateMode, context, parent, metadata);
     }
 }

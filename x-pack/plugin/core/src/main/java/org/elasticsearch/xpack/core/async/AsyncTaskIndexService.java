@@ -67,14 +67,16 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
     public static final String EXPIRATION_TIME_FIELD = "expiration_time";
     public static final String RESULT_FIELD = "result";
 
-    private static Settings settings() {
+    static Settings settings() {
         return Settings.builder()
+            .put("index.codec", "best_compression")
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
             .build();
     }
 
-    private static XContentBuilder mappings() throws IOException {
+    static XContentBuilder mappings() throws IOException {
         XContentBuilder builder = jsonBuilder()
             .startObject()
                 .startObject(SINGLE_MAPPING_NAME)
@@ -197,7 +199,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 .id(docId)
                 .doc(source, XContentType.JSON)
                 .retryOnConflict(5);
-            client.update(request, listener);
+            // updates create the index automatically if it doesn't exist so we force the creation
+            // preemptively.
+            createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
         }
@@ -215,7 +219,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
             .id(docId)
             .doc(source, XContentType.JSON)
             .retryOnConflict(5);
-        client.update(request, listener);
+        // updates create the index automatically if it doesn't exist so we force the creation
+        // preemptively.
+        createIndexIfNecessary(ActionListener.wrap(v -> client.update(request, listener), listener::onFailure));
     }
 
     /**
@@ -225,7 +231,9 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                                ActionListener<DeleteResponse> listener) {
         try {
             DeleteRequest request = new DeleteRequest(index).id(asyncExecutionId.getDocId());
-            client.delete(request, listener);
+            // deletes create the index automatically if it doesn't exist so we force the creation
+            // preemptively.
+            createIndexIfNecessary(ActionListener.wrap(v -> client.delete(request, listener), listener::onFailure));
         } catch(Exception e) {
             listener.onFailure(e);
         }

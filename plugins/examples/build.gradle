@@ -6,7 +6,6 @@ gradle.projectsEvaluated {
     project.tasks.matching { it.name.equals('assemble') }.configureEach {
       enabled = false
     }
-
     // Disable example project testing with FIPS JVM
     tasks.withType(Test) {
       onlyIf {

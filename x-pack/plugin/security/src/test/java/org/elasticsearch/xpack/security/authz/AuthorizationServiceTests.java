@@ -44,6 +44,9 @@ import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
+import org.elasticsearch.action.bulk.BulkShardResponse;
+import org.elasticsearch.action.bulk.MappingUpdatePerformer;
+import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetAction;
@@ -65,11 +68,13 @@ import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.update.UpdateAction;
+import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
@@ -91,9 +96,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThreadContext.StoredContext;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.XPackLicenseState.Feature;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -141,13 +148,16 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
+import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.sql.action.SqlQueryAction;
 import org.elasticsearch.xpack.sql.action.SqlQueryRequest;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
+import org.mockito.Mockito;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -162,12 +172,17 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAs;
+import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
@@ -175,6 +190,7 @@ import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -192,6 +208,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.verifyZeroInteractions;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationServiceTests extends ESTestCase {
@@ -203,6 +220,8 @@ public class AuthorizationServiceTests extends ESTestCase {
     private ThreadPool threadPool;
     private Map<String, RoleDescriptor> roleMap = new HashMap<>();
     private CompositeRolesStore rolesStore;
+    private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
+    private boolean shouldFailOperatorPrivilegesCheck = false;
 
     @SuppressWarnings("unchecked")
     @Before
@@ -259,9 +278,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(rolesStore).getRoles(any(User.class), any(Authentication.class), any(ActionListener.class));
         roleMap.put(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName(), ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
+        operatorPrivilegesService = mock(OperatorPrivileges.OperatorPrivilegesService.class);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings),
-            null, Collections.emptySet(), licenseState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            null, Collections.emptySet(), licenseState, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)),
+            operatorPrivilegesService);
     }
 
     private void authorize(Authentication authentication, String action, TransportRequest request) {
@@ -288,6 +309,16 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizationInfoHeader = mock(AuthorizationInfo.class);
             threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfoHeader);
         }
+        Mockito.reset(operatorPrivilegesService);
+        final AtomicBoolean operatorPrivilegesChecked = new AtomicBoolean(false);
+        final ElasticsearchSecurityException operatorPrivilegesException =
+            new ElasticsearchSecurityException("Operator privileges check failed");
+        if (shouldFailOperatorPrivilegesCheck) {
+            when(operatorPrivilegesService.check(action, request, threadContext)).thenAnswer(invocationOnMock -> {
+                operatorPrivilegesChecked.set(true);
+                return operatorPrivilegesException;
+            });
+        }
         ActionListener<Void> listener = ActionListener.wrap(response -> {
             // extract the authorization transient headers from the thread context of the action
             // that has been authorized
@@ -295,12 +326,16 @@ public class AuthorizationServiceTests extends ESTestCase {
             authorizationInfo.onResponse(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
             indicesPermissions.onResponse(threadContext.getTransient(INDICES_PERMISSIONS_KEY));
             done.onResponse(threadContext.getTransient(someRandomHeader));
+            assertNull(verify(operatorPrivilegesService).check(action, request, threadContext));
         }, e -> {
+            if (shouldFailOperatorPrivilegesCheck && operatorPrivilegesChecked.get()) {
+                assertSame(operatorPrivilegesException, e.getCause());
+            }
             done.onFailure(e);
         });
         authorizationService.authorize(authentication, action, request, listener);
-        Object someRandonHeaderValueInListener = done.actionGet();
-        assertThat(someRandonHeaderValueInListener, sameInstance(someRandomHeaderValue));
+        Object someRandomHeaderValueInListener = done.actionGet();
+        assertThat(someRandomHeaderValueInListener, sameInstance(someRandomHeaderValue));
         assertThat(threadContext.getTransient(someRandomHeader), sameInstance(someRandomHeaderValue));
         // authorization restores any previously existing transient headers
         if (mockAccessControlHeader != null) {
@@ -357,6 +392,21 @@ public class AuthorizationServiceTests extends ESTestCase {
                 authzInfoRoles(new String[] { SystemUser.ROLE_NAME }));
         }
 
+        verifyNoMoreInteractions(auditTrail);
+    }
+
+    public void testAuthorizationForSecurityChange() {
+        final Authentication authentication = createAuthentication(new User("user", "manage_security_role"));
+        final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
+        RoleDescriptor role = new RoleDescriptor("manage_security_role", new String[]{ClusterPrivilegeResolver.MANAGE_SECURITY.name()},
+                null,null, null, null, null, null);
+        roleMap.put("manage_security_role", role);
+        for (String action : LoggingAuditTrail.SECURITY_CHANGE_ACTIONS) {
+            TransportRequest request = mock(TransportRequest.class);
+            authorize(authentication, action, request);
+            verify(auditTrail).accessGranted(eq(requestId), eq(authentication), eq(action), eq(request),
+                    authzInfoRoles(new String[]{role.getName()}));
+        }
         verifyNoMoreInteractions(auditTrail);
     }
 
@@ -550,6 +600,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             authzInfoRoles(Role.EMPTY.names()));
         verifyNoMoreInteractions(auditTrail);
     }
+
     /**
      * Verifies that the behaviour tested in {@link #testUserWithNoRolesCanPerformRemoteSearch}
      * does not work for requests that are not remote-index-capable.
@@ -830,6 +881,73 @@ public class AuthorizationServiceTests extends ESTestCase {
         verify(state, times(1)).metadata();
     }
 
+    public void testDenialErrorMessagesForSearchAction() throws IOException {
+        RoleDescriptor role = new RoleDescriptor("some_indices_" + randomAlphaOfLengthBetween(3, 6), null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder().indices("all*").privileges("all").build(),
+            IndicesPrivileges.builder().indices("read*").privileges("read").build(),
+            IndicesPrivileges.builder().indices("write*").privileges("write").build()
+        }, null);
+        User user = new User(randomAlphaOfLengthBetween(6, 8), role.getName());
+        final Authentication authentication = createAuthentication(user);
+        roleMap.put(role.getName(), role);
+
+        AuditUtil.getOrGenerateRequestId(threadContext);
+
+        TransportRequest request = new SearchRequest("all-1", "read-2", "write-3", "other-4");
+
+        ElasticsearchSecurityException securityException = expectThrows(ElasticsearchSecurityException.class,
+            () -> authorize(authentication, SearchAction.NAME, request));
+        assertThat(securityException, throwableWithMessage(
+            containsString("[" + SearchAction.NAME + "] is unauthorized for user [" + user.principal() + "] on indices [")));
+        assertThat(securityException, throwableWithMessage(containsString("write-3")));
+        assertThat(securityException, throwableWithMessage(containsString("other-4")));
+        assertThat(securityException, throwableWithMessage(not(containsString("all-1"))));
+        assertThat(securityException, throwableWithMessage(not(containsString("read-2"))));
+        assertThat(securityException, throwableWithMessage(containsString(", this action is granted by the privileges [read,all]")));
+    }
+
+    public void testDenialErrorMessagesForBulkIngest() throws Exception {
+        final String index = randomAlphaOfLengthBetween(5, 12);
+        RoleDescriptor role = new RoleDescriptor("some_indices_" + randomAlphaOfLengthBetween(3, 6), null, new IndicesPrivileges[]{
+            IndicesPrivileges.builder().indices(index).privileges(BulkAction.NAME).build()
+        }, null);
+        User user = new User(randomAlphaOfLengthBetween(6, 8), role.getName());
+        final Authentication authentication = createAuthentication(user);
+        roleMap.put(role.getName(), role);
+
+        AuditUtil.getOrGenerateRequestId(threadContext);
+
+        final BulkShardRequest request = new BulkShardRequest(
+            new ShardId(index, randomAlphaOfLength(24), 1),
+            WriteRequest.RefreshPolicy.NONE,
+            new BulkItemRequest[]{
+                new BulkItemRequest(0,
+                    new IndexRequest(index).id("doc-1").opType(DocWriteRequest.OpType.CREATE).source(singletonMap("field", "value"))),
+                new BulkItemRequest(1,
+                    new IndexRequest(index).id("doc-2").opType(DocWriteRequest.OpType.INDEX).source(singletonMap("field", "value"))),
+                new BulkItemRequest(2, new DeleteRequest(index, "doc-3"))
+            });
+
+        authorize(authentication, TransportShardBulkAction.ACTION_NAME, request);
+
+        MappingUpdatePerformer mappingUpdater = (m, s, t, l) -> l.onResponse(null);
+        Consumer<ActionListener<Void>> waitForMappingUpdate = l -> l.onResponse(null);
+        PlainActionFuture<TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse>> future = new PlainActionFuture<>();
+        IndexShard indexShard = mock(IndexShard.class);
+        TransportShardBulkAction.performOnPrimary(request, indexShard, new UpdateHelper(mock(ScriptService.class)),
+            System::currentTimeMillis, mappingUpdater, waitForMappingUpdate, future, threadPool, ThreadPool.Names.WRITE);
+
+        TransportReplicationAction.PrimaryResult<BulkShardRequest, BulkShardResponse> result = future.get();
+        BulkShardResponse response = result.finalResponseIfSuccessful;
+        assertThat(response, notNullValue());
+        assertThat(response.getResponses(), arrayWithSize(3));
+        assertThat(response.getResponses()[0].getFailureMessage(), containsString("unauthorized for user [" + user.principal() + "]"));
+        assertThat(response.getResponses()[0].getFailureMessage(), containsString("on indices [" + index + "]"));
+        assertThat(response.getResponses()[0].getFailureMessage(), containsString("[create_doc,create,index,write,all]") );
+        assertThat(response.getResponses()[1].getFailureMessage(), containsString("[create,index,write,all]") );
+        assertThat(response.getResponses()[2].getFailureMessage(), containsString("[delete,write,all]") );
+    }
+
     public void testDenialForAnonymousUser() throws IOException {
         TransportRequest request = new GetIndexRequest().indices("b");
         ClusterState state = mockEmptyMetadata();
@@ -837,7 +955,8 @@ public class AuthorizationServiceTests extends ESTestCase {
         final AnonymousUser anonymousUser = new AnonymousUser(settings);
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, anonymousUser, null, Collections.emptySet(),
-            new XPackLicenseState(settings, () -> 0), new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            new XPackLicenseState(settings, () -> 0),
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), operatorPrivilegesService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[] { IndicesPrivileges.builder().indices("a").privileges("all").build() }, null);
@@ -866,7 +985,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(settings, rolesStore, clusterService, auditTrailService,
             new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool, new AnonymousUser(settings), null,
             Collections.emptySet(), new XPackLicenseState(settings, () -> 0),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), operatorPrivilegesService);
 
         RoleDescriptor role = new RoleDescriptor("a_all", null,
             new IndicesPrivileges[]{IndicesPrivileges.builder().indices("a").privileges("all").build()}, null);
@@ -1610,7 +1729,7 @@ public class AuthorizationServiceTests extends ESTestCase {
         authorizationService = new AuthorizationService(Settings.EMPTY, rolesStore, clusterService,
             auditTrailService, new DefaultAuthenticationFailureHandler(Collections.emptyMap()), threadPool,
             new AnonymousUser(Settings.EMPTY), engine, Collections.emptySet(), licenseState,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
+            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)), operatorPrivilegesService);
         Authentication authentication;
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             authentication = createAuthentication(new User("test user", "a_all"));
@@ -1673,6 +1792,17 @@ public class AuthorizationServiceTests extends ESTestCase {
             assertThat(authorizationService.getAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
             assertThat(authorizationService.getRunAsAuthorizationEngine(authentication), instanceOf(RBACEngine.class));
         }
+    }
+
+    public void testOperatorPrivileges() {
+        shouldFailOperatorPrivilegesCheck = true;
+        AuditUtil.getOrGenerateRequestId(threadContext);
+        final Authentication authentication = createAuthentication(new User("user1", "role1"));
+        assertThrowsAuthorizationException(
+            () -> authorize(authentication, "cluster:admin/whatever", mock(TransportRequest.class)),
+            "cluster:admin/whatever", "user1");
+        // The operator related exception is verified in the authorize(...) call
+        verifyZeroInteractions(auditTrail);
     }
 
     static AuthorizationInfo authzInfoRoles(String[] expectedRoles) {

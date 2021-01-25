@@ -46,7 +46,7 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -100,6 +100,16 @@ public final class DateFieldMapper extends FieldMapper {
             }
 
             @Override
+            public long roundDownToMillis(long value) {
+                return value;
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                return value;
+            }
+
+            @Override
             protected Query distanceFeatureQuery(String field, float boost, long origin, TimeValue pivot) {
                 return LongPoint.newDistanceFeatureQuery(field, boost, origin, pivot.getMillis());
             }
@@ -122,7 +132,22 @@ public final class DateFieldMapper extends FieldMapper {
 
             @Override
             public long parsePointAsMillis(byte[] value) {
-                return DateUtils.toMilliSeconds(LongPoint.decodeDimension(value, 0));
+                return roundDownToMillis(LongPoint.decodeDimension(value, 0));
+            }
+
+            @Override
+            public long roundDownToMillis(long value) {
+                return DateUtils.toMilliSeconds(value);
+            }
+
+            @Override
+            public long roundUpToMillis(long value) {
+                if (value <= 0L) {
+                    // if negative then throws an IAE; if zero then return zero
+                    return DateUtils.toMilliSeconds(value);
+                } else {
+                    return DateUtils.toMilliSeconds(value - 1L) + 1L;
+                }
             }
 
             @Override
@@ -167,6 +192,16 @@ public final class DateFieldMapper extends FieldMapper {
          * Decode the points representation of this field as milliseconds.
          */
         public abstract long parsePointAsMillis(byte[] value);
+
+        /**
+         * Round the given raw value down to a number of milliseconds since the epoch.
+         */
+        public abstract long roundDownToMillis(long value);
+
+        /**
+         * Round the given raw value up to a number of milliseconds since the epoch.
+         */
+        public abstract long roundUpToMillis(long value);
 
         public static Resolution ofOrdinal(int ord) {
             for (Resolution resolution : values()) {
@@ -324,7 +359,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             DateFormatter defaultFormatter = dateTimeFormatter();
             DateFormatter formatter = format != null
                 ? DateFormatter.forPattern(format).withLocale(defaultFormatter.locale())
@@ -342,7 +377,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+        public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             Query query = rangeQuery(value, value, true, true, ShapeRelation.INTERSECTS, null, null, context);
             if (boost() != 1f) {
                 query = new BoostQuery(query, boost());
@@ -352,7 +387,7 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, ShapeRelation relation,
-                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, QueryShardContext context) {
+                                @Nullable ZoneId timeZone, @Nullable DateMathParser forcedDateParser, SearchExecutionContext context) {
             failIfNotIndexed();
             if (relation == ShapeRelation.DISJOINT) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() +
@@ -382,7 +417,7 @@ public final class DateFieldMapper extends FieldMapper {
             boolean includeUpper,
             @Nullable ZoneId timeZone,
             DateMathParser parser,
-            QueryShardContext context,
+            SearchExecutionContext context,
             Resolution resolution,
             BiFunction<Long, Long, Query> builder
         ) {
@@ -414,7 +449,7 @@ public final class DateFieldMapper extends FieldMapper {
          * @param builder build the query
          * @return the result of the builder, wrapped in {@link DateRangeIncludingNowQuery} if {@code now} was used.
          */
-        public static Query handleNow(QueryShardContext context, Function<LongSupplier, Query> builder) {
+        public static Query handleNow(SearchExecutionContext context, Function<LongSupplier, Query> builder) {
             boolean[] nowUsed = new boolean[1];
             LongSupplier nowSupplier = () -> {
                 nowUsed[0] = true;
@@ -441,7 +476,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query distanceFeatureQuery(Object origin, String pivot, QueryShardContext context) {
+        public Query distanceFeatureQuery(Object origin, String pivot, SearchExecutionContext context) {
             long originLong = parseToLong(origin, true, null, null, context::nowInMillis);
             TimeValue pivotTime = TimeValue.parseTimeValue(pivot, "distance_feature.pivot");
             // As we already apply boost in AbstractQueryBuilder::toQuery, we always passing a boost of 1.0 to distanceFeatureQuery
@@ -450,6 +485,20 @@ public final class DateFieldMapper extends FieldMapper {
 
         @Override
         public Relation isFieldWithinQuery(IndexReader reader,
+                                           Object from, Object to, boolean includeLower, boolean includeUpper,
+                                           ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
+            if (PointValues.size(reader, name()) == 0) {
+                // no points, so nothing matches
+                return Relation.DISJOINT;
+            }
+
+            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
+            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
+
+            return isFieldWithinQuery(minValue, maxValue, from, to, includeLower, includeUpper, timeZone, dateParser, context);
+        }
+
+        public Relation isFieldWithinQuery(long minValue, long maxValue,
                                            Object from, Object to, boolean includeLower, boolean includeUpper,
                                            ZoneId timeZone, DateMathParser dateParser, QueryRewriteContext context) throws IOException {
             if (dateParser == null) {
@@ -477,14 +526,6 @@ public final class DateFieldMapper extends FieldMapper {
                     --toInclusive;
                 }
             }
-
-            if (PointValues.size(reader, name()) == 0) {
-                // no points, so nothing matches
-                return Relation.DISJOINT;
-            }
-
-            long minValue = LongPoint.decodeDimension(PointValues.getMinPackedValue(reader, name()), 0);
-            long maxValue = LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, name()), 0);
 
             if (minValue >= fromInclusive && maxValue <= toInclusive) {
                 return Relation.WITHIN;

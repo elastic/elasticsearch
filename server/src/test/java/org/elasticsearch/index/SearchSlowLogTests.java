@@ -30,7 +30,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -82,10 +81,9 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     }
 
     protected SearchContext createSearchContext(IndexService indexService, String... groupStats) {
-        BigArrays bigArrays = indexService.getBigArrays();
         final ShardSearchRequest request =
             new ShardSearchRequest(new ShardId(indexService.index(), 0), new String[0], 0L, null);
-        return new TestSearchContext(bigArrays, indexService) {
+        return new TestSearchContext(indexService) {
             @Override
             public List<String> groupStats() {
                 return Arrays.asList(groupStats);
@@ -246,16 +244,16 @@ public class SearchSlowLogTests extends ESSingleNodeTestCase {
     public void testSlowLogWithTypes() throws IOException {
         IndexService index = createIndex("foo");
         SearchContext searchContext = searchContextWithSourceAndTask(index);
-        searchContext.getQueryShardContext().setTypes("type1", "type2");
+        searchContext.getSearchExecutionContext().setTypes("type1", "type2");
         SearchSlowLog.SearchSlowLogMessage p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
 
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\", \\\"type2\\\"]"));
 
-        searchContext.getQueryShardContext().setTypes("type1");
+        searchContext.getSearchExecutionContext().setTypes("type1");
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[\\\"type1\\\"]"));
 
-        searchContext.getQueryShardContext().setTypes();
+        searchContext.getSearchExecutionContext().setTypes();
         p = new SearchSlowLog.SearchSlowLogMessage(searchContext, 10);
         assertThat(p.getValueFor("types"), equalTo("[]"));
     }

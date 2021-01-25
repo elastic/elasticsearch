@@ -189,7 +189,7 @@ public class AnnotationPersisterTests extends ESTestCase {
             .persistAnnotation("1", AnnotationTests.randomAnnotation(JOB_ID))
             .persistAnnotation("2", AnnotationTests.randomAnnotation(JOB_ID));
         ElasticsearchException e = expectThrows(ElasticsearchException.class, persisterBuilder::executeRequest);
-        assertThat(e.getMessage(), containsString("failed to index after"));
+        assertThat(e.getMessage(), containsString("Failed execution"));
 
         verify(client, atLeastOnce()).execute(eq(BulkAction.INSTANCE), bulkRequestCaptor.capture(), any());
 

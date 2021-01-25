@@ -112,4 +112,25 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(exception.getMetadata("es.processor_tag").get(0), equalTo(processorTag));
     }
 
+    public void testCreateWithCopyFrom() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("copy_from", "field2");
+        String processorTag = randomAlphaOfLength(10);
+        SetProcessor setProcessor = factory.create(null, processorTag, null, config);
+        assertThat(setProcessor.getTag(), equalTo(processorTag));
+        assertThat(setProcessor.getField().newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(setProcessor.getCopyFrom(), equalTo("field2"));
+    }
+
+    public void testCreateWithCopyFromAndValue() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("copy_from", "field2");
+        config.put("value", "value1");
+        String processorTag = randomAlphaOfLength(10);
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class,
+            () -> factory.create(null, processorTag, null, config));
+        assertThat(exception.getMessage(), equalTo("[copy_from] cannot set both `copy_from` and `value` in the same processor"));
+    }
 }

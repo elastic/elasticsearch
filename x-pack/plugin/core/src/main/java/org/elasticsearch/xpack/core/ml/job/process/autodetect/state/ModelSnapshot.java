@@ -80,7 +80,7 @@ public class ModelSnapshot implements ToXContentObject, Writeable {
         return parser;
     }
 
-    private static String EMPTY_SNAPSHOT_ID = "empty";
+    public static String EMPTY_SNAPSHOT_ID = "empty";
 
     private final String jobId;
 

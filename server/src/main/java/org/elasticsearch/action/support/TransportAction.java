@@ -31,6 +31,7 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskListener;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -39,21 +40,25 @@ public abstract class TransportAction<Request extends ActionRequest, Response ex
     public final String actionName;
     private final ActionFilter[] filters;
     protected final TaskManager taskManager;
+    protected final Transport.Connection localConnection;
+
     /**
      * @deprecated declare your own logger.
      */
     @Deprecated
     protected Logger logger = LogManager.getLogger(getClass());
 
-    protected TransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
+    protected TransportAction(String actionName, ActionFilters actionFilters,
+                              Transport.Connection localConnection, TaskManager taskManager) {
         this.actionName = actionName;
         this.filters = actionFilters.filters();
+        this.localConnection = localConnection;
         this.taskManager = taskManager;
     }
 
     private Releasable registerChildNode(TaskId parentTask) {
         if (parentTask.isSet()) {
-            return taskManager.registerChildNode(parentTask.getId(), taskManager.localNode());
+            return taskManager.registerChildConnection(parentTask.getId(), localConnection);
         } else {
             return () -> {};
         }

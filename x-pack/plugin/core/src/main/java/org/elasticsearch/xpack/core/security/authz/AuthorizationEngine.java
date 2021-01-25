@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -293,6 +295,14 @@ public interface AuthorizationEngine {
         }
 
         /**
+         * Returns additional context about an authorization failure, if {@link #isGranted()} is false.
+         */
+        @Nullable
+        public String getFailureContext() {
+            return null;
+        }
+
+        /**
          * Returns a new authorization result that is granted and auditable
          */
         public static AuthorizationResult granted() {
@@ -319,6 +329,19 @@ public interface AuthorizationEngine {
         public IndexAuthorizationResult(boolean auditable, IndicesAccessControl indicesAccessControl) {
             super(indicesAccessControl == null || indicesAccessControl.isGranted(), auditable);
             this.indicesAccessControl = indicesAccessControl;
+        }
+
+        @Override
+        public String getFailureContext() {
+            if (isGranted()) {
+                return null;
+            } else {
+                return getFailureDescription(indicesAccessControl.getDeniedIndices());
+            }
+        }
+
+        public static String getFailureDescription(Collection<?> deniedIndices) {
+            return "on indices [" + Strings.collectionToCommaDelimitedString(deniedIndices) + "]";
         }
 
         public IndicesAccessControl getIndicesAccessControl() {

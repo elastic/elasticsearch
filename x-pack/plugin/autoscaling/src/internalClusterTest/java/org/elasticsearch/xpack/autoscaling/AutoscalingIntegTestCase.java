@@ -24,7 +24,6 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(final int nodeOrdinal) {
         final Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
-        builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }
@@ -37,7 +36,6 @@ public abstract class AutoscalingIntegTestCase extends ESIntegTestCase {
     @Override
     protected Settings transportClientSettings() {
         final Settings.Builder builder = Settings.builder().put(super.transportClientSettings());
-        builder.put(Autoscaling.AUTOSCALING_ENABLED_SETTING.getKey(), true);
         builder.put(XPackSettings.SECURITY_ENABLED.getKey(), false);
         return builder.build();
     }

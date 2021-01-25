@@ -24,28 +24,13 @@ public class SpatialFeatureSetUsageTests extends AbstractWireSerializingTestCase
 
     @Override
     protected SpatialFeatureSetUsage createTestInstance() {
-        boolean available = randomBoolean();
-        boolean enabled = randomBoolean();
         SpatialStatsAction.Response statsResponse = randomStatsResponse();
-        return new SpatialFeatureSetUsage(available, enabled, statsResponse);
+        return new SpatialFeatureSetUsage(statsResponse);
     }
 
     @Override
     protected SpatialFeatureSetUsage mutateInstance(SpatialFeatureSetUsage instance) throws IOException {
-        boolean available = instance.available();
-        boolean enabled = instance.enabled();
-        SpatialStatsAction.Response statsResponse = instance.statsResponse();
-        switch (between(0, 1)) {
-            case 0:
-                available = available == false;
-                break;
-            case 1:
-                enabled = enabled == false;
-                break;
-            default:
-                throw new AssertionError("Illegal randomisation branch");
-        }
-        return new SpatialFeatureSetUsage(available, enabled, statsResponse);
+        return null; // no mutations
     }
 
     @Override

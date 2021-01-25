@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -182,15 +181,13 @@ public class Pivot implements Function {
     }
 
     private SearchRequest buildSearchRequest(SourceConfig sourceConfig, Map<String, Object> position, int pageSize) {
-        QueryBuilder queryBuilder = sourceConfig.getQueryConfig().getQuery();
-
-        SearchRequest searchRequest = new SearchRequest(sourceConfig.getIndex());
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+            .query(sourceConfig.getQueryConfig().getQuery())
+            .runtimeMappings(sourceConfig.getRuntimeMappings());
         buildSearchQuery(sourceBuilder, null, pageSize);
-        sourceBuilder.query(queryBuilder);
-        searchRequest.source(sourceBuilder);
-        searchRequest.indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        return searchRequest;
+        return new SearchRequest(sourceConfig.getIndex())
+            .source(sourceBuilder)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
     }
 
     @Override

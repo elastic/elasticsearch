@@ -117,7 +117,6 @@ public class AnalyticsResultProcessor {
                 completeResultsProgress();
             }
             completionLatch.countDown();
-            process.consumeAndCloseOutputStream();
         }
     }
 

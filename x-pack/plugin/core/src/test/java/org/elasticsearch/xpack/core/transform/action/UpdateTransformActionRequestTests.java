@@ -15,6 +15,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdateTests.randomTransformConfigUpdate;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class UpdateTransformActionRequestTests extends AbstractWireSerializingTransformTestCase<Request> {
 
@@ -26,7 +29,6 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
     @Override
     protected Request createTestInstance() {
         Request request = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean());
-
         if (randomBoolean()) {
             request.setConfig(TransformConfigTests.randomTransformConfig());
         }
@@ -46,7 +48,15 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         assertEquals(newRequest.getId(), oldRequest.getId());
         assertEquals(newRequest.getUpdate().getDestination(), oldRequest.getUpdate().getDestination());
         assertEquals(newRequest.getUpdate().getFrequency(), oldRequest.getUpdate().getFrequency());
-        assertEquals(newRequest.getUpdate().getSource(), oldRequest.getUpdate().getSource());
+
+        if (newRequest.getUpdate().getSource() != null) {
+            assertThat(oldRequest.getUpdate().getSource().getIndex(), is(equalTo(newRequest.getUpdate().getSource().getIndex())));
+            assertThat(
+                oldRequest.getUpdate().getSource().getQueryConfig(),
+                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig())));
+            // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
+            assertThat(oldRequest.getUpdate().getSource().getRuntimeMappings(), is(anEmptyMap()));
+        }
         assertEquals(newRequest.getUpdate().getSyncConfig(), oldRequest.getUpdate().getSyncConfig());
         assertEquals(newRequest.isDeferValidation(), oldRequest.isDeferValidation());
 
@@ -61,7 +71,14 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
         assertEquals(newRequest.getId(), newRequestFromOld.getId());
         assertEquals(newRequest.getUpdate().getDestination(), newRequestFromOld.getUpdate().getDestination());
         assertEquals(newRequest.getUpdate().getFrequency(), newRequestFromOld.getUpdate().getFrequency());
-        assertEquals(newRequest.getUpdate().getSource(), newRequestFromOld.getUpdate().getSource());
+        if (newRequest.getUpdate().getSource() != null) {
+            assertThat(newRequestFromOld.getUpdate().getSource().getIndex(), is(equalTo(newRequest.getUpdate().getSource().getIndex())));
+            assertThat(
+                newRequestFromOld.getUpdate().getSource().getQueryConfig(),
+                is(equalTo(newRequest.getUpdate().getSource().getQueryConfig())));
+            // runtime_mappings was added in 7.12 so it is always empty after deserializing from 7.7
+            assertThat(newRequestFromOld.getUpdate().getSource().getRuntimeMappings(), is(anEmptyMap()));
+        }
         assertEquals(newRequest.getUpdate().getSyncConfig(), newRequestFromOld.getUpdate().getSyncConfig());
         assertEquals(newRequest.isDeferValidation(), newRequestFromOld.isDeferValidation());
     }

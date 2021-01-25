@@ -217,12 +217,17 @@ public abstract class Node<T extends Node<T>> {
             transformedChildren.add(next);
         }
 
-        return (childrenChanged ? replaceChildren(transformedChildren) : (T) this);
+        return (childrenChanged ? replaceChildrenSameSize(transformedChildren) : (T) this);
     }
 
-    /**
-     * Replace the children of this node.
-     */
+     public final T replaceChildrenSameSize(List<T> newChildren) {
+        if (newChildren.size() != children.size()) {
+            throw new QlIllegalArgumentException(
+                "Expected the same number of children [" + children.size() + "], but received [" + newChildren.size() + "]");
+        }
+        return replaceChildren(newChildren);
+    }
+
     public abstract T replaceChildren(List<T> newChildren);
 
     //

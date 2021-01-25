@@ -47,7 +47,15 @@ public class RestResourcesExtension {
         spec.execute(restTests);
     }
 
-    static class RestResourcesSpec {
+    public RestResourcesSpec getRestApi() {
+        return restApi;
+    }
+
+    public RestResourcesSpec getRestTests() {
+        return restTests;
+    }
+
+    public static class RestResourcesSpec {
 
         private final ListProperty<String> includeCore;
         private final ListProperty<String> includeXpack;

@@ -70,11 +70,6 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         logger.info(" before test: ds [{}], policy [{}], snapshotRepo [{}]", dataStream, policy, snapshotRepo);
     }
 
-    @Override
-    protected boolean waitForAllSnapshotsWiped() {
-        return true;
-    }
-
     public void testSearchableSnapshotAction() throws Exception {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));

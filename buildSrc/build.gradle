@@ -93,15 +93,15 @@ dependencies {
   api 'commons-codec:commons-codec:1.12'
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
-  api 'com.netflix.nebula:nebula-publishing-plugin:4.4.4'
-  api 'com.netflix.nebula:gradle-info-plugin:9.1.1'
+  api 'com.netflix.nebula:gradle-extra-configurations-plugin:5.0.1'
+  api 'com.netflix.nebula:nebula-publishing-plugin:17.3.2'
+  api 'com.netflix.nebula:gradle-info-plugin:9.2.0'
   api 'org.apache.rat:apache-rat:0.11'
   api "org.elasticsearch:jna:5.5.0"
   api 'com.github.jengelman.gradle.plugins:shadow:6.1.0'
   // When upgrading forbidden apis, ensure dependency version is bumped in ThirdPartyPrecommitPlugin as well
   api 'de.thetaphi:forbiddenapis:3.1'
-  api 'com.avast.gradle:gradle-docker-compose-plugin:0.13.4'
+  api 'com.avast.gradle:gradle-docker-compose-plugin:0.14.0'
   api 'org.apache.maven:maven-model:3.6.2'
   api 'com.networknt:json-schema-validator:1.0.36'
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${props.getProperty('jackson')}"

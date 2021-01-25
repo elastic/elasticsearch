@@ -64,6 +64,7 @@ import java.io.InputStream;
 import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.AccessDeniedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -572,6 +573,19 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 StandardOpenOption.APPEND
             );
         } catch (IOException e) {
+            if (e instanceof AccessDeniedException) {
+
+                Path parent = esStdoutFile.getParent();
+
+                System.out.println("parent = " + parent);
+                try {
+                    Files.getPosixFilePermissions(parent.toAbsolutePath())
+                        .forEach(perm -> { System.out.println("perm. = " + perm.name()); });
+                } catch (IOException ioException) {
+                    ioException.printStackTrace();
+                }
+            }
+
             throw new UncheckedIOException(e);
         }
     }

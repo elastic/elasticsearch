@@ -84,7 +84,7 @@ public class Between extends CaseInsensitiveScalarFunction implements OptionalAr
     }
 
     public Expression right() {
-        return input;
+        return right;
     }
 
     public Expression greedy() {

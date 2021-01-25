@@ -26,8 +26,8 @@ public abstract class BinaryComparisonCaseInsensitiveFunction extends CaseInsens
 
     private final Expression left, right;
 
-    protected BinaryComparisonCaseInsensitiveFunction(Source source, Expression left, Expression right, boolean caseSensitive) {
-        super(source, asList(left, right), caseSensitive);
+    protected BinaryComparisonCaseInsensitiveFunction(Source source, Expression left, Expression right, boolean caseInsensitive) {
+        super(source, asList(left, right), caseInsensitive);
         this.left = left;
         this.right = right;
     }

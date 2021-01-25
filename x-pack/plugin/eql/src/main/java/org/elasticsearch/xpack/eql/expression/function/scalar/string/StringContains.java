@@ -24,8 +24,8 @@ import static org.elasticsearch.xpack.eql.expression.function.scalar.string.Stri
  */
 public class StringContains extends BinaryComparisonCaseInsensitiveFunction {
 
-    public StringContains(Source source, Expression string, Expression substring, boolean caseSensitive) {
-        super(source, string, substring, caseSensitive);
+    public StringContains(Source source, Expression string, Expression substring, boolean caseInsensitive) {
+        super(source, string, substring, caseInsensitive);
     }
 
     public Expression string() {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.datastreams;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.After;
@@ -15,6 +16,8 @@ import org.junit.After;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class DataStreamsRestIT extends ESRestTestCase {
 
@@ -76,5 +79,13 @@ public class DataStreamsRestIT extends ESRestTestCase {
         response = client().performRequest(searchRequest);
         Map<String, Object> results = entityAsMap(response);
         assertEquals(1, XContentMapValues.extractValue("hits.total.value", results));
+    }
+
+    public void testAddingIndexTemplateWithAliasesAndDataStream() {
+        Request putComposableIndexTemplateRequest = new Request("PUT", "/_index_template/my-template");
+        String body = "{\"index_patterns\":[\"mypattern*\"],\"data_stream\":{},\"template\":{\"aliases\":{\"my-alias\":{}}}}";
+        putComposableIndexTemplateRequest.setJsonEntity(body);
+        Exception e = expectThrows(ResponseException.class, () -> client().performRequest(putComposableIndexTemplateRequest));
+        assertThat(e.getMessage(), containsString("template [my-template] has alias and data stream definitions"));
     }
 }

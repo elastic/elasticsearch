@@ -493,14 +493,12 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             // no need to compute these, we'll mark all shards as queued anyway because we wait for the delete
                             inFlightShardStates = null;
                         }
-                        boolean queuedShards = false;
                         for (Tuple<IndexId, Integer> count : counts) {
                             for (int shardId = 0; shardId < count.v2(); shardId++) {
                                 final RepositoryShardId repoShardId = new RepositoryShardId(count.v1(), shardId);
                                 final String indexName = repoShardId.indexName();
                                 if (readyToExecute == false || inFlightShardStates.isActive(indexName, shardId)) {
                                     clonesBuilder.put(repoShardId, ShardSnapshotStatus.UNASSIGNED_QUEUED);
-                                    queuedShards = true;
                                 } else {
                                     clonesBuilder.put(repoShardId, new ShardSnapshotStatus(localNodeId,
                                         inFlightShardStates.generationForShard(repoShardId.index(), shardId, shardGenerations)));
@@ -508,17 +506,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                             }
                         }
                         updatedEntry = cloneEntry.withClones(clonesBuilder.build());
-                        if (queuedShards) {
-                            // We queued up some shards based on the in-flight operations found in all snapshots for the current
-                            // repository, so in order to make sure we don't set a shard to QUEUED before (as in before it in the
-                            // `updatedEntries` list) one that is actively executing we just put it to the back of the list as if we had
-                            // just created the entry
-                            // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
-                            updatedEntries.remove(i);
-                            updatedEntries.add(updatedEntry);
-                        } else {
-                            updatedEntries.set(i, updatedEntry);
-                        }
+                        // Move the now ready to execute clone operation to the back of the snapshot operations order because its
+                        // shard snapshot state was based on all previous existing operations in progress
+                        // TODO: If we could eventually drop the snapshot clone init phase we don't need this any longer
+                        updatedEntries.remove(i);
+                        updatedEntries.add(updatedEntry);
                         changed = true;
                         break;
                     }

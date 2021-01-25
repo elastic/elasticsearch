@@ -43,6 +43,21 @@ dependencies {
   testImplementation "org.elasticsearch:mocksocket:${versions.mocksocket}"
 }
 
+def generateVersionResource = tasks.register("generateVersionResource") {
+  File resourceDir = new File(buildDir, 'generated/resources')
+  File versionFile = new File(resourceDir, 'org/elasticsearch/client/version.properties')
+  processResources.from(resourceDir)
+  outputs.file(versionFile)
+  doLast {
+    versionFile.parentFile.mkdirs()
+    versionFile.setText("elasticsearch-client=${versions.elasticsearch}\n")
+  }
+}
+
+tasks.named("processResources").configure {
+  dependsOn generateVersionResource
+}
+
 tasks.withType(CheckForbiddenApis).configureEach {
   //client does not depend on server, so only jdk and http signatures should be checked
   replaceSignatureFiles('jdk-signatures', 'http-signatures')

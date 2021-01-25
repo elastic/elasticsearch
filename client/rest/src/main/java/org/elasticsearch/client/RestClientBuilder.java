@@ -31,16 +31,15 @@ import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.VersionInfo;
 
 import javax.net.ssl.SSLContext;
-import java.net.URL;
+import java.io.IOException;
+import java.io.InputStream;
 import java.security.AccessController;
-import java.security.CodeSource;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.jar.JarInputStream;
-import java.util.jar.Manifest;
+import java.util.Properties;
 
 /**
  * Helps creating a new {@link RestClient}. Allows to set the most common http client configuration options when internally
@@ -53,6 +52,7 @@ public final class RestClientBuilder {
     public static final int DEFAULT_MAX_CONN_PER_ROUTE = 10;
     public static final int DEFAULT_MAX_CONN_TOTAL = 30;
 
+    static final String VERSION;
     static final String META_HEADER_NAME = "X-Elastic-Client-Meta";
     private static final String META_HEADER_VALUE;
     private static final String USER_AGENT_HEADER_VALUE;
@@ -71,35 +71,38 @@ public final class RestClientBuilder {
     private boolean metaHeaderEnabled = true;
 
     static {
-        String version = ""; // unknown values are reported as empty strings in X-Elastic-Client-Meta
-        final CodeSource codeSource = RestClientBuilder.class.getProtectionDomain().getCodeSource();
-        if (codeSource != null) {
-            URL url = codeSource.getLocation();
-            if (url != null && url.toString().endsWith(".jar")) {
-                try (JarInputStream jar = new JarInputStream(url.openStream())) {
-                    Manifest manifest = jar.getManifest();
-                    String esVersion = manifest.getMainAttributes().getValue("X-Compile-Elasticsearch-Version");
-                    if (esVersion != null) {
-                        version = esVersion;
-                    }
-                } catch (Exception e) {
-                    // Keep version unknown
-                }
+
+        // Never fail on unknown version, even if an environment messed up their classpath enough that we can't find it.
+        // Better have incomplete telemetry than crashing user applications.
+        String version = null;
+        try (InputStream is = RestClient.class.getResourceAsStream("version.properties")) {
+            if (is != null) {
+                Properties versions = new Properties();
+                versions.load(is);
+                version = versions.getProperty("elasticsearch-client");
             }
+        } catch (IOException e) {
+            // Keep version unknown
         }
 
+        if (version == null) {
+            version = ""; // unknown values are reported as empty strings in X-Elastic-Client-Meta
+        }
+
+        VERSION = version;
+
         USER_AGENT_HEADER_VALUE = String.format(Locale.ROOT, "elasticsearch-java/%s (Java/%s)",
-            version.isEmpty() ? "Unknown" : version, System.getProperty("java.version"));
+            VERSION.isEmpty() ? "Unknown" : VERSION, System.getProperty("java.version"));
 
         VersionInfo httpClientVersion = VersionInfo.loadVersionInfo("org.apache.http.nio.client",
             HttpAsyncClientBuilder.class.getClassLoader());
 
         // service, language, transport, followed by additional information
-        META_HEADER_VALUE = "es=" + version +
+        META_HEADER_VALUE = "es=" + VERSION +
             ",jv=" + System.getProperty("java.specification.version") +
-            ",t=" + version +
+            ",t=" + VERSION +
             ",hc=" + (httpClientVersion == null ? "" : httpClientVersion.getRelease()) +
-            RuntimeInfo.getRuntimeMetadata();
+            LanguageRuntimeVersions.getRuntimeMetadata();
     }
 
     /**

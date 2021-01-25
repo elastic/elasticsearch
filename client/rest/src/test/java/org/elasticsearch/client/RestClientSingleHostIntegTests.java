@@ -355,6 +355,11 @@ public class RestClientSingleHostIntegTests extends RestClientTestCase {
         }
     }
 
+    /** Test that we read the version from the version.properties resource */
+    public void testClientVersion() {
+        assertTrue(RestClientBuilder.VERSION.matches("[0-9]+\\.[0-9]+\\.[0-9]+(-.*)?"));
+    }
+
     public void testAgentAndMetaHeader() throws Exception {
         Request request = new Request("GET", "/200");
         Response esResponse = RestClientSingleHostTests.performRequestSyncOrAsync(restClient, request);

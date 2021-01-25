@@ -69,10 +69,23 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
     private String sourceIndex;
     private String destIndex;
 
+    @Before
+    public void setupLogging() {
+        client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler", "DEBUG"))
+            .get();
+    }
 
     @After
     public void cleanup() {
         cleanUp();
+        client().admin().cluster()
+        .prepareUpdateSettings()
+        .setTransientSettings(Settings.builder()
+            .putNull("logger.org.elasticsearch.xpack.ml.process.logging.CppLogMessageHandler"))
+        .get();
     }
 
     @Override
@@ -84,7 +97,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         return new NamedXContentRegistry(entries);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/60340")
     public void testSingleNumericFeatureAndMixedTrainingAndNonTrainingRows() throws Exception {
         initialize("regression_single_numeric_feature_and_mixed_data_set");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";

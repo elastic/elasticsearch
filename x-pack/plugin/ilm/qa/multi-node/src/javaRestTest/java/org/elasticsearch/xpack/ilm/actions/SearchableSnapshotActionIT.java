@@ -55,7 +55,7 @@ import static org.elasticsearch.xpack.TimeSeriesRestDriver.rolloverMaxOneDocCond
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
-@Repeat(iterations = 60)
+@Repeat(iterations = 40)
 public class SearchableSnapshotActionIT extends ESRestTestCase {
 
     private String policy;

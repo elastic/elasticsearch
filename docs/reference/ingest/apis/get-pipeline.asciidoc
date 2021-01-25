@@ -45,7 +45,7 @@ GET /_ingest/pipeline/my-pipeline-id
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
-`read_pipeline`, `manage_pipeline`, `manage_ingest_pipelines`, or `manage`
+`manage_pipeline`, `manage_ingest_pipelines`, or `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
 [[get-pipeline-api-path-params]]

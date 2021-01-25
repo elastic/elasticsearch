@@ -215,7 +215,7 @@ public class CacheService extends AbstractLifecycleComponent {
             cacheSyncTask.close();
         } finally {
             try {
-                processAllPendingShardsEvictions();
+                waitForAllPendingShardsEvictions();
             } finally {
                 try {
                     persistentCache.close();
@@ -450,9 +450,9 @@ public class CacheService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Processes and waits for all pending shard evictions to complete.
+     * Waits for all pending shard evictions to complete.
      */
-    private void processAllPendingShardsEvictions() {
+    private void waitForAllPendingShardsEvictions() {
         synchronized (shardsEvictionsMutex) {
             allowShardsEvictions = false;
         }

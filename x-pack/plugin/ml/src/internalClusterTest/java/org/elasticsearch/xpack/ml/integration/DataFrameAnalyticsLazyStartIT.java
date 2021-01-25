@@ -6,7 +6,6 @@
 package org.elasticsearch.xpack.ml.integration;
 
 import java.util.Collection;
-import java.util.Set;
 
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;

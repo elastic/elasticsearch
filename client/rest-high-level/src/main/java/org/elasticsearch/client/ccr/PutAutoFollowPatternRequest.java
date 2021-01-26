@@ -81,7 +81,7 @@ public final class PutAutoFollowPatternRequest extends FollowConfig implements V
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        if (!super.equals(o)) return false;
+        if (super.equals(o) == false) return false;
         PutAutoFollowPatternRequest that = (PutAutoFollowPatternRequest) o;
         return Objects.equals(name, that.name) &&
             Objects.equals(remoteCluster, that.remoteCluster) &&

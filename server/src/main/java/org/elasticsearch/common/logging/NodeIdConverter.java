@@ -27,6 +27,8 @@ import org.apache.logging.log4j.core.pattern.PatternConverter;
 
 /**
  * Pattern converter to format the node_id variable into JSON fields <code>node.id</code> .
+ * <p>
+ * This is used in `EcsJsonLayout`, which does not use {@link NodeAndClusterIdConverter}.
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeIdConverter")
 @ConverterKeys({"node_id"})

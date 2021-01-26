@@ -24,11 +24,19 @@ setup:
           {"index":{}}
           {"timestamp": "1998-04-30T14:30:17-05:00", "location" : {"lat": 13.5, "lon" : 34.89}}
           {"index":{}}
+          {"timestamp": "1998-04-30T14:30:27-05:00", "location" : [{"lat": 13.0, "lon" : 34.0}, {"lat": 14.0, "lon" : 35.0}]}
+          {"index":{}}
           {"timestamp": "1998-04-30T14:30:53-05:00", "location" : "-7.9, 120.78"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:30:55-05:00", "location" : ["-8, 120", "-7, 121.0"]}
           {"index":{}}
           {"timestamp": "1998-04-30T14:31:12-05:00", "location" : [-173.45, 45.78]}
           {"index":{}}
+          {"timestamp": "1998-04-30T14:31:18-05:00", "location" : [[-174.45, 46.78], [0.0, 1.0]]}
+          {"index":{}}
           {"timestamp": "1998-04-30T14:31:19-05:00", "location" : "POINT(45.6 32.45)"}
+          {"index":{}}
+          {"timestamp": "1998-04-30T14:31:20-05:00", "location" : ["POINT(46.5 33.45)", "POINT(45.4 32.75)"]}
           {"index":{}}
           {"timestamp": "1998-04-30T14:31:22-05:00", "location" : {"lat": -63.24, "lon" : 31.0}}
           {"index":{}}
@@ -51,7 +59,7 @@ setup:
         body:
           sort: timestamp
           fields: [location]
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 10}
   - match: {hits.hits.0.fields.location: ["13.499999991618097, 34.889999935403466"] }
 
 ---
@@ -63,7 +71,7 @@ setup:
           query:
             exists:
               field: location
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 10}
 
 ---
 "geo bounding box query":
@@ -80,7 +88,7 @@ setup:
                 bottom_right:
                   lat: -10
                   lon: 10
-  - match: {hits.total.value: 1}
+  - match: {hits.total.value: 2}
 
 ---
 "geo shape intersects query":
@@ -94,7 +102,7 @@ setup:
                 shape:
                   type: "envelope"
                   coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
-  - match: {hits.total.value: 1}
+  - match: {hits.total.value: 2}
 
 ---
 "geo shape within query":
@@ -124,7 +132,7 @@ setup:
                   type: "envelope"
                   coordinates: [ [ -10, 10 ], [ 10, -10 ] ]
                 relation: disjoint
-  - match: {hits.total.value: 5}
+  - match: {hits.total.value: 8}
 
 ---
 "geo shape contains query":
@@ -153,7 +161,7 @@ setup:
               location:
                 lat: 0
                 lon: 0
-  - match: {hits.total.value: 1}
+  - match: {hits.total.value: 2}
 
 ---
 "bounds agg":
@@ -166,11 +174,11 @@ setup:
               geo_bounds:
                 field: "location"
                 wrap_longitude: false
-  - match: {hits.total.value: 6}
-  - match: {aggregations.bounds.bounds.top_left.lat: 45.7799999602139 }
-  - match: {aggregations.bounds.bounds.top_left.lon: -173.4500000718981 }
+  - match: {hits.total.value: 10}
+  - match: {aggregations.bounds.bounds.top_left.lat: 46.77999998442829 }
+  - match: {aggregations.bounds.bounds.top_left.lon: -174.45000001229346 }
   - match: {aggregations.bounds.bounds.bottom_right.lat: -63.240000014193356 }
-  - match: {aggregations.bounds.bounds.bottom_right.lon: 120.77999993227422 }
+  - match: {aggregations.bounds.bounds.bottom_right.lon: 120.99999999627471 }
 
 ---
 "geo_distance sort":
@@ -183,12 +191,19 @@ setup:
               location:
                 lat: 0.0
                 lon: 0.0
-  - match: {hits.total.value: 6}
+  - match: {hits.total.value: 10}
   - match: {hits.hits.0._source.location.lat: 0.0 }
   - match: {hits.hits.0._source.location.lon: 0.0 }
-  - match: {hits.hits.1._source.location.lat: 13.5 }
-  - match: {hits.hits.1._source.location.lon: 34.89 }
-  - match: {hits.hits.2._source.location: "POINT(45.6 32.45)" }
-  - match: {hits.hits.3._source.location.lat: -63.24 }
-  - match: {hits.hits.3._source.location.lon: 31.0 }
+  - match: {hits.hits.1._source.location.0.0: -174.45 }
+  - match: {hits.hits.1._source.location.0.1: 46.78 }
+  - match: {hits.hits.1._source.location.1.0: 0.0 }
+  - match: {hits.hits.1._source.location.1.1: 1.0 }
+  - match: {hits.hits.2._source.location.0.lat: 13.0 }
+  - match: {hits.hits.2._source.location.0.lon: 34.0 }
+  - match: {hits.hits.2._source.location.1.lat: 14.0 }
+  - match: {hits.hits.2._source.location.1.lon: 35.0 }
+  - match: {hits.hits.3._source.location.lat: 13.5 }
+  - match: {hits.hits.3._source.location.lon: 34.89 }
+  - match: {hits.hits.4._source.location.0: "POINT(46.5 33.45)" }
+  - match: {hits.hits.4._source.location.1: "POINT(45.4 32.75)" }
 

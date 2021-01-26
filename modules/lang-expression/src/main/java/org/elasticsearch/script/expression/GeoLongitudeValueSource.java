@@ -64,7 +64,7 @@ final class GeoLongitudeValueSource extends FieldDataBasedDoubleValuesSource {
         if (obj == null) return false;
         if (getClass() != obj.getClass()) return false;
         GeoLongitudeValueSource other = (GeoLongitudeValueSource) obj;
-        if (!fieldData.equals(other.fieldData)) return false;
+        if (fieldData.equals(other.fieldData) == false) return false;
         return true;
     }
 

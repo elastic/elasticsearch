@@ -395,8 +395,7 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes,
-                           boolean upgrade, boolean upgradeOnlyAncientSegments, String forceMergeUUID) {
+    public void forceMerge(boolean flush, int maxNumSegments, boolean onlyExpungeDeletes, String forceMergeUUID) {
         if (maxNumSegments == ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             // noop
         } else if (maxNumSegments < lastCommittedSegmentInfos.size()) {

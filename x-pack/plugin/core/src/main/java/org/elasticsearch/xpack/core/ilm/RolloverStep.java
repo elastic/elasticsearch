@@ -50,8 +50,16 @@ public class RolloverStep extends AsyncActionStep {
         IndexAbstraction indexAbstraction = currentClusterState.metadata().getIndicesLookup().get(indexName);
         assert indexAbstraction != null : "expected the index " + indexName + " to exist in the lookup but it didn't";
         final String rolloverTarget;
-        if (indexAbstraction.getParentDataStream() != null) {
-            rolloverTarget = indexAbstraction.getParentDataStream().getName();
+        IndexAbstraction.DataStream dataStream = indexAbstraction.getParentDataStream();
+        if (dataStream != null) {
+            assert dataStream.getWriteIndex() != null : "datastream " + dataStream.getName() + " has no write index";
+            if (dataStream.getWriteIndex().getIndex().equals(indexMetadata.getIndex()) == false) {
+                logger.warn("index [{}] is not the write index for data stream [{}]. skipping rollover for policy [{}]",
+                    indexName, dataStream.getName(), LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings()));
+                listener.onResponse(true);
+                return;
+            }
+            rolloverTarget = dataStream.getName();
         } else {
             String rolloverAlias = RolloverAction.LIFECYCLE_ROLLOVER_ALIAS_SETTING.get(indexMetadata.getSettings());
 

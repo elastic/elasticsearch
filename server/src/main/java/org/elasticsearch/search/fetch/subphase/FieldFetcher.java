@@ -26,7 +26,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -44,7 +44,7 @@ import java.util.Set;
  * Then given a specific document, it can retrieve the corresponding fields from the document's source.
  */
 public class FieldFetcher {
-    public static FieldFetcher create(QueryShardContext context,
+    public static FieldFetcher create(SearchExecutionContext context,
                                       SearchLookup searchLookup,
                                       Collection<FieldAndFormat> fieldAndFormats) {
 

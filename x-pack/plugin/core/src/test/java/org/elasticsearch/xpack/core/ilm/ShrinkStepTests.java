@@ -124,7 +124,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         Mockito.verify(indicesClient, Mockito.only()).resizeIndex(Mockito.any(), Mockito.any());
     }
 
-    public void testPerformActionNotComplete() throws Exception {
+    public void testPerformActionIsCompleteForUnAckedRequests() throws Exception {
         LifecycleExecutionState.Builder lifecycleState = LifecycleExecutionState.builder();
         lifecycleState.setIndexCreationDate(randomNonNegativeLong());
         IndexMetadata indexMetadata = IndexMetadata.builder(randomAlphaOfLength(10)).settings(settings(Version.CURRENT))
@@ -153,7 +153,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             }
         });
 
-        assertEquals(false, actionCompleted.get());
+        assertEquals(true, actionCompleted.get());
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

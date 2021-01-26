@@ -302,7 +302,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     @Override
-    public Query doToQuery(QueryShardContext context) {
+    public Query doToQuery(SearchExecutionContext context) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {

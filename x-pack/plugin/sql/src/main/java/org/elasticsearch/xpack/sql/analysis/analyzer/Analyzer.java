@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Foldables;
+import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.ReferenceAttribute;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.Function;
 import org.elasticsearch.xpack.ql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.ql.expression.function.FunctionRegistry;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.Functions;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
@@ -49,6 +51,7 @@ import org.elasticsearch.xpack.ql.type.UnsupportedEsField;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.expression.SubQueryExpression;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionResolution;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.plan.logical.Join;
 import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
@@ -62,6 +65,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -777,7 +781,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
             // LeafPlans are tables and BinaryPlans are joins so pushing can only happen on unary
             if (plan instanceof UnaryPlan) {
-                return plan.replaceChildren(singletonList(propagateMissing(((UnaryPlan) plan).child(), missing, failed)));
+                return plan.replaceChildrenSameSize(singletonList(propagateMissing(((UnaryPlan) plan).child(), missing, failed)));
             }
 
             failed.addAll(missing);
@@ -880,7 +884,17 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 String name = uf.name();
 
                 if (hasStar(uf.arguments())) {
-                    uf = uf.preprocessStar();
+                    FunctionResolutionStrategy strategy = uf.resolutionStrategy();
+                    if (SqlFunctionResolution.DISTINCT == strategy) {
+                        uf = uf.withMessage("* is not valid with DISTINCT");
+                    } else if (SqlFunctionResolution.EXTRACT == strategy) {
+                        uf = uf.withMessage("Can't extract from *");
+                    } else {
+                        if (uf.name().toUpperCase(Locale.ROOT).equals("COUNT")) {
+                            uf = new UnresolvedFunction(uf.source(), uf.name(), strategy,
+                                singletonList(new Literal(uf.arguments().get(0).source(), Integer.valueOf(1), DataTypes.INTEGER)));
+                        }
+                    }
                     if (uf.analyzed()) {
                         return uf;
                     }
@@ -1195,7 +1209,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                     }
                     left = l == common ? left : new Cast(left.source(), left, common);
                     right = r == common ? right : new Cast(right.source(), right, common);
-                    return e.replaceChildren(Arrays.asList(left, right));
+                    return e.replaceChildrenSameSize(Arrays.asList(left, right));
                 }
             }
 

@@ -36,7 +36,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -45,7 +45,7 @@ setup:
                 scaling_factor: 3
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
@@ -58,7 +58,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -67,7 +67,7 @@ setup:
                 pivot: 20
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
@@ -80,7 +80,7 @@ setup:
 
   - do:
       search:
-        rest_total_hits_as_int: true
+        index: test
         body:
           query:
             rank_feature:
@@ -90,10 +90,35 @@ setup:
                 exponent: 0.6
 
   - match:
-      hits.total: 2
+      hits.total.value: 2
 
   - match:
       hits.hits.0._id: "2"
 
   - match:
       hits.hits.1._id: "1"
+
+---
+"Linear":
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            rank_feature:
+              field: tags.bar
+              linear: {}
+
+  - match:
+      hits.total.value: 2
+
+  - match:
+      hits.hits.0._id: "2"
+  - match:
+      hits.hits.0._score: 6.0
+
+  - match:
+      hits.hits.1._id: "1"
+  - match:
+      hits.hits.1._score: 5.0

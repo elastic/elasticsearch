@@ -64,9 +64,6 @@ public class Histogram extends GroupingFunction {
     
     @Override
     public final GroupingFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 2) {
-            throw new IllegalArgumentException("expected [2] children but received [" + newChildren.size() + "]");
-        }
         return new Histogram(source(), newChildren.get(0), newChildren.get(1), zoneId);
     }
 

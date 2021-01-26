@@ -24,7 +24,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -34,10 +33,8 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Stream;
@@ -94,7 +91,6 @@ public class DocumentMapper implements ToXContentFragment {
     }
 
     private final String type;
-    private final Text typeText;
     private final CompressedXContent mappingSource;
     private final DocumentParser documentParser;
     private final MappingLookup mappingLookup;
@@ -106,7 +102,6 @@ public class DocumentMapper implements ToXContentFragment {
                            DocumentParser documentParser,
                            Mapping mapping) {
         this.type = mapping.root().name();
-        this.typeText = new Text(this.type);
         this.documentParser = documentParser;
         this.mappingLookup = MappingLookup.fromMapping(mapping, documentParser, indexSettings, indexAnalyzers);
 
@@ -132,10 +127,6 @@ public class DocumentMapper implements ToXContentFragment {
 
     public String type() {
         return this.type;
-    }
-
-    public Text typeText() {
-        return this.typeText;
     }
 
     public Map<String, Object> meta() {
@@ -170,10 +161,6 @@ public class DocumentMapper implements ToXContentFragment {
         return metadataMapper(IndexFieldMapper.class);
     }
 
-    public boolean hasNestedObjects() {
-        return mappers().hasNested();
-    }
-
     public MappingLookup mappers() {
         return this.mappingLookup;
     }
@@ -198,91 +185,6 @@ public class DocumentMapper implements ToXContentFragment {
         return parsedDoc;
     }
 
-    /**
-     * Given an object path, checks to see if any of its parents are non-nested objects
-     */
-    public boolean hasNonNestedParent(String path) {
-        ObjectMapper mapper = mappers().objectMappers().get(path);
-        if (mapper == null) {
-            return false;
-        }
-        while (mapper != null) {
-            if (mapper.nested().isNested() == false) {
-                return true;
-            }
-            if (path.contains(".") == false) {
-                return false;
-            }
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = mappers().objectMappers().get(path);
-        }
-        return false;
-    }
-
-    /**
-     * Returns all nested object mappers
-     */
-    public List<ObjectMapper> getNestedMappers() {
-        List<ObjectMapper> childMappers = new ArrayList<>();
-        for (ObjectMapper mapper : mappers().objectMappers().values()) {
-            if (mapper.nested().isNested() == false) {
-                continue;
-            }
-            childMappers.add(mapper);
-        }
-        return childMappers;
-    }
-
-    /**
-     * Returns all nested object mappers which contain further nested object mappers
-     *
-     * Used by BitSetProducerWarmer
-     */
-    public List<ObjectMapper> getNestedParentMappers() {
-        List<ObjectMapper> parents = new ArrayList<>();
-        for (ObjectMapper mapper : mappers().objectMappers().values()) {
-            String nestedParentPath = getNestedParent(mapper.fullPath());
-            if (nestedParentPath == null) {
-                continue;
-            }
-            ObjectMapper parent = mappers().objectMappers().get(nestedParentPath);
-            if (parent.nested().isNested()) {
-                parents.add(parent);
-            }
-        }
-        return parents;
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String path) {
-        ObjectMapper mapper = mappers().objectMappers().get(path);
-        if (mapper == null) {
-            return null;
-        }
-        if (path.contains(".") == false) {
-            return null;
-        }
-        do {
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = mappers().objectMappers().get(path);
-            if (mapper == null) {
-                return null;
-            }
-            if (mapper.nested().isNested()) {
-                return path;
-            }
-            if (path.contains(".") == false) {
-                return null;
-            }
-        } while(true);
-    }
-
     public DocumentMapper merge(Mapping mapping, MergeReason reason) {
         Mapping merged = this.mapping().merge(mapping, reason);
         return new DocumentMapper(mappingLookup.getIndexSettings(), mappingLookup.getIndexAnalyzers(), documentParser, merged);
@@ -296,7 +198,7 @@ public class DocumentMapper implements ToXContentFragment {
                     + "required for partitioned index [" + settings.getIndex().getName() + "]");
             }
         }
-        if (settings.getIndexSortConfig().hasIndexSort() && hasNestedObjects()) {
+        if (settings.getIndexSortConfig().hasIndexSort() && mappers().hasNested()) {
             throw new IllegalArgumentException("cannot have nested fields when index sort is activated");
         }
         if (checkLimits) {

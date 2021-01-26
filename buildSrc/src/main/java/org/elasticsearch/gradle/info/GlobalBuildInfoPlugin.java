@@ -32,6 +32,7 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.internal.jvm.Jvm;
 import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
+import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.internal.InstallationLocation;
 import org.gradle.jvm.toolchain.internal.SharedJavaInstallationRegistry;
 import org.gradle.util.GradleVersion;
@@ -107,8 +108,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             params.reset();
             params.setRuntimeJavaHome(runtimeJavaHome);
             params.setRuntimeJavaVersion(determineJavaVersion("runtime java.home", runtimeJavaHome, minimumRuntimeVersion));
-            params.setIsRutimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
-            params.setRuntimeJavaDetails(getJavaInstallation(runtimeJavaHome).getDisplayName());
+            params.setIsRuntimeJavaHomeSet(Jvm.current().getJavaHome().equals(runtimeJavaHome) == false);
+            JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome).getLocation());
+            params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
             params.setJavaVersions(getAvailableJavaVersions());
             params.setMinimumCompilerVersion(minimumCompilerVersion);
             params.setMinimumRuntimeVersion(minimumRuntimeVersion);
@@ -129,6 +131,11 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
 
         // Print global build info header just before task execution
         project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+    }
+
+    private String formatJavaVendorDetails(JvmInstallationMetadata runtimeJdkMetaData) {
+        JvmVendor vendor = runtimeJdkMetaData.getVendor();
+        return runtimeJdkMetaData.getVendor().getKnownVendor().name() + "/" + vendor.getRawVendor();
     }
 
     /* Introspect all versions of ES that may be tested against for backwards
@@ -188,9 +195,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     }
 
     private InstallationLocation getJavaInstallation(File javaHome) {
-        return javaInstallationRegistry.listInstallations()
-            .stream()
-            .filter(installationLocation -> isSameFile(javaHome, installationLocation))
+        return getAvailableJavaInstallationLocationSteam().filter(installationLocation -> isSameFile(javaHome, installationLocation))
             .findFirst()
             .get();
     }
@@ -208,12 +213,19 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
      * To make transition more reliable we only take env var provided installations into account for now
      */
     private List<JavaHome> getAvailableJavaVersions() {
-        return javaInstallationRegistry.listInstallations().stream().map(installationLocation -> {
+        return getAvailableJavaInstallationLocationSteam().map(installationLocation -> {
             File installationDir = installationLocation.getLocation();
             JvmInstallationMetadata metadata = metadataDetector.getMetadata(installationDir);
             int actualVersion = Integer.parseInt(metadata.getLanguageVersion().getMajorVersion());
             return JavaHome.of(actualVersion, providers.provider(() -> installationDir));
         }).collect(Collectors.toList());
+    }
+
+    private Stream<InstallationLocation> getAvailableJavaInstallationLocationSteam() {
+        return Stream.concat(
+            javaInstallationRegistry.listInstallations().stream(),
+            Stream.of(new InstallationLocation(Jvm.current().getJavaHome(), "Current JVM"))
+        );
     }
 
     private static String getTestSeed() {

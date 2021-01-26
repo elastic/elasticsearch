@@ -635,7 +635,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     }
 
     private void installModules() {
-        logToProcessStdout("Installing " + modules.size() + "modules");
+        logToProcessStdout("Installing " + modules.size() + " modules");
         for (Provider<File> module : modules) {
             Path destination = getDistroDir().resolve("modules")
                 .resolve(module.get().getName().replace(".zip", "").replace("-" + getVersion(), "").replace("-SNAPSHOT", ""));

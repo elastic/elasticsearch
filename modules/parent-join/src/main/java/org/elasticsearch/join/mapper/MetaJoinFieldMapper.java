@@ -26,7 +26,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
@@ -65,7 +65,7 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             throw new UnsupportedOperationException("Cannot fetch values for metadata field [" + NAME + "].");
         }
 
@@ -79,7 +79,7 @@ public class MetaJoinFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             throw new UnsupportedOperationException("Exists query not supported for fields of type" + typeName());
         }
     }

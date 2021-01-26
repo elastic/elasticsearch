@@ -38,7 +38,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.analysis.IndexableBinaryStringTools;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -81,7 +81,7 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }
@@ -123,13 +123,13 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, QueryShardContext context) {
+                                boolean transpositions, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query prefixQuery(String value, MultiTermQuery.RewriteMethod method,
-                                 boolean caseInsensitive, QueryShardContext context) {
+                                 boolean caseInsensitive, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[prefix] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
@@ -137,13 +137,13 @@ public class ICUCollationKeywordFieldMapper extends FieldMapper {
         public Query wildcardQuery(String value,
                                    @Nullable MultiTermQuery.RewriteMethod method,
                                    boolean caseInsensitive,
-                                   QueryShardContext context) {
+                                   SearchExecutionContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[regexp] queries are not supported on [" + CONTENT_TYPE + "] fields.");
         }
 

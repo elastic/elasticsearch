@@ -84,6 +84,16 @@ public class Latest implements Function {
         return DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE;
     }
 
+    private SearchRequest buildSearchRequest(SourceConfig sourceConfig, int pageSize) {
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder()
+            .query(sourceConfig.getQueryConfig().getQuery())
+            .runtimeMappings(sourceConfig.getRuntimeMappings());
+        buildSearchQuery(sourceBuilder, null, pageSize);
+        return new SearchRequest(sourceConfig.getIndex())
+            .source(sourceBuilder)
+            .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+    }
+
     @Override
     public SearchSourceBuilder buildSearchQuery(SearchSourceBuilder builder, Map<String, Object> position, int pageSize) {
         cachedCompositeAggregation.aggregateAfter(position);
@@ -148,13 +158,7 @@ public class Latest implements Function {
 
     @Override
     public void validateQuery(Client client, SourceConfig sourceConfig, ActionListener<Boolean> listener) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery());
-        buildSearchQuery(sourceBuilder, null, TEST_QUERY_PAGE_SIZE);
-        SearchRequest searchRequest =
-            new SearchRequest(sourceConfig.getIndex())
-                .source(sourceBuilder)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-
+        SearchRequest searchRequest = buildSearchRequest(sourceConfig, TEST_QUERY_PAGE_SIZE);
         client.execute(SearchAction.INSTANCE, searchRequest, ActionListener.wrap(response -> {
             if (response == null) {
                 listener.onFailure(
@@ -198,13 +202,7 @@ public class Latest implements Function {
         int numberOfBuckets,
         ActionListener<List<Map<String, Object>>> listener
     ) {
-        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().query(sourceConfig.getQueryConfig().getQuery());
-        buildSearchQuery(sourceBuilder, null, numberOfBuckets);
-        SearchRequest searchRequest =
-            new SearchRequest(sourceConfig.getIndex())
-                .source(sourceBuilder)
-                .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-
+        SearchRequest searchRequest = buildSearchRequest(sourceConfig, numberOfBuckets);
         ClientHelper.assertNoAuthorizationHeader(headers);
         ClientHelper.executeWithHeadersAsync(
             headers,

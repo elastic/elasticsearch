@@ -28,7 +28,7 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
     public void testTermQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
         QueryShardException e = expectThrows(QueryShardException.class,
-            () -> ft.termQuery(10L, randomMockShardContext()));
+            () -> ft.termQuery(10L, randomMockContext()));
         assertEquals("Field [_doc_count] of type [_doc_count] is not searchable", e.getMessage());
     }
 
@@ -41,7 +41,7 @@ public class DocCountFieldTypeTests extends FieldTypeTestCase {
 
     public void testExistsQuery() {
         MappedFieldType ft = new DocCountFieldMapper.DocCountFieldType();
-        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.existsQuery(randomMockShardContext()));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> ft.existsQuery(randomMockContext()));
         assertEquals("Field [_doc_count] of type [_doc_count] does not support exists queries", e.getMessage());
     }
 

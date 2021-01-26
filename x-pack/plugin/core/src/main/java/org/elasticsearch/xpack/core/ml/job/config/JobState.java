@@ -48,6 +48,13 @@ public enum JobState implements Writeable {
         return Arrays.stream(candidates).anyMatch(candidate -> this == candidate);
     }
 
+    /**
+     * @return {@code false} if state matches any of the given {@code candidates}
+     */
+    public boolean isNoneOf(JobState... candidates) {
+        return Arrays.stream(candidates).noneMatch(candidate -> this == candidate);
+    }
+
     @Override
     public String toString() {
         return name().toLowerCase(Locale.ROOT);

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -454,6 +455,8 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                     assertThat(response.content().utf8ToString(), not(containsString("verysecretpassword")));
                 } catch (AssertionError ex) {
                     clusterStateError.set(ex);
+                } finally {
+                    CloseableChannel.closeChannel(clusterStateRequest.getHttpChannel());
                 }
                 clusterStateLatch.countDown();
             }

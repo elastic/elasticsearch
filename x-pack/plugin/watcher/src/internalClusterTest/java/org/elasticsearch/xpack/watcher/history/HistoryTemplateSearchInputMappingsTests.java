@@ -27,6 +27,7 @@ import static org.elasticsearch.xpack.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.xpack.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 /**
  * This test makes sure that the http host and path fields in the watch_record action result are
@@ -67,7 +68,7 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
                 .get();
 
         assertThat(response, notNullValue());
-        assertThat(response.getHits().getTotalHits().value, is(1L));
+        assertThat(response.getHits().getTotalHits().value, is(oneOf(1L, 2L)));
         Aggregations aggs = response.getAggregations();
         assertThat(aggs, notNullValue());
 
@@ -75,13 +76,13 @@ public class HistoryTemplateSearchInputMappingsTests extends AbstractWatcherInte
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey("query_then_fetch"), notNullValue());
-        assertThat(terms.getBucketByKey("query_then_fetch").getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey("query_then_fetch").getDocCount(), is(oneOf(1L, 2L)));
 
         terms = aggs.get("input_indices");
         assertThat(terms, notNullValue());
         assertThat(terms.getBuckets().size(), is(1));
         assertThat(terms.getBucketByKey(index), notNullValue());
-        assertThat(terms.getBucketByKey(index).getDocCount(), is(1L));
+        assertThat(terms.getBucketByKey(index).getDocCount(), is(oneOf(1L, 2L)));
 
         terms = aggs.get("input_body");
         assertThat(terms, notNullValue());

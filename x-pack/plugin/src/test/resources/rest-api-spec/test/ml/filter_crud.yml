@@ -3,7 +3,6 @@ setup:
   - skip:
       features:
         - headers
-        - warnings
 
   - do:
       headers:
@@ -25,13 +24,6 @@ setup:
             "description": "This filter has a description",
             "items": ["123", "lmnop"]
           }
-
-  - do:
-      warnings:
-        - "this request accesses system indices: [.ml-meta], but in a future major version, direct access to system indices will be prevented by default"
-      headers:
-        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
-      indices.refresh: {}
 
 ---
 "Test get filter API with bad ID":

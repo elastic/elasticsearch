@@ -274,6 +274,7 @@ public class RestHighLevelClient implements Closeable {
     private final EnrichClient enrichClient = new EnrichClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
     private final AsyncSearchClient asyncSearchClient = new AsyncSearchClient(this);
+    private final TextStructureClient textStructureClient = new TextStructureClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -452,6 +453,16 @@ public class RestHighLevelClient implements Closeable {
      */
     public AsyncSearchClient asyncSearch() {
         return asyncSearchClient;
+    }
+
+    /**
+     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Elastic Text Structure APIs.
+     * <p>
+     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/find-structure.html"> X-Pack APIs on elastic.co</a>
+     * for more information.
+     */
+    public TextStructureClient textStructure() {
+        return textStructureClient;
     }
 
     /**

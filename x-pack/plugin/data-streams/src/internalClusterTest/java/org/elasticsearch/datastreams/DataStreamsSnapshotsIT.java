@@ -468,4 +468,27 @@ public class DataStreamsSnapshotsIT extends AbstractSnapshotIntegTestCase {
         assertThat(snapshotInfo.dataStreams(), contains(dataStream));
         assertThat(snapshotInfo.indices(), contains(DataStream.getDefaultBackingIndexName(dataStream, 1)));
     }
+
+    public void testCloneSnapshotThatIncludesDataStream() throws Exception {
+        final String sourceSnapshotName = "snap-source";
+        final String indexWithoutDataStream = "test-idx-no-ds";
+        createIndexWithContent(indexWithoutDataStream);
+        assertSuccessful(
+            client.admin()
+                .cluster()
+                .prepareCreateSnapshot(REPO, sourceSnapshotName)
+                .setWaitForCompletion(true)
+                .setIndices("ds", indexWithoutDataStream)
+                .setIncludeGlobalState(false)
+                .execute()
+        );
+        assertAcked(
+            client().admin()
+                .cluster()
+                .prepareCloneSnapshot(REPO, sourceSnapshotName, "target-snapshot-1")
+                .setIndices(indexWithoutDataStream)
+                .get()
+        );
+
+    }
 }

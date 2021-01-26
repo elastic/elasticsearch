@@ -71,7 +71,7 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -384,7 +384,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     @Override
-    protected QueryBuilder doRewrite(QueryRewriteContext queryShardContext) {
+    protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) {
         if (documents.isEmpty() == false) {
             return this;
         } else if (documentSupplier != null) {
@@ -408,7 +408,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             getRequest.version(indexedDocumentVersion);
         }
         SetOnce<BytesReference> documentSupplier = new SetOnce<>();
-        queryShardContext.registerAsyncAction((client, listener) -> {
+        queryRewriteContext.registerAsyncAction((client, listener) -> {
             client.get(getRequest, ActionListener.wrap(getResponse -> {
                 if (getResponse.isExists() == false) {
                     throw new ResourceNotFoundException(
@@ -433,7 +433,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         if (context.allowExpensiveQueries() == false) {
             throw new ElasticsearchException("[percolate] queries cannot be executed when '" +
                     ALLOW_EXPENSIVE_QUERIES.getKey() + "' is set to false.");
@@ -491,7 +491,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
 
         PercolatorFieldMapper.PercolatorFieldType pft = (PercolatorFieldMapper.PercolatorFieldType) fieldType;
         String name = this.name != null ? this.name : pft.name();
-        QueryShardContext percolateShardContext = wrap(context);
+        SearchExecutionContext percolateShardContext = wrap(context);
         PercolatorFieldMapper.configureContext(percolateShardContext, pft.mapUnmappedFieldsAsText);;
         PercolateQuery.QueryStore queryStore = createStore(pft.queryBuilderField,
             percolateShardContext);
@@ -537,7 +537,7 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
     }
 
     static PercolateQuery.QueryStore createStore(MappedFieldType queryBuilderFieldType,
-                                                 QueryShardContext context) {
+                                                 SearchExecutionContext context) {
         Version indexVersion = context.indexVersionCreated();
         NamedWriteableRegistry registry = context.getWriteableRegistry();
         return ctx -> {
@@ -574,8 +574,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
         };
     }
 
-    static QueryShardContext wrap(QueryShardContext shardContext) {
-        return new QueryShardContext(shardContext) {
+    static SearchExecutionContext wrap(SearchExecutionContext delegate) {
+        return new SearchExecutionContext(delegate) {
 
             @Override
             public IndexReader getIndexReader() {
@@ -604,8 +604,8 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             @Override
             @SuppressWarnings("unchecked")
             public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-                IndexFieldData.Builder builder = fieldType.fielddataBuilder(shardContext.getFullyQualifiedIndex().getName(),
-                    shardContext::lookup);
+                IndexFieldData.Builder builder = fieldType.fielddataBuilder(delegate.getFullyQualifiedIndex().getName(),
+                    delegate::lookup);
                 IndexFieldDataCache cache = new IndexFieldDataCache.None();
                 CircuitBreakerService circuitBreaker = new NoneCircuitBreakerService();
                 return (IFD) builder.build(cache, circuitBreaker);

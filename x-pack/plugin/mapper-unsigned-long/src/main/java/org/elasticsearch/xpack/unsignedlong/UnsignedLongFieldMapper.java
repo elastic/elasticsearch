@@ -32,7 +32,7 @@ import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
 
@@ -42,6 +42,7 @@ import java.math.BigInteger;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -160,7 +161,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, QueryShardContext context) {
+        public Query termQuery(Object value, SearchExecutionContext context) {
             failIfNotIndexed();
             Long longValue = parseTerm(value);
             if (longValue == null) {
@@ -170,12 +171,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query termsQuery(List<?> values, QueryShardContext context) {
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
             failIfNotIndexed();
             long[] lvalues = new long[values.size()];
             int upTo = 0;
-            for (int i = 0; i < values.size(); i++) {
-                Object value = values.get(i);
+            for (Object value : values) {
                 Long longValue = parseTerm(value);
                 if (longValue != null) {
                     lvalues[upTo++] = unsignedToSortableSignedLong(longValue);
@@ -191,7 +191,13 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public Query rangeQuery(Object lowerTerm, Object upperTerm, boolean includeLower, boolean includeUpper, QueryShardContext context) {
+        public Query rangeQuery(
+            Object lowerTerm,
+            Object upperTerm,
+            boolean includeLower,
+            boolean includeUpper,
+            SearchExecutionContext context
+        ) {
             failIfNotIndexed();
             long l = Long.MIN_VALUE;
             long u = Long.MAX_VALUE;
@@ -231,7 +237,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             if (format != null) {
                 throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support formats.");
             }

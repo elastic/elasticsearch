@@ -142,8 +142,7 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
 
     public void testCloseAndReopen() throws Exception {
         runSearchableSnapshotsTest((restoredIndexName, numDocs) -> {
-            final Request closeRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_close");
-            assertOK(client().performRequest(closeRequest));
+            closeIndex(restoredIndexName);
             ensureGreen(restoredIndexName);
 
             final Request openRequest = new Request(HttpPost.METHOD_NAME, restoredIndexName + "/_open");

@@ -21,7 +21,7 @@ package org.elasticsearch.painless;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.ScriptContext;
@@ -47,22 +47,22 @@ public class NeedsScoreTests extends ESSingleNodeTestCase {
         contexts.put(NumberSortScript.CONTEXT, Whitelist.BASE_WHITELISTS);
         PainlessScriptEngine service = new PainlessScriptEngine(Settings.EMPTY, contexts);
 
-        QueryShardContext shardContext = index.newQueryShardContext(0, 0, null, () -> 0, null, emptyMap());
+        SearchExecutionContext searchExecutionContext = index.newSearchExecutionContext(0, 0, null, () -> 0, null, emptyMap());
 
         NumberSortScript.Factory factory = service.compile(null, "1.2", NumberSortScript.CONTEXT, Collections.emptyMap());
-        NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
+        NumberSortScript.LeafFactory ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());
         assertFalse(ss.needs_score());
 
         factory = service.compile(null, "doc['d'].value", NumberSortScript.CONTEXT, Collections.emptyMap());
-        ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
+        ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());
         assertFalse(ss.needs_score());
 
         factory = service.compile(null, "1/_score", NumberSortScript.CONTEXT, Collections.emptyMap());
-        ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
+        ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());
         assertTrue(ss.needs_score());
 
         factory = service.compile(null, "doc['d'].value * _score", NumberSortScript.CONTEXT, Collections.emptyMap());
-        ss = factory.newFactory(Collections.emptyMap(), shardContext.lookup());
+        ss = factory.newFactory(Collections.emptyMap(), searchExecutionContext.lookup());
         assertTrue(ss.needs_score());
     }
 }

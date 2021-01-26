@@ -122,6 +122,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.action.ResultDeduplicator;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -1377,11 +1378,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         // Fast path loading repository data directly from cache if we're in fully consistent mode and the cache matches up with
         // the latest known repository generation
         if (bestEffortConsistency == false && cached.generation() == latestKnownRepoGen.get() && cached.hasData()) {
-            try {
-                listener.onResponse(cached.repositoryData());
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
+            repoDataDeduplicator.executeOnce(metadata, listener, (metadata, l) -> l.onResponse(cached.repositoryData()));
             return;
         }
         if (metadata.generation() == RepositoryData.UNKNOWN_REPO_GEN && isReadOnly() == false &&
@@ -1392,7 +1389,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         } else {
             logger.trace("[{}] loading un-cached repository data with best known repository generation [{}]", metadata.name(),
                     latestKnownRepoGen);
-            threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
+            if (bestEffortConsistency) {
+                threadPool.generic().execute(ActionRunnable.wrap(listener, this::doGetRepositoryData));
+            } else {
+                repoDataDeduplicator.executeOnce(metadata, listener, (metadata, l) ->
+                        threadPool.generic().execute(ActionRunnable.wrap(l, this::doGetRepositoryData)));
+            }
         }
     }
 
@@ -1478,10 +1480,18 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * {@link RepositoryData} loading deduplicator. This may only be used with consistent generation repositories, meaning
+     * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
+     * unique for a given value of {@link #metadata} at any point in time.
+     */
+    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator = new ResultDeduplicator<>();
+
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.
         // Keep track of the most recent generation we failed to load so we can break out of the loop if we fail to load the same
         // generation repeatedly.
+
         long lastFailedGeneration = RepositoryData.UNKNOWN_REPO_GEN;
         while (true) {
             final long genToLoad;

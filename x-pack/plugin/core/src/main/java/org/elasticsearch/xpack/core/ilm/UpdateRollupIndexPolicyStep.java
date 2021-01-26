@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.client.Client;
@@ -44,8 +45,13 @@ public class UpdateRollupIndexPolicyStep extends AsyncActionStep {
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(rollupIndex)
             .masterNodeTimeout(getMasterTimeout(currentState))
             .settings(settings);
-        getClient().admin().indices().updateSettings(updateSettingsRequest,
-                ActionListener.wrap(response -> listener.onResponse(true), listener::onFailure));
+        getClient().admin().indices().updateSettings(updateSettingsRequest, ActionListener.wrap(response -> {
+            if (response.isAcknowledged()) {
+                listener.onResponse(true);
+            } else {
+                listener.onFailure(new ElasticsearchException("settings update not acknowledged in step [" + getKey().toString() + "]"));
+            }
+        }, listener::onFailure));
     }
 
 

@@ -986,7 +986,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void setupDataForDateTimeTests(long randomLongDate, long randomLongDateNanos) throws IOException {
+    private void setupDataForDateTimeTests(long randomLongDate) throws IOException {
+        setupDataForDateTimeTests(randomLongDate, null);
+    }
+
+    private void setupDataForDateTimeTests(long randomLongDate, Long randomLongDateNanos) throws IOException {
         createIndex("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
@@ -1004,8 +1008,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     public void testGettingDateWithoutCalendar() throws Exception {
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
-        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+        setupDataForDateTimeTests(randomLongDate);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
@@ -1054,8 +1057,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     public void testGettingDateWithCalendar() throws Exception {
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
-        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+        setupDataForDateTimeTests(randomLongDate);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
@@ -1115,8 +1117,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     public void testGettingTimeWithoutCalendar() throws Exception {
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
-        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+        setupDataForDateTimeTests(randomLongDate);
 
         doWithQuery(SELECT_ALL_FIELDS, results -> {
             results.next();
@@ -1163,8 +1164,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     public void testGettingTimeWithCalendar() throws Exception {
         long randomLongDate = randomNonNegativeLong();
-        long randomLongDateNanos = randomNanos();
-        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+        setupDataForDateTimeTests(randomLongDate);
 
         String anotherTZId = randomValueOtherThan(timeZoneId, JdbcIntegrationTestCase::randomKnownTimeZone);
         Calendar c = Calendar.getInstance(TimeZone.getTimeZone(anotherTZId), Locale.ROOT);
@@ -1260,6 +1260,23 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertNull(results.getDate("test_date"));
             assertNull(results.getDate("test_date_nanos"));
             assertFalse(results.next());
+        });
+    }
+
+    public void testGettingTimestampWithoutCalendar_DateNanos_OldDriver() throws Exception {
+        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+        long randomLongDate = randomNonNegativeLong();
+        long randomLongDateNanos = randomNanos();
+        setupDataForDateTimeTests(randomLongDate, randomLongDateNanos);
+
+        doWithQuery(SELECT_ALL_FIELDS, results -> {
+            results.next();
+
+            assertTrue(results.getObject(10) instanceof Timestamp);
+            // Only millis resolution for old drivers
+            Timestamp expectedTimestamp = new Timestamp(toMilliSeconds(randomLongDateNanos));
+            assertEquals(expectedTimestamp, results.getTimestamp(10));
         });
     }
 
@@ -1993,7 +2010,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
     }
 
-    private void indexSimpleDocumentWithTrueValues(long randomLongDate, long randomLongNanos) throws IOException {
+    private void indexSimpleDocumentWithTrueValues(long randomLongDate, Long randomLongNanos) throws IOException {
         index("test", "1", builder -> {
             builder.field("test_boolean", true);
             builder.field("test_byte", 1);
@@ -2004,7 +2021,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             builder.field("test_float", 1f);
             builder.field("test_keyword", "true");
             builder.field("test_date", randomLongDate);
-            builder.field("test_date_nanos", asTimestampWithNanos(randomLongNanos));
+            if (randomLongNanos != null) {
+                builder.field("test_date_nanos", asTimestampWithNanos(randomLongNanos));
+            }
         });
     }
 

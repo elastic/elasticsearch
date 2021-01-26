@@ -182,6 +182,32 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    public void testDatetime_DateNanos_OldDrivers() throws IOException, SQLException {
+        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+                versionSupportsDateNanos());
+
+        long randomTimestampWitnNanos = randomNanos();
+        int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
+        setupIndexForDateTimeTests(randomTimestampWitnNanos, true);
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+                Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+
+                ts.setNanos(randomNanosOnly);
+                statement.setObject(1, ts);
+                try (ResultSet results = statement.executeQuery()) {
+                    assertFalse(results.next());
+                }
+            }
+        }
+    }
+
     public void testDate() throws IOException, SQLException {
         long randomMillis = randomNonNegativeLong();
         setupIndexForDateTimeTests(randomMillis);

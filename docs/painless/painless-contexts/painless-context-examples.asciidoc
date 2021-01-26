@@ -1,12 +1,11 @@
 [[painless-context-examples]]
-=== Context examples
+=== Context example data
 
-Complete the following steps to index the `seat` sample data into {es}. The
-examples for each context rely on this sample data.
+Complete the following steps to index the `seat` sample data into {es}. You can
+run any of the context examples against this sample data after you configure it.
 
-[%collapsible]
-.Each document in the `seat` data contains the following fields:
-====
+Each document in the `seat` data contains the following fields:
+
 `theatre` ({ref}/keyword.html[`keyword`])::
         The name of the theater the play is in.
 `play` ({ref}/text.html[`keyword`])::
@@ -25,9 +24,6 @@ examples for each context rely on this sample data.
         The number of the seat within a row.
 `sold` ({ref}/boolean.html[`boolean`])::
         Whether or not the seat is sold.
-`datetime` ({ref}/date.html[`date`])::
-        The date and time of the play as a date object.
-====
 
 ==== Prerequisites
 Start an {ref}/getting-started-install.html[{es} instance], and then access the
@@ -46,12 +42,12 @@ PUT /seats
       "theatre":  { "type": "keyword" },
       "play":     { "type": "keyword" },
       "actors":   { "type": "text"    },
+      "date":     { "type": "keyword" },
+      "time":     { "type": "keyword" },
+      "cost":     { "type": "double"  },
       "row":      { "type": "integer" },
       "number":   { "type": "integer" },
-      "cost":     { "type": "double"  },
-      "sold":     { "type": "boolean" },
-      "date":     { "type": "keyword" },
-      "time":     { "type": "keyword" }
+      "sold":     { "type": "boolean" }
     }
   }
 }

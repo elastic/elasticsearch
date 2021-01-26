@@ -94,17 +94,30 @@ Which produces the following result:
 --------------------------------------------------
 {
   ...
-  "_source": {
-    "source": {
-      "ip": "128.232.110.120"
-    },
-    "destination": {
-      "ip": "192.168.1.1"
-    },
-    "network": {
-      "direction": "inbound"
+[source,console-result]
+----
+{
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_source": {
+          "destination": {
+            "ip": "192.168.1.1"
+          },
+          "source": {
+            "ip": "128.232.110.120"
+          },
+          "network": {
+            "direction": "inbound"
+          }
+        }
+      }
     }
-  }
+  ]
+}
+----
+// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
   ...
 }
 --------------------------------------------------

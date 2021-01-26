@@ -1,31 +1,29 @@
 [[painless-context-examples]]
-=== Context examples
+=== Context example data
 
-Complete the following steps to index the `seat` sample data into {es}. The
-examples for each context rely on this sample data.
+Complete the following steps to index the `seat` sample data into {es}. You can
+run any of the context examples against this sample data after you configure it.
 
 Each document in the `seat` data contains the following fields:
 
 `theatre` ({ref}/keyword.html[`keyword`])::
         The name of the theater the play is in.
-`play` ({ref}/text.html[`text`])::
+`play` ({ref}/text.html[`keyword`])::
         The name of the play.
-`actors` ({ref}/text.html[`text`])::
+`actors` ({ref}/text.html[`keyword`])::
         A list of actors in the play.
-`row` ({ref}/number.html[`integer`])::
-        The row of the seat.
-`number` ({ref}/number.html[`integer`])::
-        The number of the seat within a row.
-`cost` ({ref}/number.html[`double`])::
-        The cost of the ticket for the seat.
-`sold` ({ref}/boolean.html[`boolean`])::
-        Whether or not the seat is sold.
-`datetime` ({ref}/date.html[`date`])::
-        The date and time of the play as a date object.
 `date` ({ref}/keyword.html[`keyword`])::
         The date of the play as a keyword.
 `time` ({ref}/keyword.html[`keyword`])::
-        The time of the play as a keyword.
+                The time of the play as a keyword.
+`cost` ({ref}/number.html[`long`])::
+        The cost of the ticket for the seat.
+`row` ({ref}/number.html[`long`])::
+        The row of the seat.
+`number` ({ref}/number.html[`long`])::
+        The number of the seat within a row.
+`sold` ({ref}/boolean.html[`boolean`])::
+        Whether or not the seat is sold.
 
 ==== Prerequisites
 Start an {ref}/getting-started-install.html[{es} instance], and then access the
@@ -44,13 +42,12 @@ PUT /seats
       "theatre":  { "type": "keyword" },
       "play":     { "type": "keyword" },
       "actors":   { "type": "text"    },
+      "date":     { "type": "keyword" },
+      "time":     { "type": "keyword" },
+      "cost":     { "type": "double"  },
       "row":      { "type": "integer" },
       "number":   { "type": "integer" },
-      "cost":     { "type": "double"  },
-      "sold":     { "type": "boolean" },
-      "datetime": { "type": "date"    },
-      "date":     { "type": "keyword" },
-      "time":     { "type": "keyword" }
+      "sold":     { "type": "boolean" }
     }
   }
 }
@@ -58,7 +55,8 @@ PUT /seats
 +
 
 . Configure a script ingest processor that parses each document as {es} ingests
-the `seat` data:
+the `seat` data. The following ingest script processes the `date` and `time`
+fields and stores the result in a `datetime` field:
 +
 [source,console]
 ----
@@ -83,44 +81,24 @@ the previous step.
 ----
 POST seats/_bulk?pipeline=seats&refresh=true
 {"create":{"_index":"seats","_id":"1"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":1,"cost":30,"sold":false}
+{"theatre":"Skyline","play":"Rent","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":37,"row":1,"number":7,"sold":false}
 {"create":{"_index":"seats","_id":"2"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":2,"cost":30,"sold":false}
+{"theatre":"Graye","play":"Rent","actors":"Dave Christmas","date":"2021-4-1","time":"3:00PM","cost":30,"row":3,"number":5,"sold":false}
 {"create":{"_index":"seats","_id":"3"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":3,"cost":30,"sold":true}
+{"theatre":"Graye","play":"Rented","actors":"Dave Christmas","date":"2021-4-1","time":"3:00PM","cost":33,"row":2,"number":6,"sold":false}
 {"create":{"_index":"seats","_id":"4"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":4,"cost":30,"sold":false}
+{"theatre":"Skyline","play":"Rented","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":20,"row":5,"number":2,"sold":false}
 {"create":{"_index":"seats","_id":"5"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":5,"cost":30,"sold":false}
-{ "create" : { "_index" : "seats", "_id" : "1070" } }
-{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 2, "cost": 27.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "1071" } }
-{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 3, "cost": 27.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "1072" } }
-{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 4, "cost": 27.5, "sold": true }
-{ "create" : { "_index" : "seats", "_id" : "1073" } }
-{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 5, "cost": 27.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "1074" } }
-{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 6, "cost": 27.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "4762" } }
-{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 1, "number": 10, "cost": 30.0, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "4763" } }
-{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 1, "number": 11, "cost": 30.0, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "4764" } }
-{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 1, "number": 12, "cost": 30.0, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "4765" } }
-{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 2, "number": 1, "cost": 28.75, "sold": true }
-{ "create" : { "_index" : "seats", "_id" : "4766" } }
-{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 2, "number": 2, "cost": 28.75, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "29539" } }
-{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 10, "cost": 22.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "29540" } }
-{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 11, "cost": 22.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "29541" } }
-{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 12, "cost": 22.5, "sold": true }
-{ "create" : { "_index" : "seats", "_id" : "29542" } }
-{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 13, "cost": 22.5, "sold": false }
-{ "create" : { "_index" : "seats", "_id" : "29543" } }
-{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 14, "cost": 22.5, "sold": false }
+{"theatre":"Down Port","play":"Pick It Up","actors":["Joel Madigan","Jessica Brown","Baz Knight","Jo Hangum","Rachel Grass","Phoebe Miller"],"date":"2018-4-2","time":"8:00PM","cost":27.5,"row":3,"number":2,"sold":false}
+{"create":{"_index":"seats","_id":"6"}}
+{"theatre":"Down Port","play":"Harriot","actors":["Phoebe Miller","Sarah Notch","Brayden Green","Joshua Iller","Jon Hittle","Rob Kettleman","Laura Conrad","Simon Hower","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-8-7","time":"8:00PM","cost":30,"row":1,"number":10,"sold":false}
+{"create":{"_index":"seats","_id":"7"}}
+{"theatre":"Skyline","play":"Auntie Jo","actors":["Jo Hangum","Jon Hittle","Rob Kettleman","Laura Conrad","Simon Hower","Nora Blue"],"date":"2018-10-2","time":"5:40PM","cost":22.5,"row":7,"number":10,"sold":false}
+{"create":{"_index":"seats","_id":"8"}}
+{"theatre":"Skyline","play":"Test Run","actors":["Joe Muir","Ryan Earns","Joel Madigan","Jessica Brown"],"date":"2018-8-5","time":"7:30PM","cost":17.5,"row":11,"number":12,"sold":true}
+{"create":{"_index":"seats","_id":"9"}}
+{"theatre":"Skyline","play":"Sunnyside Down","actors":["Krissy Smith","Joe Muir","Ryan Earns","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-6-12","time":"4:00PM","cost":21.25,"row":8,"number":15,"sold":true}
+{"create":{"_index":"seats","_id":"10"}}
+{"theatre":"Graye","play":"Line and Single","actors":["Nora Blue","Mike Candlestick"],"date":"2018-6-5","time":"2:00PM","cost":30,"row":1,"number":2,"sold":false}
 ----
 // TEST[continued]

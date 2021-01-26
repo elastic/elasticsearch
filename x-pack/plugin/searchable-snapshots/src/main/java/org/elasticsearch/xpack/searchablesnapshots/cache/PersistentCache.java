@@ -301,16 +301,6 @@ public class PersistentCache implements Closeable {
         }
     }
 
-    public boolean hasDeletions() {
-        ensureOpen();
-        for (CacheIndexWriter writer : writers) {
-            if (writer.indexWriter.hasDeletions()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
     public long getNumDocs() {
         ensureOpen();
         long count = 0L;

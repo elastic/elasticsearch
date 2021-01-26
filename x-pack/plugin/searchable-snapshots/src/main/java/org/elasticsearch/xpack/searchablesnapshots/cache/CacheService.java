@@ -593,7 +593,7 @@ public class CacheService extends AbstractLifecycleComponent {
                     errors += 1L;
                 }
             }
-            if (updates > 0 || deletes > 0 || persistentCache.hasDeletions()) {
+            if (updates > 0 || deletes > 0) {
                 try {
                     persistentCache.commit();
                 } catch (IOException e) {

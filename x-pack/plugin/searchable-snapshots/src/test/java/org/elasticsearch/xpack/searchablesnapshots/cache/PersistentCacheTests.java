@@ -258,8 +258,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                     }
                 }
 
-                final boolean fsyncFailure = true;
-                randomBoolean();
+                final boolean fsyncFailure = randomBoolean();
                 logger.debug("blocking fsync for cache file [{}] with failure [{}]", randomCacheFile.getFile(), fsyncFailure);
                 fileSystem.blockFSyncForPath(randomCacheFile.getFile(), fsyncFailure);
 
@@ -285,8 +284,12 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 fsyncThread.join();
 
                 assertThat(
-                    "Persistent cache should not contain any cached data for the evicted shard",
-                    persistentCache.getCacheSize(cacheKey.getShardId(), new SnapshotId("_ignored_", cacheKey.getSnapshotUUID())),
+                    "Persistent cache should not report any cached data for deleted cache files",
+                    persistentCache.getCacheSize(
+                        cacheKey.getShardId(),
+                        new SnapshotId("_ignored_", cacheKey.getSnapshotUUID()),
+                        path -> true
+                    ),
                     equalTo(0L)
                 );
             }

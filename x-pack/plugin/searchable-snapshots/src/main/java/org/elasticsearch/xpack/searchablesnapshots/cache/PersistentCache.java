@@ -75,6 +75,7 @@ import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.IntPredicate;
+import java.util.function.Predicate;
 
 import static java.util.Collections.synchronizedMap;
 import static java.util.Collections.unmodifiableList;
@@ -141,6 +142,11 @@ public class PersistentCache implements Closeable {
     }
 
     public long getCacheSize(ShardId shardId, SnapshotId snapshotId) {
+        return getCacheSize(shardId, snapshotId, Files::exists);
+    }
+
+    // pkg private for tests
+    long getCacheSize(ShardId shardId, SnapshotId snapshotId, Predicate<Path> predicate) {
         long aggregateSize = 0L;
         for (CacheIndexWriter writer : writers) {
             final Path snapshotCacheDir = resolveSnapshotCache(writer.nodePath().resolve(shardId)).resolve(snapshotId.getUUID());
@@ -171,7 +177,7 @@ public class PersistentCache implements Closeable {
                             if (isLiveDoc.test(docIdSetIterator.docID())) {
                                 final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
                                 final String cacheFileId = getValue(document, CACHE_ID_FIELD);
-                                if (Files.exists(snapshotCacheDir.resolve(cacheFileId))) {
+                                if (predicate.test(snapshotCacheDir.resolve(cacheFileId))) {
                                     long size = buildCacheFileRanges(document).stream().mapToLong(range -> range.v2() - range.v1()).sum();
                                     logger.trace("cache file [{}] has size [{}]", getValue(document, CACHE_ID_FIELD), size);
                                     aggregateSize += size;

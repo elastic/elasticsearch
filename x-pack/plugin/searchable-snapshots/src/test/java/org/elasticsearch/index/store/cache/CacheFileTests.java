@@ -76,7 +76,7 @@ public class CacheFileTests extends ESTestCase {
         assertThat("Cache file is not acquired: no channel exists", cacheFile.getChannel(), nullValue());
         assertThat("Cache file is not acquired: file does not exist", Files.exists(file), is(false));
 
-        final TestEvictionModificationListener listener = new TestEvictionModificationListener();
+        final TestEvictionListener listener = new TestEvictionListener();
         cacheFile.acquire(listener);
         assertThat("Cache file has been acquired: file should exists", Files.exists(file), is(true));
         assertThat("Cache file has been acquired: channel should exists", cacheFile.getChannel(), notNullValue());
@@ -116,7 +116,7 @@ public class CacheFileTests extends ESTestCase {
         assertThat(cacheFile.getChannel(), nullValue());
 
         if (randomBoolean()) {
-            final TestEvictionModificationListener listener = new TestEvictionModificationListener();
+            final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
             assertThat(cacheFile.getChannel(), notNullValue());
@@ -134,18 +134,18 @@ public class CacheFileTests extends ESTestCase {
         final Path file = createTempDir().resolve("file.cache");
         final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
 
-        final List<TestEvictionModificationListener> acquiredListeners = new ArrayList<>();
+        final List<TestEvictionListener> acquiredListeners = new ArrayList<>();
         for (int i = 0; i < randomIntBetween(1, 20); i++) {
-            TestEvictionModificationListener listener = new TestEvictionModificationListener();
+            TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
             assertThat(cacheFile.getChannel(), notNullValue());
             acquiredListeners.add(listener);
         }
 
-        final List<TestEvictionModificationListener> releasedListeners = new ArrayList<>();
-        for (Iterator<TestEvictionModificationListener> it = acquiredListeners.iterator(); it.hasNext();) {
+        final List<TestEvictionListener> releasedListeners = new ArrayList<>();
+        for (Iterator<TestEvictionListener> it = acquiredListeners.iterator(); it.hasNext();) {
             if (randomBoolean()) {
-                TestEvictionModificationListener listener = it.next();
+                TestEvictionListener listener = it.next();
                 releasedListeners.add(listener);
                 cacheFile.release(listener);
                 it.remove();
@@ -166,7 +166,7 @@ public class CacheFileTests extends ESTestCase {
         final Path file = createTempDir().resolve("file.cache");
         final CacheFile cacheFile = new CacheFile(CACHE_KEY, randomLongBetween(1, 100), file, NOOP);
 
-        final TestEvictionModificationListener evictionListener = new TestEvictionModificationListener();
+        final TestEvictionListener evictionListener = new TestEvictionListener();
         cacheFile.acquire(evictionListener);
         final long length = cacheFile.getLength();
         final DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue(
@@ -217,7 +217,7 @@ public class CacheFileTests extends ESTestCase {
             assertFalse(cacheFile.needsFsync());
             assertFalse(updatesListener.containsUpdate(cacheFile));
 
-            final TestEvictionModificationListener listener = new TestEvictionModificationListener();
+            final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
             try {
@@ -260,7 +260,7 @@ public class CacheFileTests extends ESTestCase {
             assertFalse(cacheFile.needsFsync());
             assertFalse(updatesListener.containsUpdate(cacheFile));
 
-            final TestEvictionModificationListener listener = new TestEvictionModificationListener();
+            final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
             final RunOnce releaseOnce = new RunOnce(() -> cacheFile.release(listener));
@@ -311,7 +311,7 @@ public class CacheFileTests extends ESTestCase {
             assertFalse(cacheFile.needsFsync());
             assertFalse(updatesListener.containsUpdate(cacheFile));
 
-            final TestEvictionModificationListener listener = new TestEvictionModificationListener();
+            final TestEvictionListener listener = new TestEvictionListener();
             cacheFile.acquire(listener);
 
             try {
@@ -348,7 +348,7 @@ public class CacheFileTests extends ESTestCase {
         }
     }
 
-    static class TestEvictionModificationListener implements EvictionListener {
+    static class TestEvictionListener implements EvictionListener {
 
         private final SetOnce<CacheFile> evicted = new SetOnce<>();
 

@@ -48,6 +48,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayDeque;
@@ -55,6 +56,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -82,6 +84,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      **/
     private final BiFunction<String, String, Transport.Connection> nodeIdToConnection;
     private final SearchTask task;
+    private final TaskSpan phaseTaskSpan;
     protected final SearchPhaseResults<Result> results;
     private final ClusterState clusterState;
     private final Map<String, AliasFilter> aliasFilter;
@@ -150,7 +153,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.searchTransportService = searchTransportService;
         this.executor = executor;
         this.request = request;
-        this.task = task;
+        this.task = Objects.requireNonNull(task);
         this.listener = ActionListener.runAfter(listener, this::releaseContext);
         this.nodeIdToConnection = nodeIdToConnection;
         this.clusterState = clusterState;
@@ -158,6 +161,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.aliasFilter = aliasFilter;
         this.results = resultConsumer;
         this.clusters = clusters;
+        this.phaseTaskSpan = task.newSpan()
+            .addAttribute("phase", name)
+            .addAttribute("total_shards", shardsIts.size())
+            .addAttribute("skip_shards", toSkipIterators.size());
     }
 
     @Override
@@ -279,15 +286,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> new PendingExecutions(maxConcurrentRequestsPerNode))
                 : null;
             Runnable r = () -> {
+                final TaskSpan span = phaseTaskSpan.newChildSpan()
+                    .addAttribute("shard-index", shardIndex)
+                    .addAttribute("target", shard);
                 final Thread thread = Thread.currentThread();
                 try {
-                    executePhaseOnShard(shardIt, shard,
+                    executePhaseOnShard(span, shardIt, shard,
                         new SearchActionListener<Result>(shard, shardIndex) {
                             @Override
                             public void innerOnResponse(Result result) {
                                 try {
                                     onShardResult(result, shardIt);
+                                    span.markAsComplete();
                                 } catch (Exception exc) {
+                                    span.markAsFailure(exc);
                                     onShardFailure(shardIndex, shard, shardIt, exc);
                                 } finally {
                                     executeNext(pendingExecutions, thread);
@@ -297,6 +309,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             @Override
                             public void onFailure(Exception t) {
                                 try {
+                                    span.markAsFailure(t);
                                     onShardFailure(shardIndex, shard, shardIt, t);
                                 } finally {
                                     executeNext(pendingExecutions, thread);
@@ -305,6 +318,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                         });
                 } catch (final Exception e) {
                     try {
+                        span.markAsFailure(e);
                         /*
                          * It is possible to run into connection exceptions here because we are getting the connection early and might
                          * run into nodes that are not connected. In this case, on shard failure will move us to the next shard copy.
@@ -325,11 +339,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     /**
      * Sends the request to the actual shard.
+     * @param taskSpan the task span
      * @param shardIt the shards iterator
      * @param shard the shard routing to send the request for
      * @param listener the listener to notify on response
      */
-    protected abstract void executePhaseOnShard(SearchShardIterator shardIt,
+    protected abstract void executePhaseOnShard(TaskSpan taskSpan,
+                                                SearchShardIterator shardIt,
                                                 SearchShardTarget shard,
                                                 SearchActionListener<Result> listener);
 
@@ -654,6 +670,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param exception the exception explaining or causing the phase failure
      */
     private void raisePhaseFailure(SearchPhaseExecutionException exception) {
+        phaseTaskSpan.markAsFailure(exception);
         results.getSuccessfulResults().forEach((entry) -> {
             // Do not release search contexts that are part of the point in time
             if (entry.getContextId() != null && isPartOfPointInTime(entry.getContextId()) == false) {
@@ -677,6 +694,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
     final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+        phaseTaskSpan.markAsComplete();
         executeNextPhase(this, getNextPhase(results, this));
     }
 

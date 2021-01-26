@@ -19,6 +19,7 @@
 
 package org.elasticsearch.tasks;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -33,7 +34,9 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -70,9 +73,16 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
     private final TaskId parentTaskId;
 
     private final Map<String, String> headers;
+    private final Collection<TaskSpanInfo> spans;
 
     public TaskInfo(TaskId taskId, String type, String action, String description, Task.Status status, long startTime,
-                    long runningTimeNanos, boolean cancellable, TaskId parentTaskId, Map<String, String> headers) {
+                    long runningTimeNanos, boolean cancellable, TaskId parentTaskId, Map<String, String> headers){
+        this(taskId, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId, headers, List.of());
+    }
+
+    public TaskInfo(TaskId taskId, String type, String action, String description, Task.Status status, long startTime,
+                    long runningTimeNanos, boolean cancellable, TaskId parentTaskId, Map<String, String> headers,
+                    Collection<TaskSpanInfo> spans) {
         this.taskId = taskId;
         this.type = type;
         this.action = action;
@@ -83,6 +93,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         this.cancellable = cancellable;
         this.parentTaskId = parentTaskId;
         this.headers = headers;
+        this.spans = Objects.requireNonNull(spans);
     }
 
     /**
@@ -99,6 +110,11 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         cancellable = in.readBoolean();
         parentTaskId = TaskId.readFromStream(in);
         headers = in.readMap(StreamInput::readString, StreamInput::readString);
+        if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
+            this.spans = in.readList(TaskSpanInfo::new);
+        } else {
+            this.spans = List.of();
+        }
     }
 
     @Override
@@ -113,6 +129,9 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         out.writeBoolean(cancellable);
         parentTaskId.writeTo(out);
         out.writeMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+            out.writeCollection(spans);
+        }
     }
 
     public TaskId getTaskId() {
@@ -204,6 +223,13 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
             builder.field(attribute.getKey(), attribute.getValue());
         }
         builder.endObject();
+        if (spans.isEmpty() == false) {
+            builder.startArray("spans");
+            for (TaskSpanInfo span : spans) {
+                span.toXContent(builder, params);
+            }
+            builder.endArray();
+        }
         return builder;
     }
 
@@ -231,7 +257,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
                 RawTaskStatus status = statusBytes == null ? null : new RawTaskStatus(statusBytes);
                 TaskId parentTaskId = parentTaskIdString == null ? TaskId.EMPTY_TASK_ID : new TaskId(parentTaskIdString);
                 return new TaskInfo(id, type, action, description, status, startTime, runningTimeNanos, cancellable, parentTaskId,
-                    headers);
+                    headers, List.of());
             });
     static {
         // Note for the future: this has to be backwards and forwards compatible with all changes to the task storage format
@@ -247,6 +273,7 @@ public final class TaskInfo implements Writeable, ToXContentFragment {
         PARSER.declareBoolean(constructorArg(), new ParseField("cancellable"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("parent_task_id"));
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapStrings(), new ParseField("headers"));
+        // TODO: parse spans in HLRC
     }
 
     @Override

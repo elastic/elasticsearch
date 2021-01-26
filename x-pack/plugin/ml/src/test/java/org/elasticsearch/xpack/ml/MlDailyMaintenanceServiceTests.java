@@ -36,6 +36,7 @@ import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -163,7 +164,8 @@ public class MlDailyMaintenanceServiceTests extends ESTestCase {
                 0,
                 true,
                 new TaskId("test", 456),
-                Collections.emptyMap());
+                Collections.emptyMap(),
+                List.of());
 
         when(clusterService.state()).thenReturn(createClusterState(false));
         doAnswer(withResponse(new DeleteExpiredDataAction.Response(true)))

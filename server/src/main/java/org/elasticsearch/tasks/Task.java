@@ -27,7 +27,11 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Current task information
@@ -50,6 +54,8 @@ public class Task {
     private final TaskId parentTask;
 
     private final Map<String, String> headers;
+
+    private List<TaskSpan> spans;
 
     /**
      * The task's start time as a wall clock time since epoch ({@link System#currentTimeMillis()} style).
@@ -88,21 +94,30 @@ public class Task {
      *            generate data?
      */
     public final TaskInfo taskInfo(String localNodeId, boolean detailed) {
-        String description = null;
-        Task.Status status = null;
+        return taskInfo(localNodeId, detailed, false);
+    }
+
+    public final TaskInfo taskInfo(String localNodeId, boolean detailed, boolean includeSpans) {
+        // TODO: add parameter
+        final String description;
+        final Task.Status status;
         if (detailed) {
             description = getDescription();
             status = getStatus();
+        } else {
+            description = null;
+            status = null;
         }
-        return taskInfo(localNodeId, description, status);
+        final Collection<TaskSpanInfo> spans = includeSpans ? getSpanInfos() : List.of();
+        return taskInfo(localNodeId, description, status, spans);
     }
 
     /**
      * Build a proper {@link TaskInfo} for this task.
      */
-    protected final TaskInfo taskInfo(String localNodeId, String description, Status status) {
+    protected final TaskInfo taskInfo(String localNodeId, String description, Status status, Collection<TaskSpanInfo> spans) {
         return new TaskInfo(new TaskId(localNodeId, getId()), getType(), getAction(), description, status, startTime,
-                System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask, headers);
+            System.nanoTime() - startTimeNanos, this instanceof CancellableTask, parentTask, headers, spans);
     }
 
     /**
@@ -199,5 +214,26 @@ public class Task {
         } else {
             throw new IllegalStateException("response has to implement ToXContent to be able to store the results");
         }
+    }
+
+    private Collection<TaskSpanInfo> getSpanInfos() {
+        final List<TaskSpan> spans;
+        synchronized (this) {
+            if (this.spans == null) {
+                spans = List.of();
+            } else {
+                spans = List.copyOf(this.spans);
+            }
+        }
+        return spans.stream().map(TaskSpan::getSpanInfo).collect(Collectors.toList());
+    }
+
+    public final synchronized TaskSpan newSpan() {
+        if (spans == null) {
+            spans = new ArrayList<>();
+        }
+        final TaskSpan newSpan = new TaskSpan();
+        spans.add(newSpan);
+        return newSpan;
     }
 }

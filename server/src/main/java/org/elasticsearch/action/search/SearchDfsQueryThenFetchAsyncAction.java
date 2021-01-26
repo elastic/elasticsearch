@@ -28,6 +28,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.transport.Transport;
 
 import java.util.List;
@@ -64,10 +65,12 @@ final class SearchDfsQueryThenFetchAsyncAction extends AbstractSearchAsyncAction
     }
 
     @Override
-    protected void executePhaseOnShard(final SearchShardIterator shardIt, final SearchShardTarget shard,
-                                       final SearchActionListener<DfsSearchResult> listener) {
-        getSearchTransport().sendExecuteDfs(getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt, listener.requestIndex) , getTask(), listener);
+    protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt,
+                                       SearchShardTarget shard, SearchActionListener<DfsSearchResult> listener) {
+        final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        taskSpan.addAttribute(TaskSpan.REMOTE_ACTION, SearchTransportService.DFS_ACTION_NAME);
+        taskSpan.addAttribute(TaskSpan.REMOTE_NODE, connection.getNode().getName());
+        getSearchTransport().sendExecuteDfs(connection, buildShardSearchRequest(shardIt, listener.requestIndex) , getTask(), listener);
     }
 
     @Override

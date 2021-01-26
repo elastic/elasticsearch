@@ -241,13 +241,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingNewVersionShard = routingNewVersionShard.initialize(newVersionNode.getId(), "p0", 0);
         routingNewVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 0), singletonList(routingNewVersionShard), idx));
-        
+
         ShardRouting routingOldVersionShard = ShardRouting.newUnassigned(new ShardId(new Index("idx", "_na_"), 1), true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
         routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p1", 0);
         routingOldVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
-        
+
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.setMaxConcurrentShardRequests(numConcurrent);
@@ -291,7 +291,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         Version newVersion = Version.CURRENT;
         Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
         Version minVersion = oldVersion;
-        
+
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
         AtomicInteger successfulOps = new AtomicInteger();
@@ -309,13 +309,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingNewVersionShard = routingNewVersionShard.initialize(newVersionNode.getId(), "p0", 0);
         routingNewVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 0), singletonList(routingNewVersionShard), idx));
-        
+
         ShardRouting routingOldVersionShard = ShardRouting.newUnassigned(new ShardId(new Index("idx", "_na_"), 1), true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
         routingOldVersionShard = routingOldVersionShard.initialize(oldVersionNode.getId(), "p1", 0);
         routingOldVersionShard.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingOldVersionShard), idx));
-        
+
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
@@ -390,7 +390,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         Version newVersion = Version.CURRENT;
         Version oldVersion = VersionUtils.randomPreviousCompatibleVersion(random(), newVersion);
         Version minVersion = newVersion;
-        
+
         final TransportSearchAction.SearchTimeProvider timeProvider =
             new TransportSearchAction.SearchTimeProvider(0, System.nanoTime(), System::nanoTime);
         AtomicInteger successfulOps = new AtomicInteger();
@@ -410,13 +410,13 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         routingNewVersionShard1 = routingNewVersionShard1.initialize(newVersionNode1.getId(), "p0", 0);
         routingNewVersionShard1.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 0), singletonList(routingNewVersionShard1), idx));
-        
+
         ShardRouting routingNewVersionShard2 = ShardRouting.newUnassigned(new ShardId(new Index("idx", "_na_"), 1), true,
             RecoverySource.EmptyStoreRecoverySource.INSTANCE, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "foobar"));
         routingNewVersionShard2 = routingNewVersionShard2.initialize(newVersionNode2.getId(), "p1", 0);
         routingNewVersionShard2.started();
         list.add(new SearchShardIterator(null, new ShardId(new Index("idx", "_na_"), 1), singletonList(routingNewVersionShard2), idx));
-        
+
         GroupShardsIterator<SearchShardIterator> shardsIter = new GroupShardsIterator<>(list);
         final SearchRequest searchRequest = new SearchRequest(minVersion);
         searchRequest.allowPartialSearchResults(false);
@@ -495,11 +495,12 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
             @Override
             public void onFailure(Exception e) { }
-            
+
             @Override
             protected void innerOnResponse(SearchPhaseResult response) { }
         };
-        Exception e = expectThrows(VersionMismatchException.class, () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener));
+        Exception e = expectThrows(VersionMismatchException.class,
+            () -> action.executePhaseOnShard(task.newSpan(), shardIt, searchShardTarget, listener));
         assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
     }
 }

@@ -103,7 +103,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         for (int i = 0; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
             tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
-                Collections.emptyMap()));
+                Collections.emptyMap(), List.of()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         rethrottleTestCase(slices,
@@ -124,7 +124,7 @@ public class TransportRethrottleActionTests extends ESTestCase {
         for (int i = succeeded; i < slices; i++) {
             BulkByScrollTask.Status status = believeableInProgressStatus(i);
             tasks.add(new TaskInfo(new TaskId("test", 123), "test", "test", "test", status, 0, 0, true, new TaskId("test", task.getId()),
-                Collections.emptyMap()));
+                Collections.emptyMap(), List.of()));
             sliceStatuses.add(new BulkByScrollTask.StatusOrException(status));
         }
         rethrottleTestCase(slices - succeeded,

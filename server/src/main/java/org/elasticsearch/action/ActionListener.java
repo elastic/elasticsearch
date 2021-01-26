@@ -24,6 +24,7 @@ import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.CheckedFunction;
 import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.tasks.TaskSpan;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -353,5 +354,22 @@ public interface ActionListener<Response> {
             assert false : ex;
             throw ex;
         }
+    }
+
+    default ActionListener<Response> wrapTaskSpan(TaskSpan taskSpan) {
+        final ActionListener<Response> listener = this;
+        return new ActionListener<Response>() {
+            @Override
+            public void onResponse(Response r) {
+                taskSpan.markAsComplete();
+                listener.onResponse(r);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                taskSpan.markAsFailure(e);
+                listener.onFailure(e);
+            }
+        };
     }
 }

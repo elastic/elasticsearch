@@ -68,6 +68,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.profile.SearchProfileShardResults;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -224,8 +225,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     public interface SinglePhaseSearchAction {
-        void executeOnShardTarget(SearchTask searchTask, SearchShardTarget target, Transport.Connection connection,
-                                  ActionListener<SearchPhaseResult> listener);
+        void executeOnShardTarget(SearchTask searchTask, TaskSpan taskSpan, SearchShardTarget target,
+                                  Transport.Connection connection, ActionListener<SearchPhaseResult> listener);
     }
 
     public void executeRequest(Task task, SearchRequest searchRequest, String actionName,
@@ -244,10 +245,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     executor, searchRequest, listener, shardsIts, timeProvider, clusterState, task,
                     new ArraySearchPhaseResults<>(shardsIts.size()), 1, clusters) {
                     @Override
-                    protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+                    protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                                        SearchActionListener<SearchPhaseResult> listener) {
                         final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
-                        phaseSearchAction.executeOnShardTarget(task, shard, connection, listener);
+                        phaseSearchAction.executeOnShardTarget(task, taskSpan, shard, connection, listener);
                     }
 
                     @Override

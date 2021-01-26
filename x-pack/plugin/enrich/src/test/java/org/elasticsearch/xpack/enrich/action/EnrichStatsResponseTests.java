@@ -60,6 +60,18 @@ public class EnrichStatsResponseTests extends AbstractWireSerializingTestCase<En
         Map<String, String> headers = randomBoolean()
             ? Collections.emptyMap()
             : Collections.singletonMap(randomAlphaOfLength(5), randomAlphaOfLength(5));
-        return new TaskInfo(taskId, type, action, description, null, startTime, runningTimeNanos, cancellable, parentTaskId, headers);
+        return new TaskInfo(
+            taskId,
+            type,
+            action,
+            description,
+            null,
+            startTime,
+            runningTimeNanos,
+            cancellable,
+            parentTaskId,
+            headers,
+            List.of()
+        );
     }
 }

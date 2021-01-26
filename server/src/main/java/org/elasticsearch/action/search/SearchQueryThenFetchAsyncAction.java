@@ -30,6 +30,7 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Map;
@@ -75,11 +76,13 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             SearchProgressListener.buildSearchShards(toSkipShardsIts), clusters, hasFetchPhase);
     }
 
-    protected void executePhaseOnShard(final SearchShardIterator shardIt,
-                                       final SearchShardTarget shard,
-                                       final SearchActionListener<SearchPhaseResult> listener) {
+    protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt,
+                                       SearchShardTarget shard, SearchActionListener<SearchPhaseResult> listener) {
+        final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        taskSpan.addAttribute(TaskSpan.REMOTE_ACTION, SearchTransportService.QUERY_ACTION_NAME);
+        taskSpan.addAttribute(TaskSpan.REMOTE_NODE, connection.getNode().getName());
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
-        getSearchTransport().sendExecuteQuery(getConnection(shard.getClusterAlias(), shard.getNodeId()), request, getTask(), listener);
+        getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 
     @Override

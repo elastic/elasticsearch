@@ -79,7 +79,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             searchRequest,
             "open_search_context",
             true,
-            (searchTask, shardTarget, connection, phaseListener) -> {
+            (searchTask, taskSpan, shardTarget, connection, phaseListener) -> {
                 final ShardOpenReaderRequest shardRequest = new ShardOpenReaderRequest(
                     shardTarget.getShardId(),
                     shardTarget.getOriginalIndices(),

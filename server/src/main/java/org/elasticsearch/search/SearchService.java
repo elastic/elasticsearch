@@ -121,6 +121,8 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -336,7 +338,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     public void executeDfsPhase(ShardSearchRequest request, boolean keepStatesInContext,
                                 SearchShardTask task, ActionListener<SearchPhaseResult> listener) {
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
+        rewriteAndFetchShardRequest(shard, request, task, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest rewritten) {
                 // fork the execution in the search thread pool
@@ -371,10 +373,19 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     private void loadOrExecuteQueryPhase(final ShardSearchRequest request, final SearchContext context) throws Exception {
         final boolean canCache = indicesService.canCache(request, context);
         context.getSearchExecutionContext().freezeContext();
-        if (canCache) {
-            indicesService.loadIntoContext(request, context, queryPhase);
-        } else {
-            queryPhase.execute(context);
+        final TaskSpan taskSpan = context.getTask().newSpan()
+            .addAttribute("step", "query")
+            .addAttribute("can_cache", canCache)
+            .addAttribute(TaskSpan.THREAD_NAME, Thread.currentThread().getName());
+        try {
+            if (canCache) {
+                indicesService.loadIntoContext(request, context, queryPhase);
+            } else {
+                queryPhase.execute(context);
+            }
+            taskSpan.markAsComplete();
+        } catch (Exception e) {
+            taskSpan.markAsFailure(e);
         }
     }
 
@@ -383,7 +394,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         assert request.canReturnNullResponseIfMatchNoDocs() == false || request.numberOfShards() > 1
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
-        rewriteAndFetchShardRequest(shard, request, new ActionListener<ShardSearchRequest>() {
+        rewriteAndFetchShardRequest(shard, request, task, new ActionListener<ShardSearchRequest>() {
             @Override
             public void onResponse(ShardSearchRequest orig) {
                 // check if we can shortcut the query phase entirely.
@@ -467,6 +478,10 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private QueryFetchSearchResult executeFetchPhase(ReaderContext reader, SearchContext context, long afterQueryTime) {
+        final TaskSpan span = context.getTask().newSpan()
+            .addAttribute("name", "fetch")
+            .addAttribute("fetch_size", context.docIdsToLoadSize())
+            .addAttribute(TaskSpan.THREAD_NAME, Thread.currentThread().getName());
         try (SearchOperationListenerExecutor executor = new SearchOperationListenerExecutor(context, true, afterQueryTime)){
             shortcutDocIdsToLoad(context);
             fetchPhase.execute(context);
@@ -474,6 +489,11 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 freeReaderContext(reader.id());
             }
             executor.success();
+        } catch (Exception e) {
+            span.markAsFailure(e);
+            throw e;
+        } finally {
+            span.removeAttribute(TaskSpan.THREAD_NAME);
         }
         return new QueryFetchSearchResult(context.queryResult(), context.fetchResult());
     }
@@ -1276,19 +1296,30 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return aggregations == null || aggregations.mustVisitAllDocs() == false;
     }
 
-    private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request, ActionListener<ShardSearchRequest> listener) {
+    private void rewriteAndFetchShardRequest(IndexShard shard, ShardSearchRequest request,
+                                             Task task, ActionListener<ShardSearchRequest> listener) {
         ActionListener<Rewriteable> actionListener = ActionListener.wrap(r -> {
             if (request.readerId() != null) {
                 listener.onResponse(request);
             } else {
                 // now we need to check if there is a pending refresh and register
-                shard.awaitShardSearchActive(b -> listener.onResponse(request));
+                final TaskSpan taskSpan = task.newSpan()
+                    .addAttribute("step", "await_shard_search_active")
+                    .addAttribute(TaskSpan.SHARD_ID, shard.shardId());
+                shard.awaitShardSearchActive(b -> {
+                    taskSpan.markAsComplete();
+                    listener.onResponse(request);
+                });
             }
         }, listener::onFailure);
         // we also do rewrite on the coordinating node (TransportSearchService) but we also need to do it here for BWC as well as
         // AliasFilters that might need to be rewritten. These are edge-cases but we are every efficient doing the rewrite here so it's not
         // adding a lot of overhead
-        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis), actionListener);
+        final TaskSpan taskSpan = task.newSpan()
+            .addAttribute("step", "rewrite_and_fetch")
+            .addAttribute(TaskSpan.SHARD_ID, shard.shardId());
+        Rewriteable.rewriteAndFetch(request.getRewriteable(), indicesService.getRewriteContext(request::nowInMillis),
+            actionListener.wrapTaskSpan(taskSpan));
     }
 
     /**

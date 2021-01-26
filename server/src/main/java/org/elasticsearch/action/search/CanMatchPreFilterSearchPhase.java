@@ -35,6 +35,7 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.MinAndMax;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.transport.Transport;
 
 import java.util.Comparator;
@@ -87,10 +88,12 @@ final class CanMatchPreFilterSearchPhase extends AbstractSearchAsyncAction<CanMa
     }
 
     @Override
-    protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+    protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                        SearchActionListener<CanMatchResponse> listener) {
-        getSearchTransport().sendCanMatch(getConnection(shard.getClusterAlias(), shard.getNodeId()),
-            buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
+        final Transport.Connection connection = getConnection(shard.getClusterAlias(), shard.getNodeId());
+        taskSpan.addAttribute(TaskSpan.REMOTE_ACTION, SearchTransportService.QUERY_CAN_MATCH_NAME);
+        taskSpan.addAttribute(TaskSpan.REMOTE_NODE, connection.getNode().getName());
+        getSearchTransport().sendCanMatch(connection, buildShardSearchRequest(shardIt, listener.requestIndex), getTask(), listener);
     }
 
     @Override

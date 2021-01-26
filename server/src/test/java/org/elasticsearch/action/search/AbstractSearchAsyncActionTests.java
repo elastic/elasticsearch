@@ -35,6 +35,8 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 
@@ -42,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArraySet;
 import java.util.concurrent.TimeUnit;
@@ -83,15 +86,16 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             resolvedNodes.add(Tuple.tuple(cluster, node));
             return null;
         };
+        final SearchTask task = new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of());
 
         return new AbstractSearchAsyncAction<SearchPhaseResult>("test", logger, null, nodeIdToConnection,
                 Collections.singletonMap("foo", new AliasFilter(new MatchAllQueryBuilder())), Collections.singletonMap("foo", 2.0f),
-            null, request, listener,
+                null, request, listener,
                 new GroupShardsIterator<>(
                     Collections.singletonList(
                         new SearchShardIterator(null, null, Collections.emptyList(), null)
                     )
-                ), timeProvider, ClusterState.EMPTY_STATE, null,
+                ), timeProvider, ClusterState.EMPTY_STATE, task,
                 results, request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
             @Override
@@ -100,8 +104,8 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             }
 
             @Override
-            protected void executePhaseOnShard(final SearchShardIterator shardIt, final SearchShardTarget shard,
-                                               final SearchActionListener<SearchPhaseResult> listener) {
+            protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
+                                               SearchActionListener<SearchPhaseResult> listener) {
             }
 
             @Override

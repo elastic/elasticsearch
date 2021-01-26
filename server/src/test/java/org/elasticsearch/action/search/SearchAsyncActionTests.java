@@ -37,6 +37,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.tasks.TaskSpan;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportException;
@@ -114,13 +116,13 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+                protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
                     seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per replica
@@ -219,13 +221,13 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+                protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
                     seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per shard copy
@@ -321,14 +323,14 @@ public class SearchAsyncActionTests extends ESTestCase {
                         shardsIter,
                         new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                         ClusterState.EMPTY_STATE,
-                        null,
+                        new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
                         new ArraySearchPhaseResults<>(shardsIter.size()),
                         request.getMaxConcurrentShardRequests(),
                         SearchResponse.Clusters.EMPTY) {
             TestSearchResponse response = new TestSearchResponse();
 
             @Override
-            protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+            protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                                SearchActionListener<TestSearchPhaseResult> listener) {
                 assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
                 Transport.Connection connection = getConnection(null, shard.getNodeId());
@@ -430,14 +432,15 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
                 TestSearchResponse response = new TestSearchResponse();
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt,
+                protected void executePhaseOnShard(TaskSpan taskSpan,
+                                                   SearchShardIterator shardIt,
                                                    SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
                     assertTrue("shard: " + shard.getShardId() + " has been queried twice", response.queried.add(shard.getShardId()));
@@ -530,13 +533,13 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+                protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
                     seenShard.computeIfAbsent(shard.getShardId(), (i) -> {
                         numRequests.incrementAndGet(); // only count this once per shard copy
@@ -617,13 +620,13 @@ public class SearchAsyncActionTests extends ESTestCase {
                 shardsIter,
                 new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0),
                 ClusterState.EMPTY_STATE,
-                null,
+                new SearchTask(1, "type", "action", () -> "", TaskId.EMPTY_TASK_ID, Map.of()),
                 new ArraySearchPhaseResults<>(shardsIter.size()),
                 request.getMaxConcurrentShardRequests(),
                 SearchResponse.Clusters.EMPTY) {
 
                 @Override
-                protected void executePhaseOnShard(SearchShardIterator shardIt, SearchShardTarget shard,
+                protected void executePhaseOnShard(TaskSpan taskSpan, SearchShardIterator shardIt, SearchShardTarget shard,
                                                    SearchActionListener<TestSearchPhaseResult> listener) {
                     assert false : "Expected to skip all shards";
                 }

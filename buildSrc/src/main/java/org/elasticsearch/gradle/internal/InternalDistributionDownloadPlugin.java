@@ -83,7 +83,7 @@ public class InternalDistributionDownloadPlugin implements InternalPlugin {
         resolutions.register("bwc", distributionResolution -> distributionResolution.setResolver((project, distribution) -> {
             BwcVersions.UnreleasedVersionInfo unreleasedInfo = bwcVersions.unreleasedInfo(Version.fromString(distribution.getVersion()));
             if (unreleasedInfo != null) {
-                if (!distribution.getBundledJdk()) {
+                if (distribution.getBundledJdk() == false) {
                     throw new GradleException(
                         "Configuring a snapshot bwc distribution ('"
                             + distribution.getName()

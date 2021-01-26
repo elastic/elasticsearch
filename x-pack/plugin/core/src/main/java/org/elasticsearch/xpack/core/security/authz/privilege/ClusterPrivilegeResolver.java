@@ -46,7 +46,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Translates cluster privilege names into concrete implementations
+* Translates cluster privilege names into concrete implementations
  */
 public class ClusterPrivilegeResolver {
     private static final Logger logger = LogManager.getLogger(ClusterPrivilegeResolver.class);
@@ -66,7 +66,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of("cluster:*", "indices:admin/template/*", "indices:admin/index_template/*",
-        "indices:admin/data_stream/*");
+        "indices:admin/data_stream/*", "indices:admin/xpack/rollup");
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*",
             "cluster:monitor/transform/*", "cluster:admin/transform/*");
@@ -223,7 +223,8 @@ public class ClusterPrivilegeResolver {
     public static boolean isClusterAction(String actionName) {
         return actionName.startsWith("cluster:") ||
             actionName.startsWith("indices:admin/template/") ||
-            actionName.startsWith("indices:admin/index_template/");
+            actionName.startsWith("indices:admin/index_template/") ||
+            actionName.startsWith("indices:admin/xpack/rollup");
     }
 
     private static String actionToPattern(String text) {

@@ -88,7 +88,6 @@ public class MlJobSnapshotUpgradeIT extends AbstractUpgradeTestCase {
      * index mappings when it is assigned to an upgraded node even if no other ML endpoint is called after the upgrade
      */
     public void testSnapshotUpgrader() throws Exception {
-        assumeTrue("Mute due: https://github.com/elastic/elasticsearch/issues/67728", UPGRADE_FROM_VERSION.onOrAfter(Version.V_7_0_0));
         hlrc = new HLRC(client()).machineLearning();
         Request adjustLoggingLevels = new Request("PUT", "/_cluster/settings");
         adjustLoggingLevels.setJsonEntity(

@@ -52,7 +52,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
 
             @Override
             public void process(HitContext hitContext) {
-                if (fetchContext.getQueryShardContext().isSourceEnabled() == false) {
+                if (fetchContext.getSearchExecutionContext().isSourceEnabled() == false) {
                     if (containsFilters(fetchSourceContext)) {
                         throw new IllegalArgumentException(
                             "unable to fetch fields from _source field: _source is disabled in the mappings for index [" + index + "]");

@@ -551,7 +551,7 @@ that is used to compute the derivatives of the loss function for tree training.
 The lower the value the smaller the fraction of data that is used.
 Typically accuracy improves if this is set to be less than 1. However, too small
 a value may result in poor convergence for the ensemble and so require more trees.
-For more information about shrinkage, see
+For more information about shrinkage, refer to
 {wikipedia}/Gradient_boosting#Stochastic_gradient_boosting[this wiki article].
 Values must be greater than zero and less than or equal to 1.
 By default, this value is calculated during hyperparameter optimization.
@@ -698,7 +698,7 @@ end::dfas-soft-limit[]
 tag::dfas-soft-tolerance[]
 Advanced configuration option.
 This controls how quickly the regularized loss increases when the tree
-depth exceeds {dfa-soft-limit}.
+depth exceeds `soft_tree_depth_limit`.
 Values must be greater than or equal to 0.01.
 By default, this value is calculated during hyperparameter optimization.
 end::dfas-soft-tolerance[]
@@ -747,7 +747,7 @@ tag::eta[]
 Advanced configuration option. The shrinkage applied to the weights. Smaller
 values result in larger forests which have a better generalization error.
 However, the smaller the value the longer the training will take. For more
-information about shrinkage, see
+information about shrinkage, refer to
 {wikipedia}/Gradient_boosting#Shrinkage[this wiki article].
 By default, this value is calculated during hyperparameter optimization.
 end::eta[]

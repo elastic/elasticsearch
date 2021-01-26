@@ -1,0 +1,22 @@
+integ_test_role:
+  cluster:
+    - manage_enrich
+    - manage_ingest_pipelines
+    - monitor
+  indices:
+    - names: [ 'my-index', 'my-source-index' ]
+      privileges:
+        - manage
+        - read
+        - write
+
+enrich_no_privs:
+  cluster:
+    - manage_ingest_pipelines
+    - monitor
+  indices:
+    - names: [ '.enrich-my_policy*', 'my-index', 'my-source-index' ]
+      privileges:
+        - manage
+        - read
+        - write

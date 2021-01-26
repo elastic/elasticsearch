@@ -238,7 +238,7 @@ final class UserAgentParser {
           String name = null, major = null, minor = null, patch = null, build = null;
           Matcher matcher = pattern.matcher(agentString);
 
-          if (!matcher.find()) {
+          if (matcher.find() == false) {
             return null;
           }
 

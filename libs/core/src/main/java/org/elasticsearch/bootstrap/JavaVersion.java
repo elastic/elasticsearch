@@ -54,7 +54,7 @@ public class JavaVersion implements Comparable<JavaVersion> {
     public static JavaVersion parse(String value) {
         Objects.requireNonNull(value);
         String prePart = null;
-        if (!isValid(value)) {
+        if (isValid(value) == false) {
             throw new IllegalArgumentException("Java version string [" + value + "] could not be parsed.");
         }
         List<Integer> version = new ArrayList<>();

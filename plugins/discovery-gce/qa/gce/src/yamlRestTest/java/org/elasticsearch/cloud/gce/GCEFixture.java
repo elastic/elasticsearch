@@ -132,8 +132,10 @@ public class GCEFixture extends AbstractHttpFixture {
             request -> {
                 final var items = new ArrayList<Map<String, Object>>();
                 int count = 0;
+                System.out.println("Files.exists(nodes) = " + Files.exists(nodes));
                 for (String address : Files.readAllLines(nodes)) {
                     count++;
+                    System.out.println("Address = " + address);
                     items.add(Map.of(
                             "id", Long.toString(9309873766405L + count),
                             "description", "ES node" + count,

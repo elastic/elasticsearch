@@ -474,38 +474,4 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertNotNull(response.getFailure());
         ensureTaskNotRunning(response.getId());
     }
-
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/63948")
-    public void testRetryVersionConflict() throws Exception {
-        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(indexName);
-        request.setWaitForCompletionTimeout(TimeValue.timeValueMinutes(10));
-        request.setKeepOnCompletion(true);
-        AsyncSearchResponse response = submitAsyncSearch(request);
-        assertNotNull(response.getSearchResponse());
-        assertFalse(response.isRunning());
-
-        List<Thread> threads = new ArrayList<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        List<Exception> exceptions = Collections.synchronizedList(new ArrayList<>());
-        for (int i = 0; i < 2; i++) {
-            Runnable runnable = () -> {
-                for (int j = 0; j < 10; j++) {
-                    try {
-                        latch.await();
-                        getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(10));
-                    } catch (Exception exc) {
-                        exceptions.add(exc);
-                    }
-                }
-            };
-            Thread thread = new Thread(runnable);
-            thread.start();
-            threads.add(thread);
-        }
-        latch.countDown();
-        for (Thread thread : threads) {
-            thread.join();
-        }
-        assertTrue(exceptions.toString(), exceptions.isEmpty());
-    }
 }

@@ -52,6 +52,9 @@ tasks.named("preProcessFixture").configure {
   inputs.files(yamlRestTestJar, sourceSets.yamlRestTest.runtimeClasspath)
   doLast {
     file("${testFixturesDir}/shared").mkdirs()
+    // avoid accessdenied exception when having this
+    // created during compose up by docker
+    file("build/testclusters/yamlRestTest-1/config").mkdirs()
     project.copy {
       from yamlRestTestJar
       from sourceSets.yamlRestTest.runtimeClasspath

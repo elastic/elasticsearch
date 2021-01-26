@@ -1,23 +1,11 @@
 [[painless-context-examples]]
 === Context examples
 
-To run the examples, index the sample seat data into Elasticsearch. The examples
-must be run sequentially to work correctly.
+Complete the following steps to index the `seat` sample data into {es}. The
+examples for each context rely on this sample data.
 
-. Download the
-https://download.elastic.co/demos/painless/contexts/seats.json[seat data]. This
-data set contains booking information for a collection of plays. Each document
-represents a single seat for a play at a particular theater on a specific date
-and time.
-+
-[source,js]
-----
-curl https://download.elastic.co/demos/painless/contexts/seats.json --output seats.json
-----
-// NOTCONSOLE
-+
-Each document contains the following fields:
-+
+Each document in the `seat` data contains the following fields:
+
 `theatre` ({ref}/keyword.html[`keyword`])::
         The name of the theater the play is in.
 `play` ({ref}/text.html[`text`])::
@@ -39,13 +27,13 @@ Each document contains the following fields:
 `time` ({ref}/keyword.html[`keyword`])::
         The time of the play as a keyword.
 
-. {defguide}/running-elasticsearch.html[Start] Elasticsearch. Note these
-examples assume Elasticsearch and Kibana are running locally. To use the Console
-editor with a remote Kibana instance, click the settings icon and enter the
-Console URL. To submit a cURL request to a remote Elasticsearch instance, edit
-the request URL.
+==== Prerequisites
+Start an {ref}/getting-started-install.html[{es} instance], and then access the
+{kibana-ref}/console-kibana.html[Console] in {kib}.
 
-. Create {ref}/mapping.html[mappings] for the sample data:
+==== Configure the `seat` sample data
+. From the {kib} Console, create {ref}/mapping.html[mappings] for the sample
+data:
 +
 [source,console]
 ----
@@ -69,14 +57,70 @@ PUT /seats
 ----
 +
 
-. Run the <<painless-ingest-processor-context, ingest processor context>>
-example. This sets up a script ingest processor used on each document as the
-seat data is indexed.
-
-. Index the seat data:
+. Configure a script ingest processor that parses each document as {es} ingests
+the `seat` data:
 +
-[source,js]
+[source,console]
 ----
-curl -XPOST "localhost:9200/seats/_bulk?pipeline=seats" -H "Content-Type: application/x-ndjson" --data-binary "@/<local-file-path>/seats.json"
+PUT /_ingest/pipeline/seats
+{
+  "description": "update datetime for seats",
+  "processors": [
+    {
+      "script": {
+        "source": "String[] dateSplit = ctx.date.splitOnToken('-'); String year = dateSplit[0].trim(); String month = dateSplit[1].trim(); if (month.length() == 1) { month = '0' + month; } String day = dateSplit[2].trim(); if (day.length() == 1) { day = '0' + day; } boolean pm = ctx.time.substring(ctx.time.length() - 2).equals('PM'); String[] timeSplit = ctx.time.substring(0, ctx.time.length() - 2).splitOnToken(':'); int hours = Integer.parseInt(timeSplit[0].trim()); int minutes = Integer.parseInt(timeSplit[1].trim()); if (pm) { hours += 12; } String dts = year + '-' + month + '-' + day + 'T' + (hours < 10 ? '0' + hours : '' + hours) + ':' + (minutes < 10 ? '0' + minutes : '' + minutes) + ':00+08:00'; ZonedDateTime dt = ZonedDateTime.parse(dts, DateTimeFormatter.ISO_OFFSET_DATE_TIME); ctx.datetime = dt.getLong(ChronoField.INSTANT_SECONDS)*1000L;"
+      }
+    }
+  ]
+}
 ----
-// NOTCONSOLE
+// TEST[continued]
+
+. Ingest some sample data using the `seats` ingest pipeline that you defined in
+the previous step.
++
+[source,console]
+----
+POST seats/_bulk?pipeline=seats&refresh=true
+{"create":{"_index":"seats","_id":"1"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":1,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"2"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":2,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"3"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":3,"cost":30,"sold":true}
+{"create":{"_index":"seats","_id":"4"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":4,"cost":30,"sold":false}
+{"create":{"_index":"seats","_id":"5"}}
+{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":5,"cost":30,"sold":false}
+{ "create" : { "_index" : "seats", "_id" : "1070" } }
+{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 2, "cost": 27.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "1071" } }
+{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 3, "cost": 27.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "1072" } }
+{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 4, "cost": 27.5, "sold": true }
+{ "create" : { "_index" : "seats", "_id" : "1073" } }
+{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 5, "cost": 27.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "1074" } }
+{ "theatre" : "Down Port", "play" : "Pick It Up", "actors": [ "Joel Madigan", "Jessica Brown", "Baz Knight", "Jo Hangum", "Rachel Grass", "Phoebe Miller" ], "date": "2018-4-2", "time": "8:00PM", "row": 3, "number": 6, "cost": 27.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "4762" } }
+{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 1, "number": 10, "cost": 30.0, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "4763" } }
+{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 1, "number": 11, "cost": 30.0, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "4764" } }
+{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 1, "number": 12, "cost": 30.0, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "4765" } }
+{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 2, "number": 1, "cost": 28.75, "sold": true }
+{ "create" : { "_index" : "seats", "_id" : "4766" } }
+{ "theatre" : "Down Port", "play" : "Harriot", "actors": [ "Phoebe Miller", "Sarah Notch", "Brayden Green", "Joshua Iller", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue", "Mike Candlestick", "Jacey Bell" ], "date": "2018-8-7", "time": "8:00PM", "row": 2, "number": 2, "cost": 28.75, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "29539" } }
+{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 10, "cost": 22.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "29540" } }
+{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 11, "cost": 22.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "29541" } }
+{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 12, "cost": 22.5, "sold": true }
+{ "create" : { "_index" : "seats", "_id" : "29542" } }
+{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 13, "cost": 22.5, "sold": false }
+{ "create" : { "_index" : "seats", "_id" : "29543" } }
+{ "theatre" : "Skyline", "play" : "Auntie Jo", "actors": [ "Jo Hangum", "Jon Hittle", "Rob Kettleman", "Laura Conrad", "Simon Hower", "Nora Blue" ], "date": "2018-10-2", "time": "5:40PM", "row": 7, "number": 14, "cost": 22.5, "sold": false }
+----
+// TEST[continued]

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.RegressionTests;
+import org.elasticsearch.xpack.core.ml.dataframe.stats.common.DataCounts;
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
@@ -178,6 +179,6 @@ public class InferenceRunnerTests extends ESTestCase {
 
     private InferenceRunner createInferenceRunner(ExtractedFields extractedFields) {
         return new InferenceRunner(Settings.EMPTY, client, modelLoadingService,  resultsPersisterService, parentTaskId, config,
-            extractedFields, progressTracker, new DataCountsTracker());
+            extractedFields, progressTracker, new DataCountsTracker(new DataCounts(config.getId())));
     }
 }

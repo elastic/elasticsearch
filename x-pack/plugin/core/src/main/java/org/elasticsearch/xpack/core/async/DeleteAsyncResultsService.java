@@ -82,13 +82,13 @@ public class DeleteAsyncResultsService {
                 store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncTask.class);
             if (task != null) {
                 //the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.
-                task.cancelTask(taskManager, () -> deleteResponseFromIndex(searchId, listener), "cancelled by user");
+                task.cancelTask(taskManager, () -> deleteResponseFromIndex(searchId, true, listener), "cancelled by user");
             } else {
                 if (hasManagePrivilege) {
-                    deleteResponseFromIndex(searchId, listener);
+                    deleteResponseFromIndex(searchId, false, listener);
                 } else {
                     store.ensureAuthenticatedUserCanDeleteFromIndex(searchId,
-                        ActionListener.wrap(res -> deleteResponseFromIndex(searchId, listener), listener::onFailure));
+                        ActionListener.wrap(res -> deleteResponseFromIndex(searchId, false, listener), listener::onFailure));
                 }
             }
         } catch (Exception exc) {
@@ -96,19 +96,27 @@ public class DeleteAsyncResultsService {
         }
     }
 
-    private void deleteResponseFromIndex(AsyncExecutionId taskId, ActionListener<AcknowledgedResponse> listener) {
+    private void deleteResponseFromIndex(AsyncExecutionId taskId,
+                                         boolean taskWasFound,
+                                         ActionListener<AcknowledgedResponse> listener) {
         store.deleteResponse(taskId, ActionListener.wrap(
-            r -> listener.onResponse(AcknowledgedResponse.TRUE),
+            resp -> {
+                if (resp.status() == RestStatus.OK || taskWasFound) {
+                    listener.onResponse(AcknowledgedResponse.TRUE);
+                } else {
+                    listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
+                }
+            },
             exc -> {
                 RestStatus status = ExceptionsHelper.status(ExceptionsHelper.unwrapCause(exc));
                 //the index may not be there (no initial async search response stored yet?): we still want to return 200
                 //note that index missing comes back as 200 hence it's handled in the onResponse callback
-                if (status == RestStatus.NOT_FOUND) {
+                if (status == RestStatus.NOT_FOUND && taskWasFound) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 } else {
                     logger.error(() -> new ParameterizedMessage("failed to clean async result [{}]",
                         taskId.getEncoded()), exc);
-                    listener.onFailure(exc);
+                    listener.onFailure(new ResourceNotFoundException(taskId.getEncoded()));
                 }
             }));
     }

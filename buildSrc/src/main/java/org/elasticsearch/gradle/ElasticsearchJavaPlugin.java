@@ -284,10 +284,10 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
         });
 
         TaskProvider<Javadoc> javadoc = project.getTasks().withType(Javadoc.class).named("javadoc");
-        javadoc.configure(doc ->
-            // remove compiled classes from the Javadoc classpath:
-            // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
-            doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
+
+        // remove compiled classes from the Javadoc classpath:
+        // http://mail.openjdk.java.net/pipermail/javadoc-dev/2018-January/000400.html
+        javadoc.configure(doc -> doc.setClasspath(Util.getJavaMainSourceSet(project).get().getCompileClasspath()));
 
         // ensure javadoc task is run with 'check'
         project.getTasks().named(LifecycleBasePlugin.CHECK_TASK_NAME).configure(t -> t.dependsOn(javadoc));

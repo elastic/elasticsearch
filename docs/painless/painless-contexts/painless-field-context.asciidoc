@@ -70,15 +70,15 @@ GET seats/_search
   "script_fields": {
     "day-of-week": {
       "script": {
-        "source": "doc['datetime'].value.getDayOfWeek()"
+        "source": "doc['datetime'].value.getDayOfWeekEnum()"
       }
     },
     "number-of-actors": {
       "script": {
-        "source": "params['_source']['actors'].length"
+        "source": "params['_source']['actors']"
       }
     }
   }
 }
 ----
-// TEST[skip: requires setup from other pages]
+// TEST[setup:seats]

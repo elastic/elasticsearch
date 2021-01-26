@@ -1584,7 +1584,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         settings, namedXContentRegistry,
                         mapperRegistry,
                         indexScopedSettings,
-                        systemIndices,
                         null),
                     clusterSettings,
                         shardLimitValidator

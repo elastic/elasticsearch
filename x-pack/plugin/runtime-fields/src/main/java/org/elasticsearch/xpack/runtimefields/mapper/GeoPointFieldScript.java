@@ -7,6 +7,8 @@
 package org.elasticsearch.xpack.runtimefields.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistLoader;
@@ -49,20 +51,17 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         lookup,
         ctx
     ) {
+        private final GeoPoint scratch = new GeoPoint();
+
         @Override
         public void execute() {
-            Object v = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
-            if (v instanceof Map == false) {
-                return;
+            try {
+                Object v = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
+                GeoUtils.parseGeoPoint(v, scratch, true);
+                emit(scratch.lat(), scratch.lon());
+            } catch (Exception e) {
+                // ignore
             }
-            @SuppressWarnings("unchecked")
-            Map<String, ?> vs = (Map<String, ?>) v;
-            Object lat = vs.get("lat");
-            Object lon = vs.get("lon");
-            if (lat instanceof Number == false || lon instanceof Number == false) {
-                return;
-            }
-            emit(((Number) lat).doubleValue(), ((Number) lon).doubleValue());
         }
     };
 

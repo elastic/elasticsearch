@@ -54,6 +54,10 @@ The named ranges supported for the `internal_networks` option are:
   "0.0.0.0" or the IPv6 address "::").
 
 
+[discrete]
+[[network-direction-processor-ex]]
+===== Examples
+
 The following examples illustrates the use of the network direction processor:
 
 [source,js]

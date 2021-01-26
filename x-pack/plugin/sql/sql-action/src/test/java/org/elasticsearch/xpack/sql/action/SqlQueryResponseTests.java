@@ -16,6 +16,7 @@ import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -81,7 +82,7 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
                 rows.add(row);
             }
         }
-        return new SqlQueryResponse(cursor, mode, false, columns, rows);
+        return new SqlQueryResponse(cursor, mode, SqlVersion.CURRENT, false, columns, rows);
     }
 
     public void testToXContent() throws IOException {
@@ -128,6 +129,6 @@ public class SqlQueryResponseTests extends AbstractSerializingTestCase<SqlQueryR
     protected SqlQueryResponse doParseInstance(XContentParser parser) {
         org.elasticsearch.xpack.sql.proto.SqlQueryResponse response =
             org.elasticsearch.xpack.sql.proto.SqlQueryResponse.fromXContent(parser);
-        return new SqlQueryResponse(response.cursor(), Mode.JDBC, false, response.columns(), response.rows());
+        return new SqlQueryResponse(response.cursor(), Mode.JDBC, SqlVersion.CURRENT, false, response.columns(), response.rows());
     }
 }

@@ -14,7 +14,7 @@ import java.time.OffsetTime;
 import java.time.ZonedDateTime;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATE_WITH_NANOS;
+import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_DATETIME_WITH_NANOS;
 import static org.elasticsearch.xpack.sql.proto.StringUtils.ISO_TIME_WITH_NANOS;
 
 /**
@@ -29,7 +29,7 @@ final class JdbcDateUtils {
     private static final LocalDate EPOCH = LocalDate.of(1970, 1, 1);
 
     static ZonedDateTime asZonedDateTime(String date) {
-        return ISO_DATE_WITH_NANOS.parse(date, ZonedDateTime::from);
+        return ISO_DATETIME_WITH_NANOS.parse(date, ZonedDateTime::from);
     }
 
     static long dateTimeAsMillisSinceEpoch(String date) {

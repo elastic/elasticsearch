@@ -120,6 +120,7 @@ public class TransportSqlQueryAction extends HandledTransportAction<SqlQueryRequ
         return new SqlQueryResponse(
                 Cursors.encodeToString(page.next(), zoneId),
                 request.mode(),
+                request.version(),
                 request.columnar(),
                 header,
                 rows);

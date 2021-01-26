@@ -1264,7 +1264,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingTimestampWithoutCalendar_DateNanos_OldDriver() throws Exception {
-        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] supports DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
         long randomLongDate = randomNonNegativeLong();
         long randomLongDateNanos = randomNanos();

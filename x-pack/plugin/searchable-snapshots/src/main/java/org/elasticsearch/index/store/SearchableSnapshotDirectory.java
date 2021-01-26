@@ -153,7 +153,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        boolean partial,
         SearchableSnapshotsLFUCache sharedLfuCache) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -170,13 +169,13 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         this.shardPath = Objects.requireNonNull(shardPath);
         this.closed = new AtomicBoolean(false);
         this.useCache = SNAPSHOT_CACHE_ENABLED_SETTING.get(indexSettings);
-        this.prewarmCache = useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
+        this.partial = SNAPSHOT_PARTIAL_SETTING.get(indexSettings);
+        this.prewarmCache = partial == false && useCache ? SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING.get(indexSettings) : false;
         this.excludedFileTypes = new HashSet<>(SNAPSHOT_CACHE_EXCLUDED_FILE_TYPES_SETTING.get(indexSettings));
         this.uncachedChunkSize = SNAPSHOT_UNCACHED_CHUNK_SIZE_SETTING.get(indexSettings).getBytes();
         this.blobStoreCachePath = String.join("/", snapshotId.getUUID(), indexId.getId(), String.valueOf(shardId.id()));
         this.threadPool = threadPool;
         this.loaded = false;
-        this.partial = partial;
         this.sharedLfuCache = sharedLfuCache;
         assert invariant();
     }
@@ -627,7 +626,6 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                 cacheDir,
                 shardPath,
                 threadPool,
-                SNAPSHOT_PARTIAL_SETTING.get(indexSettings.getSettings()),
                 sharedLfuCache
             )
         );

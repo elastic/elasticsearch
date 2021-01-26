@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.searchablesnapshots.cache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
@@ -16,6 +17,7 @@ import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
@@ -26,15 +28,8 @@ import org.elasticsearch.index.store.cache.SparseFileTracker;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.FileLock;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -50,6 +45,18 @@ import java.util.function.LongSupplier;
 public class SearchableSnapshotsLFUCache {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.shared-cache.";
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "size",
+        ByteSizeValue.ZERO,
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_REGION_SIZE_SETTING = Setting.byteSizeSetting(
+        SETTINGS_PREFIX + "region-size",
+        ByteSizeValue.ofMb(16),
+        Setting.Property.NodeScope
+    );
 
     public static final TimeValue MIN_SNAPSHOT_CACHE_DECAY_INTERVAL = TimeValue.timeValueSeconds(1L);
     public static final Setting<TimeValue> SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING = Setting.timeSetting(
@@ -94,13 +101,22 @@ public class SearchableSnapshotsLFUCache {
     private final AtomicReference<CacheFileChunk>[] regionOwners;
 
     // creates an LFU cache that can hold size items
-    public SearchableSnapshotsLFUCache(Settings settings, int numRegions, long regionSize, ThreadPool threadPool) throws IOException {
+    public SearchableSnapshotsLFUCache(Settings settings, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
+        final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
+        final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
+        final int numRegions = Math.toIntExact(cacheSize / regionSize);
         keyMapping = new ConcurrentHashMap<>();
-        regionOwners = new AtomicReference[numRegions];
+        if (Assertions.ENABLED) {
+            regionOwners = new AtomicReference[numRegions];
+            for (int i = 0; i < numRegions; i++) {
+                regionOwners[i] = new AtomicReference<>();
+            }
+        } else {
+            regionOwners = null;
+        }
         for (int i = 0; i < numRegions; i++) {
             freeRegions.add(i);
-            regionOwners[i] = new AtomicReference<>();
         }
         this.regionSize = regionSize;
         this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
@@ -172,8 +188,7 @@ public class SearchableSnapshotsLFUCache {
                 if (freeSlot != null) {
                     // no need to evict an item, just add
                     entry.chunk.sharedBytesPos = freeSlot;
-                    boolean regionSet = regionOwners[freeSlot].compareAndSet(null, entry.chunk);
-                    assert regionSet;
+                    assert regionOwners[freeSlot].compareAndSet(null, entry.chunk);
                     synchronized(this) {
                         pushEntryToBack(entry);
                     }
@@ -185,8 +200,7 @@ public class SearchableSnapshotsLFUCache {
                     final Integer freeSlotRetry = freeRegions.poll();
                     if (freeSlotRetry != null) {
                         entry.chunk.sharedBytesPos = freeSlotRetry;
-                        boolean regionSet = regionOwners[freeSlotRetry].compareAndSet(null, entry.chunk);
-                        assert regionSet;
+                        assert regionOwners[freeSlotRetry].compareAndSet(null, entry.chunk);
                         synchronized(this) {
                             pushEntryToBack(entry);
                         }
@@ -195,11 +209,6 @@ public class SearchableSnapshotsLFUCache {
                         assert removed;
                         throw new AlreadyClosedException("no free region found");
                     }
-                    /*} else {
-                        boolean removed = keyMapping.remove(chunkKey, entry);
-                        assert removed;
-                        throw new AlreadyClosedException("no eviction target found");
-                    }*/
                 }
             } else {
                 // check if we need to promote item
@@ -217,8 +226,7 @@ public class SearchableSnapshotsLFUCache {
     }
 
     public void onClose(CacheFileChunk chunk) {
-        boolean regionReset = regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
-        assert regionReset;
+        assert regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
         freeRegions.add(chunk.sharedBytesPos);
     }
 
@@ -406,149 +414,10 @@ public class SearchableSnapshotsLFUCache {
         }
     }
 
-    static class SharedBytes {
-
-        private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
-            StandardOpenOption.READ,
-            StandardOpenOption.WRITE,
-            StandardOpenOption.CREATE
-        };
-
-        final int numRegions;
-        final long regionSize;
-
-        private final FileChannel fileChannel;
-
-        SharedBytes(int numRegions, long regionSize, Path file) throws IOException {
-            this.numRegions = numRegions;
-            this.regionSize = regionSize;
-            this.fileChannel = FileChannel.open(file, OPEN_OPTIONS);
-            // write one byte at the end of the file to make sure all bytes are allocated
-            fileChannel.write(ByteBuffer.allocate(1), numRegions * regionSize - 1);
-        }
-
-        FileChannel getFileChannel(int sharedBytesPos) {
-            //return fileChannel;
-            return new FileChannel() {
-                @Override
-                public int read(ByteBuffer dst) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
-                    checkOffsets(offset, length);
-                    return fileChannel.read(dsts, offset, length);
-                }
-
-                @Override
-                public int write(ByteBuffer src) throws IOException {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
-                    checkOffsets(offset, length);
-                    return fileChannel.write(srcs, offset, length);
-                }
-
-                @Override
-                public long position() throws IOException {
-                    return fileChannel.position();
-                }
-
-                @Override
-                public FileChannel position(long newPosition) throws IOException {
-                    checkOffsets(newPosition, 0);
-                    return fileChannel.position(newPosition);
-                }
-
-                @Override
-                public long size() throws IOException {
-                    return fileChannel.size();
-                }
-
-                @Override
-                public FileChannel truncate(long size) throws IOException {
-                    assert false;
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public void force(boolean metaData) throws IOException {
-                    fileChannel.force(metaData);
-                }
-
-                @Override
-                public long transferTo(long position, long count, WritableByteChannel target) throws IOException {
-                    checkOffsets(position, count);
-                    return fileChannel.transferTo(position, count, target);
-                }
-
-                @Override
-                public long transferFrom(ReadableByteChannel src, long position, long count) throws IOException {
-                    checkOffsets(position, count);
-                    return fileChannel.transferFrom(src, position, count);
-                }
-
-                @Override
-                public int read(ByteBuffer dst, long position) throws IOException {
-                    checkOffsets(position, dst.remaining());
-                    return fileChannel.read(dst, position);
-                }
-
-                @Override
-                public int write(ByteBuffer src, long position) throws IOException {
-                    checkOffsets(position, src.remaining());
-                    return fileChannel.write(src, position);
-                }
-
-                private void checkOffsets(long position, long length) {
-                    long pageStart = getPhysicalOffset(sharedBytesPos);
-                    long pageEnd = pageStart + regionSize;
-                    if (position < getPhysicalOffset(sharedBytesPos) ||
-                        position > pageEnd ||
-                        position + length > pageEnd) {
-                        assert false;
-                        throw new IllegalArgumentException("bad access");
-                    }
-                }
-
-                @Override
-                public MappedByteBuffer map(MapMode mode, long position, long size) throws IOException {
-                    assert false;
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public FileLock lock(long position, long size, boolean shared) throws IOException {
-                    assert false;
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public FileLock tryLock(long position, long size, boolean shared) throws IOException {
-                    assert false;
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                protected void implCloseChannel() throws IOException {
-                    fileChannel.close();
-                }
-            };
-        }
-
-        long getPhysicalOffset(long chunkPosition) {
-            return chunkPosition * regionSize;
-        }
-    }
-
     class CacheFileChunk extends AbstractRefCounted {
         final ChunkKey chunkKey;
         final SparseFileTracker tracker;
         volatile int sharedBytesPos = -1;
-        int freq;
 
         CacheFileChunk(ChunkKey chunkKey, int bucket, long chunkLength) {
             super("CacheFileChunk");

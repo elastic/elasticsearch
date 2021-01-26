@@ -215,7 +215,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_SYNC_INTERVAL_SETTING,
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
-            SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART
+            SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
+            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_SIZE_SETTING,
+            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
+            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
+            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING
         );
     }
 
@@ -242,8 +247,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             this.cacheService.set(cacheService);
             final SearchableSnapshotsLFUCache sharedLfuCache;
             try {
-                sharedLfuCache = new SearchableSnapshotsLFUCache(settings,10,
-                    ByteSizeValue.ofKb(16).getBytes(), threadPool);
+                sharedLfuCache = new SearchableSnapshotsLFUCache(settings, threadPool);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

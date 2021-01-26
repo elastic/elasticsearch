@@ -65,8 +65,8 @@ import java.util.Set;
 
 public final class ExpressionTranslators {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
 
     public static final List<ExpressionTranslator<?>> QUERY_TRANSLATORS = List.of(

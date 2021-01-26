@@ -264,7 +264,7 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
         EsType type = columnType(columnIndex);
 
         if (val == null) {
-            return null;
+            return millisAndNanos(null, null);
         }
 
         try {
@@ -395,6 +395,9 @@ class JdbcResultSet implements ResultSet, JdbcWrapper {
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
         Timestamp ts = getTimestamp(columnIndex);
+        if (ts == null) {
+            return null;
+        }
         return TypeConverter.convertTimestamp(ts.getTime(), ts.getNanos(), safeCalendar(cal));
     }
 

@@ -86,8 +86,8 @@ import static org.elasticsearch.xpack.ql.expression.Foldables.valueOf;
 
 final class QueryTranslator {
 
-    public static final String DATE_FORMAT = "strict_date_time";
-    public static final String TIME_FORMAT = "strict_hour_minute_second_millis";
+    public static final String DATE_FORMAT = "strict_date_optional_time_nanos";
+    public static final String TIME_FORMAT = "strict_hour_minute_second_fraction";
 
     private QueryTranslator() {}
 

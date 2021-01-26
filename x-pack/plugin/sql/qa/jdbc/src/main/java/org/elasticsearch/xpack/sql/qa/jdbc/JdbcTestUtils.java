@@ -17,6 +17,9 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
 
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+
 final class JdbcTestUtils {
 
     private JdbcTestUtils() {}
@@ -80,6 +83,24 @@ final class JdbcTestUtils {
             .withZoneSameLocal(ZoneOffset.UTC);
 
         return convertedDateTime.toInstant().toEpochMilli();
+    }
+
+    static String asStringTimestampFromNanos(long nanos) {
+        return asStringTimestampFromNanos(nanos, ZoneId.systemDefault());
+    }
+
+    static String asStringTimestampFromNanos(long nanos, ZoneId zoneId) {
+        ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(toMilliSeconds(nanos)), zoneId);
+        return StringUtils.toString(zdt.withNano((int) (nanos % 1_000_000_000)));
+    }
+
+    static long randomNanos() {
+        // Return a number which is at least 20:00:00.000000000 to avoid switching to negative values when a UTC-XX hours is applied
+        return randomLongBetween(72000000000000L, Long.MAX_VALUE);
+    }
+
+    static int extractNanosOnly(long nanos) {
+        return (int) (nanos % 1_000_000_000);
     }
 
     static boolean versionSupportsDateNanos() {

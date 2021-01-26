@@ -5,6 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
+import static java.lang.String.format;
+import static java.util.Calendar.DAY_OF_MONTH;
+import static java.util.Calendar.ERA;
+import static java.util.Calendar.HOUR_OF_DAY;
+import static java.util.Calendar.MILLISECOND;
+import static java.util.Calendar.MINUTE;
+import static java.util.Calendar.MONTH;
+import static java.util.Calendar.SECOND;
+import static java.util.Calendar.YEAR;
+import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomNanos;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
+import static org.hamcrest.Matchers.matchesPattern;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.Reader;
@@ -52,25 +72,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
-import org.elasticsearch.xpack.sql.proto.StringUtils;
 import org.junit.Before;
-
-import static java.lang.String.format;
-import static java.util.Calendar.DAY_OF_MONTH;
-import static java.util.Calendar.ERA;
-import static java.util.Calendar.HOUR_OF_DAY;
-import static java.util.Calendar.MILLISECOND;
-import static java.util.Calendar.MINUTE;
-import static java.util.Calendar.MONTH;
-import static java.util.Calendar.SECOND;
-import static java.util.Calendar.YEAR;
-import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_TIMEZONE;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asDate;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.asTime;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.of;
-import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 
 public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
@@ -1276,8 +1278,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(new Timestamp(c.getTimeInMillis()), results.getTimestamp("test_date", c));
             assertEquals(new Timestamp(c.getTimeInMillis()), results.getTimestamp(9, c));
 
-            validateErrorsForDateTimeTestsWithCalendar(c, results::getTimestamp);
-
             results.next();
             assertNull(results.getTimestamp("test_date"));
             assertNull(results.getTimestamp("test_date_nanos"));
@@ -1392,12 +1392,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             connCalendar1.set(SECOND, 0);
             connCalendar1.set(MILLISECOND, 0);
 
-            Timestamp expectedTimestamp = new Timestamp(connCalendar1.getTimeInMillis());
-            expectedTimestamp.setNanos(123456789);
-            assertEquals(expectedTimestamp, results.getTimestamp("test_date_nanos"));
-            assertEquals(expectedTimestamp, results.getTimestamp(1));
-            assertEquals(expectedTimestamp, results.getObject("test_date_nanos", Timestamp.class));
-            assertEquals(expectedTimestamp, results.getObject(1, Timestamp.class));
+            Date expectedDate = new Date(connCalendar1.getTimeInMillis());
+            assertEquals(expectedDate, results.getDate("test_date_nanos"));
+            assertEquals(expectedDate, results.getDate(1));
+            assertEquals(expectedDate, results.getObject("test_date_nanos", Date.class));
+            assertEquals(expectedDate, results.getObject(1, Date.class));
 
             // +1 day
             assertEquals(13, results.getInt("day"));
@@ -1422,12 +1421,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             connCalendar2.set(SECOND, 0);
             connCalendar2.set(MILLISECOND, 0);
 
-            Timestamp expectedTimestamp = new Timestamp(connCalendar2.getTimeInMillis());
-            expectedTimestamp.setNanos(123456789);
-            assertEquals(expectedTimestamp, results.getTimestamp("test_date_nanos"));
-            assertEquals(expectedTimestamp, results.getTimestamp(1));
-            assertEquals(expectedTimestamp, results.getObject("test_date_nanos", Timestamp.class));
-            assertEquals(expectedTimestamp, results.getObject(1, Timestamp.class));
+            Date expectedDate = new Date(connCalendar2.getTimeInMillis());
+            assertEquals(expectedDate, results.getDate("test_date_nanos"));
+            assertEquals(expectedDate, results.getDate(1));
+            assertEquals(expectedDate, results.getObject("test_date_nanos", Date.class));
+            assertEquals(expectedDate, results.getObject(1, Date.class));
 
             // -1 day
             assertEquals(11, results.getInt("day"));
@@ -2086,9 +2084,11 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         SQLException sqle;
         for (Entry<Tuple<String, Object>, SQLType> field : dateTimeTestingFields.entrySet()) {
             sqle = expectThrows(SQLException.class, () -> method.apply(field.getKey().v1(), c));
-            assertEquals(
-                format(Locale.ROOT, "Unable to convert value [%.128s] of type [%s] to a Long", field.getKey().v2(), field.getValue()),
-                sqle.getMessage()
+            assertThat(
+                    sqle.getMessage(),
+                    matchesPattern(
+                        format(Locale.ROOT, "Unable to convert value \\[%.128s\\] of type \\[%s\\] to a (Long|Timestamp)",
+                                field.getKey().v2(),  field.getValue()))
             );
         }
     }
@@ -2140,16 +2140,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private String asTimestampWithNanos(long nanos) {
-        ZonedDateTime zdt = ZonedDateTime.ofInstant(Instant.ofEpochMilli(toMilliSeconds(nanos)), ZoneId.of(timeZoneId));
-        return StringUtils.toString(zdt.withNano((int) (nanos % 1_000_000_000)));
-    }
-
-    private long randomNanos() {
-        // Return a number which is at least 20:00:00.000000000 to avoid switching to negative values when a UTC-XX hours is applied
-        return randomLongBetween(72000000000000L, Long.MAX_VALUE);
-    }
-
-    private static int extractNanosOnly(long nanos) {
-        return (int) (nanos % 1_000_000_000);
+        return JdbcTestUtils.asStringTimestampFromNanos(nanos, ZoneId.of(timeZoneId));
     }
 }

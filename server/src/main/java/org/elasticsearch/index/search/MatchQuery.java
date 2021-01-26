@@ -238,13 +238,6 @@ public class MatchQuery {
         if (fieldType == null) {
             return newUnmappedFieldQuery(fieldName);
         }
-        Set<String> fields = context.simpleMatchToIndexNames(fieldName);
-        if (fields.contains(fieldName)) {
-            assert fields.size() == 1;
-            // this field is a concrete field or an alias so we use the
-            // field type name directly
-            fieldName = fieldType.name();
-        }
         // We check here that the field supports text searches -
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
@@ -268,7 +261,7 @@ public class MatchQuery {
          * a prefix query instead
          */
         if (analyzer == Lucene.KEYWORD_ANALYZER && type != Type.PHRASE_PREFIX) {
-            final Term term = new Term(fieldName, value.toString());
+            final Term term = new Term(fieldType.name(), value.toString());
             if (type == Type.BOOLEAN_PREFIX
                     && (fieldType instanceof TextFieldMapper.TextFieldType || fieldType instanceof KeywordFieldMapper.KeywordFieldType)) {
                 return builder.newPrefixQuery(term);
@@ -277,7 +270,7 @@ public class MatchQuery {
             }
         }
 
-        return parseInternal(type, fieldName, builder, value);
+        return parseInternal(type, fieldType.name(), builder, value);
     }
 
     protected final Query parseInternal(Type type, String fieldName, MatchQueryBuilder builder, Object value) throws IOException {

@@ -23,6 +23,8 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -103,6 +105,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
 
     // collects changes for continuous mode
     private ChangeCollector changeCollector;
+
     // position of the change collector, in flux (not yet persisted as we haven't processed changes yet)
     private Map<String, Object> nextChangeCollectorBucketPosition = null;
 
@@ -157,6 +160,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     }
 
     abstract void doGetInitialProgress(SearchRequest request, ActionListener<SearchResponse> responseListener);
+
+    abstract void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener);
 
     public int getPageSize() {
         return pageSize;
@@ -404,17 +409,53 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
     @Override
     protected void onFinish(ActionListener<Void> listener) {
         startIndexerThreadShutdown();
-        try {
-            // This indicates an early exit since no changes were found.
-            // So, don't treat this like a checkpoint being completed, as no work was done.
-            if (hasSourceChanged == false) {
-                if (context.shouldStopAtCheckpoint()) {
-                    stop();
-                }
-                listener.onResponse(null);
-                return;
+        // This indicates an early exit since no changes were found.
+        // So, don't treat this like a checkpoint being completed, as no work was done.
+        if (hasSourceChanged == false) {
+            if (context.shouldStopAtCheckpoint()) {
+                stop();
             }
+            listener.onResponse(null);
+            return;
+        }
 
+        // delete data defined by retention policy
+        if (transformConfig.getRetentionPolicyConfig() != null) {
+            doDeleteByQuery(
+                RetentionPolicyToDeleteByQueryRequestConverter.buildDeleteByQueryRequest(
+                    transformConfig.getRetentionPolicyConfig(),
+                    transformConfig.getSettings(),
+                    transformConfig.getDestination(),
+                    lastCheckpoint
+                ),
+                ActionListener.wrap(bulkByScrollResponse -> {
+                    if (bulkByScrollResponse.getDeleted() > 0) {
+                        logger.debug(
+                            "[{}] deleted [{}] documents as part of the retention policy.",
+                            getJobId(),
+                            bulkByScrollResponse.getDeleted()
+                        );
+                    }
+
+                    // this should not happen as part of checkpointing
+                    if (bulkByScrollResponse.getVersionConflicts() > 0) {
+                        logger.warn(
+                            "[{}] found [{}] version conflicts when deleting documents as part of the retention policy.",
+                            getJobId(),
+                            bulkByScrollResponse.getDeleted()
+                        );
+                    }
+
+                    finalizeCheckpoint(listener);
+                }, listener::onFailure)
+            );
+        } else {
+            finalizeCheckpoint(listener);
+        }
+    }
+
+    private void finalizeCheckpoint(ActionListener<Void> listener) {
+        try {
             // reset the page size, so we do not memorize a low page size forever
             pageSize = function.getInitialPageSize();
             // reset the changed bucket to free memory
@@ -853,8 +894,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 throw new IllegalStateException("Transform indexer job encountered an illegal state [" + runState + "]");
         }
 
-        return new SearchRequest(getConfig().getSource().getIndex())
-            .allowPartialSearchResults(false)
+        return new SearchRequest(getConfig().getSource().getIndex()).allowPartialSearchResults(false)
             .indicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN)
             .source(sourceBuilder);
     }

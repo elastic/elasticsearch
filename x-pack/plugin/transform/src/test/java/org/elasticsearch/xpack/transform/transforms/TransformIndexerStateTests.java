@@ -19,6 +19,9 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
@@ -161,6 +164,19 @@ public class TransformIndexerStateTests extends ESTestCase {
         }
 
         @Override
+        void doDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest, ActionListener<BulkByScrollResponse> responseListener) {
+            responseListener.onResponse(
+                new BulkByScrollResponse(
+                    TimeValue.ZERO,
+                    new BulkByScrollTask.Status(Collections.emptyList(), null),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    false
+                )
+            );
+        }
+
+        @Override
         protected void doNextSearch(long waitTimeInNanos, ActionListener<SearchResponse> nextPhase) {
             if (searchLatch != null) {
                 try {
@@ -225,6 +241,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         public TransformState getPersistedState() {
             return persistedState;
         }
+
     }
 
     @Before

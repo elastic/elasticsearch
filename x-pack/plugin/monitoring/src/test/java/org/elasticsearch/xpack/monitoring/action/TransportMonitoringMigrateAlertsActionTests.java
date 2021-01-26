@@ -107,6 +107,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         ));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service
@@ -141,6 +142,7 @@ public class TransportMonitoringMigrateAlertsActionTests extends MonitoringInteg
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66586")
     public void testRepeatedLocalAlertsRemoval() throws Exception {
         try {
             // start monitoring service

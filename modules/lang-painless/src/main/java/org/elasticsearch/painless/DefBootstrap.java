@@ -445,7 +445,7 @@ public final class DefBootstrap {
         switch(flavor) {
             // "function-call" like things get a polymorphic cache
             case METHOD_CALL:
-                if (args.length == 0) {
+                if (args.length < 2) {
                     throw new BootstrapMethodError("Invalid number of parameters for method call");
                 }
                 if (args[0] instanceof String == false) {
@@ -456,7 +456,7 @@ public final class DefBootstrap {
                 if (numLambdas > type.parameterCount()) {
                     throw new BootstrapMethodError("Illegal recipe for method call: too many bits");
                 }
-                if (args.length != numLambdas + 1) {
+                if (args.length != numLambdas + 2) {
                     throw new BootstrapMethodError("Illegal number of parameters: expected " + numLambdas + " references");
                 }
                 return new PIC(painlessLookup, functions, constants, methodHandlesLookup, name, type, initialDepth, flavor, args);

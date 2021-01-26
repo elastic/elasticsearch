@@ -20,4 +20,14 @@ static_import {
 }
 
 
+class java.lang.Integer {
+    void org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript) @inject_script
+}
 
+class java.lang.Long {
+    void org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript) @inject_script
+}
+
+class java.lang.String {
+    void org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.DateFieldScript) @inject_script
+}

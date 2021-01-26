@@ -31,6 +31,7 @@ import org.elasticsearch.painless.spi.WhitelistField;
 import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
+import org.elasticsearch.painless.spi.annotation.InjectScriptAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.Opcodes;
@@ -199,6 +200,7 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
+    private final Map<String, Class<?>> painlessMethodKeyToInjectedScriptType;
 
     public PainlessLookupBuilder() {
         javaClassNamesToClasses = new HashMap<>();
@@ -208,6 +210,7 @@ public final class PainlessLookupBuilder {
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
         painlessMethodKeysToPainlessInstanceBindings = new HashMap<>();
+        painlessMethodKeyToInjectedScriptType = new HashMap<>();
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -545,6 +548,29 @@ public final class PainlessLookupBuilder {
 
             typeParametersSize = typeParameters.size();
         }
+        if (annotations.containsKey(InjectScriptAnnotation.class)) {
+            if (augmentedClass == null) {
+                throw new IllegalArgumentException("@" + InjectScriptAnnotation.NAME + " is only supported on augmentations");
+            }
+            Class<?> typeToInject = typeParameters.remove(0);
+            typeParametersSize = typeParameters.size();
+
+            String key = buildPainlessMethodKey(methodName, typeParametersSize); 
+            Class<?> oldTypeToInject = painlessMethodKeyToInjectedScriptType.put(key, typeToInject);
+            if (oldTypeToInject != null && oldTypeToInject != typeToInject) {
+                throw new IllegalArgumentException(
+                    "Two methods with key ["
+                        + key
+                        + "] @"
+                        + InjectScriptAnnotation.NAME
+                        + " but attempt to inject different types ["
+                        + oldTypeToInject.getName()
+                        + "] vs ["
+                        + typeToInject.getName()
+                        + "]"
+                );
+            }
+        }
 
         if (javaMethod.getReturnType() != typeToJavaType(returnType)) {
             throw new IllegalArgumentException("return type [" + typeToCanonicalTypeName(javaMethod.getReturnType()) + "] " +
@@ -839,6 +865,10 @@ public final class PainlessLookupBuilder {
                     typesToCanonicalTypeNames(typeParameters) + "] must be static");
         }
 
+        if (annotations.containsKey(InjectScriptAnnotation.class)) {
+            throw new IllegalArgumentException("@" + InjectScriptAnnotation.NAME + " is only supported on augmentations");
+        }
+
         String painlessMethodKey = buildPainlessMethodKey(methodName, typeParametersSize);
 
         if (painlessMethodKeysToPainlessClassBindings.containsKey(painlessMethodKey)) {
@@ -1042,6 +1072,10 @@ public final class PainlessLookupBuilder {
                     typesToCanonicalTypeNames(typeParameters) + "]");
         }
 
+        if (annotations.containsKey(InjectScriptAnnotation.class)) {
+            throw new IllegalArgumentException("@" + InjectScriptAnnotation.NAME + " is only supported on augmentations");
+        }
+
         String painlessMethodKey = buildPainlessMethodKey(methodName, constructorTypeParametersSize + methodTypeParametersSize);
 
         if (painlessMethodKeysToImportedPainlessMethods.containsKey(painlessMethodKey)) {
@@ -1242,7 +1276,8 @@ public final class PainlessLookupBuilder {
                 classesToPainlessClasses,
                 painlessMethodKeysToImportedPainlessMethods,
                 painlessMethodKeysToPainlessClassBindings,
-                painlessMethodKeysToPainlessInstanceBindings);
+                painlessMethodKeysToPainlessInstanceBindings,
+                painlessMethodKeyToInjectedScriptType);
     }
 
     private void copyPainlessClassMembers() {

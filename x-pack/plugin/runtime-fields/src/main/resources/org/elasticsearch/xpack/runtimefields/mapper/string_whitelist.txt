@@ -16,3 +16,15 @@ static_import {
     # The `emit` callback to collect values for the field
     void emit(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript, String) bound_to org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript$Emit
 }
+
+class java.lang.Boolean {
+    void org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript) @inject_script
+}
+
+class java.lang.Number {
+    void org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript) @inject_script
+}
+
+class java.lang.String {
+    void org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript emit(org.elasticsearch.xpack.runtimefields.mapper.StringFieldScript) @inject_script
+}

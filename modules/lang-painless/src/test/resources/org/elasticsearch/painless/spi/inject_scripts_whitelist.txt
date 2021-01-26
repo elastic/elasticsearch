@@ -1,0 +1,12 @@
+# whitelist for augmentation tests of the inject_script annotation
+
+class org.elasticsearch.painless.AugmentationTests$InjectScriptTestScript @no_import {
+}
+
+class java.lang.Integer {
+  int org.elasticsearch.painless.AugmentationTests$InjectScriptTestScript zap(org.elasticsearch.painless.AugmentationTests.InjectScriptTestScript) @inject_script
+}
+
+class java.lang.Double {
+  double org.elasticsearch.painless.AugmentationTests$InjectScriptTestScript zap()
+}

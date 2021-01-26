@@ -93,8 +93,8 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         // the main "execute" block with several exceptions.
         if ("execute".equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
-            LocalFunction localFunction =
-                    scriptScope.getFunctionTable().getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
+            LocalFunction localFunction = scriptScope.getFunctionTable()
+                .getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
             Class<?> returnType = localFunction.getReturnType();
 
             boolean methodEscape = scriptScope.getCondition(userFunctionNode, MethodEscape.class);

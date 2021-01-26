@@ -31,14 +31,21 @@ import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class AugmentationTests extends ScriptTestCase {
 
     @Override
     protected Map<ScriptContext<?>, List<Whitelist>> scriptContexts() {
         Map<ScriptContext<?>, List<Whitelist>> contexts = super.scriptContexts();
+
         List<Whitelist> digestWhitelist = new ArrayList<>(Whitelist.BASE_WHITELISTS);
         digestWhitelist.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "org.elasticsearch.ingest.txt"));
         contexts.put(DigestTestScript.CONTEXT, digestWhitelist);
+
+        List<Whitelist> injectScriptWhitelists = new ArrayList<>(Whitelist.BASE_WHITELISTS);
+        injectScriptWhitelists.add(WhitelistLoader.loadFromResourceFiles(Whitelist.class, "inject_scripts_whitelist.txt"));
+        contexts.put(InjectScriptTestScript.CONTEXT, injectScriptWhitelists);
 
         return contexts;
     }
@@ -51,7 +58,36 @@ public class AugmentationTests extends ScriptTestCase {
         }
 
         public static final ScriptContext<DigestTestScript.Factory> CONTEXT =
-            new ScriptContext<>("test", DigestTestScript.Factory.class);
+            new ScriptContext<>("digest", DigestTestScript.Factory.class);
+    }
+
+    public abstract static class InjectScriptTestScript {
+        public static final String[] PARAMETERS = {};
+
+        public interface Factory {
+            InjectScriptTestScript newInstance(int a);
+        }
+
+        private final int a;
+
+        public InjectScriptTestScript(int a) {
+            this.a = a;
+        }
+
+        public abstract int execute();
+
+        public static int zap(Integer receiver, InjectScriptTestScript script) {
+            return receiver * script.a;
+        }
+
+        public static double zap(Double receiver) {
+            return receiver * 2;
+        }
+
+        public static final ScriptContext<InjectScriptTestScript.Factory> CONTEXT = new ScriptContext<>(
+            "inject_script",
+            InjectScriptTestScript.Factory.class
+        );
     }
 
     public void testStatic() {
@@ -289,5 +325,72 @@ public class AugmentationTests extends ScriptTestCase {
     public void testToEpochMilli() {
         assertEquals(0L, exec("ZonedDateTime.parse('1970-01-01T00:00:00Z').toEpochMilli()"));
         assertEquals(1602097376782L, exec("ZonedDateTime.parse('2020-10-07T19:02:56.782Z').toEpochMilli()"));
+    }
+
+    public int execInjectScript(String script, int a) {
+        return scriptEngine.compile(
+            "digest_test",
+            script,
+            InjectScriptTestScript.CONTEXT, Collections.emptyMap()
+        ).newInstance(a).execute();
+    }
+
+    public void testInjectScriptCompiles() {
+        assertEquals(1, execInjectScript("1", randomInt()));
+    }
+
+    public void testInjectScriptManualBoxed() {
+        int a = randomInt();
+        assertEquals(a, execInjectScript("Integer.valueOf(1).zap()", a));
+    }
+
+    public void testInjectScriptAutoBoxed() {
+        int a = randomInt();
+        assertEquals(a, execInjectScript("1.zap()", a));
+    }
+
+    public void testInjectScriptInFunction() {
+        int a = randomInt();
+        Exception e = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> execInjectScript("int f() {1.zap()} f()", a)
+        );
+        assertThat(e.getMessage(), equalTo("this function is not available in functions or lambdas"));
+    }
+
+    public void testInjectScriptLambda() {
+        int a = randomInt();
+        Exception e = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> execInjectScript("IntStream.of(new int[] {1}).map(a -> a.zap()).sum()", a)
+        );
+        assertThat(e.getMessage(), equalTo("this function is not available in functions or lambdas"));
+    }
+
+    public void testInjectScriptRef() {
+        int a = randomInt();
+        assertEquals(a, execInjectScript("IntStream.of(new int[] {1}).map(Integer::zap).sum()", a));
+    }
+    
+    public void testInjectScriptDef() {
+        int a = randomInt();
+        assertEquals(a, execInjectScript("def z = 1; z.zap()", a));
+    }
+
+    /**
+     * Test for a call on {@code def} that has the same key as a method
+     * with {@code @inject_script} but that doesn't *itself* inject the script. 
+     */
+    public void testDefCallNotUsingInjectScript() {
+        assertEquals(2, execInjectScript("def z = 1.0; (int) z.zap()", randomInt()));
+    }
+    
+    public void testInjectScriptDefLambda() {
+        int a = randomInt();
+        Exception e = expectScriptThrows(
+            IllegalArgumentException.class,
+            () -> execInjectScript("Stream.of(new def[] {1, 2}).map(a -> a.zap()).findFirst().get()", a)
+        );
+        assertThat(e.getMessage(), equalTo("this function is not available in functions or lambdas"));
     }
 }

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.painless.lookup;
 
+import org.elasticsearch.painless.spi.annotation.InjectScriptAnnotation;
+
 import java.lang.invoke.MethodHandle;
 import java.util.Map;
 import java.util.Objects;
@@ -40,6 +42,7 @@ public final class PainlessLookup {
     private final Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods;
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
+    private final Map<String, Class<?>> methodNameToInjectedScriptType;
 
     PainlessLookup(
             Map<String, Class<?>> javaClassNamesToClasses,
@@ -47,7 +50,8 @@ public final class PainlessLookup {
             Map<Class<?>, PainlessClass> classesToPainlessClasses,
             Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
             Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
-            Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings) {
+            Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
+            Map<String, Class<?>> methodNameToInjectedScriptType) {
 
         Objects.requireNonNull(javaClassNamesToClasses);
         Objects.requireNonNull(canonicalClassNamesToClasses);
@@ -56,6 +60,7 @@ public final class PainlessLookup {
         Objects.requireNonNull(painlessMethodKeysToImportedPainlessMethods);
         Objects.requireNonNull(painlessMethodKeysToPainlessClassBindings);
         Objects.requireNonNull(painlessMethodKeysToPainlessInstanceBindings);
+        Objects.requireNonNull(methodNameToInjectedScriptType);
 
         this.javaClassNamesToClasses = javaClassNamesToClasses;
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
@@ -64,6 +69,7 @@ public final class PainlessLookup {
         this.painlessMethodKeysToImportedPainlessMethods = Map.copyOf(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
+        this.methodNameToInjectedScriptType = Map.copyOf(methodNameToInjectedScriptType);
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {
@@ -159,7 +165,6 @@ public final class PainlessLookup {
         if (targetPainlessClass == null) {
             return null;
         }
-
         return isStatic ?
                 targetPainlessClass.staticMethods.get(painlessMethodKey) :
                 targetPainlessClass.methods.get(painlessMethodKey);
@@ -231,6 +236,12 @@ public final class PainlessLookup {
         }
 
         return targetPainlessClass.functionalInterfaceMethod;
+    }
+
+    public Class<?> typeOfScriptToInjectForMethod(String methodName, int methodArity) {
+        Objects.requireNonNull(methodName);
+        String painlessMethodKey = buildPainlessMethodKey(methodName, methodArity);
+        return methodNameToInjectedScriptType.get(painlessMethodKey);
     }
 
     public PainlessMethod lookupRuntimePainlessMethod(Class<?> originalTargetClass, String methodName, int methodArity) {

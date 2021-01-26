@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BinaryImplNode;
+import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.BreakNode;
@@ -62,6 +62,7 @@ import org.elasticsearch.painless.ir.LoadDotShortcutNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.LoadListShortcutNode;
 import org.elasticsearch.painless.ir.LoadMapShortcutNode;
+import org.elasticsearch.painless.ir.LoadScriptNode;
 import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
@@ -333,6 +334,11 @@ public class IRTreeBaseVisitor<Scope> implements IRTreeVisitor<Scope> {
     @Override
     public void visitLoadMapShortcut(LoadMapShortcutNode irLoadMapShortcutNode, Scope scope) {
         irLoadMapShortcutNode.visitChildren(this, scope);
+    }
+
+    @Override
+    public void visitLoadScript(LoadScriptNode irLoadThisNode, Scope scope) {
+        irLoadThisNode.visitChildren(this, scope);
     }
 
     @Override

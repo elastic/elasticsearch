@@ -1,0 +1,150 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"boolean.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.over_limit:
+              type: keyword
+              script: |
+                (doc['voltage'].value > 4.1).emit()
+          fields:
+            - voltage.over_limit
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.over_limit: ['false']}
+  - match: {hits.hits.1.fields.voltage\.over_limit: ['true']}
+
+---
+"float.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rounded:
+              type: keyword
+              script: |
+                float v = (float) doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.rounded
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.rounded: ['4.0']}
+  - match: {hits.hits.1.fields.voltage\.rounded: ['4.2']}
+
+---
+"double.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rounded:
+              type: keyword
+              script: |
+                double v = doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.rounded
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.rounded: ['4.0']}
+  - match: {hits.hits.1.fields.voltage\.rounded: ['4.2']}
+
+---
+"int.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rounded:
+              type: keyword
+              script: |
+                int v = (int) doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.rounded
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.rounded: ['4']}
+  - match: {hits.hits.1.fields.voltage\.rounded: ['4']}
+
+---
+"long.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.rounded:
+              type: keyword
+              script: |
+                long v = ((long) doc['voltage'].value).emit();
+                v.emit()
+          fields:
+            - voltage.rounded
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.rounded: ['4']}
+  - match: {hits.hits.1.fields.voltage\.rounded: ['4']}
+
+---
+"string.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.with_units:
+              type: keyword
+              script: |
+                String withUnits = doc['voltage'].value + 'V';
+                withUnits.emit()
+          fields:
+            - voltage.with_units
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.with_units: ['4.0V']}
+  - match: {hits.hits.1.fields.voltage\.with_units: ['4.2V']}

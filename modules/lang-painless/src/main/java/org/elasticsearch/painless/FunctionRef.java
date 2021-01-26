@@ -23,6 +23,7 @@ import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.InjectScriptAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 
@@ -84,6 +85,7 @@ public class FunctionRef {
             String delegateMethodName;
             MethodType delegateMethodType;
             Object[] delegateInjections;
+            boolean injectScript;
 
             Class<?> delegateMethodReturnType;
             List<Class<?>> delegateMethodParameters;
@@ -113,6 +115,7 @@ public class FunctionRef {
                 delegateMethodName = localFunction.getFunctionName();
                 delegateMethodType = localFunction.getMethodType();
                 delegateInjections = new Object[0];
+                injectScript = false;
 
                 delegateMethodReturnType = localFunction.getReturnType();
                 delegateMethodParameters = localFunction.getTypeParameters();
@@ -136,6 +139,7 @@ public class FunctionRef {
                 delegateMethodName = PainlessLookupUtility.CONSTRUCTOR_NAME;
                 delegateMethodType = painlessConstructor.methodType;
                 delegateInjections = new Object[0];
+                injectScript = false;
 
                 delegateMethodReturnType = painlessConstructor.javaConstructor.getDeclaringClass();
                 delegateMethodParameters = painlessConstructor.typeParameters;
@@ -177,6 +181,7 @@ public class FunctionRef {
                 delegateMethodName = painlessMethod.javaMethod.getName();
                 delegateMethodType = painlessMethod.methodType;
                 delegateInjections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
+                injectScript = painlessMethod.annotations.containsKey(InjectScriptAnnotation.class);
 
                 delegateMethodReturnType = painlessMethod.returnType;
 
@@ -204,9 +209,14 @@ public class FunctionRef {
                     delegateMethodType.dropParameterTypes(numberOfCaptures, delegateMethodType.parameterCount()));
             delegateMethodType = delegateMethodType.dropParameterTypes(0, numberOfCaptures);
 
+            if (injectScript) {
+                factoryMethodType = factoryMethodType.insertParameterTypes(0, delegateMethodType.parameterType(1));
+            }
+
             return new FunctionRef(interfaceMethodName, interfaceMethodType,
                     delegateClassName, isDelegateInterface, isDelegateAugmented,
                     delegateInvokeType, delegateMethodName, delegateMethodType, delegateInjections,
+                    injectScript,
                     factoryMethodType
             );
         } catch (IllegalArgumentException iae) {
@@ -236,6 +246,8 @@ public class FunctionRef {
     public final MethodType delegateMethodType;
     /** injected constants */
     public final Object[] delegateInjections;
+    /** Should the script be injected into the method arguments? */
+    public final boolean injectScript;
     /** factory (CallSite) method signature */
     public final MethodType factoryMethodType;
 
@@ -243,6 +255,7 @@ public class FunctionRef {
             String interfaceMethodName, MethodType interfaceMethodType,
             String delegateClassName, boolean isDelegateInterface, boolean isDelegateAugmented,
             int delegateInvokeType, String delegateMethodName, MethodType delegateMethodType, Object[] delegateInjections,
+            boolean injectScript,
             MethodType factoryMethodType) {
 
         this.interfaceMethodName = interfaceMethodName;
@@ -254,6 +267,7 @@ public class FunctionRef {
         this.delegateMethodName = delegateMethodName;
         this.delegateMethodType = delegateMethodType;
         this.delegateInjections = delegateInjections;
+        this.injectScript = injectScript;
         this.factoryMethodType = factoryMethodType;
     }
 }

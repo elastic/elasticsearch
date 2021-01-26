@@ -31,11 +31,11 @@ import java.lang.invoke.ConstantCallSite;
 import java.lang.invoke.LambdaConversionException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 
-import static java.lang.invoke.MethodHandles.Lookup;
 import static org.elasticsearch.painless.WriterConstants.CLASS_VERSION;
 import static org.elasticsearch.painless.WriterConstants.CTOR_METHOD_NAME;
 import static org.elasticsearch.painless.WriterConstants.DELEGATE_BOOTSTRAP_HANDLE;
@@ -210,6 +210,7 @@ public final class LambdaBootstrap {
             MethodType delegateMethodType,
             int isDelegateInterface,
             int isDelegateAugmented,
+            int injectScript,
             Object... injections)
             throws LambdaConversionException {
         Compiler.Loader loader = (Compiler.Loader)lookup.lookupClass().getClassLoader();
@@ -233,9 +234,22 @@ public final class LambdaBootstrap {
             delegateInvokeType = H_INVOKESTATIC;
         }
 
-        generateInterfaceMethod(cw, factoryMethodType, lambdaClassType, interfaceMethodName,
-            interfaceMethodType, delegateClassType, delegateInvokeType,
-            delegateMethodName, delegateMethodType, isDelegateInterface == 1, isDelegateAugmented == 1, captures, injections);
+        generateInterfaceMethod(
+            cw,
+            factoryMethodType,
+            lambdaClassType,
+            interfaceMethodName,
+            interfaceMethodType,
+            delegateClassType,
+            delegateInvokeType,
+            delegateMethodName,
+            delegateMethodType,
+            isDelegateInterface == 1,
+            isDelegateAugmented == 1,
+            captures,
+            injectScript == 1,
+            injections
+        );
 
         endLambdaClass(cw);
 
@@ -382,6 +396,7 @@ public final class LambdaBootstrap {
             boolean isDelegateInterface,
             boolean isDelegateAugmented,
             Capture[] captures,
+            boolean injectScript,
             Object... injections)
             throws LambdaConversionException {
 
@@ -394,14 +409,23 @@ public final class LambdaBootstrap {
         iface.visitCode();
 
         // Loads any captured variables onto the stack.
-        for (int captureCount = 0; captureCount < captures.length; ++captureCount) {
+        int capturesBeforeArgs = captures.length;
+        if (injectScript) {
+            capturesBeforeArgs--;
+        }
+        for (int captureCount = 0; captureCount < capturesBeforeArgs; ++captureCount) {
             iface.loadThis();
-            iface.getField(
-                lambdaClassType, captures[captureCount].name, captures[captureCount].type);
+            iface.getField(lambdaClassType, captures[captureCount].name, captures[captureCount].type);
         }
 
         // Loads any passed in arguments onto the stack.
         iface.loadArgs();
+
+        if (injectScript) {
+            iface.loadThis();
+            Capture scriptCapture = captures[captures.length - 1];
+            iface.getField(lambdaClassType, scriptCapture.name, scriptCapture.type);
+        }
 
         // Handles the case for a lambda function or a static reference method.
         // interfaceMethodType and delegateMethodType both have the captured types
@@ -411,10 +435,24 @@ public final class LambdaBootstrap {
         // Example: Integer::parseInt
         // Example: something.each(x -> x + 1)
         if (delegateInvokeType == H_INVOKESTATIC) {
-            interfaceMethodType =
-                interfaceMethodType.insertParameterTypes(0, factoryMethodType.parameterArray());
-            delegateMethodType =
-                delegateMethodType.insertParameterTypes(0, factoryMethodType.parameterArray());
+            Class<?>[] inject = factoryMethodType.parameterArray();
+            if (injectScript) {
+                inject = new Class<?>[inject.length - 1];
+                System.arraycopy(factoryMethodType.parameterArray(), 0, inject, 0, inject.length);
+                Class<?> scriptParam = factoryMethodType.parameterType(inject.length);
+                interfaceMethodType = interfaceMethodType.insertParameterTypes(1, scriptParam);
+            }
+            interfaceMethodType = interfaceMethodType.insertParameterTypes(0, inject);
+            delegateMethodType = delegateMethodType.insertParameterTypes(0, inject);
+            if (injectScript) {
+                /*
+                 * The script needs to be shifted after the receiver.
+                 */
+                factoryMethodType = factoryMethodType.dropParameterTypes(
+                    factoryMethodType.parameterCount() - 1,
+                    factoryMethodType.parameterCount()
+                );
+            }
         } else if (delegateInvokeType == H_INVOKEVIRTUAL ||
             delegateInvokeType == H_INVOKEINTERFACE) {
             // Handles the case for a virtual or interface reference method with no captures.
@@ -482,7 +520,7 @@ public final class LambdaBootstrap {
 
         byte[] classBytes = cw.toByteArray();
         // DEBUG:
-        // new ClassReader(classBytes).accept(new TraceClassVisitor(new PrintWriter(System.out)), ClassReader.SKIP_DEBUG);
+//         new ClassReader(classBytes).accept(new TraceClassVisitor(new PrintWriter(System.out)), ClassReader.SKIP_DEBUG);
         return AccessController.doPrivileged((PrivilegedAction<Class<?>>)() ->
             loader.defineLambda(lambdaClassType.getClassName(), classBytes));
     }

@@ -21,6 +21,7 @@ package org.elasticsearch.painless.phase;
 
 import org.elasticsearch.painless.ClassWriter;
 import org.elasticsearch.painless.DefBootstrap;
+import org.elasticsearch.painless.FunctionRef;
 import org.elasticsearch.painless.Location;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.Operation;
@@ -72,6 +73,7 @@ import org.elasticsearch.painless.ir.LoadDotShortcutNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.LoadListShortcutNode;
 import org.elasticsearch.painless.ir.LoadMapShortcutNode;
+import org.elasticsearch.painless.ir.LoadScriptNode;
 import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
@@ -109,6 +111,7 @@ import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCInjectedScript;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
@@ -123,8 +126,8 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDComparisonType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstructor;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDeclarationType;
-import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDDefReferenceEncoding;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDDepth;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExceptionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDField;
@@ -184,6 +187,8 @@ import static org.elasticsearch.painless.WriterConstants.ITERATOR_TYPE;
 import static org.elasticsearch.painless.WriterConstants.OBJECTS_TYPE;
 
 public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
+
+    protected FunctionNode currentFunction;
 
     protected void visit(IRNode irNode, WriteScope writeScope) {
         irNode.visit(this, writeScope);
@@ -312,7 +317,10 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
         }
 
+        FunctionNode prevFunction = currentFunction;
+        currentFunction = irFunctionNode;
         visit(irFunctionNode.getBlockNode(), writeScope.newBlockScope());
+        currentFunction = prevFunction;
 
         methodWriter.endMethod();
     }
@@ -1255,7 +1263,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.writeDebugInfo(irTypedInterfaceReferenceNode.getLocation());
 
         List<String> captureNames = irTypedInterfaceReferenceNode.getDecorationValue(IRDCaptureNames.class);
-
+        FunctionRef ref = irTypedInterfaceReferenceNode.getDecorationValue(IRDReference.class);
+        if (ref.injectScript) {
+            methodWriter.loadThis();
+        }
+        
         if (captureNames != null) {
             for (String captureName : captureNames) {
                 Variable captureVariable = writeScope.getVariable(captureName);
@@ -1263,7 +1275,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             }
         }
 
-        methodWriter.invokeLambdaCall(irTypedInterfaceReferenceNode.getDecorationValue(IRDReference.class));
+        methodWriter.invokeLambdaCall(ref);
     }
 
     @Override
@@ -1377,6 +1389,18 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (getterPainlessMethod.returnType != getterPainlessMethod.javaMethod.getReturnType()) {
             methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType));
         }
+    }
+
+    @Override
+    public void visitLoadScript(LoadScriptNode irLoadThisNode, WriteScope writeScope) {
+        if (currentFunction.hasCondition(IRCStatic.class)) {
+            // NOCOMMIT keep function name around?
+            throw irLoadThisNode.getLocation()
+                .createError(new IllegalArgumentException("this function is not available in functions or lambdas"));
+        }
+        MethodWriter methodWriter = writeScope.getMethodWriter();
+        methodWriter.writeDebugInfo(irLoadThisNode.getLocation());
+        methodWriter.loadThis();
     }
 
     @Override
@@ -1600,6 +1624,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
                 irInvokeCallDefNode.getDecorationValue(IRDExpressionType.class)), asmParameterTypes);
 
         boostrapArguments.add(0, defCallRecipe.toString());
+        boostrapArguments.add(1, irInvokeCallDefNode.hasCondition(IRCInjectedScript.class) ? 1 : 0);
         methodWriter.invokeDefCall(methodName, methodType, DefBootstrap.METHOD_CALL, boostrapArguments.toArray());
     }
 

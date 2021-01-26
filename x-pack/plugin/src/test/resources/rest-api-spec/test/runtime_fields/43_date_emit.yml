@@ -1,0 +1,143 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"boolean.emit":
+  - do:
+      catch: /member method \[boolean, emit/0\] not found/
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.busted:
+              type: date
+              script: |
+                (doc['voltage'].value > 4.1).emit()
+          fields:
+            - voltage.busted
+          sort: timestamp
+
+---
+"float.emit":
+  - do:
+      catch: /member method \[float, emit/0\] not found/
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.busted:
+              type: date
+              script: |
+                float v = (float) doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.busted
+          sort: timestamp
+
+---
+"double.emit":
+  - do:
+      catch: /member method \[double, emit/0\] not found/
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.busted:
+              type: date
+              script: |
+                double v = doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.busted
+          sort: timestamp
+
+---
+"int.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.as_millis_since_epoch:
+              type: date
+              script: |
+                int v = (int) doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.as_millis_since_epoch
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.as_millis_since_epoch: ['1970-01-01T00:00:00.004Z']}
+  - match: {hits.hits.1.fields.voltage\.as_millis_since_epoch: ['1970-01-01T00:00:00.004Z']}
+
+---
+"long.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.as_millis_since_epoch:
+              type: date
+              script: |
+                long v = (long) doc['voltage'].value;
+                v.emit()
+          fields:
+            - voltage.as_millis_since_epoch
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.as_millis_since_epoch: ['1970-01-01T00:00:00.004Z']}
+  - match: {hits.hits.1.fields.voltage\.as_millis_since_epoch: ['1970-01-01T00:00:00.004Z']}
+
+---
+"string.emit":
+  - do:
+      search:
+        index: sensor
+        body:
+          runtime_mappings:
+            voltage.hack_year:
+              type: date
+              script: |
+                doc['timestamp'].value.toString().replace('2018', '2020').emit()
+          fields:
+            - voltage.hack_year
+          sort: timestamp
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage\.hack_year: ['2020-01-18T17:41:34.000Z']}
+  - match: {hits.hits.1.fields.voltage\.hack_year: ['2020-01-19T17:41:34.000Z']}

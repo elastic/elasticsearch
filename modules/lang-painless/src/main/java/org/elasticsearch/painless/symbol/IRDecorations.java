@@ -466,4 +466,9 @@ public class IRDecorations {
             super(value);
         }
     }
+
+    /** Marked on def call if it injected the script into the parameters. */
+    public static class IRCInjectedScript implements IRCondition {
+        private IRCInjectedScript() {}
+    }
 }

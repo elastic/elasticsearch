@@ -19,8 +19,8 @@
 
 package org.elasticsearch.painless.phase;
 
-import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BinaryImplNode;
+import org.elasticsearch.painless.ir.BinaryMathNode;
 import org.elasticsearch.painless.ir.BlockNode;
 import org.elasticsearch.painless.ir.BooleanNode;
 import org.elasticsearch.painless.ir.BreakNode;
@@ -62,6 +62,7 @@ import org.elasticsearch.painless.ir.LoadDotShortcutNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
 import org.elasticsearch.painless.ir.LoadListShortcutNode;
 import org.elasticsearch.painless.ir.LoadMapShortcutNode;
+import org.elasticsearch.painless.ir.LoadScriptNode;
 import org.elasticsearch.painless.ir.LoadVariableNode;
 import org.elasticsearch.painless.ir.MapInitializationNode;
 import org.elasticsearch.painless.ir.NewArrayNode;
@@ -141,6 +142,7 @@ public interface IRTreeVisitor<Scope> {
     void visitLoadDotShortcut(LoadDotShortcutNode irDotSubShortcutNode, Scope scope);
     void visitLoadListShortcut(LoadListShortcutNode irLoadListShortcutNode, Scope scope);
     void visitLoadMapShortcut(LoadMapShortcutNode irLoadMapShortcutNode, Scope scope);
+    void visitLoadScript(LoadScriptNode irLoadThisNode, Scope scope);
     void visitLoadFieldMember(LoadFieldMemberNode irLoadFieldMemberNode, Scope scope);
     void visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, Scope scope);
     void visitLoadBrace(LoadBraceNode irLoadBraceNode, Scope scope);

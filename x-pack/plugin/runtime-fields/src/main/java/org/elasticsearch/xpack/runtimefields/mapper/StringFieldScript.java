@@ -106,4 +106,16 @@ public abstract class StringFieldScript extends AbstractFieldScript {
             script.emit(v);
         }
     }
+
+    public static void emit(Boolean receiver, StringFieldScript script) {
+        script.emit(receiver.toString());
+    }
+
+    public static void emit(Number receiver, StringFieldScript script) {
+        script.emit(receiver.toString());
+    }
+
+    public static void emit(String receiver, StringFieldScript script) {
+        script.emit(receiver);
+    }
 }

@@ -22,6 +22,7 @@ package org.elasticsearch.painless;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.InjectScriptAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.script.JodaCompatibleZonedDateTime;
 
@@ -196,23 +197,35 @@ public final class Def {
             MethodHandles.Lookup methodHandlesLookup, MethodType callSiteType, Class<?> receiverClass, String name, Object[] args)
             throws Throwable {
 
-         String recipeString = (String) args[0];
+         int argsOffset = 0; 
+         String recipeString = (String) args[argsOffset++];
+         boolean injectedScript = ((Integer) args[argsOffset++] > 0);
          int numArguments = callSiteType.parameterCount();
+         int arityDiff = 1;
+         if (injectedScript) {
+             arityDiff++;
+         }
          // simple case: no lambdas
          if (recipeString.isEmpty()) {
-             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
+             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - arityDiff);
 
              if (painlessMethod == null) {
                  throw new IllegalArgumentException("dynamic method " +
-                         "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - 1) + "] not found");
+                         "[" + typeToCanonicalTypeName(receiverClass) + ", " + name + "/" + (numArguments - arityDiff) + "] not found");
              }
 
              MethodHandle handle = painlessMethod.methodHandle;
-             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
 
+             Object[] injections = PainlessLookupUtility.buildInjections(painlessMethod, constants);
              if (injections.length > 0) {
-                 // method handle contains the "this" pointer so start injections at 1
+                 // method handle contains the receiver pointer so start injections at 1
                  handle = MethodHandles.insertArguments(handle, 1, injections);
+             }
+
+             if (injectedScript && painlessMethod.annotations.containsKey(InjectScriptAnnotation.class) == false) {
+                 // Strip the `Script` parameter if we don't need it
+                 Class<?> typeToInject = painlessLookup.typeOfScriptToInjectForMethod(name, numArguments - arityDiff);
+                 handle = MethodHandles.dropArguments(handle, 1, typeToInject);
              }
 
              return handle;
@@ -227,7 +240,7 @@ public final class Def {
          // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
          // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
          int arity = callSiteType.parameterCount() - 1;
-         int upTo = 1;
+         int upTo = argsOffset;
          for (int i = 1; i < numArguments; i++) {
              if (lambdaArgs.get(i - 1)) {
                  String signature = (String) args[upTo++];
@@ -247,14 +260,13 @@ public final class Def {
 
         MethodHandle handle = method.methodHandle;
         Object[] injections = PainlessLookupUtility.buildInjections(method, constants);
-
         if (injections.length > 0) {
             // method handle contains the "this" pointer so start injections at 1
             handle = MethodHandles.insertArguments(handle, 1, injections);
         }
 
          int replaced = 0;
-         upTo = 1;
+         upTo = argsOffset;
          for (int i = 1; i < numArguments; i++) {
              // its a functional reference, replace the argument with an impl
              if (lambdaArgs.get(i - 1)) {
@@ -360,6 +372,7 @@ public final class Def {
                 ref.delegateMethodType,
                 ref.isDelegateInterface ? 1 : 0,
                 ref.isDelegateAugmented ? 1 : 0,
+                ref.injectScript ? 1 : 0,
                 ref.delegateInjections
         );
         return callSite.dynamicInvoker().asType(MethodType.methodType(clazz, ref.factoryMethodType.parameterArray()));

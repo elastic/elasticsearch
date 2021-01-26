@@ -75,7 +75,7 @@ GET seats/_search
     },
     "number-of-actors": {
       "script": {
-        "source": "params['_source']['actors']"
+        "source": "params['_source']['actors'].size()"
       }
     }
   }

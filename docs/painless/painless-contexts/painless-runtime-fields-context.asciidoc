@@ -92,28 +92,25 @@ can ingest the full https://download.elastic.co/demos/painless/contexts/seats.js
 ----
 POST seats/_bulk?pipeline=seats&refresh=true
 {"create":{"_index":"seats","_id":"1"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":1,"cost":30,"sold":false}
+{"theatre":"Skyline","play":"Rent","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":37,"row":1,"number":7,"sold":false}
 {"create":{"_index":"seats","_id":"2"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":2,"cost":30,"sold":false}
+{"theatre":"Graye","play":"Rent","actors":["Dave Christmas"],"date":"2021-4-1","time":"3:00PM","cost":30,"row":3,"number":5,"sold":false}
 {"create":{"_index":"seats","_id":"3"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":3,"cost":30,"sold":true}
+{"theatre":"Graye","play":"Rented","actors":["Dave Christmas"],"date":"2021-4-1","time":"3:00PM","cost":33,"row":2,"number":6,"sold":false}
 {"create":{"_index":"seats","_id":"4"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":4,"cost":30,"sold":false}
+{"theatre":"Skyline","play":"Rented","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":20,"row":5,"number":2,"sold":false}
 {"create":{"_index":"seats","_id":"5"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":5,"cost":30,"sold":false}
+{"theatre":"Down Port","play":"Pick It Up","actors":["Joel Madigan","Jessica Brown","Baz Knight","Jo Hangum","Rachel Grass","Phoebe Miller"],"date":"2018-4-2","time":"8:00PM","cost":27.5,"row":3,"number":2,"sold":false}
 {"create":{"_index":"seats","_id":"6"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":6,"cost":30,"sold":true}
+{"theatre":"Down Port","play":"Harriot","actors":["Phoebe Miller","Sarah Notch","Brayden Green","Joshua Iller","Jon Hittle","Rob Kettleman","Laura Conrad","Simon Hower","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-8-7","time":"8:00PM","cost":30,"row":1,"number":10,"sold":false}
 {"create":{"_index":"seats","_id":"7"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":7,"cost":30,"sold":true}
+{"theatre":"Skyline","play":"Auntie Jo","actors":["Jo Hangum","Jon Hittle","Rob Kettleman","Laura Conrad","Simon Hower","Nora Blue"],"date":"2018-10-2","time":"5:40PM","cost":22.5,"row":7,"number":10,"sold":false}
 {"create":{"_index":"seats","_id":"8"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":8,"cost":30,"sold":false}
+{"theatre":"Skyline","play":"Test Run","actors":["Joe Muir","Ryan Earns","Joel Madigan","Jessica Brown"],"date":"2018-8-5","time":"7:30PM","cost":17.5,"row":11,"number":12,"sold":true}
 {"create":{"_index":"seats","_id":"9"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":9,"cost":30,"sold":true}
+{"theatre":"Skyline","play":"Sunnyside Down","actors":["Krissy Smith","Joe Muir","Ryan Earns","Nora Blue","Mike Candlestick","Jacey Bell"],"date":"2018-6-12","time":"4:00PM","cost":21.25,"row":8,"number":15,"sold":true}
 {"create":{"_index":"seats","_id":"10"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":10,"cost":30,"sold":false}
-{"create":{"_index":"seats","_id":"11"}}
-{"theatre":"Down Port","play":"Driving","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2018-4-1","time":"3:00PM","row":1,"number":11,"cost":30,"sold":false}
-{"create":{"_index":"seats","_id":"12"}}
+{"theatre":"Graye","play":"Line and Single","actors":["Nora Blue","Mike Candlestick"],"date":"2018-6-5","time":"2:00PM","cost":30,"row":1,"number":2,"sold":false}
 ----
 // TEST[continued]
 
@@ -133,9 +130,9 @@ PUT seats/_mapping
 {
   "runtime": {
     "day_of_week": {
-      "type": "date",
+      "type": "keyword",
       "script": {
-        "source": "emit(doc['datetime'].value.getDayOfWeekEnum().getValue())"
+        "source": "emit(doc['datetime'].value.getDayOfWeekEnum().toString())"
       }
     }
   }
@@ -179,7 +176,7 @@ defined in the mappings.
   ...
   "hits" : {
     "total" : {
-      "value" : 11,
+      "value" : 10,
       "relation" : "eq"
     },
     "max_score" : null,
@@ -191,9 +188,20 @@ defined in the mappings.
       "sum_other_doc_count" : 0,
       "buckets" : [
         {
-          "key" : 7,
-          "key_as_string" : "1970-01-01T00:00:00.007Z",
-          "doc_count" : 11
+          "key" : "THURSDAY",
+          "doc_count" : 4
+        },
+        {
+          "key" : "TUESDAY",
+          "doc_count" : 4
+        },
+        {
+          "key" : "MONDAY",
+          "doc_count" : 1
+        },
+        {
+          "key" : "SUNDAY",
+          "doc_count" : 1
         }
       ]
     }
@@ -201,4 +209,3 @@ defined in the mappings.
 }
 ----
 // TESTRESPONSE[s/\.\.\./"took" : $body.took,"timed_out" : $body.timed_out,"_shards" : $body._shards,/]
-// TESTRESPONSE[s/"value" : "11"/"value": $body.hits.total.value/]

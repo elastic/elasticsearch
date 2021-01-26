@@ -80,7 +80,7 @@ public final class DataTypes {
 
     static {
         Map<String, DataType> map = TYPES.stream().filter(e -> e.esType() != null).collect(toMap(DataType::esType, t -> t));
-        map.put("date_nanos", DATETIME_NANOS);
+        map.put(DATETIME_NANOS.esType(), DATETIME_NANOS);
         ES_TO_TYPE = Collections.unmodifiableMap(map);
     }
 

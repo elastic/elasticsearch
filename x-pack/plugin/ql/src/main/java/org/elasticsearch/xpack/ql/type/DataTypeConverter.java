@@ -121,7 +121,7 @@ public final class DataTypeConverter {
      */
     public static Converter converterFor(DataType from, DataType to) {
         // Special handling for nulls and if conversion is not requires
-        if (from == to || (DataTypes.isDateTime(from) && DataTypes.isDateTime(to))) {
+        if (from == to || (isDateTime(from) && isDateTime(to))) {
             return DefaultConverter.IDENTITY;
         }
         if (to == NULL || from == NULL) {
@@ -149,7 +149,7 @@ public final class DataTypeConverter {
         if (to == DOUBLE) {
             return conversionToDouble(from);
         }
-        if (DataTypes.isDateTime(to)) {
+        if (isDateTime(to)) {
             return conversionToDateTime(from);
         }
         if (to == BOOLEAN) {
@@ -226,7 +226,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_SHORT;
         }
-        if (DataTypes.isDateTime(from)) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_SHORT;
         }
         return null;
@@ -245,7 +245,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_BYTE;
         }
-        if (DataTypes.isDateTime(from)) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_BYTE;
         }
         return null;
@@ -264,7 +264,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_FLOAT;
         }
-        if (DataTypes.isDateTime(from)) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_FLOAT;
         }
         return null;
@@ -283,7 +283,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_DOUBLE;
         }
-        if (DataTypes.isDateTime(from)) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_DOUBLE;
         }
         return null;
@@ -312,7 +312,7 @@ public final class DataTypeConverter {
         if (isString(from)) {
             return DefaultConverter.STRING_TO_BOOLEAN;
         }
-        if (DataTypes.isDateTime(from)) {
+        if (isDateTime(from)) {
             return DefaultConverter.DATETIME_TO_BOOLEAN;
         }
         return null;

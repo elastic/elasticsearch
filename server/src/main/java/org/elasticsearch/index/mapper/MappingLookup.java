@@ -316,7 +316,8 @@ public final class MappingLookup {
     }
 
     public boolean isSourceEnabled() {
-        return mapping.metadataMapper(SourceFieldMapper.class).enabled();
+        SourceFieldMapper sfm = mapping.metadataMapper(SourceFieldMapper.class);
+        return sfm != null && sfm.enabled();
     }
 
     /**

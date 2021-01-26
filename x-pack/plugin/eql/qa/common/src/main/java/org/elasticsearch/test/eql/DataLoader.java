@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.test.eql;
 
-import static org.elasticsearch.test.eql.TestUtils.asDateNanos;
-import static org.elasticsearch.test.eql.TestUtils.asString;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertThat;
 
@@ -87,18 +85,18 @@ public class DataLoader {
         //
         // Main Index
         //
-        load(client, TEST_INDEX, true, false, p);
+        load(client, TEST_INDEX, true, p);
         //
         // Aux Index
         //
-        load(client, TEST_EXTRA_INDEX, false, false, p);
+        load(client, TEST_EXTRA_INDEX, false, p);
         //
         // Date_Nanos index
         //
-        load(client, DATE_NANOS_INDEX, false, false, p);
+        load(client, DATE_NANOS_INDEX, false, p);
     }
 
-    private static void load(RestHighLevelClient client, String indexName, boolean winFileTime, boolean addDateNanos,
+    private static void load(RestHighLevelClient client, String indexName, boolean winFileTime,
                              CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p) throws IOException {
         String name = "/data/" + indexName + ".mapping";
         URL mapping = DataLoader.class.getResource(name);
@@ -111,7 +109,7 @@ public class DataLoader {
             throw new IllegalArgumentException("Cannot find resource " + name);
         }
         createTestIndex(client, indexName, readMapping(mapping));
-        loadData(client, indexName, winFileTime, addDateNanos, data, p);
+        loadData(client, indexName, winFileTime, data, p);
     }
 
     private static void createTestIndex(RestHighLevelClient client, String indexName, String mapping) throws IOException {
@@ -146,7 +144,7 @@ public class DataLoader {
     }
 
     @SuppressWarnings("unchecked")
-    private static void loadData(RestHighLevelClient client, String indexName, boolean winfileTime, boolean addDateNanos, URL resource,
+    private static void loadData(RestHighLevelClient client, String indexName, boolean winfileTime, URL resource,
                                  CheckedBiFunction<XContent, InputStream, XContentParser, IOException> p)
         throws IOException {
         BulkRequest bulk = new BulkRequest();
@@ -159,9 +157,6 @@ public class DataLoader {
                 Map<String, Object> entry = (Map<String, Object>) item;
                 if (winfileTime) {
                     transformDataset(entry);
-                }
-                if (addDateNanos) {
-                    addDateNanos(entry);
                 }
                 bulk.add(new IndexRequest(indexName).source(entry, XContentType.JSON));
             }
@@ -183,13 +178,6 @@ public class DataLoader {
         Long ts = (Long) object;
         // currently this is windows filetime
         entry.put("@timestamp", winFileTimeToUnix(ts));
-    }
-
-    // windows filetime transformation should precede this
-    private static void addDateNanos(Map<String, Object> entry) {
-        String dateNanos = asString(asDateNanos((Long) entry.get("timestamp")));
-        entry.put("timestamp", dateNanos);
-        entry.put("@timestamp", dateNanos);
     }
 
     public static long winFileTimeToUnix(final long filetime) {

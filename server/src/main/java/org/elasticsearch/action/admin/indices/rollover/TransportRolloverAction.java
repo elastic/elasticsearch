@@ -204,7 +204,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 .filter(shard -> shard.getShardRouting().primary())
                 .map(ShardStats::getStats)
                 .mapToLong(shard -> shard.docs.getTotalSizeInBytes())
-                .max().orElse(-1);
+                .max().orElse(0);
 
             return new Condition.Stats(
                 docsStats == null ? 0 : docsStats.getCount(),

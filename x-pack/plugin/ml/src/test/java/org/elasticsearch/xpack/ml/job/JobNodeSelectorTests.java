@@ -819,7 +819,7 @@ public class JobNodeSelectorTests extends ESTestCase {
     static void addDataFrameAnalyticsJobTask(String id, String nodeId, DataFrameAnalyticsState state,
                                              PersistentTasksCustomMetadata.Builder builder, boolean isStale, boolean allowLazyStart) {
         builder.addTask(MlTasks.dataFrameAnalyticsTaskId(id), MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, Collections.emptyList(), allowLazyStart),
+            new StartDataFrameAnalyticsAction.TaskParams(id, Version.CURRENT, allowLazyStart),
             new PersistentTasksCustomMetadata.Assignment(nodeId, "test assignment"));
         if (state != null) {
             builder.updateTaskState(MlTasks.dataFrameAnalyticsTaskId(id),
@@ -828,6 +828,6 @@ public class JobNodeSelectorTests extends ESTestCase {
     }
 
     private static TaskParams createTaskParams(String id) {
-        return new TaskParams(id, Version.CURRENT, Collections.emptyList(), false);
+        return new TaskParams(id, Version.CURRENT, false);
     }
 }

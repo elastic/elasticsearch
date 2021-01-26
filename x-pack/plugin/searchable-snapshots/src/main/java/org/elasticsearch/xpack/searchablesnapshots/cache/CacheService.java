@@ -492,7 +492,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
      */
     @Override
     public void onCacheFileNeedsFsync(CacheFile cacheFile) {
-        cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.UPDATE, cacheFile));
+        cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.NEEDS_FSYNC, cacheFile));
     }
 
     /**
@@ -519,7 +519,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
     // used in tests
     boolean isCacheFileToSync(CacheFile cacheFile) {
         return cacheFilesEventsQueue.stream()
-            .filter(event -> event.type == CacheFileEventType.UPDATE)
+            .filter(event -> event.type == CacheFileEventType.NEEDS_FSYNC)
             .anyMatch(event -> event.value == cacheFile);
     }
 
@@ -570,7 +570,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
                             deletes += 1L;
                             break;
 
-                        case UPDATE:
+                        case NEEDS_FSYNC:
                             final SortedSet<Tuple<Long, Long>> ranges = cacheFile.fsync();
                             logger.trace(
                                 "cache file [{}] synchronized with [{}] completed range(s)",
@@ -721,7 +721,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
     }
 
     private enum CacheFileEventType {
-        UPDATE,
+        NEEDS_FSYNC,
         DELETE
     }
 

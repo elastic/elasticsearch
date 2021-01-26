@@ -54,6 +54,9 @@ public class YamlRestTestPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
 
+        // disable transitive dependency management
+        GradleUtils.disableTransitiveDependenciesForSourceSet(project, yamlTestSourceSet);
+
         // create the test cluster container
         createTestCluster(project, yamlTestSourceSet);
 

@@ -118,6 +118,8 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
         RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
         assertFalse(merged.isEnabled());
+        assertEquals(1, merged.runtimeFieldTypes().size());
+        assertEquals("test", merged.runtimeFieldTypes().iterator().next().name());
     }
 
     public void testMergeNested() {

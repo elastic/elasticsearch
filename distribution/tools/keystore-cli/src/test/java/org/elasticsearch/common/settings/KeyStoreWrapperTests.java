@@ -135,6 +135,28 @@ public class KeyStoreWrapperTests extends ESTestCase {
         }
     }
 
+    public void testDecryptKeyStoreWithShortPasswordInFips() throws Exception {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        keystore.save(env.configFile(), "alongenoughpassword".toCharArray());
+        final KeyStoreWrapper loadedkeystore = KeyStoreWrapper.load(env.configFile());
+        final GeneralSecurityException exception = expectThrows(
+            GeneralSecurityException.class,
+            () -> loadedkeystore.decrypt("shortpwd".toCharArray()) // shorter than 14 characters
+        );
+        assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
+    }
+
+    public void testCreateKeyStoreWithShortPasswordInFips() throws Exception {
+        assumeTrue("This should run only in FIPS mode", inFipsJvm());
+        KeyStoreWrapper keystore = KeyStoreWrapper.create();
+        final GeneralSecurityException exception = expectThrows(
+            GeneralSecurityException.class,
+            () -> keystore.save(env.configFile(), "shortpwd".toCharArray()) // shorter than 14 characters
+        );
+        assertThat(exception.getMessage(), containsString("Error generating an encryption key from the provided password"));
+    }
+
     public void testCannotReadStringFromClosedKeystore() throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.create();
         assertThat(keystore.getSettingNames(), Matchers.hasItem(KeyStoreWrapper.SEED_SETTING.getKey()));

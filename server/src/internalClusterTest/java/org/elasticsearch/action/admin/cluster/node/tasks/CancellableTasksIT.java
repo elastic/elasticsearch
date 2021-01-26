@@ -434,12 +434,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
 
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
-            return new CancellableTask(id, type, action, taskDescription(), parentTaskId, headers) {
-                @Override
-                public boolean shouldCancelChildrenOnCancellation() {
-                    return true;
-                }
-            };
+            return new CancellableTask(id, type, action, taskDescription(), parentTaskId, headers);
         }
 
         @Override

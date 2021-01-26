@@ -729,7 +729,7 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
                 assert dlsBitsetCache.get() != null;
                 module.setReaderWrapper(indexService ->
                         new SecurityIndexReaderWrapper(
-                                shardId -> indexService.newQueryShardContext(shardId.id(),
+                                shardId -> indexService.newSearchExecutionContext(shardId.id(),
                                 0,
                                 // we pass a null index reader, which is legal and will disable rewrite optimizations
                                 // based on index statistics, which is probably safer...

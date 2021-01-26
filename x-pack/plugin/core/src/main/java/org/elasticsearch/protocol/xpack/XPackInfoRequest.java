@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.license.License;
-import org.elasticsearch.tasks.TaskId;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -48,12 +47,7 @@ public class XPackInfoRequest extends ActionRequest {
     }
 
     public XPackInfoRequest(StreamInput in) throws IOException {
-        // NOTE: this does *not* call super, THIS IS A BUG that will be fixed in 8.x
-        if (in.getVersion().onOrAfter(Version.V_7_12_0)) {
-            // The superclass constructor would set the parent task ID, but for now
-            // we must serialize and deserialize manually.
-            setParentTask(TaskId.readFromStream(in));
-        }
+        super(in);
         this.verbose = in.readBoolean();
         EnumSet<Category> categories = EnumSet.noneOf(Category.class);
         int size = in.readVInt();
@@ -89,10 +83,7 @@ public class XPackInfoRequest extends ActionRequest {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        // NOTE: this does *not* call super.writeTo(out), THIS IS A BUG that will be fixed in 8.x
-        if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            getParentTask().writeTo(out);
-        }
+        super.writeTo(out);
         out.writeBoolean(verbose);
         out.writeVInt(categories.size());
         for (Category category : categories) {

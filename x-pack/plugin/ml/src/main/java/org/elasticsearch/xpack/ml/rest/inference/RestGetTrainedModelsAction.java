@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.rest.inference;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -78,6 +79,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         final GetTrainedModelsAction.Request request;
         if (restRequest.hasParam(GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION)) {
             deprecationLogger.deprecate(
+                DeprecationCategory.API,
                 GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",
                 GetTrainedModelsAction.Request.INCLUDE_MODEL_DEFINITION);

@@ -31,10 +31,10 @@ import java.util.Locale;
 public class EqlFunctionRegistry extends FunctionRegistry {
 
     public EqlFunctionRegistry() {
-        super(functions());
+        register(functions());
     }
 
-    private static FunctionDefinition[][] functions() {
+    private FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
         // Scalar functions
         // String

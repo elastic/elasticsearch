@@ -28,7 +28,7 @@ import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -142,7 +142,7 @@ public class FieldValueFactorFunctionBuilder extends ScoreFunctionBuilder<FieldV
     }
 
     @Override
-    protected ScoreFunction doToFunction(QueryShardContext context) {
+    protected ScoreFunction doToFunction(SearchExecutionContext context) {
         IndexNumericFieldData fieldData = null;
         if (context.isFieldMapped(field)) {
             fieldData = context.getForField(context.getFieldType(field));

@@ -148,7 +148,7 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     }
 
     @Override
-    protected Query doToQuery(QueryShardContext context) throws IOException {
+    protected Query doToQuery(SearchExecutionContext context) throws IOException {
         Query innerSpanQuery = matchBuilder.toQuery(context);
         assert innerSpanQuery instanceof SpanQuery;
         return new SpanFirstQuery((SpanQuery) innerSpanQuery, end);

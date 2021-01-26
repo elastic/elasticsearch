@@ -202,11 +202,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
     }
 
     @Override
-    protected AggregationBuilder doRewrite(QueryRewriteContext queryShardContext) throws IOException {
+    protected AggregationBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         List<KeyedFilter> rewrittenFilters = new ArrayList<>(filters.size());
         boolean changed = false;
         for (KeyedFilter kf : filters) {
-            QueryBuilder result = Rewriteable.rewrite(kf.filter(), queryShardContext);
+            QueryBuilder result = Rewriteable.rewrite(kf.filter(), queryRewriteContext);
             rewrittenFilters.add(new KeyedFilter(kf.key(), result));
             if (result != kf.filter()) {
                 changed = true;

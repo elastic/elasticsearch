@@ -17,7 +17,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 
-public class GrokPatternCreatorTests extends FileStructureTestCase {
+public class GrokPatternCreatorTests extends TextStructureTestCase {
 
     public void testBuildFieldName() {
         Map<String, Integer> fieldNameCountStore = new HashMap<>();

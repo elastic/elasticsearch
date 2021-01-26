@@ -71,7 +71,7 @@ public abstract class Pipe extends Node<Pipe> implements FieldExtraction, Resolv
             newPipes.add(p.resolveAttributes(resolver));
         }
 
-        return children().equals(newPipes) ? this : replaceChildren(newPipes);
+        return children().equals(newPipes) ? this : replaceChildrenSameSize(newPipes);
     }
 
     public interface AttributeResolver {

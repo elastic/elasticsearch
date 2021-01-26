@@ -2,9 +2,6 @@
 [testenv="basic"]
 [[indices-reload-analyzers]]
 == Reload search analyzers API
-++++
-<titleabbrev>Reload search analyzers</titleabbrev>
-++++
 
 Reloads an index's <<search-analyzer,search analyzers>> and their resources.
 For data streams, the API reloads search analyzers and resources for the

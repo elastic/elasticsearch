@@ -21,6 +21,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.geo.GeoLineDecomposer;
 import org.elasticsearch.common.geo.GeoPolygonDecomposer;
@@ -262,30 +263,47 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
 
         @Override
         public Void visit(Rectangle r) {
-             if (r.getMinLon() > r.getMaxLon()) {
-                if (r.getMinLon() == GeoUtils.MAX_LON) {
-                    Line line  = new Line(new double[] {GeoUtils.MAX_LON, GeoUtils.MAX_LON}, new double[] {r.getMaxLat(), r.getMinLat()});
+            // use encoded values to check equality
+            final int minLat = GeoEncodingUtils.encodeLatitude(r.getMinLat());
+            final int maxLat = GeoEncodingUtils.encodeLatitude(r.getMaxLat());
+            final int minLon = GeoEncodingUtils.encodeLongitude(r.getMinLon());
+            final int maxLon = GeoEncodingUtils.encodeLongitude(r.getMaxLon());
+            // check crossing dateline on original values
+            if (r.getMinLon() > r.getMaxLon()) {
+                if (minLon == Integer.MAX_VALUE) {
+                    Line line = new Line(new double[]{GeoUtils.MAX_LON, GeoUtils.MAX_LON}, new double[]{r.getMaxLat(), r.getMinLat()});
                     visit(line);
                 } else {
                     Rectangle left = new Rectangle(r.getMinLon(), GeoUtils.MAX_LON, r.getMaxLat(), r.getMinLat());
                     visit(left);
                 }
-                if (r.getMaxLon() == GeoUtils.MIN_LON) {
-                    Line line  = new Line(new double[] {GeoUtils.MIN_LON, GeoUtils.MIN_LON}, new double[] {r.getMaxLat(), r.getMinLat()});
+                if (maxLon == Integer.MIN_VALUE) {
+                    Line line = new Line(new double[]{GeoUtils.MIN_LON, GeoUtils.MIN_LON}, new double[]{r.getMaxLat(), r.getMinLat()});
                     visit(line);
                 } else {
                     Rectangle right = new Rectangle(GeoUtils.MIN_LON, r.getMaxLon(), r.getMaxLat(), r.getMinLat());
                     visit(right);
                 }
-            } else if (r.getMinLon() == r.getMaxLon() || r.getMinLat() == r.getMaxLat()) {
-                 if (r.getMinLat() == r.getMaxLat()) {
-                     addFields(LatLonShape.createIndexableFields(name, r.getMinLat(), r.getMinLon()));
-                 } else {
-                     Line line = new Line(new double[]{r.getMinLon(), r.getMaxLon()}, new double[]{r.getMaxLat(), r.getMinLat()});
-                     visit(line);
-                 }
-             } else {
-                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(r)));
+            } else if (minLon == maxLon) {
+                if (minLat == maxLat) {
+                    // rectangle is a point
+                    addFields(LatLonShape.createIndexableFields(name, r.getMinLat(), r.getMinLon()));
+                } else {
+                    // rectangle is a line
+                    Line line = new Line(new double[]{r.getMinLon(), r.getMaxLon()}, new double[]{r.getMaxLat(), r.getMinLat()});
+                    visit(line);
+                }
+            } else if (minLat == maxLat) {
+                // rectangle is a line
+                Line line = new Line(new double[]{r.getMinLon(), r.getMaxLon()}, new double[]{r.getMaxLat(), r.getMinLat()});
+                visit(line);
+            } else {
+                // we need to process the quantize rectangle to avoid errors for degenerated boxes
+                Rectangle qRectangle  = new Rectangle(GeoEncodingUtils.decodeLongitude(minLon),
+                                                      GeoEncodingUtils.decodeLongitude(maxLon),
+                                                      GeoEncodingUtils.decodeLatitude(maxLat),
+                                                      GeoEncodingUtils.decodeLatitude(minLat));
+                addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(qRectangle)));
             }
             return null;
         }
@@ -294,5 +312,4 @@ public class GeoShapeIndexer implements AbstractGeometryFieldMapper.Indexer<Geom
             this.fields.addAll(Arrays.asList(fields));
         }
     }
-
 }

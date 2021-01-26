@@ -56,7 +56,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));
@@ -153,7 +153,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));
@@ -264,7 +264,7 @@ public class NestedDocumentsTests extends MapperServiceTestCase {
         }));
 
         withLuceneIndex(mapperService, iw -> iw.addDocuments(doc.docs()), reader -> {
-            NestedDocuments nested = new NestedDocuments(mapperService, QueryBitSetProducer::new);
+            NestedDocuments nested = new NestedDocuments(mapperService.mappingLookup(), QueryBitSetProducer::new);
             LeafNestedDocuments leaf = nested.getLeafNestedDocuments(reader.leaves().get(0));
 
             assertNotNull(leaf.advance(0));

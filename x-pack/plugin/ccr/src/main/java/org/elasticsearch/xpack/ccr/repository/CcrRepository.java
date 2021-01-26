@@ -105,6 +105,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
+import static org.elasticsearch.repositories.RepositoryData.MISSING_UUID;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.retentionLeaseId;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncAddRetentionLease;
 import static org.elasticsearch.xpack.ccr.CcrRetentionLeases.syncRenewRetentionLease;
@@ -256,8 +257,15 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                 Index index = remoteIndices.get(indexName).getIndex();
                 indexSnapshots.put(new IndexId(indexName, index.getUUID()), Collections.singletonList(snapshotId));
             }
-            return new RepositoryData(1, copiedSnapshotIds, snapshotStates, snapshotVersions, indexSnapshots,
-                ShardGenerations.EMPTY, IndexMetaDataGenerations.EMPTY);
+            return new RepositoryData(
+                    MISSING_UUID,
+                    1,
+                    copiedSnapshotIds,
+                    snapshotStates,
+                    snapshotVersions,
+                    indexSnapshots,
+                    ShardGenerations.EMPTY,
+                    IndexMetaDataGenerations.EMPTY);
         });
     }
 

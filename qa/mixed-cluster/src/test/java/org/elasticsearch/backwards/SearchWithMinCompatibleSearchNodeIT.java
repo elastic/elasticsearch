@@ -120,10 +120,9 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
         try (RestClient client = buildClient(restClientSettings(),
             allNodes.stream().map(Node::getPublishAddress).toArray(HttpHost[]::new))) {
             Version version = randomBoolean() ? newVersion : bwcVersion;
-            boolean shouldSetCcsMinimizeRoundtrips = randomBoolean();
 
-            Request request = new Request("POST", index + "/_search?min_compatible_shard_node=" + version +
-                (shouldSetCcsMinimizeRoundtrips ? "&ccs_minimize_roundtrips=true" : ""));
+            Request request = new Request("POST", index + "/_search?min_compatible_shard_node=" + version
+                + "&ccs_minimize_roundtrips=true");
             assertBusy(() -> {
                 assertWithBwcVersionCheck(() -> {
                     ResponseException responseException = expectThrows(ResponseException.class, () -> client.performRequest(request));
@@ -139,7 +138,7 @@ public class SearchWithMinCompatibleSearchNodeIT extends ESRestTestCase {
     }
 
     private void assertWithBwcVersionCheck(CheckedRunnable<Exception> code, RestClient client, Request request) throws Exception {
-        if (bwcVersion.before(Version.V_8_0_0)) {
+        if (bwcVersion.before(Version.V_7_12_0)) {
             // min_compatible_shard_node support doesn't exist in older versions and there will be an "unrecognized parameter" exception
             ResponseException exception = expectThrows(ResponseException.class, () -> client.performRequest(request));
             assertThat(exception.getResponse().getStatusLine().getStatusCode(),

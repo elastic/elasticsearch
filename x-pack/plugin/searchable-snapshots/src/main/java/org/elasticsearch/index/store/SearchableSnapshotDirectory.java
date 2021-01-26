@@ -53,6 +53,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
@@ -212,7 +213,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
                     this.snapshot = snapshotSupplier.get();
                     this.loaded = true;
                     cleanExistingRegularShardFiles();
-                    cleanExistingCacheFiles();
+                    waitForPendingEvictions();
                     this.recoveryState = (SearchableSnapshotRecoveryState) recoveryState;
                     prewarmCache(preWarmListener);
                 }
@@ -428,12 +429,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     }
 
     /**
-     * Evicts all cache files associated to the current searchable snapshot shard in case a
+     * Waits for the eviction of cache files associated with the current searchable snapshot shard to be processed in case a
      * previous instance of that same shard has been marked as evicted on this node.
      */
-    private void cleanExistingCacheFiles() {
+    private void waitForPendingEvictions() {
         assert Thread.holdsLock(this);
-        cacheService.runIfShardMarkedAsEvictedInCache(snapshotId, indexId, shardId, this::clearCache);
+        cacheService.waitForCacheFilesEvictionIfNeeded(snapshotId.getUUID(), indexId.getName(), shardId);
     }
 
     private void prewarmCache(ActionListener<Void> listener) {
@@ -480,8 +481,12 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
                         logger.trace("{} warming cache for [{}] part [{}/{}]", shardId, file.physicalName(), part + 1, numberOfParts);
                         final long startTimeInNanos = statsCurrentTimeNanosSupplier.getAsLong();
-                        ((CachedBlobContainerIndexInput) input).prefetchPart(part);
-                        recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                        final long persistentCacheLength = ((CachedBlobContainerIndexInput) input).prefetchPart(part).v1();
+                        if (persistentCacheLength == file.length()) {
+                            recoveryState.markIndexFileAsReused(file.physicalName());
+                        } else {
+                            recoveryState.getIndex().addRecoveredBytesToFile(file.physicalName(), file.partBytes(part));
+                        }
 
                         logger.trace(
                             () -> new ParameterizedMessage(
@@ -559,7 +564,10 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         }
 
         final String repositoryName = SNAPSHOT_REPOSITORY_SETTING.get(indexSettings.getSettings());
-        final Repository repository = repositories.repository(repositoryName);
+        Repository repository = repositories.repository(repositoryName);
+        if (repository instanceof SourceOnlySnapshotRepository) {
+            repository = ((SourceOnlySnapshotRepository) repository).getDelegate();
+        }
         if (repository instanceof BlobStoreRepository == false) {
             throw new IllegalArgumentException("Repository [" + repository + "] is not searchable");
         }

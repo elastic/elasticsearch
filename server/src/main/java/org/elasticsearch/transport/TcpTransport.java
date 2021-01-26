@@ -186,6 +186,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     @Override
     public void setSlowLogThreshold(TimeValue slowLogThreshold) {
         inboundHandler.setSlowLogThreshold(slowLogThreshold);
+        outboundHandler.setSlowLogThreshold(slowLogThreshold);
     }
 
     public final class NodeChannels extends CloseableConnection {

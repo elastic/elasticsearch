@@ -1154,7 +1154,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
         Engine engine = getEngine();
         engine.forceMerge(forceMerge.flush(), forceMerge.maxNumSegments(),
-            forceMerge.onlyExpungeDeletes(), false, false, forceMerge.forceMergeUUID());
+            forceMerge.onlyExpungeDeletes(), forceMerge.forceMergeUUID());
     }
 
     /**

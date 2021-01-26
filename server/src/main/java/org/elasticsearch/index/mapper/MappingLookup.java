@@ -337,4 +337,89 @@ public final class MappingLookup {
     IndexAnalyzers getIndexAnalyzers() {
         return indexAnalyzers;
     }
+
+    /**
+     * Given an object path, checks to see if any of its parents are non-nested objects
+     */
+    public boolean hasNonNestedParent(String path) {
+        ObjectMapper mapper = objectMappers().get(path);
+        if (mapper == null) {
+            return false;
+        }
+        while (mapper != null) {
+            if (mapper.nested().isNested() == false) {
+                return true;
+            }
+            if (path.contains(".") == false) {
+                return false;
+            }
+            path = path.substring(0, path.lastIndexOf("."));
+            mapper = objectMappers().get(path);
+        }
+        return false;
+    }
+
+    /**
+     * Returns all nested object mappers
+     */
+    public List<ObjectMapper> getNestedMappers() {
+        List<ObjectMapper> childMappers = new ArrayList<>();
+        for (ObjectMapper mapper : objectMappers().values()) {
+            if (mapper.nested().isNested() == false) {
+                continue;
+            }
+            childMappers.add(mapper);
+        }
+        return childMappers;
+    }
+
+    /**
+     * Returns all nested object mappers which contain further nested object mappers
+     *
+     * Used by BitSetProducerWarmer
+     */
+    public List<ObjectMapper> getNestedParentMappers() {
+        List<ObjectMapper> parents = new ArrayList<>();
+        for (ObjectMapper mapper : objectMappers().values()) {
+            String nestedParentPath = getNestedParent(mapper.fullPath());
+            if (nestedParentPath == null) {
+                continue;
+            }
+            ObjectMapper parent = objectMappers().get(nestedParentPath);
+            if (parent.nested().isNested()) {
+                parents.add(parent);
+            }
+        }
+        return parents;
+    }
+
+    /**
+     * Given a nested object path, returns the path to its nested parent
+     *
+     * In particular, if a nested field `foo` contains an object field
+     * `bar.baz`, then calling this method with `foo.bar.baz` will return
+     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
+     */
+    public String getNestedParent(String path) {
+        ObjectMapper mapper = objectMappers().get(path);
+        if (mapper == null) {
+            return null;
+        }
+        if (path.contains(".") == false) {
+            return null;
+        }
+        do {
+            path = path.substring(0, path.lastIndexOf("."));
+            mapper = objectMappers().get(path);
+            if (mapper == null) {
+                return null;
+            }
+            if (mapper.nested().isNested()) {
+                return path;
+            }
+            if (path.contains(".") == false) {
+                return null;
+            }
+        } while(true);
+    }
 }

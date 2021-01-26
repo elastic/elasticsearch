@@ -47,8 +47,8 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexWarmer;
 import org.elasticsearch.index.IndexWarmer.TerminationHandle;
-import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -236,12 +236,10 @@ public final class BitsetFilterCache extends AbstractIndexComponent
 
             final Set<Query> warmUp = new HashSet<>();
             final MapperService mapperService = indexShard.mapperService();
-            DocumentMapper docMapper = mapperService.documentMapper();
-            if (docMapper != null) {
-                if (docMapper.hasNestedObjects()) {
-                    warmUp.add(Queries.newNonNestedFilter());
-                    docMapper.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
-                }
+            MappingLookup lookup = mapperService.mappingLookup();
+            if (lookup.hasNested()) {
+                warmUp.add(Queries.newNonNestedFilter());
+                lookup.getNestedParentMappers().stream().map(ObjectMapper::nestedTypeFilter).forEach(warmUp::add);
             }
 
             final CountDownLatch latch = new CountDownLatch(reader.leaves().size() * warmUp.size());

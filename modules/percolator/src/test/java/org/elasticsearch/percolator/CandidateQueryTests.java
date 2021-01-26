@@ -92,7 +92,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -197,7 +197,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
         Collections.sort(intValues);
 
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         MappedFieldType intFieldType = mapperService.fieldType("int_field");
 
         List<Supplier<Query>> queryFunctions = new ArrayList<>();
@@ -336,7 +336,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         ranges.add(new int[]{0, 10});
         ranges.add(new int[]{15, 50});
 
-        QueryShardContext context = createSearchContext(indexService).getQueryShardContext();
+        SearchExecutionContext context = createSearchContext(indexService).getSearchExecutionContext();
         List<ParseContext.Document> documents = new ArrayList<>();
         {
             addQuery(new TermQuery(new Term("string_field", randomFrom(stringValues))), documents);
@@ -391,7 +391,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
     }
 
     private BooleanQuery randomBQ(int depth, List<String> stringValues, List<int[]> ranges,
-                                  MappedFieldType intFieldType, QueryShardContext context) {
+                                  MappedFieldType intFieldType, SearchExecutionContext context) {
         final int numClauses = randomIntBetween(1, 4);
         final boolean onlyShouldClauses = randomBoolean();
         final BooleanQuery.Builder builder = new BooleanQuery.Builder();

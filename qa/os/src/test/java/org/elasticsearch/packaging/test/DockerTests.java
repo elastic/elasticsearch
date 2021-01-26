@@ -104,7 +104,9 @@ public class DockerTests extends PackagingTestCase {
     /**
      * Checks that the Docker image can be run, and that it passes various checks.
      */
-    public void test010Install() {
+    public void test010Install() throws Exception {
+        // Wait for the container to come up, because we assert the state of some files that Elasticsearch creates on startup.
+        waitForElasticsearch(installation);
         verifyContainerInstallation(installation, distribution());
     }
 

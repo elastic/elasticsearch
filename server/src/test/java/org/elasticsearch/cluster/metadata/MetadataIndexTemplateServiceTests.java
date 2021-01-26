@@ -48,7 +48,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
@@ -1584,7 +1584,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         public MetadataTimestampFieldMapper(boolean enabled) {
             super(new MappedFieldType("_data_stream_timestamp", false, false, false, TextSearchInfo.NONE, Map.of()) {
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -1594,12 +1594,12 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                 }
 
                 @Override
-                public Query termQuery(Object value, QueryShardContext context) {
+                public Query termQuery(Object value, SearchExecutionContext context) {
                     return null;
                 }
 
                 @Override
-                public Query existsQuery(QueryShardContext context) {
+                public Query existsQuery(SearchExecutionContext context) {
                     return null;
                 }
             });

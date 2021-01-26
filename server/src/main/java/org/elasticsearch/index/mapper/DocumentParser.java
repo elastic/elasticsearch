@@ -40,7 +40,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 /** A parser for documents, given mappings from a DocumentMapper */
 final class DocumentParser {
@@ -825,7 +825,7 @@ final class DocumentParser {
         NoOpFieldMapper(String simpleName, RuntimeFieldType runtimeField) {
             super(simpleName, new MappedFieldType(runtimeField.name(), false, false, false, TextSearchInfo.NONE, Collections.emptyMap()) {
                 @Override
-                public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+                public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
                     throw new UnsupportedOperationException();
                 }
 
@@ -835,7 +835,7 @@ final class DocumentParser {
                 }
 
                 @Override
-                public Query termQuery(Object value, QueryShardContext context) {
+                public Query termQuery(Object value, SearchExecutionContext context) {
                     throw new UnsupportedOperationException();
                 }
             }, MultiFields.empty(), CopyTo.empty());

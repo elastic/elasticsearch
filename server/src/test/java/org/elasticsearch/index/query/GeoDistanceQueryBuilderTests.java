@@ -128,7 +128,8 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     }
 
     @Override
-    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query,
+                                       SearchExecutionContext context) throws IOException {
         final MappedFieldType fieldType = context.getFieldType(queryBuilder.fieldName());
         if (fieldType == null) {
             assertTrue("Found no indexed geo query.", query instanceof MatchNoDocsQuery);
@@ -307,7 +308,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     private void assertGeoDistanceRangeQuery(String query, double lat, double lon, double distance, DistanceUnit distanceUnit)
             throws IOException {
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
+        Query parsedQuery = parseQuery(query).toQuery(createSearchExecutionContext());
         // The parsedQuery contains IndexOrDocValuesQuery, which wraps LatLonPointDistanceQuery which in turn has default visibility,
         // so we cannot access its fields directly to check and have to use toString() here instead.
         assertEquals(parsedQuery.toString(),
@@ -337,15 +338,16 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         final GeoDistanceQueryBuilder queryBuilder =
             new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         queryBuilder.ignoreUnmapped(true);
-        QueryShardContext shardContext = createShardContext();
-        Query query = queryBuilder.toQuery(shardContext);
+
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        Query query = queryBuilder.toQuery(searchExecutionContext);
         assertThat(query, notNullValue());
         assertThat(query, instanceOf(MatchNoDocsQuery.class));
 
         final GeoDistanceQueryBuilder failingQueryBuilder =
             new GeoDistanceQueryBuilder("unmapped").point(0.0, 0.0).distance("20m");
         failingQueryBuilder.ignoreUnmapped(false);
-        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(shardContext));
+        QueryShardException e = expectThrows(QueryShardException.class, () -> failingQueryBuilder.toQuery(searchExecutionContext));
         assertThat(e.getMessage(), containsString("failed to find geo field [unmapped]"));
     }
 

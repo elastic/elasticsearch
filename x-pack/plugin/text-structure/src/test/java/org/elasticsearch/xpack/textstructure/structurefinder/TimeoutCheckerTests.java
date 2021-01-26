@@ -19,7 +19,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 
-public class TimeoutCheckerTests extends FileStructureTestCase {
+public class TimeoutCheckerTests extends TextStructureTestCase {
 
     private ScheduledExecutorService scheduler;
 

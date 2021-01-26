@@ -158,9 +158,10 @@ final class BootstrapChecks {
 
         if (!errors.isEmpty()) {
             final List<String> messages = new ArrayList<>(1 + errors.size());
-            messages.add("[" + errors.size() + "] bootstrap checks failed");
+            messages.add("[" + errors.size() + "] bootstrap checks failed. You must address the points described in the following ["
+                    + errors.size() + "] lines before starting Elasticsearch.");
             for (int i = 0; i < errors.size(); i++) {
-                messages.add("[" + (i + 1) + "]: " + errors.get(i));
+                messages.add("bootstrap check failure [" + (i + 1) + "] of [" + errors.size() + "]: " + errors.get(i));
             }
             final NodeValidationException ne = new NodeValidationException(String.join("\n", messages));
             errors.stream().map(IllegalStateException::new).forEach(ne::addSuppressed);

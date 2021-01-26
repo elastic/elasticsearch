@@ -159,6 +159,7 @@ public class Netty4TcpChannel implements TcpChannel {
         return "Netty4TcpChannel{" +
             "localAddress=" + getLocalAddress() +
             ", remoteAddress=" + channel.remoteAddress() +
+            ", profile=" + profile +
             '}';
     }
 }

@@ -591,6 +591,8 @@ public class RolloverIT extends ESIntegTestCase {
                             addMaxIndexDocsCondition(1).get();
                         if (resp.isRolledOver()) {
                             logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));
+                            assertThat(resp.getOldIndex(), equalTo(writeIndexPrefix + "000001"));
+                            assertThat(resp.getNewIndex(), equalTo(writeIndexPrefix + "000002"));
                         }
                     }
                 } catch (Exception e) {

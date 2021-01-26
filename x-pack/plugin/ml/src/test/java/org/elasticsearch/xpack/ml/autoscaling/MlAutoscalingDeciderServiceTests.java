@@ -542,6 +542,11 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         }
 
         @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return null;
+        }
+
+        @Override
         public ClusterInfo info() {
             return null;
         }

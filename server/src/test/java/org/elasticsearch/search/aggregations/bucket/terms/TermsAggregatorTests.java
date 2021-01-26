@@ -86,6 +86,7 @@ import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
 import org.elasticsearch.search.aggregations.bucket.nested.InternalNested;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
+import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.TopHitsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
@@ -113,6 +114,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import static java.util.Collections.singleton;
+import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.index.mapper.SeqNoFieldMapper.PRIMARY_TERM_NAME;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.PipelineAggregatorBuilders.bucketScript;
@@ -1415,6 +1417,71 @@ public class TermsAggregatorTests extends AggregatorTestCase {
                         "either does not exist, or is a pipeline aggregation and cannot be used to sort the buckets.",
                         e.getMessage());
                 }
+            }
+        }
+    }
+
+    public void testOrderByCardinality() throws IOException {
+        boolean bIsString = randomBoolean();
+        TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("a").field("a")
+            .size(3)
+            .shardSize(3)
+            .subAggregation(new CardinalityAggregationBuilder("b").field("b"))
+            .order(BucketOrder.aggregation("b", false));
+
+        /*
+         * Build documents where larger "a"s obviously have more distinct "b"s
+         * associated with them. But insert them into Lucene in a random
+         * order using Lucene's randomizeWriter so we'll bump into situations
+         * where documents in the last segment change the outcome of the
+         * cardinality agg. At least, right now the bug has to do with
+         * documents in the last segment. But randomize so we can catch
+         * new and strange bugs in the future. Finally, its important that
+         * we have few enough values that cardinality can be exact.
+         */
+        List<List<IndexableField>> docs = new ArrayList<>();
+        for (int a = 0; a < 10; a++) {
+            for (int b = 0; b <= a; b++) {
+                docs.add(
+                    List.of(
+                        new NumericDocValuesField("a", a),
+                        bIsString ? new SortedSetDocValuesField("b", new BytesRef(Integer.toString(b))) : new NumericDocValuesField("b", b)
+                    )
+                );
+            }
+        }
+        Collections.shuffle(docs, random());
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            for (List<IndexableField> doc : docs) {
+                iw.addDocument(doc);
+            }
+            iw.close();
+
+            try (DirectoryReader unwrapped = DirectoryReader.open(directory);
+                    IndexReader indexReader = wrapDirectoryReader(unwrapped)) {
+                IndexSearcher indexSearcher = newIndexSearcher(indexReader);
+
+                LongTerms terms = searchAndReduce(
+                    createIndexSettings(),
+                    indexSearcher,
+                    new MatchAllDocsQuery(),
+                    aggregationBuilder,
+                    Integer.MAX_VALUE,
+                    false,
+                    new NumberFieldMapper.NumberFieldType("a", NumberFieldMapper.NumberType.INTEGER),
+                    bIsString
+                        ? new KeywordFieldMapper.KeywordFieldType("b")
+                        : new NumberFieldMapper.NumberFieldType("b", NumberFieldMapper.NumberType.INTEGER)
+                );
+                assertThat(
+                    terms.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(toList()),
+                    equalTo(List.of(9L, 8L, 7L))
+                );
+                assertThat(
+                    terms.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getDocCount).collect(toList()),
+                    equalTo(List.of(10L, 9L, 8L))
+                );
             }
         }
     }

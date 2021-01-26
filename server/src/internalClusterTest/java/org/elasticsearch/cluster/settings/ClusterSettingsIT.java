@@ -309,9 +309,11 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         ClusterState state = client().admin().cluster().prepareState().get().getState();
         if (readOnly) {
             assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().transientSettings()));
+            assertTrue(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
         }
         if (readOnlyAllowDelete) {
             assertTrue(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().transientSettings()));
+            assertTrue(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().persistentSettings()));
         }
 
         // create archived setting
@@ -329,12 +331,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 IllegalArgumentException.class,
                 () -> {
                     Settings.Builder builder = Settings.builder();
-                    if (readOnly) {
-                        builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "false");
-                    }
-                    if (readOnlyAllowDelete) {
-                        builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "false");
-                    }
+                    clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
+                    clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
                     assertAcked(client().admin().cluster().prepareUpdateSettings()
                         .setPersistentSettings(builder).setTransientSettings(builder).get());
                 });
@@ -373,10 +371,12 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 ClusterBlockException.class,
                 () -> {
                     Settings.Builder builder = Settings.builder().putNull("archived.*");
-                    if (readOnly) {
+                    if (randomBoolean()) {
                         builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
-                    }
-                    if (readOnlyAllowDelete) {
+                        builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
+                    } else if (randomBoolean()) {
+                        builder.put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), "true");
+                    } else {
                         builder.put(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey(), "true");
                     }
                     assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
@@ -394,12 +394,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
                 ClusterBlockException.class,
                 () -> {
                     Settings.Builder builder = Settings.builder().put("archived.this.is.unknown", "false");
-                    if (readOnly) {
-                        builder.putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey());
-                    }
-                    if (readOnlyAllowDelete) {
-                        builder.putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey());
-                    }
+                    clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
+                    clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
                     assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(builder).get());
                 });
         if (readOnly) {
@@ -411,12 +407,8 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         // we can clear read-only block with archived settings together
         Settings.Builder builder = Settings.builder().putNull("archived.*");
-        if (readOnly) {
-            builder.putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey());
-        }
-        if (readOnlyAllowDelete) {
-            builder.putNull(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey());
-        }
+        clearOrSetFalse(builder, readOnly, Metadata.SETTING_READ_ONLY_SETTING);
+        clearOrSetFalse(builder, readOnlyAllowDelete, Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING);
         assertAcked(client().admin().cluster().prepareUpdateSettings()
             .setPersistentSettings(builder).setTransientSettings(builder).get());
 
@@ -426,6 +418,16 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertFalse(Metadata.SETTING_READ_ONLY_SETTING.get(state.getMetadata().persistentSettings()));
         assertFalse(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(state.getMetadata().persistentSettings()));
         assertNull(state.getMetadata().persistentSettings().get("archived.this.is.unknown"));
+    }
+
+    private static void clearOrSetFalse(Settings.Builder settings, boolean applySetting, Setting<Boolean> setting) {
+        if (applySetting) {
+            if (randomBoolean()) {
+                settings.put(setting.getKey(), "false");
+            } else {
+                settings.putNull(setting.getKey());
+            }
+        }
     }
 
     public void testClusterUpdateSettingsWithBlocks() {

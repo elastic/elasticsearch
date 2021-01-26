@@ -588,7 +588,14 @@ public class CacheService extends AbstractLifecycleComponent {
                             throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
                     }
                 } catch (Exception e) {
-                    logger.warn(() -> new ParameterizedMessage("failed to fsync cache file [{}]", cacheFile.getFile().getFileName()), e);
+                    logger.warn(
+                        () -> new ParameterizedMessage(
+                            "failed to process [{}] for cache file [{}]",
+                            event.type,
+                            cacheFile.getFile().getFileName()
+                        ),
+                        e
+                    );
                     assert e instanceof IOException : e;
                     errors += 1L;
                 }

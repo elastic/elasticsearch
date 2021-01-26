@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -83,7 +84,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     ) {
         this.cursor = cursor;
         this.mode = mode;
-        this.sqlVersion = sqlVersion;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : SqlVersion.fromId(Version.CURRENT.id);
         this.columnar = columnar;
         this.columns = columns;
         this.rows = rows;

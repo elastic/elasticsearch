@@ -10,11 +10,14 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 dependencies {
   testImplementation project(':x-pack:qa')
+  testImplementation project(path: xpackModule('ql'), configuration: 'default')
+  testImplementation project(path: xpackModule('sql'), configuration: 'default')
 }
 
 tasks.named("integTest").configure{ enabled = false}
 
-for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.8.0') }) {
+//for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.onOrAfter('7.9.0') }) {
+for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it == Version.fromString("7.11.0") }) {
   if (bwcVersion == VersionProperties.getElasticsearchVersion()) {
     // Not really a mixed cluster
     continue;
@@ -31,6 +34,7 @@ for (Version bwcVersion : BuildParams.bwcVersions.wireCompatible.findAll { it.on
       setting 'xpack.watcher.enabled', 'false'
       setting 'xpack.ml.enabled', 'false'
       setting 'xpack.license.self_generated.type', 'trial'
+      setting 'logger.org.elasticsearch.xpack.sql.plugin.TransportSqlQueryAction', 'TRACE'
     }
   }
 

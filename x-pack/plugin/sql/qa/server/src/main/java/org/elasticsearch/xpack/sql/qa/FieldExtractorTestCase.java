@@ -396,7 +396,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
     public void testGeoPointField() throws IOException {
         String query = "SELECT geo_point_field FROM test";
         String geoPointField = "41.12,-71.34";
-        String geoPointFromDocValues = "POINT (-71.34000004269183 41.1199999647215)";
         String actualValue = geoPointField;
         boolean explicitSourceSetting = randomBoolean(); // default (no _source setting) or explicit setting
         boolean enableSource = randomBoolean();          // enable _source at index level
@@ -417,11 +416,17 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         createIndexWithFieldTypeAndProperties("geo_point", fieldProps, explicitSourceSetting ? indexProps : null);
         index("{\"geo_point_field\":\"" + actualValue + "\"}");
 
-        // the values come from docvalues (vs from _source) so disabling the source doesn't have any impact on the values returned
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("columns", Arrays.asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-        expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : geoPointFromDocValues)));
-        assertResponse(expected, runSql(query));
+        if (explicitSourceSetting == false || enableSource) {
+            Map<String, Object> expected = new HashMap<>();
+            expected.put(
+                "columns",
+                Arrays.asList(columnInfo("plain", "geo_point_field", "geo_point", JDBCType.VARCHAR, Integer.MAX_VALUE))
+            );
+            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-71.34 41.12)")));
+            assertResponse(expected, runSql(query));
+        } else {
+            expectSourceDisabledError(query);
+        }
     }
 
     /*
@@ -471,7 +476,6 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
      *       "ignore_malformed": true/false
      *    }
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/66678")
     public void testShapeField() throws IOException {
         String query = "SELECT shape_field FROM test";
         String shapeField = "POINT (-377.03653 389.897676)";
@@ -498,7 +502,7 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
         if (explicitSourceSetting == false || enableSource) {
             Map<String, Object> expected = new HashMap<>();
             expected.put("columns", Arrays.asList(columnInfo("plain", "shape_field", "shape", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : "POINT (-377.03653 389.897676)")));
+            expected.put("rows", singletonList(singletonList(ignoreMalformed ? null : shapeField)));
             assertResponse(expected, runSql(query));
         } else {
             expectSourceDisabledError(query);
@@ -901,22 +905,9 @@ public abstract class FieldExtractorTestCase extends BaseRestSqlTestCase {
             }
             assertResponse(expected, runSql(query));
         } else {
-            if (isKeyword) {
-                // selecting only the keyword subfield when the _source is disabled should work
-                Map<String, Object> expected = new HashMap<>();
-                expected.put("columns", singletonList(columnInfo("plain", subFieldName, "keyword", JDBCType.VARCHAR, Integer.MAX_VALUE)));
-                if (ignoreMalformed) {
-                    expected.put("rows", singletonList(singletonList("foo")));
-                } else {
-                    expected.put("rows", singletonList(singletonList(ip)));
-                }
-                assertResponse(expected, runSql("SELECT ip_field.keyword_subfield FROM test"));
-            } else {
-                expectSourceDisabledError(query);
-            }
-
-            // if the _source is disabled, selecting only the ip field shouldn't work
+            expectSourceDisabledError(query);
             expectSourceDisabledError("SELECT " + fieldName + " FROM test");
+            expectSourceDisabledError("SELECT " + subFieldName + " FROM test");
         }
     }
 

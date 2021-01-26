@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.sql.execution;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,7 +34,6 @@ import java.util.List;
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
-    public static final Version FIELDS_API_INTRODUCTION_VERSION = Version.V_7_10_0;
     private final Client client;
     private final NamedWriteableRegistry writableRegistry;
 

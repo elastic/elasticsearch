@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -83,11 +84,10 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.sql.execution.PlanExecutor.FIELDS_API_INTRODUCTION_VERSION;
 
 // TODO: add retry/back-off
 public class Querier {
-
+    public static final Version FIELDS_API_INTRODUCTION_VERSION = Version.V_7_10_0;
     private static final Logger log = LogManager.getLogger(Querier.class);
 
     private final PlanExecutor planExecutor;

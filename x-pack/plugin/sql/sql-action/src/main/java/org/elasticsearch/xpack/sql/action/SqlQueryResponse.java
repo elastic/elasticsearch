@@ -8,8 +8,10 @@ package org.elasticsearch.xpack.sql.action;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
@@ -138,7 +140,12 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             out.writeVInt(rows.get(0).size());
             for (List<Object> row : rows) {
                 for (Object value : row) {
-                    out.writeGenericValue(value);
+                    // GeoShape and Interval
+                    if (value instanceof NamedWriteable) {
+                        out.writeNamedWriteable((NamedWriteable) value);
+                    } else {
+                        out.writeGenericValue(value);
+                    }
                 }
             }
         }

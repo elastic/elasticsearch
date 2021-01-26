@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResult;
 import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDecider;
+import org.elasticsearch.xpack.cluster.routing.allocation.DataTierAllocationDeciderTests;
 import org.elasticsearch.xpack.core.DataTier;
 import org.junit.Before;
 
@@ -91,6 +93,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static final DiskThresholdSettings DISK_THRESHOLD_SETTINGS = new DiskThresholdSettings(
         Settings.EMPTY,
         new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+    );
+
+    private static final DataTierAllocationDecider DATA_TIER_ALLOCATION_DECIDER = new DataTierAllocationDecider(
+        Settings.EMPTY,
+        new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS)
     );
 
     private ClusterState state;
@@ -152,6 +159,14 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
                 CAN_ALLOCATE_NO_DECIDER
             );
             verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, 0);
+            // verify empty tier (no cold nodes) are always assumed a storage reason.
+            verify(
+                moveToCold(allIndices()),
+                ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation,
+                state.getRoutingNodes().unassigned().size(),
+                DataTier.DATA_COLD_NODE_ROLE
+            );
+            verify(ReactiveStorageDeciderService.AllocationState::storagePreventsAllocation, 0, DataTier.DATA_COLD_NODE_ROLE);
             if (numPrevents > 0) {
                 verifyScale(numPrevents, "not enough storage available, needs " + numPrevents + "b", mockCanAllocateDiskDecider);
             } else {
@@ -238,6 +253,65 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         verifyScale(addDataNodes(DATA_HOT_NODE_ROLE, "additional", state, hotNodes), 0, "storage ok", mockCanAllocateDiskDecider);
     }
 
+    public void testMoveToEmpty() {
+        // allocate all primary shards
+        allocate();
+
+        // start shards.
+        withRoutingAllocation(
+            allocation -> allocation.routingNodes()
+                .shardsWithState(ShardRoutingState.INITIALIZING)
+                .stream()
+                .filter(ShardRouting::primary)
+                .forEach(shard -> allocation.routingNodes().startShard(logger, shard, allocation.changes()))
+        );
+
+        verify(ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove, 0, DataTier.DATA_COLD_NODE_ROLE);
+
+        Set<IndexMetadata> candidates = new HashSet<>(randomSubsetOf(allIndices()));
+        int allocatedCandidateShards = candidates.stream().mapToInt(IndexMetadata::getNumberOfShards).sum();
+
+        verify(
+            moveToCold(candidates),
+            ReactiveStorageDeciderService.AllocationState::storagePreventsRemainOrMove,
+            allocatedCandidateShards,
+            DataTier.DATA_COLD_NODE_ROLE
+        );
+    }
+
+    private Set<IndexMetadata> allIndices() {
+        return StreamSupport.stream(state.metadata().getIndices().values().spliterator(), false)
+            .map(cursor -> cursor.value)
+            .collect(Collectors.toSet());
+    }
+
+    private ClusterState moveToCold(Set<IndexMetadata> candidates) {
+        ClusterState.Builder stateBuilder = ClusterState.builder(state);
+        Metadata.Builder builder = Metadata.builder(state.metadata());
+        candidates.forEach(imd -> builder.put(moveToCold(imd), true));
+        stateBuilder.metadata(builder);
+        return stateBuilder.build();
+    }
+
+    private IndexMetadata moveToCold(IndexMetadata imd) {
+        Settings.Builder builder = Settings.builder().put(imd.getSettings());
+        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_REQUIRE_SETTING, DataTier.DATA_COLD);
+        overrideSetting(imd, builder, DataTierAllocationDecider.INDEX_ROUTING_INCLUDE_SETTING, DataTier.DATA_COLD);
+        overrideSetting(
+            imd,
+            builder,
+            DataTierAllocationDecider.INDEX_ROUTING_PREFER_SETTING,
+            randomFrom(DataTier.DATA_COLD, DataTier.DATA_COLD + "," + DataTier.DATA_HOT)
+        );
+        return IndexMetadata.builder(imd).settings(builder).build();
+    }
+
+    private void overrideSetting(IndexMetadata imd, Settings.Builder builder, Setting<String> indexRoutingRequireSetting, String value) {
+        if (Strings.hasText(indexRoutingRequireSetting.get(imd.getSettings()))) {
+            builder.put(indexRoutingRequireSetting.getKey(), value);
+        }
+    }
+
     public void testStoragePreventsRemain() {
         allocate();
         // we can only decide on a move for started shards (due to for instance ThrottlingAllocationDecider assertion).
@@ -288,10 +362,26 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private void verify(VerificationSubject subject, long expected, AllocationDecider... allocationDeciders) {
+        verify(subject, expected, DATA_HOT_NODE_ROLE, allocationDeciders);
+    }
+
+    private void verify(VerificationSubject subject, long expected, DiscoveryNodeRole role, AllocationDecider... allocationDeciders) {
+        ClusterState state = this.state;
+        verify(state, subject, expected, role, allocationDeciders);
+    }
+
+    private static void verify(
+        ClusterState state,
+        VerificationSubject subject,
+        long expected,
+        DiscoveryNodeRole role,
+        AllocationDecider... allocationDeciders
+    ) {
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
-            createContext(DataTier.DATA_HOT_NODE_ROLE),
+            createContext(state, Set.of(role)),
             DISK_THRESHOLD_SETTINGS,
-            createAllocationDeciders(allocationDeciders)
+            createAllocationDeciders(allocationDeciders),
+            DATA_TIER_ALLOCATION_DECIDER
         );
         assertThat(subject.invoke(allocationState), equalTo(expected));
     }
@@ -303,7 +393,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     private static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            new ClusterSettings(Settings.EMPTY, DataTierAllocationDeciderTests.ALL_SETTINGS),
             createAllocationDeciders(allocationDeciders)
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DataTier.DATA_HOT_NODE_ROLE));
@@ -443,6 +533,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         private final AutoscalingCapacity currentCapacity;
         private final Set<DiscoveryNode> nodes;
         private final ClusterInfo info;
+        private final Set<DiscoveryNodeRole> roles;
 
         private TestAutoscalingDeciderContext(ClusterState state, Set<DiscoveryNodeRole> roles, AutoscalingCapacity currentCapacity) {
             this.state = state;
@@ -450,6 +541,7 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
             this.nodes = StreamSupport.stream(state.nodes().spliterator(), false)
                 .filter(n -> roles.stream().anyMatch(n.getRoles()::contains))
                 .collect(Collectors.toSet());
+            this.roles = roles;
             this.info = createClusterInfo(state);
         }
 
@@ -466,6 +558,11 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
         @Override
         public Set<DiscoveryNode> nodes() {
             return nodes;
+        }
+
+        @Override
+        public Set<DiscoveryNodeRole> roles() {
+            return roles;
         }
 
         @Override

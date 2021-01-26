@@ -18,6 +18,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.ParentTaskAssigningClient;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -60,7 +61,7 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
     private final StartDataFrameAnalyticsAction.TaskParams taskParams;
     private volatile boolean isStopping;
     private volatile boolean isMarkAsCompletedCalled;
-    private final StatsHolder statsHolder;
+    private volatile StatsHolder statsHolder;
     private volatile DataFrameAnalyticsStep currentStep;
 
     public DataFrameAnalyticsTask(long id, String type, String action, TaskId parentTask, Map<String, String> headers,
@@ -71,7 +72,6 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         this.analyticsManager = Objects.requireNonNull(analyticsManager);
         this.auditor = Objects.requireNonNull(auditor);
         this.taskParams = Objects.requireNonNull(taskParams);
-        this.statsHolder = new StatsHolder(taskParams.getProgressOnStart());
     }
 
     public void setStep(DataFrameAnalyticsStep step) {
@@ -86,6 +86,11 @@ public class DataFrameAnalyticsTask extends AllocatedPersistentTask implements S
         return isStopping;
     }
 
+    public void setStatsHolder(StatsHolder statsHolder) {
+        this.statsHolder = Objects.requireNonNull(statsHolder);
+    }
+
+    @Nullable
     public StatsHolder getStatsHolder() {
         return statsHolder;
     }

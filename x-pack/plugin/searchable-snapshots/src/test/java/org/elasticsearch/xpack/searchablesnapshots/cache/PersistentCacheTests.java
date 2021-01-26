@@ -49,6 +49,7 @@ import static org.elasticsearch.cluster.node.DiscoveryNodeRole.BUILT_IN_ROLES;
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_ROLE;
 import static org.elasticsearch.index.store.cache.TestUtils.assertCacheFileEquals;
 import static org.elasticsearch.index.store.cache.TestUtils.randomPopulateAndReads;
+import static org.elasticsearch.index.store.cache.TestUtils.sumOfCompletedRangesLengths;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache.createCacheIndexWriter;
 import static org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache.resolveCacheIndexFolder;
@@ -230,10 +231,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                         cacheService.synchronizeCache();
 
                         final long sizeInCache = persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId);
-                        final long sizeInCacheFile = randomCacheFile.getCompletedRanges()
-                            .stream()
-                            .mapToLong(range -> range.v2() - range.v1())
-                            .sum();
+                        final long sizeInCacheFile = sumOfCompletedRangesLengths(randomCacheFile);
                         assertThat(
                             "Persistent cache should contain cached data for at least 1 cache file",
                             sizeInCache,
@@ -303,7 +301,7 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
             cacheService.start();
 
             final CacheFile cacheFile = randomFrom(randomCacheFiles(cacheService));
-            final long sizeOfCacheFileInCache = cacheFile.getCompletedRanges().stream().mapToLong(range -> range.v2() - range.v1()).sum();
+            final long sizeOfCacheFileInCache = sumOfCompletedRangesLengths(cacheFile);
 
             final Supplier<Long> cacheSizeSupplier = () -> cacheService.getPersistentCache()
                 .getCacheSize(cacheFile.getCacheKey().getShardId(), new SnapshotId("_ignored_", cacheFile.getCacheKey().getSnapshotUUID()));

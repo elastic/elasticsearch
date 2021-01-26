@@ -601,7 +601,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                         cacheDir,
                         shardPath,
                         threadPool,
-                        null)
+                        null
+                    )
                 ) {
                     final PlainActionFuture<Void> f = PlainActionFuture.newFuture();
                     final boolean loaded = snapshotDirectory.loadSnapshot(recoveryState, f);
@@ -701,7 +702,8 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     cacheDir,
                     shardPath,
                     threadPool,
-                    null)
+                    null
+                )
             ) {
                 final RecoveryState recoveryState = createRecoveryState(randomBoolean());
                 final PlainActionFuture<Void> f = PlainActionFuture.newFuture();

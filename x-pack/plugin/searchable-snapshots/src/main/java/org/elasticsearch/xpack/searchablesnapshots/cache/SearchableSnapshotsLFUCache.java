@@ -12,6 +12,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
@@ -97,10 +98,10 @@ public class SearchableSnapshotsLFUCache {
     private final int maxFreq;
     private final long minTimeDelta;
 
-    // to assert exclusive access of regions
-    private final AtomicReference<CacheFileChunk>[] regionOwners;
+    private final AtomicReference<CacheFileChunk>[] regionOwners; // to assert exclusive access of regions
 
-    // creates an LFU cache that can hold size items
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    @SuppressForbidden(reason = "Use temp dir for now")
     public SearchableSnapshotsLFUCache(Settings settings, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
@@ -156,8 +157,7 @@ public class SearchableSnapshotsLFUCache {
         if (rangeStart >= rangeEnd) {
             return Tuple.tuple(0L, 0L);
         }
-        return Tuple.tuple(getBucketRelativePosition(rangeStart),
-            rangeEnd == bucketEnd ? regionSize : getBucketRelativePosition(rangeEnd));
+        return Tuple.tuple(getBucketRelativePosition(rangeStart), rangeEnd == bucketEnd ? regionSize : getBucketRelativePosition(rangeEnd));
     }
 
     private long getBucketSize(long fileLength, int bucket) {
@@ -177,8 +177,10 @@ public class SearchableSnapshotsLFUCache {
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
             final ChunkKey chunkKey = new ChunkKey(cacheKey, bucket);
             final long now = currentTimeSupplier.getAsLong();
-            final Entry<CacheFileChunk> entry = keyMapping.computeIfAbsent(chunkKey,
-                key -> new Entry<>(new CacheFileChunk(chunkKey, bucket, chunkLength), now));
+            final Entry<CacheFileChunk> entry = keyMapping.computeIfAbsent(
+                chunkKey,
+                key -> new Entry<>(new CacheFileChunk(chunkKey, bucket, chunkLength), now)
+            );
             if (entry.chunk.sharedBytesPos == -1) {
                 // new item
                 assert entry.freq == 0;
@@ -189,19 +191,19 @@ public class SearchableSnapshotsLFUCache {
                     // no need to evict an item, just add
                     entry.chunk.sharedBytesPos = freeSlot;
                     assert regionOwners[freeSlot].compareAndSet(null, entry.chunk);
-                    synchronized(this) {
+                    synchronized (this) {
                         pushEntryToBack(entry);
                     }
                 } else {
                     // need to evict something
-                    synchronized(this) {
+                    synchronized (this) {
                         maybeEvict();
                     }
                     final Integer freeSlotRetry = freeRegions.poll();
                     if (freeSlotRetry != null) {
                         entry.chunk.sharedBytesPos = freeSlotRetry;
                         assert regionOwners[freeSlotRetry].compareAndSet(null, entry.chunk);
-                        synchronized(this) {
+                        synchronized (this) {
                             pushEntryToBack(entry);
                         }
                     } else {
@@ -212,7 +214,7 @@ public class SearchableSnapshotsLFUCache {
                 }
             } else {
                 // check if we need to promote item
-                synchronized(this) {
+                synchronized (this) {
                     if (now - entry.lastAccessed > minTimeDelta && entry.freq + 1 < maxFreq) {
                         // TODO: take lock here
                         unlink(entry);
@@ -394,10 +396,7 @@ public class SearchableSnapshotsLFUCache {
 
         @Override
         public String toString() {
-            return "Chunk{" +
-                "file=" + file +
-                ", part=" + part +
-                '}';
+            return "Chunk{" + "file=" + file + ", part=" + part + '}';
         }
     }
 
@@ -495,15 +494,20 @@ public class SearchableSnapshotsLFUCache {
                         @Override
                         protected void doRun() throws Exception {
                             if (CacheFileChunk.this.tryIncRef() == false) {
-                                //assert false : "expected a non-closed channel reference";
+                                // assert false : "expected a non-closed channel reference";
                                 throw new AlreadyClosedException("Cache file channel has been released and closed");
                             }
                             try {
                                 ensureOpen();
                                 final long start = gap.start();
                                 assert regionOwners[sharedBytesPos].get() == CacheFileChunk.this;
-                                writer.fillCacheRange(fileChannel, physicalStartOffset() + gap.start(), gap.start(),
-                                    gap.end() - gap.start(), progress -> gap.onProgress(start + progress));
+                                writer.fillCacheRange(
+                                    fileChannel,
+                                    physicalStartOffset() + gap.start(),
+                                    gap.start(),
+                                    gap.end() - gap.start(),
+                                    progress -> gap.onProgress(start + progress)
+                                );
                             } finally {
                                 decRef();
                             }
@@ -523,8 +527,10 @@ public class SearchableSnapshotsLFUCache {
         }
 
         @Nullable
-        public CompletableFuture<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead,
-                                                                   final RangeAvailableHandler reader) {
+        public CompletableFuture<Integer> readIfAvailableOrPending(
+            final Tuple<Long, Long> rangeToRead,
+            final RangeAvailableHandler reader
+        ) {
             final CompletableFuture<Integer> future = new CompletableFuture<>();
             Releasable decrementRef = null;
             try {
@@ -559,8 +565,12 @@ public class SearchableSnapshotsLFUCache {
             return ActionListener.wrap(success -> {
                 final long physicalStartOffset = physicalStartOffset();
                 assert regionOwners[sharedBytesPos].get() == CacheFileChunk.this;
-                final int read = reader.onRangeAvailable(fileChannel,
-                    physicalStartOffset + rangeToRead.v1(), rangeToRead.v1(), rangeToRead.v2() - rangeToRead.v1());
+                final int read = reader.onRangeAvailable(
+                    fileChannel,
+                    physicalStartOffset + rangeToRead.v1(),
+                    rangeToRead.v1(),
+                    rangeToRead.v2() - rangeToRead.v1()
+                );
                 assert read == rangeToRead.v2() - rangeToRead.v1() : "partial read ["
                     + read
                     + "] does not match the range to read ["
@@ -609,30 +619,32 @@ public class SearchableSnapshotsLFUCache {
                 CacheFileChunk chunk = get(cacheKey, length, i);
                 chunk.ensureOpen();
 
-                final CompletableFuture<Integer> fut = chunk.populateAndRead(subRangeToWrite, subRangeToRead,
-                    new RangeAvailableHandler() {
-                        @Override
-                        public int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length)
-                            throws IOException {
-                            final long distanceToStart = bucket == getBucket(readStart) ?
-                                relativePos - getBucketRelativePosition(readStart) :
-                                getBucketStart(bucket) + relativePos - readStart;
-                            assert regionOwners[chunk.sharedBytesPos].get() == chunk;
-                            assert channelPos >= chunk.physicalStartOffset() && channelPos + length <= chunk.physicalEndOffset();
-                            return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
-                        }
-                    },
-                    new RangeMissingHandler() {
-                        @Override
-                        public void fillCacheRange(FileChannel channel, long channelPos, long relativePos, long length,
-                                                   Consumer<Long> progressUpdater) throws IOException {
-                            final long distanceToStart = bucket == getBucket(writeStart) ?
-                                relativePos - getBucketRelativePosition(writeStart) :
-                                getBucketStart(bucket) + relativePos - writeStart;
-                            assert regionOwners[chunk.sharedBytesPos].get() == chunk;
-                            assert channelPos >= chunk.physicalStartOffset() && channelPos + length <= chunk.physicalEndOffset();
-                            writer.fillCacheRange(channel, channelPos, distanceToStart, length, progressUpdater);
-                        }
+                final CompletableFuture<Integer> fut = chunk.populateAndRead(subRangeToWrite, subRangeToRead, new RangeAvailableHandler() {
+                    @Override
+                    public int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length) throws IOException {
+                        final long distanceToStart = bucket == getBucket(readStart)
+                            ? relativePos - getBucketRelativePosition(readStart)
+                            : getBucketStart(bucket) + relativePos - readStart;
+                        assert regionOwners[chunk.sharedBytesPos].get() == chunk;
+                        assert channelPos >= chunk.physicalStartOffset() && channelPos + length <= chunk.physicalEndOffset();
+                        return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
+                    }
+                }, new RangeMissingHandler() {
+                    @Override
+                    public void fillCacheRange(
+                        FileChannel channel,
+                        long channelPos,
+                        long relativePos,
+                        long length,
+                        Consumer<Long> progressUpdater
+                    ) throws IOException {
+                        final long distanceToStart = bucket == getBucket(writeStart)
+                            ? relativePos - getBucketRelativePosition(writeStart)
+                            : getBucketStart(bucket) + relativePos - writeStart;
+                        assert regionOwners[chunk.sharedBytesPos].get() == chunk;
+                        assert channelPos >= chunk.physicalStartOffset() && channelPos + length <= chunk.physicalEndOffset();
+                        writer.fillCacheRange(channel, channelPos, distanceToStart, length, progressUpdater);
+                    }
                 }, executor);
                 assert fut != null;
                 if (combinedFut == null) {
@@ -644,7 +656,6 @@ public class SearchableSnapshotsLFUCache {
             }
             return combinedFut;
         }
-
 
         @Nullable
         public Future<Integer> readIfAvailableOrPending(final Tuple<Long, Long> rangeToRead, final RangeAvailableHandler reader) {
@@ -661,8 +672,9 @@ public class SearchableSnapshotsLFUCache {
                 final CompletableFuture<Integer> fut = chunk.readIfAvailableOrPending(subRangeToRead, new RangeAvailableHandler() {
                     @Override
                     public int onRangeAvailable(FileChannel channel, long channelPos, long relativePos, long length) throws IOException {
-                        final long distanceToStart = bucket == getBucket(start) ? relativePos - getBucketRelativePosition(start) :
-                            getBucketStart(bucket) + relativePos - start;
+                        final long distanceToStart = bucket == getBucket(start)
+                            ? relativePos - getBucketRelativePosition(start)
+                            : getBucketStart(bucket) + relativePos - start;
                         return reader.onRangeAvailable(channel, channelPos, distanceToStart, length);
                     }
                 });
@@ -680,17 +692,13 @@ public class SearchableSnapshotsLFUCache {
 
         @Override
         public String toString() {
-            return "SharedCacheFile{" +
-                "cacheKey=" + cacheKey +
-                ", length=" + length +
-                '}';
+            return "SharedCacheFile{" + "cacheKey=" + cacheKey + ", length=" + length + '}';
         }
     }
 
     public SharedCacheFile getSharedCacheFile(CacheKey cacheKey, long length) {
         return new SharedCacheFile(cacheKey, length);
     }
-
 
     @FunctionalInterface
     public interface RangeAvailableHandler {

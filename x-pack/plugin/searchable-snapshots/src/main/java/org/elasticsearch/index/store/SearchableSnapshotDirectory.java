@@ -153,7 +153,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        SearchableSnapshotsLFUCache sharedLfuCache) {
+        SearchableSnapshotsLFUCache sharedLfuCache
+    ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
         this.blobContainerSupplier = Objects.requireNonNull(blobContainer);

@@ -623,7 +623,8 @@ public class SearchableSnapshotDirectoryStatsTests extends AbstractSearchableSna
                 cacheDir,
                 shardPath,
                 threadPool,
-                    null) {
+                null
+            ) {
                 @Override
                 protected IndexInputStats createIndexInputStats(long fileLength) {
                     if (seekingThreshold == null) {

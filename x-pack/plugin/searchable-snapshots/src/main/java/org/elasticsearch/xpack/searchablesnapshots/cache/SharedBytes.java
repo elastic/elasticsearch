@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache;
 
+import org.elasticsearch.common.SuppressForbidden;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
@@ -18,17 +20,17 @@ import java.nio.file.StandardOpenOption;
 
 public class SharedBytes {
 
-    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[]{
+    private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
         StandardOpenOption.WRITE,
-        StandardOpenOption.CREATE
-    };
+        StandardOpenOption.CREATE };
 
     final int numRegions;
     final long regionSize;
 
     private final FileChannel fileChannel;
 
+    @SuppressForbidden(reason = "Use positional writes on purpose")
     SharedBytes(int numRegions, long regionSize, Path file) throws IOException {
         this.numRegions = numRegions;
         this.regionSize = regionSize;
@@ -44,7 +46,7 @@ public class SharedBytes {
 
     FileChannel getFileChannel(int sharedBytesPos) {
         assert fileChannel != null;
-        //return fileChannel;
+        // return fileChannel;
         return new FileChannel() {
             @Override
             public int read(ByteBuffer dst) throws IOException {
@@ -53,8 +55,7 @@ public class SharedBytes {
 
             @Override
             public long read(ByteBuffer[] dsts, int offset, int length) throws IOException {
-                checkOffsets(offset, length);
-                return fileChannel.read(dsts, offset, length);
+                throw new UnsupportedOperationException();
             }
 
             @Override
@@ -63,6 +64,7 @@ public class SharedBytes {
             }
 
             @Override
+            @SuppressForbidden(reason = "Use positional writes on purpose")
             public long write(ByteBuffer[] srcs, int offset, int length) throws IOException {
                 checkOffsets(offset, length);
                 return fileChannel.write(srcs, offset, length);
@@ -108,12 +110,14 @@ public class SharedBytes {
             }
 
             @Override
+            @SuppressForbidden(reason = "Use positional reads on purpose")
             public int read(ByteBuffer dst, long position) throws IOException {
                 checkOffsets(position, dst.remaining());
                 return fileChannel.read(dst, position);
             }
 
             @Override
+            @SuppressForbidden(reason = "Use positional writes on purpose")
             public int write(ByteBuffer src, long position) throws IOException {
                 checkOffsets(position, src.remaining());
                 return fileChannel.write(src, position);
@@ -122,9 +126,7 @@ public class SharedBytes {
             private void checkOffsets(long position, long length) {
                 long pageStart = getPhysicalOffset(sharedBytesPos);
                 long pageEnd = pageStart + regionSize;
-                if (position < getPhysicalOffset(sharedBytesPos) ||
-                    position > pageEnd ||
-                    position + length > pageEnd) {
+                if (position < getPhysicalOffset(sharedBytesPos) || position > pageEnd || position + length > pageEnd) {
                     assert false;
                     throw new IllegalArgumentException("bad access");
                 }

@@ -159,12 +159,14 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         try {
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
-            final Future<Integer> waitingForRead = sharedCacheFile.readIfAvailableOrPending(Tuple.tuple(position, position + length),
+            final Future<Integer> waitingForRead = sharedCacheFile.readIfAvailableOrPending(
+                Tuple.tuple(position, position + length),
                 (channel, pos, relativePos, len) -> {
-                final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
-                assert read <= length : read + " vs " + length;
-                return read;
-            });
+                    final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
+                    assert read <= length : read + " vs " + length;
+                    return read;
+                }
+            );
 
             if (waitingForRead != null) {
                 final Integer read = waitingForRead.get();
@@ -248,8 +250,12 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                                 assert writePosition == channelTo : writePosition + " vs " + channelTo;
                                 final long endTimeNanos = stats.currentTimeNanos();
                                 stats.addCachedBytesWritten(len, endTimeNanos - startTimeNanos);
-                                logger.trace("copied bytes [{}-{}] of file [{}] from cache index to disk", relativePos,
-                                    relativePos + len, fileInfo);
+                                logger.trace(
+                                    "copied bytes [{}-{}] of file [{}] from cache index to disk",
+                                    relativePos,
+                                    relativePos + len,
+                                    fileInfo
+                                );
                             },
                             directory.cacheFetchAsyncExecutor()
                         );
@@ -294,46 +300,59 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                 + rangeToWrite;
             final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = sharedCacheFile.populateAndRead(rangeToWrite, rangeToRead,
+            final Future<Integer> populateCacheFuture = sharedCacheFile.populateAndRead(
+                rangeToWrite,
+                rangeToRead,
                 (channel, pos, relativePos, len) -> {
-                return readCacheFile(channel, pos, relativePos, len, b, rangeToRead.v1(), false, luceneByteBufLock, stopAsyncReads);
-            }, (channel, channelPos, relativePos, l, progressUpdater) -> this.writeCacheFile(channel, channelPos, relativePos, l,
-                    rangeToWrite.v1(), progressUpdater), directory.cacheFetchAsyncExecutor());
+                    return readCacheFile(channel, pos, relativePos, len, b, rangeToRead.v1(), false, luceneByteBufLock, stopAsyncReads);
+                },
+                (channel, channelPos, relativePos, l, progressUpdater) -> this.writeCacheFile(
+                    channel,
+                    channelPos,
+                    relativePos,
+                    l,
+                    rangeToWrite.v1(),
+                    progressUpdater
+                ),
+                directory.cacheFetchAsyncExecutor()
+            );
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final Future<Integer> readFuture = sharedCacheFile.readIfAvailableOrPending(indexCacheMiss,
+                final Future<Integer> readFuture = sharedCacheFile.readIfAvailableOrPending(
+                    indexCacheMiss,
                     (channel, channelPos, relativePos, len) -> {
-                    // TODO: build up byte buffer until it has all elements
-                    //  (register listener on future, and then call putCachedBlob once future is resolved)
-                    final int indexCacheMissLength = toIntBytes(indexCacheMiss.v2() - indexCacheMiss.v1());
+                        // TODO: build up byte buffer until it has all elements
+                        // (register listener on future, and then call putCachedBlob once future is resolved)
+                        final int indexCacheMissLength = toIntBytes(indexCacheMiss.v2() - indexCacheMiss.v1());
 
-                    assert len == indexCacheMissLength;
+                        assert len == indexCacheMissLength;
 
-                    // We assume that we only cache small portions of blobs so that we do not need to:
-                    // - use a BigArrays for allocation
-                    // - use an intermediate copy buffer to read the file in sensibly-sized chunks
-                    // - release the buffer once the indexing operation is complete
-                    assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
+                        // We assume that we only cache small portions of blobs so that we do not need to:
+                        // - use a BigArrays for allocation
+                        // - use an intermediate copy buffer to read the file in sensibly-sized chunks
+                        // - release the buffer once the indexing operation is complete
+                        assert indexCacheMissLength <= COPY_BUFFER_SIZE : indexCacheMiss;
 
-                    final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
-                    Channels.readFromFileChannelWithEofException(channel, channelPos, byteBuffer);
-                    // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
-                    byteBuffer.flip();
-                    final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
-                    directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content, new ActionListener<>() {
-                        @Override
-                        public void onResponse(Void response) {
-                            onCacheFillComplete.close();
-                        }
+                        final ByteBuffer byteBuffer = ByteBuffer.allocate(indexCacheMissLength);
+                        Channels.readFromFileChannelWithEofException(channel, channelPos, byteBuffer);
+                        // NB use Channels.readFromFileChannelWithEofException not readCacheFile() to avoid counting this in the stats
+                        byteBuffer.flip();
+                        final BytesReference content = BytesReference.fromByteBuffer(byteBuffer);
+                        directory.putCachedBlob(fileInfo.physicalName(), indexCacheMiss.v1(), content, new ActionListener<>() {
+                            @Override
+                            public void onResponse(Void response) {
+                                onCacheFillComplete.close();
+                            }
 
-                        @Override
-                        public void onFailure(Exception e1) {
-                            onCacheFillComplete.close();
-                        }
-                    });
-                    return indexCacheMissLength;
-                });
+                            @Override
+                            public void onFailure(Exception e1) {
+                                onCacheFillComplete.close();
+                            }
+                        });
+                        return indexCacheMissLength;
+                    }
+                );
 
                 if (readFuture == null) {
                     // Normally doesn't happen, we're already obtaining a range covering all cache misses above, but theoretically
@@ -502,12 +521,28 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         return true;
     }
 
-    private int readCacheFile(final FileChannel fc, long channelPos, long relativePos, long length, final ByteBuffer buffer,
-                              long logicalPos, boolean cached, ReentrantReadWriteLock luceneByteBufLock, AtomicBoolean stopAsyncReads)
-        throws IOException {
+    private int readCacheFile(
+        final FileChannel fc,
+        long channelPos,
+        long relativePos,
+        long length,
+        final ByteBuffer buffer,
+        long logicalPos,
+        boolean cached,
+        ReentrantReadWriteLock luceneByteBufLock,
+        AtomicBoolean stopAsyncReads
+    ) throws IOException {
         assert assertFileChannelOpen(fc);
-        logger.trace("{}: reading cached {} logical {} channel {} pos {} length {} (details: {})", fileInfo.physicalName(), cached,
-            logicalPos, channelPos, relativePos, length, sharedCacheFile);
+        logger.trace(
+            "{}: reading cached {} logical {} channel {} pos {} length {} (details: {})",
+            fileInfo.physicalName(),
+            cached,
+            logicalPos,
+            channelPos,
+            relativePos,
+            length,
+            sharedCacheFile
+        );
         if (length == 0L) {
             return 0;
         }
@@ -521,7 +556,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                 }
                 // create slice that is positioned to read the given values
                 ByteBuffer dup = buffer.duplicate();
-                //assert dup.position() == 0;
+                // assert dup.position() == 0;
                 final int newPosition = dup.position() + Math.toIntExact(relativePos);
                 assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
                 assert newPosition + length <= buffer.limit();
@@ -550,17 +585,28 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         return bytesRead;
     }
 
-    private void writeCacheFile(final FileChannel fc, long fileChannelPos, long relativePos, long length, long logicalPos,
-                                final Consumer<Long> progressUpdater)
-        throws IOException {
+    private void writeCacheFile(
+        final FileChannel fc,
+        long fileChannelPos,
+        long relativePos,
+        long length,
+        long logicalPos,
+        final Consumer<Long> progressUpdater
+    ) throws IOException {
         assert assertFileChannelOpen(fc);
         assert assertCurrentThreadMayWriteCacheFile();
-        logger.trace("{}: writing logical {} channel {} pos {} length {} (details: {})", fileInfo.physicalName(), logicalPos,
-            fileChannelPos, relativePos, length, sharedCacheFile);
+        logger.trace(
+            "{}: writing logical {} channel {} pos {} length {} (details: {})",
+            fileInfo.physicalName(),
+            logicalPos,
+            fileChannelPos,
+            relativePos,
+            length,
+            sharedCacheFile
+        );
         final long end = relativePos + length;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos,
-            end, sharedCacheFile));
+        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos, end, sharedCacheFile));
 
         long bytesCopied = 0L;
         long remaining = length;

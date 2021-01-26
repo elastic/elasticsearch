@@ -497,7 +497,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, false);
-        //TODO: fix
+        // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, true, nonCachedExtensions);
         ensureGreen(restoredIndexName);
         assertShardFolders(restoredIndexName, true);
@@ -537,7 +537,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, false);
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
-        //TODO: fix
+        // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, false, nonCachedExtensions);
 
         internalCluster().ensureAtLeastNumDataNodes(2);
@@ -575,7 +575,7 @@ public class SearchableSnapshotsIntegTests extends BaseSearchableSnapshotsIntegT
 
         assertTotalHits(restoredIndexName, originalAllHits, originalBarHits);
         assertRecoveryStats(restoredIndexName, false);
-        //TODO: fix
+        // TODO: fix
         // assertSearchableSnapshotStats(restoredIndexName, false, nonCachedExtensions);
 
         assertAcked(

@@ -85,9 +85,10 @@ public abstract class BaseSearchableSnapshotsIntegTestCase extends AbstractSnaps
             SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_SIZE_SETTING.getKey(),
             rarely()
                 ? randomBoolean()
-                ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
-                : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
-                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB));
+                    ? new ByteSizeValue(randomIntBetween(0, 10), ByteSizeUnit.KB)
+                    : new ByteSizeValue(randomIntBetween(0, 1000), ByteSizeUnit.BYTES)
+                : new ByteSizeValue(randomIntBetween(1, 10), ByteSizeUnit.MB)
+        );
         builder.put(
             SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_REGION_SIZE_SETTING.getKey(),
             rarely()

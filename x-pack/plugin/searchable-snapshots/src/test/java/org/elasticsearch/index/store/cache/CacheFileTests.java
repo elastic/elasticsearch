@@ -373,7 +373,7 @@ public class CacheFileTests extends ESTestCase {
 
         @Override
         public synchronized void onCacheFileNeedsFsync(CacheFile cacheFile) {
-            updates.add(cacheFile);
+            assertTrue(updates.add(cacheFile));
         }
 
         synchronized boolean containsUpdate(CacheFile cacheFile) {

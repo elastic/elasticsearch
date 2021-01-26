@@ -118,7 +118,8 @@ public class DetectMimeTypeProcessor extends AbstractProcessor {
         try {
             dataStream.reset();
             final JsonParser parser = JSON_FACTORY.createParser(dataStream);
-            while (parser.nextToken() != null) {}
+            while (parser.nextToken() != null) {
+            }
         } catch (IOException e) {
             return false;
         }

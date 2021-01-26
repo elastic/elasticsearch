@@ -2159,6 +2159,10 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private String asTimestampWithNanos(long nanos) {
-        return JdbcTestUtils.asStringTimestampFromNanos(nanos, ZoneId.of(timeZoneId));
+        if (versionSupportsDateNanos()) {
+            return JdbcTestUtils.asStringTimestampFromNanos(nanos, ZoneId.of(timeZoneId));
+        } else {
+            return asDateString(toMilliSeconds(nanos));
+        }
     }
 }

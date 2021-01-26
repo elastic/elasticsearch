@@ -322,7 +322,7 @@ public class NativePrivilegeStore {
 
     public void putPrivileges(Collection<ApplicationPrivilegeDescriptor> privileges, WriteRequest.RefreshPolicy refreshPolicy,
                               ActionListener<Map<String, List<String>>> listener) {
-        securityIndexManager.checkIndexStateThenExecute(listener::onFailure, () -> {
+        securityIndexManager.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             ActionListener<IndexResponse> groupListener = new GroupedActionListener<>(
                 ActionListener.wrap((Collection<IndexResponse> responses) -> {
                     final Map<String, List<String>> createdNames = responses.stream()

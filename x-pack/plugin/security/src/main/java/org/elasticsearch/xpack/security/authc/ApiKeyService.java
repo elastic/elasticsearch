@@ -270,7 +270,7 @@ public class ApiKeyService {
                     .request();
             final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
 
-            securityIndex.checkIndexStateThenExecute(listener::onFailure, () ->
+            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () ->
                 executeAsyncWithOrigin(client, SECURITY_ORIGIN, BulkAction.INSTANCE, bulkRequest,
                     TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(
                         indexResponse -> {
@@ -926,7 +926,7 @@ public class ApiKeyService {
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-            securityIndex.checkIndexStateThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
+            securityIndex.prepareIndexIfNeededThenExecute(ex -> listener.onFailure(traceLog("prepare security index", ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
                         ArrayList<ElasticsearchException> failedRequestResponses = new ArrayList<>();

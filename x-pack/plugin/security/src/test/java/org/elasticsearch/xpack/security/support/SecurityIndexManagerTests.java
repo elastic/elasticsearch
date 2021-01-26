@@ -187,7 +187,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
     public void testWriteBeforeStateNotRecovered() throws Exception {
         final AtomicBoolean prepareRunnableCalled = new AtomicBoolean(false);
         final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
-        manager.checkIndexStateThenExecute(ex -> {
+        manager.prepareIndexIfNeededThenExecute(ex -> {
             prepareException.set(ex);
         }, () -> {
             prepareRunnableCalled.set(true);
@@ -201,7 +201,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         // state not recovered
         final ClusterBlocks.Builder blocks = ClusterBlocks.builder().addGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK);
         manager.clusterChanged(event(new ClusterState.Builder(CLUSTER_NAME).blocks(blocks)));
-        manager.checkIndexStateThenExecute(ex -> {
+        manager.prepareIndexIfNeededThenExecute(ex -> {
             prepareException.set(ex);
         }, () -> {
             prepareRunnableCalled.set(true);
@@ -217,7 +217,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 RestrictedIndicesNames.SECURITY_MAIN_ALIAS, TEMPLATE_NAME, SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT);
         markShardsAvailable(clusterStateBuilder);
         manager.clusterChanged(event(clusterStateBuilder));
-        manager.checkIndexStateThenExecute(ex -> {
+        manager.prepareIndexIfNeededThenExecute(ex -> {
             prepareException.set(ex);
         }, () -> {
             prepareRunnableCalled.set(true);

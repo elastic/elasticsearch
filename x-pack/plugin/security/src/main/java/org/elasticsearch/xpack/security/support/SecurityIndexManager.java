@@ -306,10 +306,11 @@ public class SecurityIndexManager implements ClusterStateListener {
     }
 
     /**
-     * Prepares the index by creating it if it doesn't exist or updating the mappings if the mappings are
-     * out of date. After any tasks have been executed, the runnable is then executed.
+     * Prepares the index by creating it if it doesn't exist, then executes the runnable.
+     * @param consumer a handler for any exceptions that are raised either during preparation or execution
+     * @param andThen executed if the index exists or after preparation is performed successfully
      */
-    public void checkIndexStateThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
+    public void prepareIndexIfNeededThenExecute(final Consumer<Exception> consumer, final Runnable andThen) {
         final State indexState = this.indexState; // use a local copy so all checks execute against the same state!
         try {
             // TODO we should improve this so we don't fire off a bunch of requests to do the same thing (create or update mappings)

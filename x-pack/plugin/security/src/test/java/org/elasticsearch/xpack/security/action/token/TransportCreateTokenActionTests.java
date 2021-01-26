@@ -140,7 +140,7 @@ public class TransportCreateTokenActionTests extends ESTestCase {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).checkIndexStateThenExecute(any(Consumer.class), any(Runnable.class));
+        }).when(securityIndex).prepareIndexIfNeededThenExecute(any(Consumer.class), any(Runnable.class));
 
         doAnswer(invocationOnMock -> {
             AuthenticationToken authToken = (AuthenticationToken) invocationOnMock.getArguments()[2];

@@ -342,7 +342,7 @@ public final class TokenService {
                     .setSource(tokenDocument, XContentType.JSON)
                     .setRefreshPolicy(RefreshPolicy.WAIT_UNTIL)
                     .request();
-            tokensIndex.checkIndexStateThenExecute(
+            tokensIndex.prepareIndexIfNeededThenExecute(
                     ex -> listener.onFailure(traceLog("prepare tokens index [" + tokensIndex.aliasName() + "]", documentId, ex)),
                     () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, IndexAction.INSTANCE, indexTokenRequest,
                             ActionListener.wrap(indexResponse -> {
@@ -794,7 +794,7 @@ public final class TokenService {
                 bulkRequestBuilder.add(request);
             }
             bulkRequestBuilder.setRefreshPolicy(RefreshPolicy.WAIT_UNTIL);
-            tokensIndexManager.checkIndexStateThenExecute(
+            tokensIndexManager.prepareIndexIfNeededThenExecute(
                 ex -> listener.onFailure(traceLog("prepare index [" + tokensIndexManager.aliasName() + "]", ex)),
                 () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, bulkRequestBuilder.request(),
                     ActionListener.<BulkResponse>wrap(bulkResponse -> {
@@ -1056,7 +1056,7 @@ public final class TokenService {
                     .setRefreshPolicy(RefreshPolicy.IMMEDIATE)
                     .setIfSeqNo(seqNo)
                     .setIfPrimaryTerm(primaryTerm);
-            refreshedTokenIndex.checkIndexStateThenExecute(
+            refreshedTokenIndex.prepareIndexIfNeededThenExecute(
                     ex -> listener.onFailure(traceLog("prepare index [" + refreshedTokenIndex.aliasName() + "]", ex)),
                     () -> executeAsyncWithOrigin(client.threadPool().getThreadContext(), SECURITY_ORIGIN, updateRequest.request(),
                     ActionListener.<UpdateResponse>wrap(updateResponse -> {

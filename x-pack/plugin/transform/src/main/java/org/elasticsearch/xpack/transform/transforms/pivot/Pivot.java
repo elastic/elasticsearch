@@ -107,6 +107,11 @@ public class Pivot extends AbstractCompositeAggFunction {
     }
 
     @Override
+    protected Map<String, Object> documentTransformationFunction(Map<String, Object> document) {
+        return DocumentConversionUtils.removeInternalFields(document);
+    }
+
+    @Override
     protected Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,
         Map<String, String> fieldTypeMap,
@@ -128,7 +133,7 @@ public class Pivot extends AbstractCompositeAggFunction {
             fieldTypeMap,
             transformIndexerStats,
             datesAsEpoch
-        ).map(DocumentConversionUtils::removeInternalFields);
+        );
     }
 
     @Override

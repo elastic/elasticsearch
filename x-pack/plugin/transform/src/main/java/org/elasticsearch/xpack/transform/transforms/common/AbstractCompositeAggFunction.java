@@ -23,6 +23,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregati
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
@@ -141,10 +142,20 @@ public abstract class AbstractCompositeAggFunction implements Function {
         }
 
         Stream<IndexRequest> indexRequestStream = extractResults(compositeAgg, fieldTypeMap, stats)
-            .map(document -> DocumentConversionUtils.convertDocumentToIndexRequest(document, destinationIndex, destinationPipeline));
+            .map(doc -> {
+                String docId = (String)doc.remove(TransformField.DOCUMENT_ID_FIELD);
+                return DocumentConversionUtils.convertDocumentToIndexRequest(
+                    docId,
+                    documentTransformationFunction(doc),
+                    destinationIndex,
+                    destinationPipeline
+                );
+            });
 
         return Tuple.tuple(indexRequestStream, compositeAgg.afterKey());
     }
+
+    protected abstract Map<String, Object> documentTransformationFunction(Map<String, Object> document);
 
     protected abstract Stream<Map<String, Object>> extractResults(
         CompositeAggregation agg,

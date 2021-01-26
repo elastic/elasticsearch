@@ -11,7 +11,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -27,19 +26,20 @@ public class DocumentConversionUtils {
 
     /**
      * Convert a raw string, object map to a valid index request
+     * @param docId The document ID
      * @param document The document contents
      * @param destinationIndex The index where the document is to be indexed
      * @param destinationPipeline Optional destination pipeline
      * @return A valid {@link IndexRequest}
      */
-    public static IndexRequest convertDocumentToIndexRequest(Map<String, Object> document,
+    public static IndexRequest convertDocumentToIndexRequest(String docId,
+                                                             Map<String, Object> document,
                                                              String destinationIndex,
                                                              String destinationPipeline) {
-        String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
-        if (id == null) {
+        if (docId == null) {
             throw new RuntimeException("Expected a document id but got null.");
         }
-        return new IndexRequest(destinationIndex).id(id).source(document).setPipeline(destinationPipeline);
+        return new IndexRequest(destinationIndex).id(docId).source(document).setPipeline(destinationPipeline);
     }
 
     /**

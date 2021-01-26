@@ -120,8 +120,11 @@ public class Latest extends AbstractCompositeAggFunction {
         Map<String, String> fieldTypeMap,
         TransformIndexerStats transformIndexerStats
     ) {
-        return agg.getBuckets().stream()
-            .map(bucket -> convertBucketToDocument(bucket, config, transformIndexerStats))
-            .map(DocumentConversionUtils::removeInternalFields);
+        return agg.getBuckets().stream().map(bucket -> convertBucketToDocument(bucket, config, transformIndexerStats));
+    }
+
+    @Override
+    protected Map<String, Object> documentTransformationFunction(Map<String, Object> document) {
+        return DocumentConversionUtils.removeInternalFields(document);
     }
 }

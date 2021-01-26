@@ -521,7 +521,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                 }
                 // create slice that is positioned to read the given values
                 ByteBuffer dup = buffer.duplicate();
-                assert dup.position() == 0;
+                //assert dup.position() == 0;
                 final int newPosition = dup.position() + Math.toIntExact(relativePos);
                 assert newPosition <= dup.limit() : "newpos " + newPosition + " limit " + dup.limit();
                 assert newPosition + length <= buffer.limit();

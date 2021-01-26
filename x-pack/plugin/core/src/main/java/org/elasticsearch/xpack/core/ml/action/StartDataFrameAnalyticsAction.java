@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -223,7 +224,13 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
             Version.writeVersion(version, out);
             if (out.getVersion().onOrAfter(Version.V_7_5_0) && out.getVersion().before(Version.V_7_12_0)) {
                 // Previous versions expect a list of phase progress objects.
-                out.writeList(Collections.emptyList());
+                // We write progress for reindexing of 1 so that the task doesn't fail
+                // and resumes from reindexing.
+                out.writeList(Arrays.asList(
+                    new PhaseProgress("reindexing", 1),
+                    new PhaseProgress("loading_data", 0),
+                    new PhaseProgress("writing_results", 0)
+                ));
             }
             if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
                 out.writeBoolean(allowLazyStart);

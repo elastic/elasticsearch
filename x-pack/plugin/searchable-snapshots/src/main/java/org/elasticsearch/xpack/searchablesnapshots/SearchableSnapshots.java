@@ -242,8 +242,8 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             this.cacheService.set(cacheService);
             final SearchableSnapshotsLFUCache sharedLfuCache;
             try {
-                sharedLfuCache = new SearchableSnapshotsLFUCache(10,
-                    ByteSizeValue.ofKb(16).getBytes(), threadPool::relativeTimeInMillis);
+                sharedLfuCache = new SearchableSnapshotsLFUCache(settings,10,
+                    ByteSizeValue.ofKb(16).getBytes(), threadPool);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -14,11 +14,16 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.SparseFileTracker;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -44,9 +49,34 @@ import java.util.function.LongSupplier;
 
 public class SearchableSnapshotsLFUCache {
 
+    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.shared-cache.";
+
+    public static final TimeValue MIN_SNAPSHOT_CACHE_DECAY_INTERVAL = TimeValue.timeValueSeconds(1L);
+    public static final Setting<TimeValue> SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING = Setting.timeSetting(
+        SETTINGS_PREFIX + "decay.interval",
+        TimeValue.timeValueSeconds(60L),                        // default
+        MIN_SNAPSHOT_CACHE_DECAY_INTERVAL,                      // min
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    public static final Setting<Integer> SNAPSHOT_CACHE_MAX_FREQ_SETTING = Setting.intSetting(
+        SETTINGS_PREFIX + "maxfreq",
+        100,                       // default
+        1,                            // min
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
+        SETTINGS_PREFIX + "min-time-delta",
+        TimeValue.timeValueSeconds(60L),                        // default
+        TimeValue.timeValueSeconds(0L),                         // min
+        Setting.Property.NodeScope
+    );
+
     private static final Logger logger = LogManager.getLogger(SearchableSnapshotsLFUCache.class);
 
-    private final ConcurrentHashMap<ChunkKey, CacheFileChunk> keyMapping;
+    private final ConcurrentHashMap<ChunkKey, Entry<CacheFileChunk>> keyMapping;
 
     private final LongSupplier currentTimeSupplier;
 
@@ -56,12 +86,16 @@ public class SearchableSnapshotsLFUCache {
     private final long regionSize;
 
     private final ConcurrentLinkedQueue<Integer> freeRegions = new ConcurrentLinkedQueue<>();
-    private final ConcurrentLinkedQueue<CacheFileChunk> occupiedRegions = new ConcurrentLinkedQueue<>();
+    private final Entry<CacheFileChunk>[] freqs;
+    private final int maxFreq;
+    private final long minTimeDelta;
+
+    // to assert exclusive access of regions
     private final AtomicReference<CacheFileChunk>[] regionOwners;
 
     // creates an LFU cache that can hold size items
-    public SearchableSnapshotsLFUCache(int numRegions, long regionSize, LongSupplier currentTimeSupplier) throws IOException {
-        this.currentTimeSupplier = currentTimeSupplier;
+    public SearchableSnapshotsLFUCache(Settings settings, int numRegions, long regionSize, ThreadPool threadPool) throws IOException {
+        this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         keyMapping = new ConcurrentHashMap<>();
         regionOwners = new AtomicReference[numRegions];
         for (int i = 0; i < numRegions; i++) {
@@ -69,7 +103,11 @@ public class SearchableSnapshotsLFUCache {
             regionOwners[i] = new AtomicReference<>();
         }
         this.regionSize = regionSize;
+        this.maxFreq = SNAPSHOT_CACHE_MAX_FREQ_SETTING.get(settings);
+        this.minTimeDelta = SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING.get(settings).millis();
+        freqs = new Entry[maxFreq];
         sharedBytes = new SharedBytes(numRegions, regionSize, Files.createTempFile("cache", "snap"));
+        new CacheDecayTask(threadPool, SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING.get(settings)).rescheduleIfNecessary();
     }
 
     private int getBucket(long position) {
@@ -122,46 +160,59 @@ public class SearchableSnapshotsLFUCache {
         final long chunkLength = getBucketSize(fileLength, bucket);
         try (Releasable ignore = keyedLock.acquire(cacheKey)) {
             final ChunkKey chunkKey = new ChunkKey(cacheKey, bucket);
-            final CacheFileChunk chunk = keyMapping.computeIfAbsent(chunkKey,
-                key -> new CacheFileChunk(chunkKey, bucket, chunkLength));
-            if (chunk.sharedBytesPos == -1) {
+            final long now = currentTimeSupplier.getAsLong();
+            final Entry<CacheFileChunk> entry = keyMapping.computeIfAbsent(chunkKey,
+                key -> new Entry<>(new CacheFileChunk(chunkKey, bucket, chunkLength), now));
+            if (entry.chunk.sharedBytesPos == -1) {
                 // new item
+                assert entry.freq == 0;
+                assert entry.prev == null;
+                assert entry.next == null;
                 final Integer freeSlot = freeRegions.poll();
                 if (freeSlot != null) {
                     // no need to evict an item, just add
-                    chunk.sharedBytesPos = freeSlot;
-                    boolean regionSet = regionOwners[freeSlot].compareAndSet(null, chunk);
+                    entry.chunk.sharedBytesPos = freeSlot;
+                    boolean regionSet = regionOwners[freeSlot].compareAndSet(null, entry.chunk);
                     assert regionSet;
-                    occupiedRegions.add(chunk);
+                    synchronized(this) {
+                        pushEntryToBack(entry);
+                    }
                 } else {
-                    final CacheFileChunk evictedChunk = occupiedRegions.poll();
-                    if (evictedChunk != null) {
-                        boolean evicted = evictedChunk.tryEvict();
-                        assert evicted;
-                        final Integer freeSlotRetry = freeRegions.poll();
-                        if (freeSlotRetry != null) {
-                            chunk.sharedBytesPos = freeSlotRetry;
-                            boolean regionSet = regionOwners[freeSlotRetry].compareAndSet(null, chunk);
-                            assert regionSet;
-                            occupiedRegions.add(chunk);
-                        } else {
-                            boolean removed = keyMapping.remove(chunkKey, chunk);
-                            assert removed;
-                            throw new AlreadyClosedException("no free region found after evicting");
+                    // need to evict something
+                    synchronized(this) {
+                        maybeEvict();
+                    }
+                    final Integer freeSlotRetry = freeRegions.poll();
+                    if (freeSlotRetry != null) {
+                        entry.chunk.sharedBytesPos = freeSlotRetry;
+                        boolean regionSet = regionOwners[freeSlotRetry].compareAndSet(null, entry.chunk);
+                        assert regionSet;
+                        synchronized(this) {
+                            pushEntryToBack(entry);
                         }
                     } else {
-                        boolean removed = keyMapping.remove(chunkKey, chunk);
+                        boolean removed = keyMapping.remove(chunkKey, entry);
+                        assert removed;
+                        throw new AlreadyClosedException("no free region found");
+                    }
+                    /*} else {
+                        boolean removed = keyMapping.remove(chunkKey, entry);
                         assert removed;
                         throw new AlreadyClosedException("no eviction target found");
-                    }
+                    }*/
                 }
             } else {
-                // bump to end of queue (LRU)
-                if (occupiedRegions.remove(chunk)) {
-                    occupiedRegions.add(chunk);
+                // check if we need to promote item
+                synchronized(this) {
+                    if (now - entry.lastAccessed > minTimeDelta && entry.freq + 1 < maxFreq) {
+                        // TODO: take lock here
+                        unlink(entry);
+                        entry.freq++;
+                        pushEntryToBack(entry);
+                    }
                 }
             }
-            return chunk;
+            return entry.chunk;
         }
     }
 
@@ -169,7 +220,146 @@ public class SearchableSnapshotsLFUCache {
         boolean regionReset = regionOwners[chunk.sharedBytesPos].compareAndSet(chunk, null);
         assert regionReset;
         freeRegions.add(chunk.sharedBytesPos);
-        keyMapping.remove(chunk.chunkKey, chunk);
+    }
+
+    private synchronized boolean invariant(final Entry<CacheFileChunk> e, boolean present) {
+        boolean found = false;
+        for (int i = 0; i < maxFreq; i++) {
+            assert freqs[i] == null || freqs[i].prev != null;
+            assert freqs[i] == null || freqs[i].prev != freqs[i] || freqs[i].next == null;
+            assert freqs[i] == null || freqs[i].prev.next == null;
+            for (Entry<CacheFileChunk> entry = freqs[i]; entry != null; entry = entry.next) {
+                assert entry.next == null || entry.next.prev == entry;
+                assert entry.prev != null;
+                assert entry.prev.next == null || entry.prev.next == entry;
+                assert entry.freq == i;
+                assert entry.chunk.evicted.get() == false;
+                if (entry == e) {
+                    found = true;
+                }
+            }
+            for (Entry<CacheFileChunk> entry = freqs[i]; entry != null && entry.prev != freqs[i]; entry = entry.prev) {
+                assert entry.next == null || entry.next.prev == entry;
+                assert entry.prev != null;
+                assert entry.prev.next == null || entry.prev.next == entry;
+                assert entry.freq == i;
+                assert entry.chunk.evicted.get() == false;
+                if (entry == e) {
+                    found = true;
+                }
+            }
+        }
+        assert found == present;
+        return true;
+    }
+
+    private void maybeEvict() {
+        assert Thread.holdsLock(this);
+        for (int i = 0; i < maxFreq; i++) {
+            for (Entry<CacheFileChunk> entry = freqs[i]; entry != null; entry = entry.next) {
+                unlink(entry);
+                keyMapping.remove(entry.chunk.chunkKey, entry);
+                boolean evicted = entry.chunk.tryEvict();
+                assert evicted;
+                return;
+            }
+        }
+    }
+
+    private void pushEntryToBack(final Entry<CacheFileChunk> entry) {
+        assert Thread.holdsLock(this);
+        assert invariant(entry, false);
+        assert entry.prev == null;
+        assert entry.next == null;
+        final Entry<CacheFileChunk> currFront = freqs[entry.freq];
+        if (currFront == null) {
+            freqs[entry.freq] = entry;
+            entry.prev = entry;
+            entry.next = null;
+        } else {
+            assert currFront.freq == entry.freq;
+            final Entry<CacheFileChunk> last = currFront.prev;
+            currFront.prev = entry;
+            last.next = entry;
+            entry.prev = last;
+            entry.next = null;
+        }
+        assert freqs[entry.freq].prev == entry;
+        assert freqs[entry.freq].prev.next == null;
+        assert entry.prev != null;
+        assert entry.prev.next == null || entry.prev.next == entry;
+        assert entry.next == null;
+        assert invariant(entry, true);
+    }
+
+    private void unlink(final Entry<CacheFileChunk> entry) {
+        assert Thread.holdsLock(this);
+        assert invariant(entry, true);
+        assert entry.prev != null;
+        final Entry<CacheFileChunk> currFront = freqs[entry.freq];
+        assert currFront != null;
+        if (currFront == entry) {
+            freqs[entry.freq] = entry.next;
+            if (entry.next != null) {
+                assert entry.prev != entry;
+                entry.next.prev = entry.prev;
+            }
+        } else {
+            if (entry.next != null) {
+                entry.next.prev = entry.prev;
+            }
+            entry.prev.next = entry.next;
+            if (currFront.prev == entry) {
+                currFront.prev = entry.prev;
+            }
+        }
+        entry.next = null;
+        entry.prev = null;
+        assert invariant(entry, false);
+    }
+
+    private void computeDecay() {
+        synchronized (this) {
+            long now = currentTimeSupplier.getAsLong();
+            for (int i = 0; i < maxFreq; i++) {
+                for (Entry<CacheFileChunk> entry = freqs[i]; entry != null; entry = entry.next) {
+                    if (now - entry.lastAccessed > 2 * minTimeDelta) {
+                        if (entry.freq > 0) {
+                            unlink(entry);
+                            entry.freq--;
+                            pushEntryToBack(entry);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    class CacheDecayTask extends AbstractAsyncTask {
+
+        CacheDecayTask(ThreadPool threadPool, TimeValue interval) {
+            super(logger, Objects.requireNonNull(threadPool), Objects.requireNonNull(interval), true);
+        }
+
+        @Override
+        protected boolean mustReschedule() {
+            return true;
+        }
+
+        @Override
+        public void runInternal() {
+            computeDecay();
+        }
+
+        @Override
+        protected String getThreadPool() {
+            return ThreadPool.Names.GENERIC;
+        }
+
+        @Override
+        public String toString() {
+            return "cache_synchronization_task";
+        }
     }
 
     private static class ChunkKey {
@@ -200,6 +390,19 @@ public class SearchableSnapshotsLFUCache {
                 "file=" + file +
                 ", part=" + part +
                 '}';
+        }
+    }
+
+    static class Entry<T> {
+        final T chunk;
+        Entry<T> prev;
+        Entry<T> next;
+        int freq;
+        long lastAccessed;
+
+        Entry(T chunk, long lastAccessed) {
+            this.chunk = chunk;
+            this.lastAccessed = lastAccessed;
         }
     }
 
@@ -345,6 +548,7 @@ public class SearchableSnapshotsLFUCache {
         final ChunkKey chunkKey;
         final SparseFileTracker tracker;
         volatile int sharedBytesPos = -1;
+        int freq;
 
         CacheFileChunk(ChunkKey chunkKey, int bucket, long chunkLength) {
             super("CacheFileChunk");

@@ -83,7 +83,9 @@ public abstract class AbstractCompositeAggFunction implements Function {
                     final CompositeAggregation agg = aggregations.get(COMPOSITE_AGGREGATION_NAME);
                     TransformIndexerStats stats = new TransformIndexerStats();
 
-                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats).collect(Collectors.toList());
+                    List<Map<String, Object>> docs = extractResults(agg, fieldTypeMap, stats)
+                        .map(this::documentTransformationFunction)
+                        .collect(Collectors.toList());
 
                     listener.onResponse(docs);
                 } catch (AggregationResultUtils.AggregationExtractionException extractionException) {

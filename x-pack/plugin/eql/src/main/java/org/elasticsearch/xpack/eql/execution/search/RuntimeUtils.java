@@ -116,7 +116,7 @@ public final class RuntimeUtils {
     public static HitExtractor createExtractor(FieldExtraction ref, EqlConfiguration cfg) {
         if (ref instanceof SearchHitFieldRef) {
             SearchHitFieldRef f = (SearchHitFieldRef) ref;
-            return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
+            return new FieldHitExtractor(f.name(), f.getDataType(), cfg.zoneId(), f.hitName(), false);
         }
 
         if (ref instanceof ComputedRef) {

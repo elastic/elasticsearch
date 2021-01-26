@@ -48,9 +48,9 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
         super(name, dataType, zoneId);
     }
 
-    public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, String hitName,
+    public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName,
             boolean arrayLeniency) {
-        super(name, fullFieldName, dataType, zoneId, hitName, arrayLeniency);
+        super(name, dataType, zoneId, hitName, arrayLeniency);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {

@@ -44,16 +44,6 @@ public class FieldExtractorRegistry {
     }
 
     private FieldExtraction topHitFieldExtractor(FieldAttribute fieldAttr) {
-        FieldAttribute actualField = fieldAttr;
-        FieldAttribute rootField = fieldAttr;
-        StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
-
-        while (rootField.parent() != null) {
-            fullFieldName.insert(0, ".").insert(0, rootField.parent().field().getName());
-            rootField = rootField.parent();
-        }
-
-        return new SearchHitFieldRef(actualField.name(), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                                     fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias());
+        return new SearchHitFieldRef(fieldAttr.name(), fieldAttr.field().getDataType(), fieldAttr.field().isAlias());
     }
 }

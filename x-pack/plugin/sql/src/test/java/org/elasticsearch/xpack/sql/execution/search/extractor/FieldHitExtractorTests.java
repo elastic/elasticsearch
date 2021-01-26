@@ -41,7 +41,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public static FieldHitExtractor randomFieldHitExtractor() {
         String hitName = randomAlphaOfLength(5);
         String name = randomAlphaOfLength(5) + "." + hitName;
-        return new FieldHitExtractor(name, null, null, randomZone(), hitName, false);
+        return new FieldHitExtractor(name, null, randomZone(), hitName, false);
     }
 
     @Override
@@ -63,7 +63,6 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     protected FieldHitExtractor mutateInstance(FieldHitExtractor instance) {
         return new FieldHitExtractor(
             instance.fieldName() + "mutated",
-            instance.fullFieldName() + "mutated",
             randomValueOtherThan(instance.dataType(), () -> randomFrom(SqlDataTypes.types())),
             randomValueOtherThan(instance.zoneId(), ESTestCase::randomZone),
             instance.hitName() + "mutated",
@@ -124,7 +123,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
     public void testToString() {
         assertEquals(
             "hit.field@hit@Europe/Berlin",
-            new FieldHitExtractor("hit.field", null, null, ZoneId.of("Europe/Berlin"), "hit", false).toString()
+            new FieldHitExtractor("hit.field", null, ZoneId.of("Europe/Berlin"), "hit", false).toString()
         );
     }
 

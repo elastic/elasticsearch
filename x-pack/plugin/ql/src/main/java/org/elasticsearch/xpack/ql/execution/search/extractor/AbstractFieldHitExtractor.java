@@ -24,23 +24,20 @@ import java.util.Objects;
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     private final String fieldName, hitName;
-    private final String fullFieldName; // used to look at the _ignored section of the query response for the actual full field name
     private final DataType dataType;
     private final ZoneId zoneId;
     private final boolean arrayLeniency;
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId) {
-        this(name, null, dataType, zoneId, null, false);
+        this(name, dataType, zoneId, null, false);
     }
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean arrayLeniency) {
-        this(name, null, dataType, zoneId, null, arrayLeniency);
+        this(name, dataType, zoneId, null, arrayLeniency);
     }
 
-    protected AbstractFieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId,
-            String hitName, boolean arrayLeniency) {
+    protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, String hitName, boolean arrayLeniency) {
         this.fieldName = name;
-        this.fullFieldName = fullFieldName;
         this.dataType = dataType;
         this.zoneId = zoneId;
         this.arrayLeniency = arrayLeniency;
@@ -55,7 +52,6 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     protected AbstractFieldHitExtractor(StreamInput in) throws IOException {
         fieldName = in.readString();
-        fullFieldName = in.readOptionalString();
         String typeName = in.readOptionalString();
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         hitName = in.readOptionalString();
@@ -72,7 +68,6 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        out.writeOptionalString(fullFieldName);
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeOptionalString(hitName);
         out.writeBoolean(arrayLeniency);
@@ -126,10 +121,6 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
     public String fieldName() {
         return fieldName;
-    }
-
-    public String fullFieldName() {
-        return fullFieldName;
     }
 
     public ZoneId zoneId() {

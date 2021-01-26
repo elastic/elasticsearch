@@ -17,23 +17,31 @@
  * under the License.
  */
 
-package org.elasticsearch.gradle.test.rest;
+package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
+import org.elasticsearch.gradle.test.rest.CopyRestApiTask;
+import org.elasticsearch.gradle.test.rest.CopyRestTestsTask;
+import org.elasticsearch.gradle.test.rest.RestResourcesExtension;
+import org.elasticsearch.gradle.test.rest.RestResourcesPlugin;
+import org.elasticsearch.gradle.test.rest.RestTestUtil;
+import org.elasticsearch.gradle.test.rest.YamlRestTestPlugin;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.testclusters.TestDistribution;
 import org.elasticsearch.gradle.util.GradleUtils;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.nio.file.Path;
@@ -49,6 +57,7 @@ import static org.elasticsearch.gradle.test.rest.RestTestUtil.setupDependencies;
 // artifacts that include all of the REST tests for the latest 7.x.y releases
 public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
+    public static final String REST_COMPAT_CHECK_TASK_NAME = "checkRestCompat";
     public static final String SOURCE_SET_NAME = "yamlRestCompatTest";
     private static final Path RELATIVE_API_PATH = Path.of("rest-api-spec/api");
     private static final Path RELATIVE_TEST_PATH = Path.of("rest-api-spec/test");
@@ -85,46 +94,60 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
             .register("copyRestApiCompatSpecsTask", CopyRestApiTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
-                task.coreConfig = bwcMinorConfig;
-                task.xpackConfig = bwcMinorConfig;
-                task.additionalConfig = bwcMinorConfig;
-                task.includeCore.set(extension.restApi.getIncludeCore());
-                task.includeXpack.set(extension.restApi.getIncludeXpack());
-                task.sourceSetName = SOURCE_SET_NAME;
-                task.skipHasRestTestCheck = true;
-                task.coreConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
+                task.setCoreConfig(bwcMinorConfig);
+                task.setXpackConfig(bwcMinorConfig);
+                task.setAdditionalConfig(bwcMinorConfig);
+                task.getIncludeCore().set(extension.getRestApi().getIncludeCore());
+                task.getIncludeXpack().set(extension.getRestApi().getIncludeXpack());
+                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setSkipHasRestTestCheck(true);
+                task.setCoreConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_API_PATH)
+                    )
                 );
-                task.xpackConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_API_PATH)
+                task.setXpackConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_API_PATH)
+                    )
                 );
-                task.additionalConfigToFileTree = config -> project.fileTree(
-                    getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                        .resolve(RELATIVE_API_PATH)
+                task.setAdditionalConfigToFileTree(
+                    config -> project.fileTree(
+                        getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                            .resolve(RELATIVE_API_PATH)
+                    )
                 );
+                task.onlyIf(t -> isEnabled(project));
             });
 
         // copy compatible rest tests
         Provider<CopyRestTestsTask> copyCompatYamlTestTask = project.getTasks()
             .register("copyRestApiCompatTestTask", CopyRestTestsTask.class, task -> {
                 task.dependsOn(bwcMinorConfig);
-                task.coreConfig = bwcMinorConfig;
-                task.xpackConfig = bwcMinorConfig;
-                task.additionalConfig = bwcMinorConfig;
-                task.includeCore.set(extension.restTests.getIncludeCore());
-                task.includeXpack.set(extension.restTests.getIncludeXpack());
-                task.sourceSetName = SOURCE_SET_NAME;
-                task.coreConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                task.setCoreConfig(bwcMinorConfig);
+                task.setXpackConfig(bwcMinorConfig);
+                task.setAdditionalConfig(bwcMinorConfig);
+                task.getIncludeCore().set(extension.getRestTests().getIncludeCore());
+                task.getIncludeXpack().set(extension.getRestTests().getIncludeXpack());
+                task.setSourceSetName(SOURCE_SET_NAME);
+                task.setCoreConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_API_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                    )
                 );
-                task.xpackConfigToFileTree = config -> project.fileTree(
-                    config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                task.setXpackConfigToFileTree(
+                    config -> project.fileTree(
+                        config.getSingleFile().toPath().resolve(RELATIVE_REST_XPACK_RESOURCES).resolve(RELATIVE_TEST_PATH)
+                    )
                 );
-                task.additionalConfigToFileTree = config -> project.fileTree(
-                    getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
-                        .resolve(RELATIVE_TEST_PATH)
+                task.setAdditionalConfigToFileTree(
+                    config -> project.fileTree(
+                        getCompatProjectPath(project, config.getSingleFile().toPath()).resolve(RELATIVE_REST_PROJECT_RESOURCES)
+                            .resolve(RELATIVE_TEST_PATH)
+                    )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
+                task.onlyIf(t -> isEnabled(project));
             });
 
         // setup the yamlRestTest task
@@ -143,6 +166,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             // run compatibility tests after "normal" tests
             testTask.mustRunAfter(project.getTasks().named(YamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.dependsOn(copyCompatYamlTestTask);
+            testTask.onlyIf(t -> isEnabled(project));
         });
 
         // setup the dependencies
@@ -151,8 +175,23 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlCompatTestSourceSet);
 
-        // wire this task into check
-        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestCompatTestTask));
+        // add a lifecycle task to allow for a possible future additional rest compatibility without needing to change task names
+        TaskProvider<Task> checkRestCompatTask = project.getTasks().register(REST_COMPAT_CHECK_TASK_NAME, (thisCheckTask) -> {
+            thisCheckTask.setDescription("Runs all REST compatibility checks.");
+            thisCheckTask.setGroup("verification");
+        });
+
+        // wire the lifecycle task into the main check task
+        project.getTasks().named(JavaBasePlugin.CHECK_TASK_NAME).configure(check -> check.dependsOn(checkRestCompatTask));
+
+        // wire the yamlRestCompatTest into the custom lifecycle task
+        project.getTasks().named(REST_COMPAT_CHECK_TASK_NAME).configure(check -> check.dependsOn(yamlRestCompatTestTask));
+
+    }
+
+    private boolean isEnabled(Project project) {
+        Object bwcEnabled = project.getExtensions().getExtraProperties().getProperties().get("bwc_tests_enabled");
+        return bwcEnabled == null || (Boolean) bwcEnabled;
     }
 
     // TODO: implement custom extension that allows us move around of the projects between major versions and still find them

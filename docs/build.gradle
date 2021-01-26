@@ -1333,6 +1333,8 @@ setups['seats'] = '''
                   type: long
                 sold:
                   type: boolean
+                datetime:
+                  type: date
 
   - do:
       raw:

@@ -75,13 +75,14 @@ public class Classification implements DataFrameAnalysis {
             lenient,
             a -> new Classification(
                 (String) a[0],
-                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6]),
-                (String) a[7],
-                (ClassAssignmentObjective) a[8],
-                (Integer) a[9],
-                (Double) a[10],
-                (Long) a[11],
-                (List<PreProcessor>) a[12]));
+                new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
+                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
+                (String) a[13],
+                (ClassAssignmentObjective) a[14],
+                (Integer) a[15],
+                (Double) a[16],
+                (Long) a[17],
+                (List<PreProcessor>) a[18]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);

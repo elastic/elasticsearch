@@ -35,6 +35,7 @@ import org.gradle.api.plugins.JavaPluginConvention;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -68,6 +69,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
     private final PatternFilterable testPatternSet;
     private final List<RestTestTransform<?>> transformations;
 
+
+    private String inputResourceParent = "";
+
     public RestCompatTestTransformTask() {
         testPatternSet = getPatternSetFactory().create();
         testPatternSet.include("/*" + "*/*.yml"); // to keep build from thinking this is a java comment
@@ -94,9 +98,16 @@ public class RestCompatTestTransformTask extends DefaultTask {
         );
     }
 
+    @SkipWhenEmpty
     @InputFiles
     public FileTree getTestFiles() {
-        return getProject().files(getOutputDir()).getAsFileTree().matching(testPatternSet);
+        return getProject().files(new File(new File(
+            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+                .getOutput()
+                .getResourcesDir(),
+            inputResourceParent),
+            REST_TEST_PREFIX
+        )).getAsFileTree().matching(testPatternSet);
     }
 
     @TaskAction
@@ -106,7 +117,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
             YAMLParser yamlParser = yaml.createParser(file);
             List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
             List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
-            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(file)) {
+            //convert to url to ensure forward slashes
+            String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
+            assert testFileParts.length == 2; //before and after the REST_TEST_PREFIX
+            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(new File(getOutputDir(), testFileParts[1]))) {
                 for (ObjectNode transformedTest : transformRestTests) {
                     sequenceWriter.write(transformedTest);
                 }
@@ -119,5 +133,9 @@ public class RestCompatTestTransformTask extends DefaultTask {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
+    }
+
+    public void setInputResourceParent(String inputResourceParent) {
+        this.inputResourceParent = inputResourceParent;
     }
 }

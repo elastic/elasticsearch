@@ -20,6 +20,8 @@
 package org.elasticsearch.gradle.internal.rest.compat;
 
 import org.elasticsearch.gradle.ElasticsearchJavaPlugin;
+import org.elasticsearch.gradle.Version;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.test.RestIntegTestTask;
 import org.elasticsearch.gradle.test.RestTestBasePlugin;
 import org.elasticsearch.gradle.test.rest.CopyRestApiTask;
@@ -64,6 +66,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
     private static final Path RELATIVE_REST_API_RESOURCES = Path.of("rest-api-spec/src/main/resources");
     private static final Path RELATIVE_REST_XPACK_RESOURCES = Path.of("x-pack/plugin/src/test/resources");
     private static final Path RELATIVE_REST_PROJECT_RESOURCES = Path.of("src/yamlRestTest/resources");
+    public static final String TEST_INTERMEDIATE_DIR_NAME =
+        "v" + (Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() - 1) + "restTests";
 
     @Override
     public void apply(Project project) {
@@ -147,6 +151,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                     )
                 );
                 task.dependsOn(copyCompatYamlSpecTask);
+                task.setOutputResourceParent(TEST_INTERMEDIATE_DIR_NAME);
                 task.onlyIf(t -> isEnabled(project));
             });
 
@@ -156,7 +161,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.sourceSetName = SOURCE_SET_NAME;
                 task.dependsOn(copyCompatYamlTestTask);
                 task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
-//                task.setEnabled(false);
+                task.setInputResourceParent(TEST_INTERMEDIATE_DIR_NAME);
+                task.onlyIf(t -> isEnabled(project));
             });
 
         // setup the yamlRestTest task

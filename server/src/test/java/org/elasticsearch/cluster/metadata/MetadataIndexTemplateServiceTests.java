@@ -1136,6 +1136,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
         // Ignoring validation
         assertThat(MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", false), equalTo(List.of(a1)));
+        assertWarnings("template [1] has alias and data stream definitions");
 
         // index template can't have data streams and a component template with an aliases
         ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, null, a1), null, null);
@@ -1148,6 +1149,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
         // Ignoring validation
         assertThat(MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", false), equalTo(List.of(a1)));
+        assertWarnings("template [1] has alias and data stream definitions");
     }
 
     public void testAddInvalidTemplate() throws Exception {

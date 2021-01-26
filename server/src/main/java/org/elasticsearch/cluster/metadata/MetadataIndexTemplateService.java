@@ -1084,7 +1084,9 @@ public class MetadataIndexTemplateService {
             if (failIfTemplateHasDataStream) {
                 throw new IllegalArgumentException("template [" + templateName + "] has alias and data stream definitions");
             } else {
-                logger.warn("template [{}] has alias and data stream definitions", templateName);
+                String warning = "template [" + templateName + "] has alias and data stream definitions";
+                logger.warn(warning);
+                HeaderWarning.addWarning(warning);
             }
         }
 

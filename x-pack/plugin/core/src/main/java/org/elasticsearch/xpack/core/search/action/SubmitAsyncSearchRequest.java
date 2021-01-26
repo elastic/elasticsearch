@@ -135,7 +135,8 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException =
-                addValidationError("[keep_alive] must be greater than 1 second, got:" + keepAlive.toString(), validationException);
+                addValidationError("[keep_alive] must be greater or equals than 1 second, got:" +
+                    keepAlive.toString(), validationException);
         }
         if (request.isCcsMinimizeRoundtrips()) {
             validationException =

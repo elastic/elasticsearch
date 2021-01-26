@@ -44,8 +44,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.common.settings.AbstractScopedSettings.ARCHIVED_SETTINGS_PREFIX;
 
@@ -78,11 +78,11 @@ public class TransportClusterUpdateSettingsAction extends
      */
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
-        Map<String, String> clearedBlockAndArchivedSettings = new HashMap<>();
+        Set<String> clearedBlockAndArchivedSettings = new HashSet<>();
         if (checkClearedBlockAndArchivedSettings(request.transientSettings(), clearedBlockAndArchivedSettings)
             && checkClearedBlockAndArchivedSettings(request.persistentSettings(), clearedBlockAndArchivedSettings)) {
-            if (clearedBlockAndArchivedSettings.containsKey(Metadata.SETTING_READ_ONLY_SETTING.getKey())
-                || clearedBlockAndArchivedSettings.containsKey(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey())) {
+            if (clearedBlockAndArchivedSettings.contains(Metadata.SETTING_READ_ONLY_SETTING.getKey())
+                || clearedBlockAndArchivedSettings.contains(Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey())) {
                 return null;
             }
         }
@@ -98,17 +98,20 @@ public class TransportClusterUpdateSettingsAction extends
      * @return true if all settings are clear blocks or archived settings.
      */
     private boolean checkClearedBlockAndArchivedSettings(final Settings settings,
-                                                         final Map<String, String> clearedBlockAndArchivedSettings) {
+                                                         final Set<String> clearedBlockAndArchivedSettings) {
         for (String key : settings.keySet()) {
-            String value = settings.get(key);
-            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)
-                || Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(key)) {
-                if ("true".equals(value)) {
+            if (Metadata.SETTING_READ_ONLY_SETTING.getKey().equals(key)) {
+                if (Metadata.SETTING_READ_ONLY_SETTING.get(settings)) {
+                    // set block as true
+                    return false;
+                }
+            } else if (Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.getKey().equals(key)) {
+                if (Metadata.SETTING_READ_ONLY_ALLOW_DELETE_SETTING.get(settings)) {
                     // set block as true
                     return false;
                 }
             } else if (key.startsWith(ARCHIVED_SETTINGS_PREFIX)) {
-                if (value != null) {
+                if (settings.get(key) != null) {
                     // archived setting value is not null
                     return false;
                 }
@@ -116,7 +119,7 @@ public class TransportClusterUpdateSettingsAction extends
                 // other settings
                 return false;
             }
-            clearedBlockAndArchivedSettings.put(key, value);
+            clearedBlockAndArchivedSettings.add(key);
         }
         return true;
     }

@@ -302,10 +302,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(
-                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false,
+                engineConfig -> new ReadOnlyEngine(
+                    engineConfig,
+                    null,
+                    new TranslogStats(),
+                    false,
                     indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
                         ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
-                        : Function.identity(), false)
+                        : Function.identity(),
+                    false
+                )
             );
         }
         return Optional.empty();

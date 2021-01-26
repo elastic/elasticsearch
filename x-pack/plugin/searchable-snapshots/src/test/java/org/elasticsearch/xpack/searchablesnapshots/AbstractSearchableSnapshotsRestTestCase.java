@@ -154,8 +154,11 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
                     logger.info("clearing searchable snapshots cache for [{}] before search", indexName);
                     clearCache(indexName);
                 }
-                Map<String, Object> searchResults =
-                    search(indexName, QueryBuilders.matchAllQuery(), randomFrom(Boolean.TRUE, Boolean.FALSE, null));
+                Map<String, Object> searchResults = search(
+                    indexName,
+                    QueryBuilders.matchAllQuery(),
+                    randomFrom(Boolean.TRUE, Boolean.FALSE, null)
+                );
                 assertThat(extractValue(searchResults, "hits.total.value"), equalTo(numDocs));
             }
         }, true);

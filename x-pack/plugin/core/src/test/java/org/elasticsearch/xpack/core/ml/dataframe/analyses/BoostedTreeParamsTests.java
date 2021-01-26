@@ -61,7 +61,7 @@ public class BoostedTreeParamsTests extends AbstractBWCSerializationTestCase<Boo
         if (version.before(Version.V_7_6_0)) {
             builder.setNumTopFeatureImportanceValues(null);
         }
-        if (version.before(Version.V_8_0_0)) {
+        if (version.before(Version.V_7_12_0)) {
             builder.setAlpha(null);
             builder.setEtaGrowthRatePerTree(null);
             builder.setSoftTreeDepthLimit(null);

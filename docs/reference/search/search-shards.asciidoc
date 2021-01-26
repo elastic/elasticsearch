@@ -15,6 +15,12 @@ GET /my-index-000001/_search_shards
 
 `GET /<index>/_search_shards`
 
+[[search-shards-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the
+`view_index_metadata` or `manage` <<privileges-list-indices,index privilege>>
+for the target data stream, index, or index alias.
 
 [[search-shards-api-desc]]
 ==== {api-description-title}

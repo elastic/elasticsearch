@@ -13,6 +13,12 @@ Removes the archived repositories metering information present in the cluster.
 
 `DELETE /_nodes/<node_id>/_repositories_metering/<max_version_to_clear>`
 
+[[clear-repositories-metering-archive-ap-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `monitor` or
+`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
+
 [[clear-repositories-metering-archive-api-desc]]
 ==== {api-description-title}
 

@@ -240,9 +240,9 @@ public final class DissectParser {
                             if (lookAheadMatches == delimiter.length) {
                                 //jump to the end of the match
                                 i += lookAheadMatches;
-                                if (!key.skipRightPadding()) {
+                                if (key.skipRightPadding() == false) {
                                     //progress the keys/delimiter if possible
-                                    if (!it.hasNext()) {
+                                    if (it.hasNext() == false) {
                                         break; //the while loop
                                     }
                                     dissectPair = it.next();
@@ -255,7 +255,7 @@ public final class DissectParser {
                             }
                         }
                         //progress the keys/delimiter if possible
-                        if (!it.hasNext()) {
+                        if (it.hasNext() == false) {
                             break; //the for loop
                         }
                         dissectPair = it.next();
@@ -272,7 +272,7 @@ public final class DissectParser {
             }
             //the last key, grab the rest of the input (unless consecutive delimiters already grabbed the last key)
             //and there is no trailing delimiter
-            if (!dissectMatch.fullyMatched() && delimiter.length == 0 ) {
+            if (dissectMatch.fullyMatched() == false && delimiter.length == 0 ) {
                 byte[] value = Arrays.copyOfRange(input, valueStart, input.length);
                 String valueString = new String(value, StandardCharsets.UTF_8);
                 dissectMatch.add(key, valueString);
@@ -280,7 +280,7 @@ public final class DissectParser {
         }
         Map<String, String> results = dissectMatch.getResults();
 
-        if (!dissectMatch.isValid(results)) {
+        if (dissectMatch.isValid(results) == false) {
             throw new DissectException.FindMatch(pattern, inputString);
         }
         return results;

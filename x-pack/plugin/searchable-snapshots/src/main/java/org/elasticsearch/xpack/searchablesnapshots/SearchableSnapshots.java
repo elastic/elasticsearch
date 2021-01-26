@@ -55,6 +55,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ScalingExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -301,7 +302,16 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings())
             && indexSettings.getSettings().getAsBoolean("index.frozen", false) == false) {
             return Optional.of(
-                engineConfig -> new ReadOnlyEngine(engineConfig, null, new TranslogStats(), false, Function.identity(), false)
+                engineConfig -> new ReadOnlyEngine(
+                    engineConfig,
+                    null,
+                    new TranslogStats(),
+                    false,
+                    indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)
+                        ? SourceOnlySnapshotRepository.readerWrapper(engineConfig)
+                        : Function.identity(),
+                    false
+                )
             );
         }
         return Optional.empty();

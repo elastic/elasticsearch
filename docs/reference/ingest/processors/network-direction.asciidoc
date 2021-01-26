@@ -58,7 +58,7 @@ The named ranges supported for the `internal_networks` option are:
 [[network-direction-processor-ex]]
 ===== Examples
 
-The following examples illustrates the use of the network direction processor:
+The following example illustrates the use of the network direction processor:
 
 [source,console]
 ----
@@ -90,10 +90,6 @@ POST _ingest/pipeline/_simulate
 
 Which produces the following result:
 
-[source,js]
---------------------------------------------------
-{
-  ...
 [source,console-result]
 ----
 {
@@ -118,7 +114,4 @@ Which produces the following result:
 }
 ----
 // TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
-  ...
-}
---------------------------------------------------
 // NOTCONSOLE

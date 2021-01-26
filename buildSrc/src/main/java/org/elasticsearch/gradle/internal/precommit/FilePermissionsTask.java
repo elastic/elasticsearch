@@ -106,7 +106,7 @@ public abstract class FilePermissionsTask extends DefaultTask {
             .map(file -> "Source file is executable: " + file)
             .collect(Collectors.toList());
 
-        if (!failures.isEmpty()) {
+        if (failures.isEmpty() == false) {
             throw new GradleException("Found invalid file permissions:\n" + String.join("\n", failures));
         }
 

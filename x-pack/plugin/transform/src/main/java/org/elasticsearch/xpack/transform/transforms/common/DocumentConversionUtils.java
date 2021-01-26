@@ -11,27 +11,35 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.xpack.core.transform.TransformField;
 
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.function.Predicate.not;
 
+/**
+ * Helper functions for converting raw maps into documents and determining index mappings
+ */
 public class DocumentConversionUtils {
 
     private static final Logger logger = LogManager.getLogger(DocumentConversionUtils.class);
 
-    public static IndexRequest convertDocumentToIndexRequest(Map<String, Object> document,
+    /**
+     * Convert a raw string, object map to a valid index request
+     * @param docId The document ID
+     * @param document The document contents
+     * @param destinationIndex The index where the document is to be indexed
+     * @param destinationPipeline Optional destination pipeline
+     * @return A valid {@link IndexRequest}
+     */
+    public static IndexRequest convertDocumentToIndexRequest(String docId,
+                                                             Map<String, Object> document,
                                                              String destinationIndex,
                                                              String destinationPipeline) {
-        String id = (String) document.get(TransformField.DOCUMENT_ID_FIELD);
-        if (id == null) {
+        if (docId == null) {
             throw new RuntimeException("Expected a document id but got null.");
         }
-
-        document = removeInternalFields(document);
-        return new IndexRequest(destinationIndex).id(id).source(document).setPipeline(destinationPipeline);
+        return new IndexRequest(destinationIndex).id(docId).source(document).setPipeline(destinationPipeline);
     }
 
     /**
@@ -39,6 +47,9 @@ public class DocumentConversionUtils {
      * The original document is *not* changed. The method returns a new document instead.
      *
      * TODO: Find out how to properly handle user-provided fields whose names start with underscore character ('_').
+     * @param document the document to index represented as a {@link Map}
+     * @param <V> Value type of document map.
+     * @return A new {@link Map} but with all keys that start with "_" removed
      */
     public static <V> Map<String, V> removeInternalFields(Map<String, V> document) {
         return document.entrySet().stream()
@@ -47,6 +58,12 @@ public class DocumentConversionUtils {
             .collect(HashMap::new, (m, e) -> m.put(e.getKey(), e.getValue()), HashMap::putAll);
     }
 
+    /**
+     * Extract the field mapping values from the field capabilities response
+     *
+     * @param response The {@link FieldCapabilitiesResponse} for the indices from which we want the field maps
+     * @return A {@link Map} mapping "field_name" to the mapped type
+     */
     public static Map<String, String> extractFieldMappings(FieldCapabilitiesResponse response) {
         Map<String, String> extractedTypes = new HashMap<>();
 

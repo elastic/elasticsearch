@@ -92,7 +92,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("distribution/bwc/minor/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
 
         when:
-        def result = gradleRunner("yamlRestCompatTest").build()
+        def result = gradleRunner("yamlRestCompatTest", "--info").build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
@@ -112,14 +112,14 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
-        result = gradleRunner("yamlRestCompatTest").build()
+        result = gradleRunner("yamlRestCompatTest", "--info").build()
 
         then:
         result.task(':yamlRestCompatTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiCompatSpecsTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestApiCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
     }
-    
+
     def "yamlRestCompatTest is wired into check and checkRestCompat"() {
         given:
 

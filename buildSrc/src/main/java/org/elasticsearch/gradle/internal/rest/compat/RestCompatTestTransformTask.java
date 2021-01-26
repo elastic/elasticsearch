@@ -62,7 +62,6 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "application/vnd.elasticsearch+json;compatible-with=7"
     );
 
-
     String sourceSetName;
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
@@ -71,7 +70,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     public RestCompatTestTransformTask() {
         testPatternSet = getPatternSetFactory().create();
-        testPatternSet.include("/**/*.yml");
+        testPatternSet.include("/*" + "*/*.yml"); // to keep build from thinking this is a java comment
         transformations = Collections.singletonList(new InjectHeaders(headers));
     }
 

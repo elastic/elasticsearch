@@ -156,6 +156,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
                 task.sourceSetName = SOURCE_SET_NAME;
                 task.dependsOn(copyCompatYamlTestTask);
                 task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
+//                task.setEnabled(false);
             });
 
         // setup the yamlRestTest task

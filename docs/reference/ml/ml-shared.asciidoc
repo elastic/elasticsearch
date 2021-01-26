@@ -563,7 +563,7 @@ Specifies the rate at which `eta` increases for each new tree that is added
 to the forest. For example, a rate of `1.05` increases `eta` by 5% for each
 extra tree. Values must be in the range of 0.5 to 2.
 By default, this value is calculated during hyperparameter optimization.
-end::dfas-growth[]
+end::dfas-eta-growth[]
 
 tag::dfas-feature-bag-fraction[]
 The fraction of features that is used when selecting a random bag for each

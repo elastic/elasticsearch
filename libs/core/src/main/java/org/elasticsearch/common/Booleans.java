@@ -79,7 +79,7 @@ public final class Booleans {
         }
         int strLen = str.length();
         for (int i = 0; i < strLen; i++) {
-            if (!Character.isWhitespace(str.charAt(i))) {
+            if (Character.isWhitespace(str.charAt(i)) == false) {
                 return true;
             }
         }
@@ -128,7 +128,16 @@ public final class Booleans {
         if (value == null) {
             return defaultValue;
         }
-        return !(value.equals("false") || value.equals("0") || value.equals("off") || value.equals("no"));
+        switch (value) {
+            case "false":
+            case "0":
+            case "off":
+            case "no":
+                return false;
+
+            default:
+                return true;
+        }
     }
 
     /**
@@ -159,14 +168,14 @@ public final class Booleans {
             return text[offset] != '0';
         }
         if (length == 2) {
-            return !(text[offset] == 'n' && text[offset + 1] == 'o');
+            return (text[offset] == 'n' && text[offset + 1] == 'o') == false;
         }
         if (length == 3) {
-            return !(text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f');
+            return (text[offset] == 'o' && text[offset + 1] == 'f' && text[offset + 2] == 'f') == false;
         }
         if (length == 5) {
-            return !(text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
-                text[offset + 4] == 'e');
+            return (text[offset] == 'f' && text[offset + 1] == 'a' && text[offset + 2] == 'l' && text[offset + 3] == 's' &&
+                text[offset + 4] == 'e') == false;
         }
         return true;
     }

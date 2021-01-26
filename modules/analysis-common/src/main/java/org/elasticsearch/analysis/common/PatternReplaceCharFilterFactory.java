@@ -39,7 +39,7 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory i
         super(indexSettings, name);
 
         String sPattern = settings.get("pattern");
-        if (!Strings.hasLength(sPattern)) {
+        if (Strings.hasLength(sPattern) == false) {
             throw new IllegalArgumentException("pattern is missing for [" + name + "] char filter of type 'pattern_replace'");
         }
         pattern = Regex.compile(sPattern, settings.get("flags"));

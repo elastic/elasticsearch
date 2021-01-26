@@ -121,12 +121,12 @@ public class EqlFunctionRegistry extends FunctionRegistry {
             if (children.size() != 2) {
                 throw new QlIllegalArgumentException("expects exactly two arguments");
             }
-            return ctorRef.build(source, children.get(0), children.get(1), defaultSensitivity(caseInsensitive));
+            return ctorRef.build(source, children.get(0), children.get(1), defaultSensitivityIfNotSet(caseInsensitive));
         };
         return def(function, builder, names);
     }
 
-    private static Boolean defaultSensitivity(Boolean caseInsensitive) {
+    private static Boolean defaultSensitivityIfNotSet(Boolean caseInsensitive) {
         return caseInsensitive == null ? Boolean.FALSE : caseInsensitive;
     }
 
@@ -150,7 +150,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 children.get(0),
                 children.get(1),
                 children.size() == 3 ? children.get(2) : null,
-                defaultSensitivity(caseInsensitive));
+                defaultSensitivityIfNotSet(caseInsensitive));
         };
         return def(function, builder, names);
     }
@@ -178,7 +178,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
                 children.get(1),
                 children.get(2),
                 children.size() == 4 ? children.get(3) : null,
-                defaultSensitivity(caseInsensitive));
+                defaultSensitivityIfNotSet(caseInsensitive));
         };
         return def(function, builder, names);
     }
@@ -201,7 +201,7 @@ public class EqlFunctionRegistry extends FunctionRegistry {
             return ctorRef.build(source,
                 children.get(0),
                 children.subList(1, children.size()),
-                defaultSensitivity(caseInsensitive));
+                defaultSensitivityIfNotSet(caseInsensitive));
         };
         return def(function, builder, names);
     }

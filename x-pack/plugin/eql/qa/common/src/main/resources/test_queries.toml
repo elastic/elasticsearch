@@ -1462,7 +1462,7 @@ description = "check built-in string functions"
 [[queries]]
 name = "startsWithCaseInsensitive3"
 query = '''
-file where opcode==0 and startsWith~(file_name, "expLORER.exe")
+file where opcode==0 and startsWith~(file_name, "expLORER.ExE")
 '''
 expected_event_ids  = [88, 92]
 description = "check built-in string functions"

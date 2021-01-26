@@ -40,6 +40,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.and;
 import static org.elasticsearch.xpack.ql.planner.ExpressionTranslators.or;
+import static org.elasticsearch.xpack.ql.util.StringUtils.WILDCARD;
 
 final class QueryTranslator {
 
@@ -192,9 +193,9 @@ final class QueryTranslator {
                     String string = (String) constant.fold();
 
                     if (f instanceof StringContains) {
-                        wildcardQuery = "*" + string + "*";
+                        wildcardQuery = WILDCARD + string + WILDCARD;
                     } else if (f instanceof EndsWith) {
-                        wildcardQuery = "*" + string;
+                        wildcardQuery = WILDCARD + string;
                     }
                 }
 

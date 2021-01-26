@@ -62,7 +62,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUti
  * Cache files created by this service are periodically synchronized on disk in order to make the cached data durable
  * (see {@link #synchronizeCache()} for more information).
  */
-public class CacheService extends AbstractLifecycleComponent implements CacheFile.ModificationListener {
+public class CacheService extends AbstractLifecycleComponent {
 
     private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.cache.";
 
@@ -134,6 +134,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
 
     private final ThreadPool threadPool;
     private final ConcurrentLinkedQueue<CacheFileEvent> cacheFilesEventsQueue;
+    private final CacheFile.ModificationListener cacheFilesListener;
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
     private final ReentrantLock cacheSyncLock;
@@ -169,6 +170,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
         this.persistentCache = Objects.requireNonNull(persistentCache);
         this.cacheSyncLock = new ReentrantLock();
         this.cacheFilesEventsQueue = new ConcurrentLinkedQueue<>();
+        this.cacheFilesListener = new CacheFileModificationListener();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.maxCacheFilesToSyncAtOnce = SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING, this::setMaxCacheFilesToSyncAtOnce);
@@ -286,7 +288,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
             final Path path = cacheDir.resolve(uuid);
             assert Files.notExists(path) : "cache file already exists " + path;
 
-            return new CacheFile(key, fileLength, path, this);
+            return new CacheFile(key, fileLength, path, this.cacheFilesListener);
         });
     }
 
@@ -327,7 +329,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
         if (Files.exists(path) == false) {
             throw new FileNotFoundException("Cache file [" + path + "] not found");
         }
-        cache.put(cacheKey, new CacheFile(cacheKey, fileLength, path, cacheFileRanges, this));
+        cache.put(cacheKey, new CacheFile(cacheKey, fileLength, path, cacheFileRanges, this.cacheFilesListener));
     }
 
     /**
@@ -486,26 +488,6 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
     }
 
     /**
-     * This method is invoked when a {@link CacheFile} notifies the current {@link CacheService} that it needs to be fsync on disk.
-     *
-     * @param cacheFile the instance that needs to be fsync
-     */
-    @Override
-    public void onCacheFileNeedsFsync(CacheFile cacheFile) {
-        cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.NEEDS_FSYNC, cacheFile));
-    }
-
-    /**
-     * This method is invoked after a {@link CacheFile} is deleted from the disk.
-     *
-     * @param cacheFile the deleted instance
-     */
-    @Override
-    public void onCacheFileDelete(CacheFile cacheFile) {
-        cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.DELETE, cacheFile));
-    }
-
-    /**
      * This method is invoked after a {@link CacheFile} is evicted from the cache.
      * <p>
      * It notifies the {@link CacheFile}'s eviction listeners that the instance is evicted.
@@ -658,6 +640,29 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
         }
     }
 
+    private class CacheFileModificationListener implements CacheFile.ModificationListener {
+
+        /**
+         * This method is invoked when a {@link CacheFile} notifies the current {@link CacheService} that it needs to be fsync on disk.
+         *
+         * @param cacheFile the instance that needs to be fsync
+         */
+        @Override
+        public void onCacheFileNeedsFsync(CacheFile cacheFile) {
+            cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.NEEDS_FSYNC, cacheFile));
+        }
+
+        /**
+         * This method is invoked after a {@link CacheFile} is deleted from the disk.
+         *
+         * @param cacheFile the deleted instance
+         */
+        @Override
+        public void onCacheFileDelete(CacheFile cacheFile) {
+            cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.DELETE, cacheFile));
+        }
+    }
+
     /**
      * Represents the searchable snapshots information of a shard that has been removed from the node. These information are kept around
      * to evict the cache files associated to that shard.
@@ -762,4 +767,5 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
             return "cache file event [type=" + type + ", value=" + value + ']';
         }
     }
+
 }

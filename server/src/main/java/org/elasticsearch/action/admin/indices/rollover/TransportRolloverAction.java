@@ -84,10 +84,10 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
     }
 
     @Override
-    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState preState,
+    protected void masterOperation(Task task, final RolloverRequest rolloverRequest, final ClusterState oldState,
                                    final ActionListener<RolloverResponse> listener) throws Exception {
 
-        Metadata metadata = preState.metadata();
+        Metadata metadata = oldState.metadata();
 
         IndicesStatsRequest statsRequest = new IndicesStatsRequest().indices(rolloverRequest.getRolloverTarget())
             .clear()
@@ -103,22 +103,22 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 // Now that we have the stats for the cluster, we need to know the
                 // names of the index for which we should evaluate
                 // conditions, as well as what our newly created index *would* be.
-                final MetadataRolloverService.NameResolution preRolloverNames =
-                    rolloverService.resolveRolloverNames(preState, rolloverRequest.getRolloverTarget(),
+                final MetadataRolloverService.NameResolution trialRolloverNames =
+                    rolloverService.resolveRolloverNames(oldState, rolloverRequest.getRolloverTarget(),
                         rolloverRequest.getNewIndexName(), rolloverRequest.getCreateIndexRequest());
-                final String preSourceIndexName = preRolloverNames.sourceName;
-                final String preRolloverIndexName = preRolloverNames.rolloverName;
+                final String trialSourceIndexName = trialRolloverNames.sourceName;
+                final String trialRolloverIndexName = trialRolloverNames.rolloverName;
 
-                rolloverService.validateIndexName(preState, preRolloverIndexName);
+                rolloverService.validateIndexName(oldState, trialRolloverIndexName);
 
                 // Evaluate the conditions, so that we can tell without a cluster state update whether a rollover would occur.
-                final Map<String, Boolean> preConditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
-                    metadata.index(preSourceIndexName), statsResponse);
+                final Map<String, Boolean> trialConditionResults = evaluateConditions(rolloverRequest.getConditions().values(),
+                    metadata.index(trialSourceIndexName), statsResponse);
 
                 // If this is a dry run, return with the results without invoking a cluster state update
                 if (rolloverRequest.isDryRun()) {
-                    listener.onResponse(new RolloverResponse(preSourceIndexName, preRolloverIndexName,
-                        preConditionResults, true, false, false, false));
+                    listener.onResponse(new RolloverResponse(trialSourceIndexName, trialRolloverIndexName,
+                        trialConditionResults, true, false, false, false));
                     return;
                 }
 
@@ -129,16 +129,16 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                 final SetOnce<String> rolloverIndex = new SetOnce<>();
                 final SetOnce<Map<String, Boolean>> conditionResults = new SetOnce<>();
 
-                final List<Condition<?>> preMetConditions = rolloverRequest.getConditions().values().stream()
-                    .filter(condition -> preConditionResults.get(condition.toString())).collect(Collectors.toList());
+                final List<Condition<?>> trialMetConditions = rolloverRequest.getConditions().values().stream()
+                    .filter(condition -> trialConditionResults.get(condition.toString())).collect(Collectors.toList());
 
                 // Pre-check the conditions to see whether we should submit a new cluster state task
-                if (preConditionResults.size() == 0 || preMetConditions.size() > 0) {
+                if (trialConditionResults.size() == 0 || trialMetConditions.size() > 0) {
 
                     // Submit the cluster state, this can be thought of as a "synchronized"
                     // block in that it is single-threaded on the master node
-                    clusterService.submitStateUpdateTask("rollover_index source [" + preRolloverIndexName + "] to target ["
-                        + preRolloverIndexName + "]", new ClusterStateUpdateTask() {
+                    clusterService.submitStateUpdateTask("rollover_index source [" + trialRolloverIndexName + "] to target ["
+                        + trialRolloverIndexName + "]", new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) throws Exception {
                             // Regenerate the rollover names, as a rollover could have happened
@@ -161,7 +161,7 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                                 MetadataRolloverService.RolloverResult rolloverResult =
                                     rolloverService.rolloverClusterState(currentState, rolloverRequest.getRolloverTarget(),
                                         rolloverRequest.getNewIndexName(),
-                                        rolloverRequest.getCreateIndexRequest(), preMetConditions, false, false);
+                                        rolloverRequest.getCreateIndexRequest(), metConditions, false, false);
                                 logger.trace("rollover result [{}]", rolloverResult);
 
                                 // Update the "final" source and resulting rollover index names.
@@ -206,14 +206,14 @@ public class TransportRolloverAction extends TransportMasterNodeAction<RolloverR
                             } else {
                                 // We did not roll over due to conditions not being met inside the cluster state update
                                 listener.onResponse(new RolloverResponse(
-                                    preSourceIndexName, preRolloverIndexName, preConditionResults, false, false, false, false));
+                                    trialSourceIndexName, trialRolloverIndexName, trialConditionResults, false, false, false, false));
                             }
                         }
                     });
                 } else {
                     // conditions not met
-                    listener.onResponse(new RolloverResponse(preSourceIndexName, preRolloverIndexName,
-                        preConditionResults, false, false, false, false));
+                    listener.onResponse(new RolloverResponse(trialSourceIndexName, trialRolloverIndexName,
+                        trialConditionResults, false, false, false, false));
                 }
             }, listener::onFailure));
     }

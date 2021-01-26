@@ -60,10 +60,20 @@ public final class DestructiveOperations {
                 throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
         } else {
+            boolean matchNoneFound = false;
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
-                    throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                    if (aliasesOrIndex.equals("-*")) {
+                        matchNoneFound = true;
+                    } else if (aliasesOrIndex.equals("*")) {
+                        // do nothing
+                    } else {
+                        throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
+                    }
                 }
+            }
+            if (matchNoneFound == false) {
+                throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
         }
     }

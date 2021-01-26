@@ -49,6 +49,7 @@ import java.util.SortedSet;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -135,6 +136,7 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ConcurrentLinkedQueue<CacheFileEvent> cacheFilesEventsQueue;
     private final CacheFile.ModificationListener cacheFilesListener;
+    private final AtomicLong numberOfCacheFilesEvents;
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
     private final ReentrantLock cacheSyncLock;
@@ -169,6 +171,7 @@ public class CacheService extends AbstractLifecycleComponent {
             .build();
         this.persistentCache = Objects.requireNonNull(persistentCache);
         this.cacheSyncLock = new ReentrantLock();
+        this.numberOfCacheFilesEvents = new AtomicLong();
         this.cacheFilesEventsQueue = new ConcurrentLinkedQueue<>();
         this.cacheFilesListener = new CacheFileModificationListener();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
@@ -527,7 +530,7 @@ public class CacheService extends AbstractLifecycleComponent {
         try {
             final Set<Path> cacheDirs = new HashSet<>();
             final long startTimeNanos = threadPool.relativeTimeInNanos();
-            final long maxCacheFilesToSync = this.maxCacheFilesToSyncAtOnce;
+            final long maxCacheFilesToSync = Math.min(numberOfCacheFilesEvents.get(), this.maxCacheFilesToSyncAtOnce);
 
             long updates = 0L;
             long deletes = 0L;
@@ -657,6 +660,7 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public void onCacheFileNeedsFsync(CacheFile cacheFile) {
             cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.NEEDS_FSYNC, cacheFile));
+            numberOfCacheFilesEvents.incrementAndGet();
         }
 
         /**
@@ -667,6 +671,7 @@ public class CacheService extends AbstractLifecycleComponent {
         @Override
         public void onCacheFileDelete(CacheFile cacheFile) {
             cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.DELETE, cacheFile));
+            numberOfCacheFilesEvents.incrementAndGet();
         }
     }
 

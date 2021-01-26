@@ -41,10 +41,10 @@ public class CacheFile {
     }
 
     /**
-     * {@link ModificationListener} can be used to be notified when a {@link CacheFile} is updated or is deleted.
+     * {@link ModificationListener} can be used to be notified when a {@link CacheFile} needs to be fsynced or is deleted.
      */
     public interface ModificationListener {
-        void onCacheFileUpdate(CacheFile cacheFile);
+        void onCacheFileNeedsFsync(CacheFile cacheFile);
 
         void onCacheFileDelete(CacheFile cacheFile);
     }
@@ -481,7 +481,7 @@ public class CacheFile {
     private void markAsNeedsFSync() {
         assert refCounter.refCount() > 0 : "file should not be fully released";
         if (needsFsync.getAndSet(true) == false) {
-            listener.onCacheFileUpdate(this);
+            listener.onCacheFileNeedsFsync(this);
         }
     }
 

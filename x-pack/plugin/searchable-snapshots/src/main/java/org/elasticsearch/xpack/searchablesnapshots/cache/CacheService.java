@@ -491,7 +491,7 @@ public class CacheService extends AbstractLifecycleComponent implements CacheFil
      * @param cacheFile the instance that needs to be fsync
      */
     @Override
-    public void onCacheFileUpdate(CacheFile cacheFile) {
+    public void onCacheFileNeedsFsync(CacheFile cacheFile) {
         cacheFilesEventsQueue.offer(new CacheFileEvent(CacheFileEventType.UPDATE, cacheFile));
     }
 

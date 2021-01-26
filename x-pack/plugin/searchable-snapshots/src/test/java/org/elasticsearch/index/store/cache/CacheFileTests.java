@@ -49,7 +49,7 @@ public class CacheFileTests extends ESTestCase {
 
     private static final CacheFile.ModificationListener NOOP = new CacheFile.ModificationListener() {
         @Override
-        public void onCacheFileUpdate(CacheFile cacheFile) {}
+        public void onCacheFileNeedsFsync(CacheFile cacheFile) {}
 
         @Override
         public void onCacheFileDelete(CacheFile cacheFile) {}
@@ -372,7 +372,7 @@ public class CacheFileTests extends ESTestCase {
         private final Set<CacheFile> deletes = new HashSet<>();
 
         @Override
-        public synchronized void onCacheFileUpdate(CacheFile cacheFile) {
+        public synchronized void onCacheFileNeedsFsync(CacheFile cacheFile) {
             updates.add(cacheFile);
         }
 

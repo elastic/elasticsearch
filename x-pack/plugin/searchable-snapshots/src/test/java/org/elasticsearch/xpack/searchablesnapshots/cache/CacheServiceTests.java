@@ -237,7 +237,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         final List<CacheFile> cacheFilesAssociatedWithShard = filterByShard(shard, randomCacheFiles);
         cacheFilesAssociatedWithShard.forEach(cacheFile -> assertTrue(Files.exists(cacheFile.getFile())));
 
-        final BlockingEvictionModificationListener blockingListener = new BlockingEvictionModificationListener();
+        final BlockingEvictionListener blockingListener = new BlockingEvictionListener();
         final CacheFile randomCacheFile = randomFrom(cacheFilesAssociatedWithShard);
         assertTrue(Files.exists(randomCacheFile.getFile()));
         randomCacheFile.acquire(blockingListener);
@@ -290,7 +290,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         final List<CacheFile> cacheFilesAssociatedWithShard = filterByShard(shard, randomCacheFiles);
         cacheFilesAssociatedWithShard.forEach(cacheFile -> assertTrue(Files.exists(cacheFile.getFile())));
 
-        final BlockingEvictionModificationListener blockingListener = new BlockingEvictionModificationListener();
+        final BlockingEvictionListener blockingListener = new BlockingEvictionListener();
         final CacheFile randomCacheFile = randomFrom(cacheFilesAssociatedWithShard);
         assertTrue(Files.exists(randomCacheFile.getFile()));
         randomCacheFile.acquire(blockingListener);
@@ -333,7 +333,7 @@ public class CacheServiceTests extends AbstractSearchableSnapshotsTestCase {
         cacheService.stop();
     }
 
-    private static class BlockingEvictionModificationListener implements CacheFile.EvictionListener {
+    private static class BlockingEvictionListener implements CacheFile.EvictionListener {
 
         private final CountDownLatch evictionLatch = new CountDownLatch(1);
         private final CountDownLatch releaseLatch = new CountDownLatch(1);

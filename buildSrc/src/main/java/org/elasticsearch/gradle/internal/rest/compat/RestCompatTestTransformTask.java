@@ -123,7 +123,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
             assert testFileParts.length == 2; // before and after the REST_TEST_PREFIX
-            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(new File(getOutputDir(), testFileParts[1]))) {
+            File output = new File(getOutputDir(), testFileParts[1]);
+            boolean mkdirs = output.getParentFile().mkdirs();
+            assert mkdirs : "could not make directories for " + output;
+            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {
                     sequenceWriter.write(transformedTest);
                 }

@@ -60,8 +60,8 @@ The named ranges supported for the `internal_networks` option are:
 
 The following examples illustrates the use of the network direction processor:
 
-[source,js]
---------------------------------------------------
+[source,console]
+----
 POST _ingest/pipeline/_simulate
 {
   "pipeline": {
@@ -86,8 +86,7 @@ POST _ingest/pipeline/_simulate
     }
   ]
 }
---------------------------------------------------
-// NOTCONSOLE
+----
 
 Which produces the following result:
 

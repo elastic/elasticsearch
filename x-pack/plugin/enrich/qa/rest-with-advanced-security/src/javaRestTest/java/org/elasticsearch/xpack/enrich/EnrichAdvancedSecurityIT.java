@@ -11,15 +11,15 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.enrich.CommonEnrichRestTestCase;
-import org.elasticsearch.test.rest.ESRestTestCase;
 
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
+import static org.hamcrest.CoreMatchers.containsString;
 
-public class EnrichSecurityFailureIT extends ESRestTestCase {
+public class EnrichAdvancedSecurityIT extends CommonEnrichRestTestCase {
 
     @Override
     protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("test_enrich_no_privs", new SecureString("x-pack-test-password".toCharArray()));
+        String token = basicAuthHeaderValue("test_enrich", new SecureString("x-pack-test-password".toCharArray()));
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
@@ -29,10 +29,18 @@ public class EnrichSecurityFailureIT extends ESRestTestCase {
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    public void testFailure() throws Exception {
+    public void testInsufficientPermissionsOnNonExistentIndex() throws Exception {
+        // This test is here because it requires a valid user that has permission to execute policy PUTs but should fail if the user
+        // does not have access to read the backing indices used to enrich the data.
+        Request request = new Request("PUT", "/some-other-index");
+        request.setJsonEntity("{\n \"mappings\" : {" + createSourceIndexMapping() + "} }");
+        adminClient().performRequest(request);
         Request putPolicyRequest = new Request("PUT", "/_enrich/policy/my_policy");
-        putPolicyRequest.setJsonEntity(CommonEnrichRestTestCase.generatePolicySource("my-source-index"));
+        putPolicyRequest.setJsonEntity(generatePolicySource("some-other-index"));
         ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(putPolicyRequest));
-        assertTrue(exc.getMessage().contains("action [cluster:admin/xpack/enrich/put] is unauthorized for user [test_enrich_no_privs]"));
+        assertThat(
+            exc.getMessage(),
+            containsString("unable to store policy because no indices match with the specified index patterns [some-other-index]")
+        );
     }
 }

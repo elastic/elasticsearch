@@ -12,7 +12,6 @@ testClusters.all {
   extraConfigFile 'roles.yml', file('roles.yml')
   user username: "test_admin", password: "x-pack-test-password", role: "superuser"
   user username: "test_enrich", password: "x-pack-test-password", role: "integ_test_role"
-  user username: "test_enrich_no_privs", password: "x-pack-test-password", role: "enrich_no_privs"
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.monitoring.collection.enabled', 'true'

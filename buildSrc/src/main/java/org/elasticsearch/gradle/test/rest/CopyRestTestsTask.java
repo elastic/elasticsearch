@@ -140,11 +140,13 @@ public class CopyRestTestsTask extends DefaultTask {
 
     @OutputDirectory
     public File getOutputDir() {
-        return new File(new File(
-            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
-                .getOutput()
-                .getResourcesDir(),
-            outputResourceParent),
+        return new File(
+            new File(
+                getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+                    .getOutput()
+                    .getResourcesDir(),
+                outputResourceParent
+            ),
             REST_TEST_PREFIX
         );
     }
@@ -170,8 +172,9 @@ public class CopyRestTestsTask extends DefaultTask {
                 getFileSystemOperations().copy(c -> {
                     c.from(getArchiveOperations().zipTree(coreConfig.getSingleFile())); // jar file
                     // this ends up as the same dir as outputDir
-                    c.into(new File(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()),
-                        outputResourceParent));
+                    c.into(
+                        new File(Objects.requireNonNull(getSourceSet().orElseThrow().getOutput().getResourcesDir()), outputResourceParent)
+                    );
                     c.include(
                         includeCore.get().stream().map(prefix -> REST_TEST_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList())
                     );

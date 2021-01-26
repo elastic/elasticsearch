@@ -159,7 +159,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         // transform the copied tests task
         TaskProvider<RestCompatTestTransformTask> transformCompatTestTask = project.getTasks()
             .register("transformCompatTests", RestCompatTestTransformTask.class, task -> {
-                task.sourceSetName = SOURCE_SET_NAME;
+                task.setSourceSetName(SOURCE_SET_NAME);
                 task.dependsOn(copyCompatYamlTestTask);
                 task.dependsOn(yamlCompatTestSourceSet.getProcessResourcesTaskName());
                 task.setInputResourceParent(TEST_INTERMEDIATE_DIR_NAME);

@@ -63,7 +63,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "application/vnd.elasticsearch+json;compatible-with=7"
     );
 
-    String sourceSetName;
+    private String sourceSetName;
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
     private final PatternFilterable testPatternSet;
@@ -73,7 +73,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
 
     public RestCompatTestTransformTask() {
         testPatternSet = getPatternSetFactory().create();
-        testPatternSet.include("/*" + "*/*.yml"); // to keep build from thinking this is a java comment
+        testPatternSet.include("/*" + "*/*.yml"); // concat these strings to keep build from thinking this is invalid javadoc
         transformations = Collections.singletonList(new InjectHeaders(headers));
     }
 
@@ -139,6 +139,10 @@ public class RestCompatTestTransformTask extends DefaultTask {
         return project.getConvention().findPlugin(JavaPluginConvention.class) == null
             ? Optional.empty()
             : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
+    }
+
+    public void setSourceSetName(String sourceSetName) {
+        this.sourceSetName = sourceSetName;
     }
 
     public void setInputResourceParent(String inputResourceParent) {

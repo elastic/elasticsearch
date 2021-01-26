@@ -1463,6 +1463,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         }
     }
 
+    /**
+     * {@link RepositoryData} loading deduplicator. This may only be used with consistent generation repositories, meaning
+     * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
+     * unique for a given value of {@link #metadata} at any point in time.
+     */
     private final AbstractResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator =
             new AbstractResultDeduplicator<>();
 

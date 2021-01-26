@@ -116,34 +116,36 @@ public class ConfigurationUtilsTests extends ESTestCase {
         }
     }
 
-    public void testReadMimeProperty() {
-        // valid mime type
-        String expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
-        config.put("mime_type", expectedMimeType);
-        String readMimeType = ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", "");
-        assertThat(readMimeType, equalTo(expectedMimeType));
+    public void testReadMediaProperty() {
+        // valid media type
+        String expectedMediaType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
+        config.put("media_type", expectedMediaType);
+        String readMediaType = ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", "");
+        assertThat(readMediaType, equalTo(expectedMediaType));
 
-        // missing mime type with valid default
-        expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
-        config.remove("mime_type");
-        readMimeType = ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", expectedMimeType);
-        assertThat(readMimeType, equalTo(expectedMimeType));
+        // missing media type with valid default
+        expectedMediaType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
+        config.remove("media_type");
+        readMediaType = ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", expectedMediaType);
+        assertThat(readMediaType, equalTo(expectedMediaType));
 
-        // invalid mime type
-        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
+        // invalid media type
+        expectedMediaType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9));
-        config.put("mime_type", expectedMimeType);
+        config.put("media_type", expectedMediaType);
         ElasticsearchException e = expectThrows(ElasticsearchException.class,
-            () -> ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", ""));
-        assertThat(e.getMessage(), containsString("property does not contain a supported MIME type [" + expectedMimeType + "]"));
+            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", ""));
+        assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
 
-        // missing mime type with invalid default
-        final String invalidDefaultMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
-            () -> randomAlphaOfLengthBetween(5, 9));
-        config.remove("mime_type");
+        // missing media type with invalid default
+        final String invalidDefaultMediaType = randomValueOtherThanMany(
+            m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
+            () -> randomAlphaOfLengthBetween(5, 9)
+        );
+        config.remove("media_type");
         e = expectThrows(ElasticsearchException.class,
-            () -> ConfigurationUtils.readMimeTypeProperty(null, null, config, "mime_type", invalidDefaultMimeType));
-        assertThat(e.getMessage(), containsString("property does not contain a supported MIME type [" + invalidDefaultMimeType + "]"));
+            () -> ConfigurationUtils.readMediaTypeProperty(null, null, config, "media_type", invalidDefaultMediaType));
+        assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + invalidDefaultMediaType + "]"));
     }
 
     public void testReadProcessors() throws Exception {

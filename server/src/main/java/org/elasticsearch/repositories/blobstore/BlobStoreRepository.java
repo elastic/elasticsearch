@@ -121,7 +121,7 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotMissingException;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.AbstractResultDeduplicator;
+import org.elasticsearch.action.ResultDeduplicator;
 
 import java.io.FilterInputStream;
 import java.io.IOException;
@@ -1468,8 +1468,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
      * {@link #bestEffortConsistency} must be {@code false}, in which case we can assume that the {@link RepositoryData} loaded is
      * unique for a given value of {@link #metadata} at any point in time.
      */
-    private final AbstractResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator =
-            new AbstractResultDeduplicator<>();
+    private final ResultDeduplicator<RepositoryMetadata, RepositoryData> repoDataDeduplicator = new ResultDeduplicator<>();
 
     private void doGetRepositoryData(ActionListener<RepositoryData> listener) {
         // Retry loading RepositoryData in a loop in case we run into concurrent modifications of the repository.

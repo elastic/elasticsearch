@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.transport;
+package org.elasticsearch.action;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 
 import java.util.ArrayList;
@@ -32,7 +31,7 @@ import java.util.function.BiConsumer;
  * request.
  * @param <T> Request type
  */
-public final class AbstractResultDeduplicator<T, R> {
+public final class ResultDeduplicator<T, R> {
 
     private final ConcurrentMap<T, CompositeListener> requests = ConcurrentCollections.newConcurrentMap();
 

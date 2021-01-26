@@ -36,7 +36,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.AbstractResultDeduplicator;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
@@ -52,7 +52,7 @@ public class TaskCancellationService {
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
     private final TaskManager taskManager;
-    private final AbstractResultDeduplicator<CancelRequest, Void> deduplicator = new AbstractResultDeduplicator<>();
+    private final ResultDeduplicator<CancelRequest, Void> deduplicator = new ResultDeduplicator<>();
 
     public TaskCancellationService(TransportService transportService) {
         this.transportService = transportService;

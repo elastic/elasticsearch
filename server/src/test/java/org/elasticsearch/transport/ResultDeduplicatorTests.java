@@ -20,6 +20,7 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,7 +30,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.sameInstance;
 
-public class AbstractResultDeduplicatorTests extends ESTestCase {
+public class ResultDeduplicatorTests extends ESTestCase {
 
     public void testRequestDeduplication() throws Exception {
         AtomicInteger successCount = new AtomicInteger();
@@ -40,7 +41,7 @@ public class AbstractResultDeduplicatorTests extends ESTestCase {
             public void setParentTask(final TaskId taskId) {
             }
         };
-        final AbstractResultDeduplicator<TransportRequest, Void> deduplicator = new AbstractResultDeduplicator<>();
+        final ResultDeduplicator<TransportRequest, Void> deduplicator = new ResultDeduplicator<>();
         final SetOnce<ActionListener<Void>> listenerHolder = new SetOnce<>();
         int iterationsPerThread = scaledRandomIntBetween(100, 1000);
         Thread[] threads = new Thread[between(1, 4)];

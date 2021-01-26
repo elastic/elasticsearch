@@ -40,34 +40,40 @@ public class LocateFunctionProcessor implements Processor {
 
     @Override
     public Object process(Object input) {
-        return doProcess(pattern().process(input), input().process(input), start() == null ? null : start().process(input));
+        if (start() == null) {
+            return doProcess(pattern().process(input), input().process(input));
+        } else {
+            return doProcess(pattern().process(input), input().process(input), start().process(input));
+        }
     }
 
+    public static Integer doProcess(Object pattern, Object input) {
+        return doProcess(pattern, input, 1);
+    }
+    
     public static Integer doProcess(Object pattern, Object input, Object start) {
-        if (input == null) {
+        if (pattern == null || input == null) {
             return null;
+        }
+        if (start == null) {
+            return 0;
         }
         if (!(input instanceof String || input instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", input);
-        }
-        if (pattern == null) {
-            return 0;
         }
 
         if (!(pattern instanceof String || pattern instanceof Character)) {
             throw new SqlIllegalArgumentException("A string/char is required; received [{}]", pattern);
         }
 
-        if (start != null) {
-            Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
-        }
+        Check.isFixedNumberAndInRange(start, "start", (long) Integer.MIN_VALUE + 1, (long) Integer.MAX_VALUE);
 
         String stringInput = input instanceof Character ? input.toString() : (String) input;
         String stringPattern = pattern instanceof Character ? pattern.toString() : (String) pattern;
 
-        return Integer.valueOf(1 + (start != null ?
-                stringInput.indexOf(stringPattern, ((Number) start).intValue() - 1)
-                : stringInput.indexOf(stringPattern)));
+        
+        int startIndex = ((Number) start).intValue() - 1;
+        return 1 + stringInput.indexOf(stringPattern, startIndex);
     }
 
     @Override

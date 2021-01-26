@@ -347,8 +347,8 @@ SELECT CAST(LOCATE(CASE WHEN languages > 3 THEN 'a' ELSE 'b' END, CASE WHEN TRUN
 
       x:s      |       c:l       
 ---------------+---------------
-false          |80             
-true           |16             
+false          |83             
+true           |13             
 null           |4              
 ;
 

@@ -110,7 +110,7 @@ public class ListTasksResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof ListTasksResponse)) return false;
+        if ((o instanceof ListTasksResponse) == false) return false;
         ListTasksResponse response = (ListTasksResponse) o;
         return nodesInfoData.equals(response.nodesInfoData) &&
             Objects.equals

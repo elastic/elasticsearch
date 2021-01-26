@@ -216,7 +216,7 @@ public class GetIndexResponse {
         ensureExpectedToken(Token.START_OBJECT, parser.currentToken(), parser);
         parser.nextToken();
 
-        while (!parser.isClosed()) {
+        while (parser.isClosed() == false) {
             if (parser.currentToken() == Token.START_OBJECT) {
                 // we assume this is an index entry
                 String indexName = parser.currentName();

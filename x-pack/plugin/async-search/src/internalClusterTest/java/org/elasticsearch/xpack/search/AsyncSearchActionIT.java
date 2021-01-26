@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -345,7 +346,7 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(0));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(6));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
 
         assertTrue(response.isRunning());
@@ -364,8 +365,13 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertEquals(0, statusResponse.getSkippedShards());
         assertEquals(null, statusResponse.getCompletionStatus());
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
+        expirationTime = response.getExpirationTime();
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueMinutes(between(1, 24 * 60)));
+        assertThat(response.getExpirationTime(), equalTo(expirationTime));
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        assertThat(response.getExpirationTime(), greaterThan(expirationTime));
+
+        deleteAsyncSearch(response.getId());
         ensureTaskNotRunning(response.getId());
         ensureTaskRemoval(response.getId());
     }
@@ -391,8 +397,9 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(8));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
+        expirationTime = response.getExpirationTime();
 
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
@@ -400,7 +407,11 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
         response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
+        assertThat(response.getExpirationTime(), equalTo(expirationTime));
+        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        assertThat(response.getExpirationTime(), greaterThan(expirationTime));
+
+        deleteAsyncSearch(response.getId());
         ensureTaskNotRunning(response.getId());
         ensureTaskRemoval(response.getId());
     }
@@ -427,22 +438,24 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             ExceptionsHelper.unwrapCause(exc.getCause()) : ExceptionsHelper.unwrapCause(exc);
         assertThat(ExceptionsHelper.status(cause).getStatus(), equalTo(404));
 
-        SubmitAsyncSearchRequest newReq = new SubmitAsyncSearchRequest(indexName);
+        SubmitAsyncSearchRequest newReq = new SubmitAsyncSearchRequest(indexName) {
+            @Override
+            public ActionRequestValidationException validate() {
+                return null; // to use a small keep_alive
+            }
+        };
         newReq.getSearchRequest().source(
             new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong()))
         );
-        newReq.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1));
+        newReq.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1)).setKeepAlive(TimeValue.timeValueSeconds(5));
         AsyncSearchResponse newResp = submitAsyncSearch(newReq);
         assertNotNull(newResp.getSearchResponse());
         assertTrue(newResp.isRunning());
         assertThat(newResp.getSearchResponse().getTotalShards(), equalTo(numShards));
         assertThat(newResp.getSearchResponse().getSuccessfulShards(), equalTo(0));
         assertThat(newResp.getSearchResponse().getFailedShards(), equalTo(0));
-        long expirationTime = newResp.getExpirationTime();
 
         // check garbage collection
-        newResp = getAsyncSearch(newResp.getId(), TimeValue.timeValueMillis(1));
-        assertThat(newResp.getExpirationTime(), lessThan(expirationTime));
         ensureTaskNotRunning(newResp.getId());
         ensureTaskRemoval(newResp.getId());
     }

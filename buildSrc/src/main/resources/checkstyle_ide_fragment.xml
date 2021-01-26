@@ -15,7 +15,7 @@
         <property name="tokens" value="EXPR"/>
         <property name="limitedTokens" value="LNOT"/>
         <property name="maximumNumber" value="0"/>
-        <property name="maximumDepth" value="1"/>
+        <property name="maximumDepth" value="2"/>
         <message
             key="descendant.token.max"
             value="Do not negate boolean expressions with '!', but check explicitly with '== false' as it is more explicit"/>

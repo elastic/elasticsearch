@@ -21,11 +21,11 @@ setup:
           {"index":{}}
           {"timestamp": "1998-04-30T14:30:17-05:00", "location" : {"lat": 13.5, "lon" : 34.89}}
           {"index":{}}
-          {"timestamp": "1998-04-30T14:30:53-05:00", "location" : {"lat": -7.9, "lon" : 120.78}}
+          {"timestamp": "1998-04-30T14:30:53-05:00", "location" : "-7.9, 120.78"}
           {"index":{}}
-          {"timestamp": "1998-04-30T14:31:12-05:00", "location" : {"lat": 45.78, "lon" : -173.45}}
+          {"timestamp": "1998-04-30T14:31:12-05:00", "location" : [-173.45, 45.78]}
           {"index":{}}
-          {"timestamp": "1998-04-30T14:31:19-05:00", "location" : {"lat": 32.45, "lon" : 45.6}}
+          {"timestamp": "1998-04-30T14:31:19-05:00", "location" : "POINT(45.6 32.45)"}
           {"index":{}}
           {"timestamp": "1998-04-30T14:31:22-05:00", "location" : {"lat": -63.24, "lon" : 31.0}}
           {"index":{}}
@@ -207,8 +207,7 @@ setup:
   - match: {hits.hits.0._source.location.lon: 0.0 }
   - match: {hits.hits.1._source.location.lat: 13.5 }
   - match: {hits.hits.1._source.location.lon: 34.89 }
-  - match: {hits.hits.2._source.location.lat: 32.45 }
-  - match: {hits.hits.2._source.location.lon: 45.6 }
+  - match: {hits.hits.2._source.location: "POINT(45.6 32.45)" }
   - match: {hits.hits.3._source.location.lat: -63.24 }
   - match: {hits.hits.3._source.location.lon: 31.0 }
 

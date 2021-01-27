@@ -125,7 +125,7 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
         secondCluster.startDataOnlyNode();
         assertAcked(secondCluster.client().admin().cluster().preparePutRepository(repoName)
                 .setType("fs")
-                .setSettings(Settings.builder().put("location", repoPath).put("read_only", true)));
+                .setSettings(Settings.builder().put("location", repoPath).put("readonly", true)));
         assertThat(secondCluster.client().admin().cluster().prepareGetRepositories(repoName).get().repositories()
                 .stream().filter(r -> r.name().equals(repoName)).findFirst().orElseThrow().uuid(), equalTo(repoUuid));
 

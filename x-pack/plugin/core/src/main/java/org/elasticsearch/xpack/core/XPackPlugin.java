@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.ssl.SSLConfiguration;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationReloader;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -363,7 +364,8 @@ public class XPackPlugin extends XPackClientPlugin implements ExtensiblePlugin, 
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY)) {
+        if (indexSettings.getValue(SourceOnlySnapshotRepository.SOURCE_ONLY) &&
+            SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings.getSettings()) == false) {
             return Optional.of(SourceOnlySnapshotRepository.getEngineFactory());
         }
 

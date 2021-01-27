@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContentObject;
@@ -118,6 +119,11 @@ public class GetAutoscalingCapacityAction extends ActionType<GetAutoscalingCapac
 
         public Map<String, AutoscalingDeciderResults> getResults() {
             return results;
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
     }
 

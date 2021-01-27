@@ -1497,7 +1497,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         });
 
-        if (!latch.await(10, TimeUnit.SECONDS)) {
+        if (latch.await(10, TimeUnit.SECONDS) == false) {
             fail("message round trip did not complete within a sensible time frame");
         }
 
@@ -2429,12 +2429,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings globalSettings2 = Settings.builder()
-            .put("network.tcp.no_delay", !enable)
-            .put("network.tcp.keep_alive", !enable)
+            .put("network.tcp.no_delay", enable == false)
+            .put("network.tcp.keep_alive", enable == false)
             .put("network.tcp.keep_idle", "43")
             .put("network.tcp.keep_interval", "8")
             .put("network.tcp.keep_count", "14")
-            .put("network.tcp.reuse_address", !enable)
+            .put("network.tcp.reuse_address", enable == false)
             .put("network.tcp.send_buffer_size", "4b")
             .put("network.tcp.receive_buffer_size", "3b")
             .put("network.publish_host", "another_publish_host")
@@ -2457,12 +2457,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             .build();
 
         Settings transportSettings2 = Settings.builder()
-            .put("transport.tcp.no_delay", !enable)
-            .put("transport.tcp.keep_alive", !enable)
+            .put("transport.tcp.no_delay", enable == false)
+            .put("transport.tcp.keep_alive", enable == false)
             .put("transport.tcp.keep_idle", "43")
             .put("transport.tcp.keep_interval", "8")
             .put("transport.tcp.keep_count", "14")
-            .put("transport.tcp.reuse_address", !enable)
+            .put("transport.tcp.reuse_address", enable == false)
             .put("transport.tcp.send_buffer_size", "5b")
             .put("transport.tcp.receive_buffer_size", "6b")
             .put("transport.publish_host", "another_publish_host")

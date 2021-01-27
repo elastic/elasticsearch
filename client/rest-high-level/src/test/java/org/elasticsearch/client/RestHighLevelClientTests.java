@@ -960,7 +960,7 @@ public class RestHighLevelClientTests extends ESTestCase {
                 method.getReturnType().getSimpleName(), equalTo("boolean"));
         } else {
             // It's acceptable for 404s to be represented as empty Optionals
-            if (!method.getReturnType().isAssignableFrom(Optional.class)) {
+            if (method.getReturnType().isAssignableFrom(Optional.class) == false) {
                 assertThat("the return type for method [" + method + "] is incorrect",
                     method.getReturnType().getSimpleName(), endsWith("Response"));
             }

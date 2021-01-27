@@ -46,7 +46,7 @@ public class GetUsersRequest implements Validatable {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof GetUsersRequest)) return false;
+        if ((o instanceof GetUsersRequest) == false) return false;
         GetUsersRequest that = (GetUsersRequest) o;
         return Objects.equals(usernames, that.usernames);
     }

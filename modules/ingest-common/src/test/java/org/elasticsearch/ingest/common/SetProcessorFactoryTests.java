@@ -137,25 +137,25 @@ public class SetProcessorFactoryTests extends ESTestCase {
         assertThat(exception.getMessage(), equalTo("[copy_from] cannot set both `copy_from` and `value` in the same processor"));
     }
 
-    public void testMimeType() throws Exception {
-        // valid mime type
-        String expectedMimeType = randomFrom(ConfigurationUtils.VALID_MIME_TYPES);
+    public void testMediaType() throws Exception {
+        // valid media type
+        String expectedMediaType = randomFrom(ConfigurationUtils.VALID_MEDIA_TYPES);
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         config.put("value", "value1");
-        config.put("mime_type", expectedMimeType);
+        config.put("media_type", expectedMediaType);
         String processorTag = randomAlphaOfLength(10);
         SetProcessor setProcessor = factory.create(null, processorTag, null, config);
         assertThat(setProcessor.getTag(), equalTo(processorTag));
 
-        // invalid mime type
-        expectedMimeType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MIME_TYPES).contains(m),
+        // invalid media type
+        expectedMediaType = randomValueOtherThanMany(m -> Arrays.asList(ConfigurationUtils.VALID_MEDIA_TYPES).contains(m),
             () -> randomAlphaOfLengthBetween(5, 9));
         final Map<String, Object> config2 = new HashMap<>();
         config2.put("field", "field1");
         config2.put("value", "value1");
-        config2.put("mime_type", expectedMimeType);
+        config2.put("media_type", expectedMediaType);
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> factory.create(null, processorTag, null, config2));
-        assertThat(e.getMessage(), containsString("property does not contain a supported MIME type [" + expectedMimeType + "]"));
+        assertThat(e.getMessage(), containsString("property does not contain a supported media type [" + expectedMediaType + "]"));
     }
 }

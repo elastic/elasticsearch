@@ -173,7 +173,7 @@ public class FieldFetcher {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
-            if (ignoredFields.contains(field)) {
+            if (ignoredFields != null && ignoredFields.contains(field)) {
                 continue;
             }
 

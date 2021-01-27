@@ -119,10 +119,4 @@ public class NestedValueFetcher implements ValueFetcher {
         }
         return next;
     }
-
-    @Override
-    public List<Object> fetchValues(SourceLookup lookup) throws IOException {
-        return fetchValues(lookup, Collections.emptySet());
-    }
-
 }

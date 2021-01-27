@@ -54,7 +54,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(SourceLookup lookup, Set<String> ignoredFields) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);

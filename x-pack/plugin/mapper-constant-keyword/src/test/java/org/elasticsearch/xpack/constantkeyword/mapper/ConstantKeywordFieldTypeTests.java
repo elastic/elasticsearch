@@ -113,13 +113,13 @@ public class ConstantKeywordFieldTypeTests extends FieldTypeTestCase {
         SourceLookup nullValueLookup = new SourceLookup();
         nullValueLookup.setSource(Collections.singletonMap("field", null));
 
-        assertTrue(fetcher.fetchValues(missingValueLookup).isEmpty());
-        assertTrue(fetcher.fetchValues(nullValueLookup).isEmpty());
+        assertTrue(fetcher.fetchValues(missingValueLookup, null).isEmpty());
+        assertTrue(fetcher.fetchValues(nullValueLookup, null).isEmpty());
 
         MappedFieldType valued = new ConstantKeywordFieldMapper.ConstantKeywordFieldType("field", "foo");
         fetcher = valued.valueFetcher(null, null);
 
-        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup));
-        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup));
+        assertEquals(List.of("foo"), fetcher.fetchValues(missingValueLookup, null));
+        assertEquals(List.of("foo"), fetcher.fetchValues(nullValueLookup, null));
     }
 }

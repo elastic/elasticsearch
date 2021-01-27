@@ -59,7 +59,7 @@ public final class HighlightUtils {
         }
         ValueFetcher fetcher = fieldType.valueFetcher(searchContext, null);
         fetcher.setNextReader(hitContext.readerContext());
-        return fetcher.fetchValues(hitContext.sourceLookup());
+        return fetcher.fetchValues(hitContext.sourceLookup(), null);
     }
 
     public static class Encoders {

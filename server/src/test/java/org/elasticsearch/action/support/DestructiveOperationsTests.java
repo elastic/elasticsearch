@@ -27,7 +27,7 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DestructiveOperationsTest extends ESTestCase {
+public class DestructiveOperationsTests extends ESTestCase {
 
     private DestructiveOperations destructiveOperations;
 

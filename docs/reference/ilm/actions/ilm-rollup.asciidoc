@@ -21,7 +21,7 @@ Rollup configuration specification can be found <<rollup-api-request-body,here>>
 
 `rollup_policy`::
 (Optional, string)
-The name of an  <<index-lifecycle-management, {ilm}>> ({ilm-init}) policy to associate
+The name of an <<index-lifecycle-management, {ilm}>> ({ilm-init}) policy to associate
 with the newly created rollup index.
 
 [[ilm-rollup-ex]]

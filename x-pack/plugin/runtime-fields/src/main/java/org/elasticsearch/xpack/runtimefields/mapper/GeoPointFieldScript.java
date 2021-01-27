@@ -57,9 +57,6 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         public void execute() {
             try {
                 Object value = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
-                if (value == null) {
-                    return;
-                }
                 if (value instanceof List<?>) {
                     List<?> values = (List<?>) value;
                     if (values.size() > 0 && values.get(0) instanceof Number) {

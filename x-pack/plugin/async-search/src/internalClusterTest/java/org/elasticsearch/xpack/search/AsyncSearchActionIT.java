@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -438,16 +437,11 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
             ExceptionsHelper.unwrapCause(exc.getCause()) : ExceptionsHelper.unwrapCause(exc);
         assertThat(ExceptionsHelper.status(cause).getStatus(), equalTo(404));
 
-        SubmitAsyncSearchRequest newReq = new SubmitAsyncSearchRequest(indexName) {
-            @Override
-            public ActionRequestValidationException validate() {
-                return null; // to use a small keep_alive
-            }
-        };
+        SubmitAsyncSearchRequest newReq = new SubmitAsyncSearchRequest(indexName);
         newReq.getSearchRequest().source(
             new SearchSourceBuilder().aggregation(new CancellingAggregationBuilder("test", randomLong()))
         );
-        newReq.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1)).setKeepAlive(TimeValue.timeValueSeconds(5));
+        newReq.setWaitForCompletionTimeout(TimeValue.timeValueMillis(1)).setKeepAlive(TimeValue.timeValueSeconds(1));
         AsyncSearchResponse newResp = submitAsyncSearch(newReq);
         assertNotNull(newResp.getSearchResponse());
         assertTrue(newResp.isRunning());

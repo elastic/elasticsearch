@@ -51,6 +51,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
     protected Collection<Class<? extends Plugin>> getPlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.getPlugins());
         plugins.add(TestPlugin.class);
+        plugins.add(ExpirationTimeScriptPlugin.class);
         return plugins;
     }
 
@@ -154,7 +155,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         // And so does updating the expiration time
         {
             PlainActionFuture<UpdateResponse> future = PlainActionFuture.newFuture();
-            indexService.updateExpirationTime("0", 10L, future);
+            indexService.extendExpirationTime("0", 10L, future);
             expectThrows(Exception.class, future::get);
             assertSettings();
         }
@@ -175,4 +176,6 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
         Settings expected = AsyncTaskIndexService.settings();
         assertEquals(expected, settings.filter(expected::hasValue));
     }
+
+
 }

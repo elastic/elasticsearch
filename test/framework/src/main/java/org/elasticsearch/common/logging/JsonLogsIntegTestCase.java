@@ -74,7 +74,7 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
         try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser() )) {
             stream.limit(LINES_TO_CHECK)
                   .forEach(jsonLogLine -> {
-                      assertThat(jsonLogLine.getType(), is(not(emptyOrNullString())));
+                      assertThat(jsonLogLine.getDataset(), is(not(emptyOrNullString())));
                       assertThat(jsonLogLine.getTimestamp(), is(not(emptyOrNullString())));
                       assertThat(jsonLogLine.getLevel(), is(not(emptyOrNullString())));
                       assertThat(jsonLogLine.getComponent(), is(not(emptyOrNullString())));
@@ -88,14 +88,14 @@ public abstract class JsonLogsIntegTestCase extends ESRestTestCase {
     }
 
     private JsonLogLine findFirstLine() throws IOException {
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser())) {
             return stream.findFirst()
                          .orElseThrow(() -> new AssertionError("no logs at all?!"));
         }
     }
 
     public void testNodeIdAndClusterIdConsistentOnceAvailable() throws IOException {
-        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()))) {
+        try (Stream<JsonLogLine> stream = JsonLogsStream.from(openReader(getLogFile()), getParser())) {
             Iterator<JsonLogLine> iterator = stream.iterator();
 
             JsonLogLine firstLine = null;

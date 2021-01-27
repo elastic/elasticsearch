@@ -49,7 +49,7 @@ class FieldDataValueSource extends FieldDataBasedDoubleValuesSource {
 
         FieldDataValueSource that = (FieldDataValueSource) o;
 
-        if (!fieldData.equals(that.fieldData)) return false;
+        if (fieldData.equals(that.fieldData) == false) return false;
         return multiValueMode == that.multiValueMode;
 
     }

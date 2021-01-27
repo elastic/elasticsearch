@@ -202,7 +202,6 @@ public class ClusterStateChanges {
             xContentRegistry,
             null,
             null,
-            null,
             null
         ) {
             // metadata upgrader should do nothing

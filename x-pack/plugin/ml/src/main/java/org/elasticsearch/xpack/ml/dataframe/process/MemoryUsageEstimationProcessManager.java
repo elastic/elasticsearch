@@ -98,7 +98,6 @@ public class MemoryUsageEstimationProcessManager {
                     jobId, e.getMessage(), process.readError()).getFormattedMessage();
             throw ExceptionsHelper.serverError(errorMsg, e);
         } finally {
-            process.consumeAndCloseOutputStream();
             try {
                 LOGGER.debug("[{}] Closing process", jobId);
                 process.close();

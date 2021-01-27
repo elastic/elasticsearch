@@ -58,8 +58,7 @@ public class NestedValueFetcher implements ValueFetcher {
         if (nestedValues == null) {
             return Collections.emptyList();
         }
-        List<Map> nestedList = unpack(nestedValues);
-        for (Object entry : nestedList) {
+        for (Object entry : nestedValues) {
             // add this one entry only to the stub and use this as source lookup
             stub.put(nestedFieldName, entry);
             SourceLookup nestedSourceLookup = new SourceLookup();
@@ -80,32 +79,6 @@ public class NestedValueFetcher implements ValueFetcher {
             }
         }
         return nestedEntriesToReturn;
-    }
-
-    /**
-     * Go through the input list and unpack every entry that is itself a list.
-     * This can happen when e.g. "obj" and "obj2" are both nested and we have something like
-     * "obj" : [
-     *    {
-     *      "obj2 : { ...}
-     *    },
-     *    {
-     *      "obj2 : [ { ... } ]
-     *    }
-     * ]
-     * in the source and get "obj.obj2"
-     */
-    private List<Map> unpack(List<?> nestedValues) {
-        List<Map> unpackedList = new ArrayList<>();
-        for (Object o : nestedValues) {
-            if (o instanceof Map) {
-                unpackedList.add((Map) o);
-            }
-            if (o instanceof List) {
-                unpackedList.addAll((List) o);
-            }
-        }
-        return unpackedList;
     }
 
     // create a filtered source map stub which contains the nested field path

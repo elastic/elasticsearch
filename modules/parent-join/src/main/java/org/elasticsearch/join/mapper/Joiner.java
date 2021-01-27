@@ -26,7 +26,7 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.util.HashMap;
@@ -46,7 +46,7 @@ public final class Joiner {
     /**
      * Get the Joiner for this context, or {@code null} if none is configured
      */
-    public static Joiner getJoiner(QueryShardContext context) {
+    public static Joiner getJoiner(SearchExecutionContext context) {
         return getJoiner(context::isFieldMapped, context::getFieldType);
     }
 

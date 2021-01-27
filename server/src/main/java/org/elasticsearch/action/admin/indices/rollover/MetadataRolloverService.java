@@ -84,6 +84,17 @@ public class MetadataRolloverService {
             this.sourceIndexName = sourceIndexName;
             this.clusterState = clusterState;
         }
+
+        @Override
+        public String toString() {
+            return String.format(
+                Locale.ROOT,
+                "cluster state version [%d], rollover index name [%s], source index name [%s]",
+                clusterState.version(),
+                rolloverIndexName,
+                sourceIndexName
+            );
+        }
     }
 
     public RolloverResult rolloverClusterState(ClusterState currentState, String rolloverTarget, String newIndexName,

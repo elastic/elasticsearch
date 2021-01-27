@@ -39,7 +39,7 @@ import org.elasticsearch.index.mapper.StringFieldType;
 import org.elasticsearch.index.mapper.TextParams;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.DocValueFormat;
@@ -184,7 +184,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public Query existsQuery(QueryShardContext context) {
+        public Query existsQuery(SearchExecutionContext context) {
             Term term = new Term(name(), FlattenedFieldParser.createKeyedValue(key, ""));
             return new PrefixQuery(term);
         }
@@ -194,7 +194,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
                                 Object upperTerm,
                                 boolean includeLower,
                                 boolean includeUpper,
-                                QueryShardContext context) {
+                                SearchExecutionContext context) {
 
             // We require range queries to specify both bounds because an unbounded query could incorrectly match
             // values from other keys. For example, a query on the 'first' key with only a lower bound would become
@@ -210,14 +210,14 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
 
         @Override
         public Query fuzzyQuery(Object value, Fuzziness fuzziness, int prefixLength, int maxExpansions,
-                                boolean transpositions, QueryShardContext context) {
+                                boolean transpositions, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[fuzzy] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
         public Query regexpQuery(String value, int syntaxFlags, int matchFlags, int maxDeterminizedStates,
-                                 MultiTermQuery.RewriteMethod method, QueryShardContext context) {
+                                 MultiTermQuery.RewriteMethod method, SearchExecutionContext context) {
             throw new UnsupportedOperationException("[regexp] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
@@ -226,13 +226,13 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         public Query wildcardQuery(String value,
                                    MultiTermQuery.RewriteMethod method,
                                    boolean caseInsensitive,
-                                   QueryShardContext context) {
+                                   SearchExecutionContext context) {
             throw new UnsupportedOperationException("[wildcard] queries are not currently supported on keyed " +
                 "[" + CONTENT_TYPE + "] fields.");
         }
 
         @Override
-        public Query termQueryCaseInsensitive(Object value, QueryShardContext context) {
+        public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
             return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
         }
 
@@ -256,7 +256,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             // This is an internal field but it can match a field pattern so we return an empty list.
             return lookup -> List.of();
         }
@@ -402,7 +402,7 @@ public final class FlattenedFieldMapper extends DynamicKeyFieldMapper {
         }
 
         @Override
-        public ValueFetcher valueFetcher(QueryShardContext context, String format) {
+        public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.identity(name(), context, format);
         }
     }

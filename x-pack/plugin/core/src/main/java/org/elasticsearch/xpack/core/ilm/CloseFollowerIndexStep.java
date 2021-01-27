@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.client.Client;
@@ -24,6 +25,11 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
     }
 
     @Override
+    public boolean isRetryable() {
+        return true;
+    }
+
+    @Override
     void performDuringNoSnapshot(IndexMetadata indexMetadata, ClusterState currentClusterState, Listener listener) {
         String followerIndex = indexMetadata.getIndex().getName();
         Map<String, String> customIndexMetadata = indexMetadata.getCustomData(CCR_METADATA_KEY);
@@ -37,7 +43,9 @@ final class CloseFollowerIndexStep extends AsyncRetryDuringSnapshotActionStep {
                 .masterNodeTimeout(getMasterTimeout(currentClusterState));
             getClient().admin().indices().close(closeIndexRequest, ActionListener.wrap(
                 r -> {
-                    assert r.isAcknowledged() : "close index response is not acknowledged";
+                    if (r.isAcknowledged() == false) {
+                        throw new ElasticsearchException("close index request failed to be acknowledged");
+                    }
                     listener.onResponse(true);
                 },
                 listener::onFailure)

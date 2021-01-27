@@ -76,8 +76,8 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     }
 
     @Override
-    protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        QueryBuilder innerQuery = queryBuilder.rewrite(createShardContext());
+    protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        QueryBuilder innerQuery = queryBuilder.rewrite(createSearchExecutionContext());
         Query expected = rewrite(innerQuery.toQuery(context));
         assertEquals(rewrite(query), expected);
     }
@@ -126,46 +126,47 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     public void testMustRewrite() throws IOException {
         TermQueryBuilder tqb = new TermQueryBuilder(TEXT_FIELD_NAME, "bar");
         WrapperQueryBuilder qb = new WrapperQueryBuilder(tqb.toString());
-        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class, () -> qb.toQuery(createShardContext()));
+        UnsupportedOperationException e = expectThrows(UnsupportedOperationException.class,
+            () -> qb.toQuery(createSearchExecutionContext()));
         assertEquals("this query must be rewritten first", e.getMessage());
-        QueryBuilder rewrite = qb.rewrite(createShardContext());
+        QueryBuilder rewrite = qb.rewrite(createSearchExecutionContext());
         assertEquals(tqb, rewrite);
     }
 
     public void testRewriteWithInnerName() throws IOException {
         QueryBuilder builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}");
-        QueryShardContext shardContext = createShardContext();
-        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(shardContext));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        assertEquals(new MatchAllQueryBuilder().queryName("foobar"), builder.rewrite(searchExecutionContext));
         builder = new WrapperQueryBuilder("{ \"match_all\" : {\"_name\" : \"foobar\"}}").queryName("outer");
         assertEquals(new BoolQueryBuilder().must(new MatchAllQueryBuilder().queryName("foobar")).queryName("outer"),
-            builder.rewrite(shardContext));
+            builder.rewrite(searchExecutionContext));
     }
 
     public void testRewriteWithInnerBoost() throws IOException {
         final TermQueryBuilder query = new TermQueryBuilder(TEXT_FIELD_NAME, "bar").boost(2);
         QueryBuilder builder = new WrapperQueryBuilder(query.toString());
-        QueryShardContext shardContext = createShardContext();
-        assertEquals(query, builder.rewrite(shardContext));
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
+        assertEquals(query, builder.rewrite(searchExecutionContext));
         builder = new WrapperQueryBuilder(query.toString()).boost(3);
-        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(shardContext));
+        assertEquals(new BoolQueryBuilder().must(query).boost(3), builder.rewrite(searchExecutionContext));
     }
 
     public void testRewriteInnerQueryToo() throws IOException {
-        QueryShardContext shardContext = createShardContext();
+        SearchExecutionContext searchExecutionContext = createSearchExecutionContext();
 
         QueryBuilder qb = new WrapperQueryBuilder(
             new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString()).toString()
         );
-        assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(shardContext).toQuery(shardContext));
+        assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
         qb = new WrapperQueryBuilder(
             new WrapperQueryBuilder(
                 new WrapperQueryBuilder(new TermQueryBuilder(TEXT_FIELD_NAME, "bar").toString()).toString()
             ).toString()
         );
-        assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(shardContext).toQuery(shardContext));
+        assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
 
         qb = new WrapperQueryBuilder(new BoolQueryBuilder().toString());
-        assertEquals(new MatchAllDocsQuery(), qb.rewrite(shardContext).toQuery(shardContext));
+        assertEquals(new MatchAllDocsQuery(), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
     }
 
     @Override

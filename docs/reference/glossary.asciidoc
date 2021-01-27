@@ -61,7 +61,7 @@ that is accessed occasionally and not normally updated.
 
 [[glossary-component-template]] component template ::
 // tag::component-template-def[]
-A building block for constructing <<indices-templates,index templates>> that specifies index
+A building block for constructing <<index-templates,index templates>> that specifies index
 <<mapping,mappings>>, <<index-modules-settings,settings>>, and <<indices-aliases,aliases>>.
 // end::component-template-def[]
 

@@ -28,6 +28,7 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -117,13 +118,15 @@ public class TransportAnalyzeActionTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.deprecate("deprecated_token_filter_create", "Using deprecated token filter [deprecated]");
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "deprecated_token_filter_create",
+                       "Using deprecated token filter [deprecated]");
                     return tokenStream;
                 }
 
                 @Override
                 public TokenStream normalize(TokenStream tokenStream) {
-                    deprecationLogger.deprecate("deprecated_token_filter_normalize", "Using deprecated token filter [deprecated]");
+                    deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "deprecated_token_filter_normalize",
+                       "Using deprecated token filter [deprecated]");
                     return tokenStream;
                 }
             }

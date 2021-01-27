@@ -627,6 +627,22 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=date}, {v=YYYY_MM_dd}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
     }
 
+    public void testTranslateToChar_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE TO_CHAR(date, 'YYYY_MM_DD') = '2018_09_04'");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = translate(condition);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.toChar(" +
+                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+            sc.script().toString());
+        assertEquals("[{v=date}, {v=YYYY_MM_DD}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
+    }
+
     public void testLikeOnInexact() {
         LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
         assertTrue(p instanceof Project);
@@ -2507,5 +2523,93 @@ public class QueryTranslatorTests extends ESTestCase {
             .transformDown(FieldAttribute.class, x -> x.name().equals("int") ? (FieldAttribute) expectedInts.toArray()[0] : x);
 
         assertEquals(expectedCondition, condition);
+    }
+
+    public void testSubqueryBasicSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test )");
+    }
+
+    public void testSubquerySelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test )");
+    }
+
+    public void testSubqueryGroupByNoAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test ) " +
+            "GROUP BY int");
+    }
+
+    public void testSubqueryGroupByOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "GROUP BY i");
+    }
+
+    public void testSubqueryFilterOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "ORDER BY i");
+    }
+
+    @AwaitsFix(bugUrl = "follow-up to https://github.com/elastic/elasticsearch/pull/67216")
+    public void testSubqueryGroupByFilterAndOrderByByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i IS NOT NULL " +
+            "GROUP BY i " +
+            "ORDER BY i");
+    }
+
+    public void testSubqueryFilterByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "WHERE i > 10");
+    }
+
+    public void testSubqueryOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) " +
+            "ORDER BY i");
+    }
+
+    public void testSubqueryWithAliasBasicSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT int FROM " +
+            "( SELECT int FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasBasicQualifiedSelect() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT s.int FROM " +
+            "( SELECT int FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasSelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasQualifiedSelectOnFieldAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT s.i FROM " +
+            "( SELECT int AS i FROM test ) AS s");
+    }
+
+    public void testSubqueryWithAliasGroupBy() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "GROUP BY s.i");
+    }
+
+    public void testSubqueryWithAliasFilterByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "WHERE s.i > 10");
+    }
+
+    public void testSubqueryWithAliasOrderByAlias() throws Exception {
+        PhysicalPlan p = optimizeAndPlan("SELECT i FROM " +
+            "( SELECT int AS i FROM test ) AS s " +
+            "ORDER BY s.i > 10");
     }
 }

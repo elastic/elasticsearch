@@ -28,7 +28,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.Mockito;
@@ -54,7 +54,7 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
     public void testRandomScoreFunctionWithSeedNoField() throws Exception {
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.seed(42);
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         IndexSettings settings = new IndexSettings(IndexMetadata.builder("index").settings(indexSettings).build(), Settings.EMPTY);
@@ -71,7 +71,7 @@ public class ScoreFunctionBuilderTests extends ESTestCase {
         RandomScoreFunctionBuilder builder = new RandomScoreFunctionBuilder();
         builder.setField("foo");
         builder.seed(42);
-        QueryShardContext context = Mockito.mock(QueryShardContext.class);
+        SearchExecutionContext context = Mockito.mock(SearchExecutionContext.class);
         Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1).build();
         IndexSettings settings = new IndexSettings(IndexMetadata.builder("index").settings(indexSettings).build(), Settings.EMPTY);

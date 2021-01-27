@@ -122,12 +122,13 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     protected Iterable<RuleExecutor<LogicalPlan>.Batch> batches() {
         Batch substitutions = new Batch("Substitutions", Limiter.ONCE,
                 new RewritePivot(),
-                new ReplaceRegexMatch());
-
-        Batch refs = new Batch("Replace References", Limiter.ONCE,
-                new ReplaceReferenceAttributeWithSource(),
+                new ReplaceRegexMatch(),
                 new ReplaceAggregatesWithLiterals(),
                 new ReplaceCountInLocalRelation()
+                );
+
+        Batch refs = new Batch("Replace References", Limiter.ONCE,
+                new ReplaceReferenceAttributeWithSource()
                 );
 
         Batch operators = new Batch("Operator Optimization",
@@ -214,15 +215,26 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
-            final Map<Attribute, Expression> collectRefs = new LinkedHashMap<>();
-
+            AttributeMap.Builder<Expression> builder = AttributeMap.builder();
             // collect aliases
-            plan.forEachExpressionUp(Alias.class, a -> collectRefs.put(a.toAttribute(), a.child()));
+            plan.forEachExpressionUp(Alias.class, a -> builder.put(a.toAttribute(), a.child()));
+            final Map<Attribute, Expression> collectRefs = builder.build();
+            java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefs.getOrDefault(r, r);
 
             plan = plan.transformUp(p -> {
                 // non attribute defining plans get their references removed
-                if ((p instanceof Pivot || p instanceof Aggregate || p instanceof Project) == false || p.children().isEmpty()) {
-                    p = p.transformExpressionsOnly(ReferenceAttribute.class, e -> collectRefs.getOrDefault(e, e));
+                if ((p instanceof Pivot || p instanceof Project) == false || p.children().isEmpty()) {
+                    // handle grouping inside Aggregate
+                    if (p instanceof Aggregate) {
+                        Aggregate agg = (Aggregate) p;
+                        List<Expression> newGrouping = new ArrayList<>(agg.groupings().size());
+                        agg.groupings().forEach(e -> newGrouping.add(e.transformUp(ReferenceAttribute.class, replaceReference)));
+                        if (agg.groupings().equals(newGrouping) == false) {
+                            p = new Aggregate(agg.source(), agg.child(), newGrouping, agg.aggregates());
+                        }
+                    } else {
+                        p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+                    }
                 }
                 return p;
             });
@@ -498,34 +510,47 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class CombineProjections extends OptimizerRule<Project> {
+    static class CombineProjections extends OptimizerRule<UnaryPlan> {
 
         CombineProjections() {
             super(TransformDirection.UP);
         }
 
         @Override
-        protected LogicalPlan rule(Project project) {
-            LogicalPlan child = project.child();
-            if (child instanceof Project) {
-                Project p = (Project) child;
-                // eliminate lower project but first replace the aliases in the upper one
-                return new Project(p.source(), p.child(), combineProjections(project.projections(), p.projections()));
-            }
+        protected LogicalPlan rule(UnaryPlan plan) {
+            LogicalPlan child = plan.child();
 
-            if (child instanceof Aggregate) {
-                Aggregate a = (Aggregate) child;
-                return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
-            }
-            // if the pivot custom columns are not used, convert the project + pivot into a GROUP BY/Aggregate
-            if (child instanceof Pivot) {
-                Pivot p = (Pivot) child;
-                if (project.outputSet().subsetOf(p.groupingSet())) {
-                    return new Aggregate(p.source(), p.child(), new ArrayList<>(project.projections()), project.projections());
+            if (plan instanceof Project) {
+                Project project = (Project) plan;
+                if (child instanceof Project) {
+                    Project p = (Project) child;
+                    // eliminate lower project but first replace the aliases in the upper one
+                    return new Project(p.source(), p.child(), combineProjections(project.projections(), p.projections()));
+                }
+
+                if (child instanceof Aggregate) {
+                    Aggregate a = (Aggregate) child;
+                    return new Aggregate(a.source(), a.child(), a.groupings(), combineProjections(project.projections(), a.aggregates()));
+                }
+
+                // if the pivot custom columns are not used, convert the project + pivot into a GROUP BY/Aggregate
+                if (child instanceof Pivot) {
+                    Pivot p = (Pivot) child;
+                    if (project.outputSet().subsetOf(p.groupingSet())) {
+                        return new Aggregate(p.source(), p.child(), new ArrayList<>(project.projections()), project.projections());
+                    }
                 }
             }
-            // TODO: add rule for combining Agg/Pivot with underlying project
-            return project;
+            // Agg with underlying Project (group by on sub-queries)
+            if (plan instanceof Aggregate) {
+                Aggregate a = (Aggregate) plan;
+                if (child instanceof Project) {
+                    Project p = (Project) child;
+                    return new Aggregate(a.source(), p.child(), a.groupings(), combineProjections(a.aggregates(), p.projections()));
+                }
+            }
+            // TODO: add rule for combining Pivot with underlying project
+            return plan;
         }
 
         // normally only the upper projections should survive but since the lower list might have aliases definitions
@@ -549,11 +574,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // replace any matching attribute with a lower alias (if there's a match)
             // but clean-up non-top aliases at the end
             for (NamedExpression ne : upper) {
-                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> {
-                    NamedExpression as = aliases.get(a);
-                    return as != null ? as : a;
-                });
-
+                NamedExpression replacedExp = (NamedExpression) ne.transformUp(Attribute.class, a -> aliases.getOrDefault(a, a));
                 replaced.add((NamedExpression) CleanAliases.trimNonTopLevelAliases(replacedExp));
             }
             return replaced;

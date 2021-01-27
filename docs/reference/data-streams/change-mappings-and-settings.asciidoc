@@ -93,7 +93,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template>> request adds a mapping
+The following <<index-templates,put index template>> request adds a mapping
 for a new field, `message`, to the template.
 
 [source,console]
@@ -175,7 +175,7 @@ field mapping is added to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template>> request changes the
+The following <<index-templates,put index template>> request changes the
 argument for the `host.ip` field's <<ignore-malformed,`ignore_malformed`>>
 mapping parameter to `true`.
 
@@ -281,7 +281,7 @@ applied to future backing indices created for the stream.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template>> request changes the
+The following <<index-templates,put index template>> request changes the
 template's `index.refresh_interval` index setting to `30s` (30 seconds).
 
 [source,console]
@@ -335,7 +335,7 @@ backing index created after the update.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template API>> requests adds new
+The following <<index-templates,put index template API>> requests adds new
 `sort.field` and `sort.order index` settings to the template.
 
 [source,console]
@@ -428,7 +428,7 @@ new template by copying an existing one and modifying it as needed.
 For example, `my-data-stream-template` is an existing index template used by
 `my-data-stream`.
 
-The following <<indices-templates,put index template API>> request creates a new
+The following <<index-templates,put index template API>> request creates a new
 index template, `new-data-stream-template`. `new-data-stream-template`
 uses `my-data-stream-template` as its basis, with the following
 changes:

@@ -66,7 +66,8 @@ PUT /_ilm/policy/my-data-stream-policy
 template is used for data streams.
 . Use the wizard to finish defining your template. Specify:
 
-* One or more index patterns that match the data stream's name.
+* One or more index patterns that match the data stream's name. +
+include::{es-repo-dir}/indices/create-data-stream.asciidoc[tag=data-stream-name]
 
 * Mappings and settings for the stream's backing indices.
 
@@ -94,7 +95,6 @@ maps `@timestamp` as a `date` field  with default options.
 
 If using {ilm-init}, specify your lifecycle policy in the `index.lifecycle.name`
 setting.
-
 TIP: Carefully consider your template's mappings and settings. Later changes may
 require reindexing. See <<data-streams-change-mappings-and-settings>>.
 
@@ -105,7 +105,7 @@ image::images/data-streams/create-index-template.png[Create template page]
 .API example
 ====
 Use the <<indices-put-template,put index template API>> to create an index
-template. The template must include an empty `data_stream` object, indicating
+template. The template must include a `data_stream` object, indicating
 it's used for data streams.
 
 [source,console]

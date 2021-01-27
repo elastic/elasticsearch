@@ -42,6 +42,7 @@ import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public abstract class ContinuousTestCase extends ESRestTestCase {
 
+    public static final TimeValue SYNC_DELAY = new TimeValue(1, TimeUnit.SECONDS);
     public static final String CONTINUOUS_EVENTS_SOURCE_INDEX = "test-transform-continuous-events";
     public static final String INGEST_PIPELINE = "transform-ingest";
     public static final String MAX_RUN_FIELD = "run.max";
@@ -89,7 +90,7 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     protected TransformConfig.Builder addCommonBuilderParameters(TransformConfig.Builder builder) {
         return builder.setSyncConfig(getSyncConfig())
             .setSettings(addCommonSetings(new SettingsConfig.Builder()).build())
-            .setFrequency(new TimeValue(1, TimeUnit.SECONDS));
+            .setFrequency(SYNC_DELAY);
     }
 
     protected AggregatorFactories.Builder addCommonAggregations(AggregatorFactories.Builder builder) {
@@ -131,6 +132,6 @@ public abstract class ContinuousTestCase extends ESRestTestCase {
     }
 
     private SyncConfig getSyncConfig() {
-        return new TimeSyncConfig("timestamp", new TimeValue(1, TimeUnit.SECONDS));
+        return new TimeSyncConfig("timestamp", SYNC_DELAY);
     }
 }

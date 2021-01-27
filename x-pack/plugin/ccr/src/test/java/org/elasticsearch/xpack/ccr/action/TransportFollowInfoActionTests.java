@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response;
 import org.elasticsearch.xpack.core.ccr.action.FollowInfoAction.Response.FollowerInfo;
+import org.elasticsearch.xpack.core.ccr.action.ShardFollowTask;
 
 import java.util.Arrays;
 import java.util.HashMap;

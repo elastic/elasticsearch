@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack.monitoring.collector.node;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
@@ -21,6 +22,7 @@ import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.monitoring.MonitoringTestUtils.randomMonitoringNode;
@@ -29,7 +31,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -118,10 +119,38 @@ public class NodeStatsCollectorTests extends BaseCollectorTestCase {
         assertThat(document.isMlockall(), equalTo(BootstrapInfo.isMemoryLocked()));
     }
 
+    public void testDoCollectThrowsTimeout() throws Exception {
+        final TimeValue timeout = TimeValue.timeValueSeconds(randomIntBetween(1, 120));
+        withCollectionTimeout(NodeStatsCollector.NODE_STATS_TIMEOUT, timeout);
+
+        final boolean isMaster = randomBoolean();
+        whenLocalNodeElectedMaster(isMaster);
+
+        final String clusterUUID = UUID.randomUUID().toString();
+        whenClusterStateWithUUID(clusterUUID);
+
+        final MonitoringDoc.Node node = randomMonitoringNode(random());
+
+        final NodesStatsResponse nodesStatsResponse = mock(NodesStatsResponse.class);
+        when(nodesStatsResponse.hasFailures()).thenReturn(true);
+        when(nodesStatsResponse.failures()).thenReturn(List.of(new FailedNodeException("node", "msg",
+                new ElasticsearchTimeoutException("test"))));
+
+        final Client client = mock(Client.class);
+        thenReturnNodeStats(client, timeout, nodesStatsResponse);
+
+        final NodeStatsCollector collector = new NodeStatsCollector(clusterService, licenseState, client);
+        assertEquals(timeout, collector.getCollectionTimeout());
+
+        final long interval = randomNonNegativeLong();
+
+        expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+    }
+
     private void thenReturnNodeStats(final Client client, final TimeValue timeout, final NodesStatsResponse nodesStatsResponse) {
         @SuppressWarnings("unchecked")
         final ActionFuture<NodesStatsResponse> future = (ActionFuture<NodesStatsResponse>) mock(ActionFuture.class);
-        when(future.actionGet(eq(timeout))).thenReturn(nodesStatsResponse);
+        when(future.actionGet()).thenReturn(nodesStatsResponse);
 
         final ClusterAdminClient clusterAdminClient = mock(ClusterAdminClient.class);
         when(clusterAdminClient.nodesStats(any(NodesStatsRequest.class))).thenReturn(future);

@@ -50,7 +50,6 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 
 import static org.hamcrest.Matchers.anEmptyMap;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 @SuppressForbidden(reason = "this test uses a HttpServer to emulate an Azure endpoint")
@@ -124,8 +123,8 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 @Override
                 RequestRetryOptions getRetryOptions(LocationMode locationMode, AzureStorageSettings azureStorageSettings) {
                     return new RequestRetryOptions(RetryPolicyType.EXPONENTIAL,
-                        azureStorageSettings.getMaxRetries() + 1, 5,
-                        1L, 15L, null);
+                        azureStorageSettings.getMaxRetries() + 1, 60,
+                        50L, 100L, null);
                 }
 
                 @Override
@@ -222,7 +221,6 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
         }
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67119")
     public void testLargeBlobCountDeletion() throws Exception {
         int numberOfBlobs = randomIntBetween(257, 2000);
         try (BlobStore store = newBlobStore()) {
@@ -234,7 +232,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             }
 
             container.delete();
-            assertThat(container.listBlobs().size(), equalTo(0));
+            assertThat(container.listBlobs(), is(anEmptyMap()));
         }
     }
 

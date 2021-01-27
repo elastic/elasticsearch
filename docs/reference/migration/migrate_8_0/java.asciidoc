@@ -1,6 +1,6 @@
 [discrete]
 [[breaking_80_java_changes]]
-=== Java API changes
+==== Java API changes
 
 //NOTE: The notable-breaking-changes tagged regions are re-used in the
 //Installation and Upgrade Guide

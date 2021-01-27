@@ -875,7 +875,6 @@ public class ChainingInputStreamTests extends ESTestCase {
         test.readAllBytes();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/67086")
     public void testResetForDoubleMarkAnywhere() throws Exception {
         Supplier<InputStream> mockInputStreamSupplier = () -> {
             InputStream mockIn = mock(InputStream.class);
@@ -935,14 +934,18 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
         InputStream lastCurrentIn = test.currentIn;
         // second mark
-        readLimit = randomInt(63);
-        test.mark(readLimit);
+        int readLimit2 = randomInt(63);
+        test.mark(readLimit2);
         if (lastCurrentIn != currentIn) {
             verify(currentIn).close();
         }
         assertThat(test.currentIn, Matchers.is(lastCurrentIn));
         assertThat(test.markIn, Matchers.is(lastCurrentIn));
-        verify(lastCurrentIn).mark(Mockito.eq(readLimit));
+        if (currentIn == lastCurrentIn && readLimit == readLimit2) {
+            verify(lastCurrentIn, times(2)).mark(Mockito.eq(readLimit));
+        } else {
+            verify(lastCurrentIn).mark(Mockito.eq(readLimit2));
+        }
         currentIn = lastCurrentIn;
         // possibly skips over several components
         for (int i = 0; i < randomIntBetween(1, 2); i++) {
@@ -965,14 +968,14 @@ public class ChainingInputStreamTests extends ESTestCase {
         }
         lastCurrentIn = test.currentIn;
         // third mark after reset
-        readLimit = randomInt(63);
-        test.mark(readLimit);
+        int readLimit3 = 128 + randomInt(63); // it is harder to assert the cases with the same readLimit
+        test.mark(readLimit3);
         if (lastCurrentIn != currentIn) {
             verify(currentIn).close();
         }
         assertThat(test.currentIn, Matchers.is(lastCurrentIn));
         assertThat(test.markIn, Matchers.is(lastCurrentIn));
-        verify(lastCurrentIn).mark(Mockito.eq(readLimit));
+        verify(lastCurrentIn).mark(Mockito.eq(readLimit3));
         nextComponentArg.set(lastCurrentIn);
         currentIn = lastCurrentIn;
         // possibly skips over several components

@@ -19,6 +19,13 @@
 
 package org.elasticsearch.action.admin.indices.settings.put;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -41,12 +48,6 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.stream.Collectors;
 
 public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNodeAction<UpdateSettingsRequest> {
 
@@ -143,7 +144,7 @@ public class TransportUpdateSettingsAction extends AcknowledgedTransportMasterNo
                     final String expectedValue = descriptorSettings.get(key);
                     final String actualValue = requestSettings.get(key);
 
-                    if (expectedValue.equals(actualValue) == false) {
+                    if (Objects.equals(expectedValue, actualValue) == false) {
                         failedKeys.add(key);
                     }
                 }

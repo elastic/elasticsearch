@@ -44,10 +44,11 @@ public class NGramTests extends AbstractXContentTestCase<NGram> {
     }
 
     public static NGram createRandom() {
+        int length = randomIntBetween(1, 10);
         return new NGram(randomAlphaOfLength(10),
-            IntStream.range(1, 5).limit(5).boxed().collect(Collectors.toList()),
+            IntStream.range(1, Math.min(5, length + 1)).limit(5).boxed().collect(Collectors.toList()),
             randomBoolean() ? null : randomIntBetween(0, 10),
-            randomBoolean() ? null : randomIntBetween(1, 10),
+            randomBoolean() ? null : length,
             randomBoolean() ? null : randomBoolean(),
             randomBoolean() ? null : randomAlphaOfLength(10));
     }

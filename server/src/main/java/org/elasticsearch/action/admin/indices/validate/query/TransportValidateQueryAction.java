@@ -199,7 +199,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             request.nowInMillis(), request.filteringAliases());
         SearchContext searchContext = searchService.createSearchContext(shardSearchLocalRequest, SearchService.NO_TIMEOUT);
         try {
-            ParsedQuery parsedQuery = searchContext.getQueryShardContext().toQuery(request.query());
+            ParsedQuery parsedQuery = searchContext.getSearchExecutionContext().toQuery(request.query());
             searchContext.parsedQuery(parsedQuery);
             searchContext.preProcess(request.rewrite());
             valid = true;

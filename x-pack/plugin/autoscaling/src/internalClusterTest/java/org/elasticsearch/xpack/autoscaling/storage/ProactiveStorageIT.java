@@ -69,7 +69,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
                     )
                     .toArray(IndexRequestBuilder[]::new)
             );
-            client().admin().indices().rolloverIndex(new RolloverRequest(dsName, null));
+            assertAcked(client().admin().indices().rolloverIndex(new RolloverRequest(dsName, null)).actionGet());
         }
         forceMerge();
         refresh();
@@ -90,6 +90,7 @@ public class ProactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assertThat(response.results().get(policyName).currentCapacity().total().storage().getBytes(), Matchers.equalTo(enoughSpace));
         // ideally, we would count replicas too, but we leave this for follow-up work
         assertThat(
+            response.getResults().get(policyName).toString(),
             response.results().get(policyName).requiredCapacity().total().storage().getBytes(),
             Matchers.greaterThanOrEqualTo(enoughSpace + used)
         );

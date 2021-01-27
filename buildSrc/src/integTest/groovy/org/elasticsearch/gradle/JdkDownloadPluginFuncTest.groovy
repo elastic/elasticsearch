@@ -135,7 +135,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.tasks.size() == 3
-        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}.") == 1
+        result.output.count("Unpacking linux-12.0.2-x64.tar.gz using ${SymbolicLinkPreservingUntarTransform.simpleName}") == 1
 
         where:
         platform | jdkVendor           | jdkVersion        | expectedJavaBin
@@ -177,18 +177,20 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
 
             def commonGradleUserHome = testProjectDir.newFolder().toString()
             // initial run
-            gradleRunner('clean', 'getJdk', '-g', commonGradleUserHome).build()
+            def firstResult = gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', commonGradleUserHome).build()
+            // assert the output of an executed transform is shown
+            assertOutputContains(firstResult.output, "Unpacking $expectedArchiveName using $transformType")
             // run against up-to-date transformations
-            gradleRunner('clean', 'getJdk', '-i', '-g', commonGradleUserHome).build()
+            gradleRunner('clean', 'getJdk', '-i', '--warning-mode', 'all', '-g', commonGradleUserHome).build()
         }
 
         then:
-        assertOutputContains(result.output, "Skipping $transformType")
+        normalized(result.output).contains("Unpacking $expectedArchiveName using $transformType") == false
 
         where:
-        platform  | transformType
-        "linux"   | SymbolicLinkPreservingUntarTransform.class.simpleName
-        "windows" | UnzipTransform.class.simpleName
+        platform  | expectedArchiveName       | transformType
+        "linux"   | "linux-12.0.2-x64.tar.gz" | SymbolicLinkPreservingUntarTransform.class.simpleName
+        "windows" | "windows-12.0.2-x64.zip"  | UnzipTransform.class.simpleName
     }
 
     static boolean assertExtraction(String output, String javaBin) {
@@ -237,6 +239,7 @@ class JdkDownloadPluginFuncTest extends AbstractGradleFuncTest {
                     if(repo.name == "jdk_repo_${jdkVendor}_${jdkVersion}") {
                       repo.setUrl('${server.baseUrl()}')
                     }
+                    allowInsecureProtocol = true
                 }
            }"""
     }

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.common.settings.Setting.boolSetting;
+import static org.elasticsearch.xpack.monitoring.collector.TimeoutUtils.ensureNoTimeouts;
 
 /**
  * Collector for the Recovery API.
@@ -64,13 +65,16 @@ public class IndexRecoveryCollector extends Collector {
     @Override
     protected Collection<MonitoringDoc> doCollect(final MonitoringDoc.Node node,
                                                   final long interval,
-                                                  final ClusterState clusterState) throws Exception {
+                                                  final ClusterState clusterState) {
         List<MonitoringDoc> results = new ArrayList<>(1);
         RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
                 .setIndices(getCollectionIndices())
                 .setIndicesOptions(IndicesOptions.lenientExpandOpen())
                 .setActiveOnly(getActiveRecoveriesOnly())
-                .get(getCollectionTimeout());
+                .setTimeout(getCollectionTimeout())
+                .get();
+
+        ensureNoTimeouts(getCollectionTimeout(), recoveryResponse);
 
         if (recoveryResponse.hasRecoveries()) {
             final String clusterUuid = clusterUuid(clusterState);

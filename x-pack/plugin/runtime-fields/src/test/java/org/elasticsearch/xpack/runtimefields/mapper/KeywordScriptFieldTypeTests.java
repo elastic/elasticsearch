@@ -31,7 +31,7 @@ import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.MatchQueryBuilder;
-import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScoreScript;
 import org.elasticsearch.script.Script;
@@ -122,7 +122,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             iw.addDocument(List.of(new StoredField("_source", new BytesRef("{\"foo\": [\"aa\"]}"))));
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
-                QueryShardContext qsc = mockContext(true, simpleMappedFieldType());
+                SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                 assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
                     @Override
                     public boolean needs_score() {
@@ -131,7 +131,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
 
                     @Override
                     public ScoreScript newInstance(LeafReaderContext ctx) {
-                        return new ScoreScript(Map.of(), qsc.lookup(), ctx) {
+                        return new ScoreScript(Map.of(), searchContext.lookup(), ctx) {
                             @Override
                             public double execute(ExplanationHolder explanation) {
                                 ScriptDocValues.Strings bytes = (ScriptDocValues.Strings) getDoc().get("test");
@@ -181,7 +181,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomFuzzyQuery);
     }
 
-    private Query randomFuzzyQuery(MappedFieldType ft, QueryShardContext ctx) {
+    private Query randomFuzzyQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.fuzzyQuery(
             randomAlphaOfLengthBetween(1, 1000),
             randomFrom(Fuzziness.AUTO, Fuzziness.ZERO, Fuzziness.ONE, Fuzziness.TWO),
@@ -212,7 +212,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomPrefixQuery);
     }
 
-    private Query randomPrefixQuery(MappedFieldType ft, QueryShardContext ctx) {
+    private Query randomPrefixQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.prefixQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
     }
 
@@ -233,7 +233,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomRangeQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.rangeQuery(
             randomAlphaOfLengthBetween(0, 1000),
             randomAlphaOfLengthBetween(0, 1000),
@@ -267,7 +267,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomRegexpQuery);
     }
 
-    private Query randomRegexpQuery(MappedFieldType ft, QueryShardContext ctx) {
+    private Query randomRegexpQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.regexpQuery(randomAlphaOfLengthBetween(1, 1000), randomInt(0xFF), 0, Integer.MAX_VALUE, null, ctx);
     }
 
@@ -285,7 +285,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected Query randomTermQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termQuery(randomAlphaOfLengthBetween(1, 1000), ctx);
     }
 
@@ -304,7 +304,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
     }
 
     @Override
-    protected Query randomTermsQuery(MappedFieldType ft, QueryShardContext ctx) {
+    protected Query randomTermsQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.termsQuery(randomList(100, () -> randomAlphaOfLengthBetween(1, 1000)), ctx);
     }
 
@@ -327,7 +327,7 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         checkLoop(this::randomWildcardQuery);
     }
 
-    private Query randomWildcardQuery(MappedFieldType ft, QueryShardContext ctx) {
+    private Query randomWildcardQuery(MappedFieldType ft, SearchExecutionContext ctx) {
         return ft.wildcardQuery(randomAlphaOfLengthBetween(1, 1000), null, ctx);
     }
 
@@ -338,8 +338,8 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
             try (DirectoryReader reader = iw.getReader()) {
                 IndexSearcher searcher = newSearcher(reader);
                 KeywordScriptFieldType fieldType = build("append_param", Map.of("param", "-Suffix"));
-                QueryShardContext queryShardContext = mockContext(true, fieldType);
-                Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(queryShardContext);
+                SearchExecutionContext searchExecutionContext = mockContext(true, fieldType);
+                Query query = new MatchQueryBuilder("test", "1-Suffix").toQuery(searchExecutionContext);
                 assertThat(searcher.count(query), equalTo(1));
             }
         }

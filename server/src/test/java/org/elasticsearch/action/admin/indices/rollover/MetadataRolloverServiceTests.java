@@ -637,9 +637,16 @@ public class MetadataRolloverServiceTests extends ESTestCase {
         final DataStream dataStream = DataStreamTestHelper.randomInstance()
             // ensure no replicate data stream
             .promoteDataStream();
-        ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
-            .template(new Template(null, null, Map.of("my-alias", AliasMetadata.newAliasMetadataBuilder("my-alias").build())))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate()).build();
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            Collections.singletonList(dataStream.getName() + "*"),
+            new Template(null, null, Collections.singletonMap("my-alias", AliasMetadata.newAliasMetadataBuilder("my-alias").build())),
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(),
+            null
+        );
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
         for (Index index : dataStream.getIndices()) {
@@ -662,13 +669,15 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup = new MappingLookup(
-                Mapping.EMPTY,
-                List.of(mockedTimestampField, dateFieldMapper),
-                List.of(),
-                List.of(),
+                "_doc",
+                org.elasticsearch.common.collect.List.of(mockedTimestampField, dateFieldMapper),
+                org.elasticsearch.common.collect.List.of(),
+                org.elasticsearch.common.collect.List.of(),
+                org.elasticsearch.common.collect.List.of(),
+                0,
                 null,
-                null,
-                null);
+                false
+            );
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);
@@ -690,7 +699,8 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             ShardLimitValidator shardLimitValidator = new ShardLimitValidator(Settings.EMPTY, clusterService);
             MetadataCreateIndexService createIndexService = new MetadataCreateIndexService(Settings.EMPTY,
                 clusterService, indicesService, allocationService, new AliasValidator(), shardLimitValidator, env,
-                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null, new SystemIndices(Map.of()), false);
+                IndexScopedSettings.DEFAULT_SCOPED_SETTINGS, testThreadPool, null,
+                new SystemIndices(org.elasticsearch.common.collect.Map.of()), false);
             MetadataIndexAliasesService indexAliasesService = new MetadataIndexAliasesService(clusterService, indicesService,
                 new AliasValidator(), null, xContentRegistry());
             MetadataRolloverService rolloverService = new MetadataRolloverService(testThreadPool, createIndexService, indexAliasesService,

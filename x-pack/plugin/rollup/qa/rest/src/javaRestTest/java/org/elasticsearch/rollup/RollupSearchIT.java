@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 /**
- * This class contains integration tests for searching rollup indices
+ * This class contains integration tests for searching rollup indices and dastreams containing rollups.
  */
 public class RollupSearchIT extends ESRestTestCase {
 
@@ -55,7 +55,7 @@ public class RollupSearchIT extends ESRestTestCase {
             "{ \"@timestamp\": \"2020-02-10T08:05:20Z\", \"temperature\": 19.5, \"units\": \"celcius\" }");
         rolloverMaxOneDocCondition(client(), dataStream);
         String firstGenerationIndex = DataStream.getDefaultBackingIndexName(dataStream, 1);
-        String firstGenerationRollupIndex = "rollup-" + firstGenerationIndex;
+        String firstGenerationRollupIndex = ".rollup-" + firstGenerationIndex;
         assertBusy(() -> assertThat(indexExists(DataStream.getDefaultBackingIndexName(dataStream, 2)), is(true)), 30, TimeUnit.SECONDS);
         rollupIndex(client(), firstGenerationIndex, firstGenerationRollupIndex, "{\n" +
             "  \"groups\" : {\n" +
@@ -74,7 +74,7 @@ public class RollupSearchIT extends ESRestTestCase {
             "    }\n" +
             "  ]\n" +
             "}");
-        Map<String, Object> response = search(dataStream, "{\n" +
+        String query = "{\n" +
             "  \"size\": 0,\n" +
             "  \"aggs\": {\n" +
             "      \"monthly_temperatures\": {\n" +
@@ -87,11 +87,17 @@ public class RollupSearchIT extends ESRestTestCase {
             "                  \"avg\": {\n" +
             "                      \"field\": \"temperature\"\n" +
             "                  }\n" +
+            "              },\n" +
+            "              \"max_temperature\": {\n" +
+            "                  \"max\": {\n" +
+            "                      \"field\": \"temperature\"\n" +
+            "                  }\n" +
             "              }\n" +
             "          }\n" +
             "      }\n" +
             "  }\n" +
-            "}");
+            "}";
+        Map<String, Object> response = search(dataStream, query);
         Map<String, Object> shards = (Map<String, Object>) response.get("_shards");
         assertThat(shards.get("skipped"), equalTo(1));
         Map<String, Object> aggs = (Map<String, Object>) response.get("aggregations");
@@ -99,7 +105,20 @@ public class RollupSearchIT extends ESRestTestCase {
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) monthlyTemps.get("buckets");
         assertThat(buckets.size(), equalTo(2));
         assertThat(buckets.get(0).get("doc_count"), equalTo(2));
+        assertEquals(28.1, (Double) ((Map<String, Object>) buckets.get(0).get("max_temperature")).get("value"), 0.0001);
+        assertEquals(27.8, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
         assertThat(buckets.get(1).get("doc_count"), equalTo(2));
+
+        // Index new doc so that we confirm merging live and rollup indices
+        indexDocument(client(), dataStream,
+            "{ \"@timestamp\": \"2020-01-30T12:10:30Z\", \"temperature\": 20, \"units\": \"celcius\" }");
+        response = search(dataStream, query);
+        aggs = (Map<String, Object>) response.get("aggregations");
+        monthlyTemps = (Map<String, Object>) aggs.get("monthly_temperatures");
+        buckets = (List<Map<String, Object>>) monthlyTemps.get("buckets");
+        assertThat(buckets.get(0).get("doc_count"), equalTo(3));
+        assertEquals(28.1, (Double) ((Map<String, Object>) buckets.get(0).get("max_temperature")).get("value"), 0.0001);
+        assertEquals(25.2, (Double) ((Map<String, Object>) buckets.get(0).get("avg_temperature")).get("value"), 0.0001);
     }
 
     private static void createComposableTemplate(RestClient client, String templateName, String indexPattern, Template template)

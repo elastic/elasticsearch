@@ -702,7 +702,10 @@ public class MetadataRolloverServiceTests extends ESTestCase {
             MetadataRolloverService.RolloverResult rolloverResult =
                 rolloverService.rolloverClusterState(clusterState, dataStream.getName(), null, createIndexRequest, metConditions,
                     randomBoolean(), false);
-            assertWarnings("aliases [my-alias] cannot refer to backing indices of data streams");
+            assertWarnings(
+                "aliases [my-alias] cannot refer to backing indices of data streams",
+                "template [template] has alias and data stream definitions"
+            );
 
             // Just checking that the rollover was successful:
             String sourceIndexName = DataStream.getDefaultBackingIndexName(dataStream.getName(), dataStream.getGeneration());

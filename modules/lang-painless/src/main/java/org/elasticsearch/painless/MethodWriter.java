@@ -244,7 +244,7 @@ public final class MethodWriter extends GeneratorAdapter {
         if (from != boolean.class && from.isPrimitive() && to != boolean.class && to.isPrimitive()) {
             cast(getType(from), getType(to));
         } else {
-            if (!to.isAssignableFrom(from)) {
+            if (to.isAssignableFrom(from) == false) {
                 checkCast(getType(to));
             }
         }
@@ -357,7 +357,7 @@ public final class MethodWriter extends GeneratorAdapter {
                 // so we don't need a special NPE guard.
                 // otherwise, we need to allow nulls for possible string concatenation.
                 boolean hasPrimitiveArg = lhs.isPrimitive() || rhs.isPrimitive();
-                if (!hasPrimitiveArg) {
+                if (hasPrimitiveArg == false) {
                     flags |= DefBootstrap.OPERATOR_ALLOWS_NULL;
                 }
                 invokeDefCall("add", methodType, DefBootstrap.BINARY_OPERATOR, flags);
@@ -466,7 +466,7 @@ public final class MethodWriter extends GeneratorAdapter {
 
     @Override
     public void endMethod() {
-        if (stringConcatArgs != null && !stringConcatArgs.isEmpty()) {
+        if (stringConcatArgs != null && stringConcatArgs.isEmpty() == false) {
             throw new IllegalStateException("String concat bytecode not completed.");
         }
         super.endMethod();

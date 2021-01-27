@@ -79,7 +79,7 @@ public class IntermittentLongGCDisruption extends LongGCDisruption {
         final Set<Thread> nodeThreads = new HashSet<>();
         try {
             while (suspendThreads(nodeThreads)) ;
-            if (!nodeThreads.isEmpty()) {
+            if (nodeThreads.isEmpty() == false) {
                 Thread.sleep(duration.millis());
             }
         } finally {

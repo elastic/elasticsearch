@@ -405,8 +405,9 @@ public class Joda {
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-scientific-notation", "Use of scientific notation" +
-                        " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-scientific-notation",
+                        "Use of scientific notation in epoch time formats is deprecated and will not be supported in the "
+                            + "next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);
                 bucket.saveField(DateTimeFieldType.year(), dt.getYear());

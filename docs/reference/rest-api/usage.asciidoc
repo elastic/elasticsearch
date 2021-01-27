@@ -12,13 +12,6 @@ Provides usage information about the installed {xpack} features.
 `GET /_xpack/usage`
 
 [discrete]
-[[usage-api-prereqs]]
-=== {api-prereq-title}
-
-* If the {es} {security-features} are enabled, you must have the `monitor` or
-`manage` <<privileges-list-cluster,cluster privilege>> to use this API.
-
-[discrete]
 [[usage-api-desc]]
 === {api-description-title}
 
@@ -73,12 +66,12 @@ GET /_xpack/usage
     "execution" : {
       "actions" : {
         "logging" : {
-          "total" : 6,
-          "total_time_in_ms" : 70
+          "total" : 0,
+          "total_time_in_ms" : 0
         },
         "_all" : {
-          "total" : 6,
-          "total_time_in_ms" : 271
+          "total" : 0,
+          "total_time_in_ms" : 0
         }
       }
     },

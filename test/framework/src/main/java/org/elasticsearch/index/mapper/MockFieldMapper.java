@@ -64,10 +64,6 @@ public class MockFieldMapper extends FieldMapper {
             super(name, true, false, false, TextSearchInfo.SIMPLE_MATCH_ONLY, Collections.emptyMap());
         }
 
-        public FakeFieldType(String name, boolean stored) {
-            super(name, true, stored, false, TextSearchInfo.NONE, Collections.emptyMap());
-        }
-
         @Override
         public String typeName() {
             return "faketype";

@@ -513,6 +513,20 @@ public class CacheService extends AbstractLifecycleComponent {
         return persistentCache;
     }
 
+    // used in tests
+    long getNumberOfCacheFilesEvents() {
+        return numberOfCacheFilesEvents.get();
+    }
+
+    /**
+     * @return the approximate number of events that are present in the cache files events queue. Note that this requires an O(N)
+     * computation and should be used with caution for debugging or testing purpose only.
+     */
+    // used in tests
+    long getCacheFilesEventsQueueSize() {
+        return cacheFilesEventsQueue.size();
+    }
+
     /**
      * Synchronize the cache files and their parent directories on disk.
      *
@@ -546,6 +560,10 @@ public class CacheService extends AbstractLifecycleComponent {
                     logger.debug("stopping cache synchronization (no more events to synchronize)");
                     break;
                 }
+
+                final long numberOfEvents = numberOfCacheFilesEvents.decrementAndGet();
+                assert numberOfEvents >= 0L : numberOfEvents;
+
                 final CacheFile cacheFile = event.value;
                 try {
                     switch (event.type) {

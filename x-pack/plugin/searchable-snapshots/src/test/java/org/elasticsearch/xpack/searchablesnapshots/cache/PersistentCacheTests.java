@@ -215,7 +215,11 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 cacheService.start();
 
                 logger.debug("creating cache files");
-                final CacheFile randomCacheFile = randomFrom(randomCacheFiles(cacheService));
+                final List<CacheFile> cacheFiles = randomCacheFiles(cacheService);
+                assertThat(cacheService.getCacheFilesEventsQueueSize(), equalTo((long) cacheFiles.size()));
+                assertThat(cacheService.getNumberOfCacheFilesEvents(), equalTo((long) cacheFiles.size()));
+
+                final CacheFile randomCacheFile = randomFrom(cacheFiles);
                 final CacheKey cacheKey = randomCacheFile.getCacheKey();
 
                 final SnapshotId snapshotId = new SnapshotId("_ignored_", cacheKey.getSnapshotUUID());
@@ -229,6 +233,9 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                         );
 
                         cacheService.synchronizeCache();
+
+                        assertThat(cacheService.getCacheFilesEventsQueueSize(), equalTo(0L));
+                        assertThat(cacheService.getNumberOfCacheFilesEvents(), equalTo(0L));
 
                         final long sizeInCache = persistentCache.getCacheSize(cacheKey.getShardId(), snapshotId);
                         final long sizeInCacheFile = sumOfCompletedRangesLengths(randomCacheFile);
@@ -246,6 +253,8 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                                 ranges = randomPopulateAndReads(randomCacheFile);
                             }
                             assertTrue(cacheService.isCacheFileToSync(randomCacheFile));
+                            assertThat(cacheService.getCacheFilesEventsQueueSize(), equalTo(1L));
+                            assertThat(cacheService.getNumberOfCacheFilesEvents(), equalTo(1L));
                         } finally {
                             randomCacheFile.release(listener);
                         }
@@ -284,7 +293,16 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                 fsyncThread.join();
 
                 assertThat(
-                    "Persistent cache should not report any cached data for deleted cache files",
+                    "Persistent cache should not report any cached data for the evicted shard",
+                    persistentCache.getCacheSize(cacheKey.getShardId(), new SnapshotId("_ignored_", cacheKey.getSnapshotUUID())),
+                    equalTo(0L)
+                );
+
+                logger.debug("triggering one more cache synchronization in case all cache files deletions were not processed before");
+                cacheService.synchronizeCache();
+
+                assertThat(
+                    "Persistent cache should not report any cached data for the evicted shard (ignoring deleted files)",
                     persistentCache.getCacheSize(
                         cacheKey.getShardId(),
                         new SnapshotId("_ignored_", cacheKey.getSnapshotUUID()),
@@ -292,6 +310,9 @@ public class PersistentCacheTests extends AbstractSearchableSnapshotsTestCase {
                     ),
                     equalTo(0L)
                 );
+
+                assertThat(cacheService.getCacheFilesEventsQueueSize(), equalTo(0L));
+                assertThat(cacheService.getNumberOfCacheFilesEvents(), equalTo(0L));
             }
         } finally {
             fileSystem.tearDown();

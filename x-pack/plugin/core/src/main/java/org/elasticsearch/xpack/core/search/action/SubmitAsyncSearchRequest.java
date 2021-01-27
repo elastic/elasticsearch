@@ -28,7 +28,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * @see AsyncSearchResponse
  */
 public class SubmitAsyncSearchRequest extends ActionRequest {
-    public static long MIN_KEEP_ALIVE = TimeValue.timeValueMinutes(1).millis();
+    public static long MIN_KEEP_ALIVE = TimeValue.timeValueSeconds(1).millis();
 
     private TimeValue waitForCompletionTimeout = TimeValue.timeValueSeconds(1);
     private boolean keepOnCompletion = false;
@@ -135,7 +135,8 @@ public class SubmitAsyncSearchRequest extends ActionRequest {
         }
         if (keepAlive.getMillis() < MIN_KEEP_ALIVE) {
             validationException =
-                addValidationError("[keep_alive] must be greater than 1 minute, got:" + keepAlive.toString(), validationException);
+                addValidationError("[keep_alive] must be greater or equals than 1 second, got:" +
+                    keepAlive.toString(), validationException);
         }
         if (request.isCcsMinimizeRoundtrips()) {
             validationException =

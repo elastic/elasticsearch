@@ -1507,7 +1507,13 @@ setup:
                 "training_percent": 60.3,
                 "randomize_seed": 42,
                 "loss_function": "msle",
-                "loss_function_parameter": 2.0
+                "loss_function_parameter": 2.0,
+                "alpha": 1.0,
+                "eta_growth_rate_per_tree": 1.0,
+                "soft_tree_depth_limit": 2.0,
+                "soft_tree_depth_tolerance": 3.0,
+                "downsample_factor": 0.5,
+                "max_optimization_rounds_per_hyperparameter": 3
               }
             }
           }
@@ -1526,7 +1532,13 @@ setup:
       "training_percent": 60.3,
       "randomize_seed": 42,
       "loss_function": "msle",
-      "loss_function_parameter": 2.0
+      "loss_function_parameter": 2.0,
+      "alpha": 1.0,
+      "eta_growth_rate_per_tree": 1.0,
+      "soft_tree_depth_limit": 2.0,
+      "soft_tree_depth_tolerance": 3.0,
+      "downsample_factor": 0.5,
+      "max_optimization_rounds_per_hyperparameter": 3
     }
   }}
   - is_true: create_time
@@ -1852,7 +1864,13 @@ setup:
                 "feature_bag_fraction": 0.3,
                 "class_assignment_objective": "maximize_accuracy",
                 "training_percent": 60.3,
-                "randomize_seed": 24
+                "randomize_seed": 24,
+                "alpha": 1.0,
+                "eta_growth_rate_per_tree": 1.0,
+                "soft_tree_depth_limit": 2.0,
+                "soft_tree_depth_tolerance": 3.0,
+                "downsample_factor": 0.5,
+                "max_optimization_rounds_per_hyperparameter": 3
               }
             }
           }
@@ -1871,7 +1889,13 @@ setup:
       "training_percent": 60.3,
       "randomize_seed": 24,
       "class_assignment_objective": "maximize_accuracy",
-      "num_top_classes": 2
+      "num_top_classes": 2,
+      "alpha": 1.0,
+      "eta_growth_rate_per_tree": 1.0,
+      "soft_tree_depth_limit": 2.0,
+      "soft_tree_depth_tolerance": 3.0,
+      "downsample_factor": 0.5,
+      "max_optimization_rounds_per_hyperparameter": 3
     }
   }}
   - is_true: create_time

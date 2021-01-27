@@ -78,7 +78,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> READ_PIPELINE_PATTERN = Collections.unmodifiableSet(Sets.newHashSet(GetPipelineAction.NAME,
         SimulatePipelineAction.NAME));
     private static final Set<String> MANAGE_ROLLUP_PATTERN = Collections.unmodifiableSet(
-        Sets.newHashSet("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*"));
+        Sets.newHashSet("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*", "indices:admin/xpack/rollup"));
     private static final Set<String> MANAGE_CCR_PATTERN =
         Collections.unmodifiableSet(Sets.newHashSet("cluster:admin/xpack/ccr/*", ClusterStateAction.NAME, HasPrivilegesAction.NAME));
     private static final Set<String> CREATE_SNAPSHOT_PATTERN = Collections.unmodifiableSet(

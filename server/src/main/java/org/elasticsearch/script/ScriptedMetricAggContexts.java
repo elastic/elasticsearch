@@ -85,7 +85,7 @@ public class ScriptedMetricAggContexts {
                                     + "is deprecated in favor of using [state].");
                     return value;
                 },
-                "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+                "_source", value -> ((SourceLookup)value).source()
         );
 
         private final Map<String, Object> params;

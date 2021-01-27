@@ -52,6 +52,10 @@ public class FilterRepository implements Repository {
         this.in = in;
     }
 
+    public Repository getDelegate() {
+        return in;
+    }
+
     @Override
     public RepositoryMetadata getMetadata() {
         return in.getMetadata();

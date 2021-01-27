@@ -216,14 +216,14 @@ public final class Verifier {
                     checkGroupBy(p, localFailures, attributeRefs, groupingFailures);
                 }
 
-                checkForRestrictedFunctionInsideFunctions(p, Score.class, localFailures);
+                checkForRestrictedFunctionInsideFunction(p, Score.class, localFailures);
                 checkNestedUsedInGroupByOrHavingOrWhereOrOrderBy(p, localFailures, attributeRefs);
                 checkForGeoFunctionsOnDocValues(p, localFailures);
                 checkPivot(p, localFailures, attributeRefs);
                 checkMatrixStats(p, localFailures);
                 checkCastOnInexact(p, localFailures);
                 // restricted array usage
-                checkForRestrictedFunctionInsideFunctions(p, Array.class, localFailures);
+                checkForRestrictedFunctionInsideFunction(p, Array.class, localFailures);
                 checkArrayFunctionUsedInOrderByOrAggregate(p, localFailures);
                 checkArrayFunctionArguments(p, localFailures);
 
@@ -692,9 +692,9 @@ public final class Verifier {
     }
 
 
-    private static void checkForRestrictedFunctionInsideFunctions(LogicalPlan p, Class<? extends Function> restrictedFunctionClass,
-                                                                  Set<Failure> localFailures) {
-        // Make sure that functions like SCORE or ARRAY only appear in clauses at their "top level"
+    private static void checkForRestrictedFunctionInsideFunction(LogicalPlan p, Class<? extends Function> restrictedFunctionClass,
+                                                                 Set<Failure> localFailures) {
+        // Make sure that functions like SCORE or ARRAY only appear in clauses at their "top level", not part of other functions's args
         p.forEachExpression(Function.class, f ->
             f.arguments().stream()
                 .filter(exp -> exp.anyMatch(restrictedFunctionClass::isInstance))
@@ -894,7 +894,7 @@ public final class Verifier {
 
     private static void checkArrayFunctionArguments(LogicalPlan plan, Set<Failure> localFailures) {
         // TODO: allow `*`? scalars? or possibly array-level aggs?
-        plan.forEachExpression(Array.class, r ->r.arguments().forEach(a -> {
+        plan.forEachExpression(Array.class, r -> r.arguments().forEach(a -> {
             if (a instanceof FieldAttribute == false &&
                 (a instanceof Alias == false || ((Alias) a).child() instanceof FieldAttribute == false)) {
                 localFailures.add(fail(r, "ARRAY()'s argument must be an index field, found [{}]", a.source().text()));

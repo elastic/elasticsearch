@@ -40,14 +40,42 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
  */
 public abstract class AbstractFieldHitExtractor implements HitExtractor {
 
-    // how to deal with multi-values
-    public enum MultiValueExtraction {
-        MULTI_VALUE_EXTRACT_NONE, // no value returned, but an exception's thrown
-        MULTI_VALUE_EXTRACT_ONE, // return one value (no order guarantee)
-        MULTI_VALUE_EXTRACT_ARRAY // return all found values
-    }
-
     private static final Version SWITCHED_FROM_DOCVALUES_TO_SOURCE_EXTRACTION = Version.V_7_4_0;
+
+    public enum MultiValueHandling {
+        FAIL_IIF_MULTIVALUE {
+            @Override
+            public Object handle(Object object, String fieldName) {
+                return extractOneValue(object, fieldName, true);
+            }
+        },
+        EXTRACT_ONE {
+            @Override
+            public Object handle(Object object, String fieldName) {
+                return extractOneValue(object, fieldName, false);
+            }
+        },
+        EXTRACT_ARRAY {
+            @Override
+            public Object handle(Object object, String _ignored) {
+                return object instanceof List ? object : singletonList(object);
+            }
+        };
+
+        public abstract Object handle(Object unwrapped, String fieldName);
+
+        private static Object extractOneValue(Object object, String fieldName, boolean failIfMultiValue) {
+            if (object instanceof List) { // is this a multi-value?
+                List<?> list = (List<?>) object;
+                if (list.size() > 1 && failIfMultiValue) {
+                    throw new QlIllegalArgumentException("Cannot return multiple values for field [{}]; call ARRAY({}) instead",
+                        fieldName, fieldName);
+                }
+                return list.isEmpty() ? null : list.get(0);
+            }
+            return object;
+        }
+    }
 
     /**
      * Source extraction requires only the (relative) field name, without its parent path.
@@ -62,26 +90,26 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     private final DataType dataType;
     private final ZoneId zoneId;
     private final boolean useDocValue;
-    private final MultiValueExtraction multiValueExtraction;
+    private final MultiValueHandling multiValueHandling;
     private final String[] path;
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
-        this(name, null, dataType, zoneId, useDocValue, null, MultiValueExtraction.MULTI_VALUE_EXTRACT_NONE);
+        this(name, null, dataType, zoneId, useDocValue, null, MultiValueHandling.FAIL_IIF_MULTIVALUE);
     }
 
     protected AbstractFieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue,
-                                        MultiValueExtraction multiValueExtraction) {
-        this(name, null, dataType, zoneId, useDocValue, null, multiValueExtraction);
+                                        MultiValueHandling multiValueHandling) {
+        this(name, null, dataType, zoneId, useDocValue, null, multiValueHandling);
     }
 
     protected AbstractFieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue,
-            String hitName, MultiValueExtraction multiValueExtraction) {
+            String hitName, MultiValueHandling multiValueHandling) {
         this.fieldName = name;
         this.fullFieldName = fullFieldName;
         this.dataType = dataType;
         this.zoneId = zoneId;
         this.useDocValue = useDocValue;
-        this.multiValueExtraction = multiValueExtraction;
+        this.multiValueHandling = multiValueHandling;
         this.hitName = hitName;
 
         if (hitName != null) {
@@ -104,7 +132,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         dataType = typeName != null ? loadTypeFromName(typeName) : null;
         useDocValue = in.readBoolean();
         hitName = in.readOptionalString();
-        multiValueExtraction = in.readEnum(MultiValueExtraction.class);
+        multiValueHandling = in.readEnum(MultiValueHandling.class);
         path = sourcePath(fieldName, useDocValue, hitName);
         zoneId = readZoneId(in);
     }
@@ -124,7 +152,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         out.writeOptionalString(dataType == null ? null : dataType.typeName());
         out.writeBoolean(useDocValue);
         out.writeOptionalString(hitName);
-        out.writeEnum(multiValueExtraction);
+        out.writeEnum(multiValueHandling);
     }
 
     @Override
@@ -160,34 +188,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
     }
 
     protected Object extractMultiValue(Object values) {
-        Object unwrapped = unwrapMultiValue(values);
-
-        switch (multiValueExtraction) {
-            case MULTI_VALUE_EXTRACT_NONE:
-                if (unwrapped instanceof List) { // is this a multi-value?
-                    List<?> unwrappedList = (List<?>) unwrapped;
-                    if (unwrappedList.size() > 1) {
-                        throw new QlIllegalArgumentException("Cannot return multiple values for field [{}]; call ARRAY({}) instead",
-                            fieldName, fieldName);
-                    }
-                    return unwrappedList.isEmpty() ? null : unwrappedList.get(0);
-                }
-                break;
-            case MULTI_VALUE_EXTRACT_ONE:
-                if (unwrapped instanceof List) {
-                    List<?> unwrappedList = (List<?>) unwrapped;
-                    return unwrappedList.isEmpty() ? null : unwrappedList.get(0);
-                }
-                break;
-            case MULTI_VALUE_EXTRACT_ARRAY:
-                if (unwrapped instanceof List == false) {
-                    return singletonList(unwrapped);
-                }
-                break;
-            default:
-                throw new QlIllegalArgumentException("illegal extraction mode [" + multiValueExtraction + "]");
-        }
-        return unwrapped;
+        return multiValueHandling.handle(unwrapMultiValue(values), fieldName);
     }
 
     protected Object unwrapMultiValue(Object values) {
@@ -365,8 +366,8 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return useDocValue;
     }
 
-    public MultiValueExtraction multiValueExtraction() {
-        return multiValueExtraction;
+    public MultiValueHandling multiValueExtraction() {
+        return multiValueHandling;
     }
 
     @Override
@@ -383,11 +384,11 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         return fieldName.equals(other.fieldName)
                 && hitName.equals(other.hitName)
                 && useDocValue == other.useDocValue
-                && multiValueExtraction == other.multiValueExtraction;
+                && multiValueHandling == other.multiValueHandling;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, useDocValue, hitName, multiValueExtraction);
+        return Objects.hash(fieldName, useDocValue, hitName, multiValueHandling);
     }
 }

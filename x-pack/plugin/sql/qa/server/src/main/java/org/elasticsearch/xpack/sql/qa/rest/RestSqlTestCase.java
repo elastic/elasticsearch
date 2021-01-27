@@ -710,6 +710,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
     }
 
     public void testBasicQueryWithMultiValuesAndMultiPathAndMultiDoc() throws IOException {
+        // formatter will leave first argument as is, but fold the following on a line
         index(
             "{"
                 + "  \"a\": ["
@@ -738,8 +739,9 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
                 + "    }"
                 + "  ]"
                 + "}",
-            "{" + "  \"a.b\": {" + "    \"c\": {" + "      \"d\": 6" + "    }" + "  }" + "}",
-            "{" + "  \"a.b\": {" + "    \"c.d\": 7" + "  }," + "  \"a.b.c.d\": 8" + "}"
+            // spotless collapses everything that fits in one line -> these are more legible compacted
+            "{\"a.b\": { \"c\": {\"d\": 6}}}",
+            "{\"a.b\": { \"c.d\": 7}, \"a.b.c.d\": 8}"
         );
 
         String mode = randomMode();

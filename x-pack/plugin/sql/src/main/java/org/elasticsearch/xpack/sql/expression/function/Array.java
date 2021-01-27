@@ -25,7 +25,7 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.arrayType;
  */
 public class Array extends Function {
 
-    Expression field;
+    private final Expression field;
 
     public Array(Source source, Expression field) {
         super(source, singletonList(field));

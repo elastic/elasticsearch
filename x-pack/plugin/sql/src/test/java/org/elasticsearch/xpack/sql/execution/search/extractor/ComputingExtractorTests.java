@@ -29,7 +29,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_NONE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IIF_MULTIVALUE;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DOUBLE;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -74,7 +74,7 @@ public class ComputingExtractorTests extends AbstractSqlWireSerializingTestCase<
     public void testGet() {
         String fieldName = randomAlphaOfLength(5);
         ChainingProcessor extractor = new ChainingProcessor(
-                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, true, MULTI_VALUE_EXTRACT_NONE)),
+                new HitExtractorProcessor(new FieldHitExtractor(fieldName, DOUBLE, UTC, true, FAIL_IIF_MULTIVALUE)),
             new MathProcessor(MathOperation.LOG));
 
         int times = between(1, 1000);

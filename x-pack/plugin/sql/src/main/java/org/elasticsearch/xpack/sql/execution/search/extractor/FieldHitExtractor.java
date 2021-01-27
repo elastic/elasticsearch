@@ -41,8 +41,8 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     static final String NAME = "f";
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue,
-                             MultiValueExtraction multiValueExtraction) {
-        super(name, dataType, zoneId, useDocValue, multiValueExtraction);
+                             MultiValueHandling multiValueHandling) {
+        super(name, dataType, zoneId, useDocValue, multiValueHandling);
     }
 
     public FieldHitExtractor(String name, DataType dataType, ZoneId zoneId, boolean useDocValue) {
@@ -50,8 +50,8 @@ public class FieldHitExtractor extends AbstractFieldHitExtractor {
     }
 
     public FieldHitExtractor(String name, String fullFieldName, DataType dataType, ZoneId zoneId, boolean useDocValue, String hitName,
-                             MultiValueExtraction multiValueExtraction) {
-        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, multiValueExtraction);
+                             MultiValueHandling multiValueHandling) {
+        super(name, fullFieldName, dataType, zoneId, useDocValue, hitName, multiValueHandling);
     }
 
     public FieldHitExtractor(StreamInput in) throws IOException {

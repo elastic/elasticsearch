@@ -83,9 +83,9 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_ARRAY;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_ONE;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_NONE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ARRAY;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.EXTRACT_ONE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IIF_MULTIVALUE;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -492,15 +492,15 @@ public class Querier {
                 SearchHitFieldRef f = (SearchHitFieldRef) ref;
                 return new FieldHitExtractor(f.name(), f.fullFieldName(), f.getDataType(), cfg.zoneId(), f.useDocValue(), f.hitName(),
                         f.asArray()
-                            ? MULTI_VALUE_EXTRACT_ARRAY
-                            : (multiValueFieldLeniency ? MULTI_VALUE_EXTRACT_ONE : MULTI_VALUE_EXTRACT_NONE));
+                            ? EXTRACT_ARRAY
+                            : (multiValueFieldLeniency ? EXTRACT_ONE : FAIL_IIF_MULTIVALUE));
             }
 
             // TODO: this is dead code; remove? (and possibly simplify FieldReference out?)
             if (ref instanceof ScriptFieldRef) {
                 ScriptFieldRef f = (ScriptFieldRef) ref;
                 return new FieldHitExtractor(f.name(), null, cfg.zoneId(), true,
-                    multiValueFieldLeniency ? MULTI_VALUE_EXTRACT_ONE : MULTI_VALUE_EXTRACT_NONE);
+                    multiValueFieldLeniency ? EXTRACT_ONE : FAIL_IIF_MULTIVALUE);
             }
 
             if (ref instanceof ComputedRef) {

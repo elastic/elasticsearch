@@ -1230,6 +1230,11 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         accept("SELECT ARRAY(int) FROM test WHERE int > 4");
     }
 
+    public void testArrayInWhere() {
+        assertEquals("1:35: [ARRAY()] cannot be an argument to a function",
+            error("SELECT ARRAY(int) FROM test WHERE ARRAY(int) > 1"));
+    }
+
     public void testArrayInGroupBy() {
         assertEquals("1:38: [ARRAY()] may be used in the SELECT clause only, but found in [GROUP BY]",
             error("SELECT ARRAY(int) FROM test GROUP BY ARRAY(int)"));
@@ -1240,14 +1245,22 @@ public class VerifierErrorMessagesTests extends ESTestCase {
             error("SELECT ARRAY(int) FROM test ORDER BY ARRAY(int)"));
     }
 
-    public void testArrayInFunction() {
+    public void testArrayAsFunctionArgument() {
         assertEquals("1:12: [ARRAY()] cannot be an argument to a function",
             error("SELECT SUM(ARRAY(int)) FROM test"));
+    }
+
+    public void testArrayAsFunctionArgumentInExpression() {
+        assertEquals("1:8: [ARRAY()] cannot be an argument to a function",
+            error("SELECT ARRAY(int) + 1 FROM test")); // SUM(ARRAY(int) + 1) would just be SUM(ADD(ARRAY(int), 1), same test
     }
 
     public void testArrayFunctionParameter() {
         assertEquals("1:8: ARRAY()'s argument must be an index field, found [SUM(int)]",
             error("SELECT ARRAY(SUM(int)) FROM test"));
+
+        assertEquals("1:8: ARRAY()'s argument must be an index field, found [int + 1]",
+            error("SELECT ARRAY(int + 1) FROM test"));
 
         assertEquals("1:8: ARRAY()'s argument must be an index field, found [1]",
             error("SELECT ARRAY(1) FROM test"));

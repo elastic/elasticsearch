@@ -6,6 +6,7 @@
 package org.elasticsearch.xpack.sql.type;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.type.ArrayDataType;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 
@@ -20,17 +21,7 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.KEYWORD;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.sql.expression.literal.interval.Intervals.compatibleInterval;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.BINARY_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.BOOLEAN_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.BYTE_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATETIME_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DOUBLE_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.FLOAT_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.HALF_FLOAT_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTEGER_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_HOUR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_DAY_TO_MINUTE;
@@ -44,13 +35,6 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_MONTH;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_SECOND;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.INTERVAL_YEAR_TO_MONTH;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.IP_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.KEYWORD_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.LONG_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SCALED_FLOAT_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHORT_ARRAY;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TEXT_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.TIME;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.defaultPrecision;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.isInterval;
@@ -120,29 +104,6 @@ public class SqlDataTypesTests extends ESTestCase {
                 INTERVAL_HOUR_TO_SECOND,
                 INTERVAL_MINUTE_TO_SECOND)) {
             assertTrue(dataType + " is not an interval", isInterval(dataType));
-        }
-    }
-
-    public  void testIsArray() {
-        for (DataType dataType : asList(
-            BOOLEAN_ARRAY,
-            BYTE_ARRAY,
-            SHORT_ARRAY,
-            INTEGER_ARRAY,
-            LONG_ARRAY,
-            DOUBLE_ARRAY,
-            FLOAT_ARRAY,
-            HALF_FLOAT_ARRAY,
-            SCALED_FLOAT_ARRAY,
-            KEYWORD_ARRAY,
-            TEXT_ARRAY,
-            DATETIME_ARRAY,
-            IP_ARRAY,
-            BINARY_ARRAY,
-            GEO_SHAPE_ARRAY,
-            GEO_POINT_ARRAY,
-            SHAPE_ARRAY)) {
-            assertTrue(dataType + "is not an array", dataType.isArray());
         }
     }
 
@@ -233,7 +194,7 @@ public class SqlDataTypesTests extends ESTestCase {
             DataType baseType = SqlDataTypes.fromSqlOrEsType(baseTypeName);
             DataType arrayType = SqlDataTypes.arrayType(baseType);
             assertNotNull(arrayType);
-            assertTrue(arrayType.isArray());
+            assertTrue(arrayType instanceof ArrayDataType);
         }
     }
 

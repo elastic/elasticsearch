@@ -300,8 +300,8 @@ public class SqlFunctionRegistry extends FunctionRegistry {
             },
             // Special
             new FunctionDefinition[]{
-                def(Score.class, Score::new, "SCORE"),
-                def(Array.class, Array::new, "ARRAY")
+                def(Array.class, Array::new, "ARRAY"),
+                def(Score.class, Score::new, "SCORE")
             }
         };
     }

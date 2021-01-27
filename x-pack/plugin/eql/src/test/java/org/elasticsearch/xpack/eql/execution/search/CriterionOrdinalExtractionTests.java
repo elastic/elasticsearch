@@ -24,14 +24,14 @@ import java.util.Map;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
-import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueExtraction.MULTI_VALUE_EXTRACT_NONE;
+import static org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor.MultiValueHandling.FAIL_IIF_MULTIVALUE;
 
 public class CriterionOrdinalExtractionTests extends ESTestCase {
     private String tsField = "timestamp";
     private String tbField = "tiebreaker";
 
-    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.LONG, null, true, null, MULTI_VALUE_EXTRACT_NONE);
-    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, tbField, DataTypes.LONG, null, true, null, MULTI_VALUE_EXTRACT_NONE);
+    private HitExtractor tsExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.LONG, null, true, null, FAIL_IIF_MULTIVALUE);
+    private HitExtractor tbExtractor = new FieldHitExtractor(tbField, tbField, DataTypes.LONG, null, true, null, FAIL_IIF_MULTIVALUE);
 
     public void testTimeOnly() throws Exception {
         long time = randomLong();
@@ -56,7 +56,7 @@ public class CriterionOrdinalExtractionTests extends ESTestCase {
     }
 
     public void testTimeNotComparable() throws Exception {
-        HitExtractor badExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.BINARY, null, true, null, MULTI_VALUE_EXTRACT_NONE);
+        HitExtractor badExtractor = new FieldHitExtractor(tsField, tsField, DataTypes.BINARY, null, true, null, FAIL_IIF_MULTIVALUE);
         SearchHit hit = searchHit(randomAlphaOfLength(10), null);
         Criterion<BoxedQueryRequest> criterion = new Criterion<BoxedQueryRequest>(0, null, emptyList(), badExtractor, null, false);
         EqlIllegalArgumentException exception = expectThrows(EqlIllegalArgumentException.class, () -> criterion.ordinal(hit));

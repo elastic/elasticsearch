@@ -328,7 +328,7 @@ public class QueryContainer {
     //
     // reference methods
     //
-    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr, boolean multiValue) {
+    private FieldExtraction topHitFieldRef(FieldAttribute fieldAttr, boolean asMultiValue) {
         FieldAttribute actualField = fieldAttr;
         FieldAttribute rootField = fieldAttr;
         StringBuilder fullFieldName = new StringBuilder(fieldAttr.field().getName());
@@ -361,10 +361,10 @@ public class QueryContainer {
             rootField = rootField.parent();
         }
         return new SearchHitFieldRef(aliasName(actualField), fullFieldName.toString(), fieldAttr.field().getDataType(),
-                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias(), multiValue);
+                fieldAttr.field().isAggregatable(), fieldAttr.field().isAlias(), asMultiValue);
     }
 
-    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr, boolean multiValue) {
+    private Tuple<QueryContainer, FieldExtraction> nestedHitFieldRef(FieldAttribute attr, boolean asMultiValue) {
         String name = aliasName(attr);
         Query q = rewriteToContainNestedField(query, attr.source(),
                 attr.nestedParent().name(), name,
@@ -372,7 +372,7 @@ public class QueryContainer {
                 SqlDataTypes.isFromDocValuesOnly(attr.field().getDataType()));
 
         SearchHitFieldRef nestedFieldRef = new SearchHitFieldRef(name, null, attr.field().getDataType(), attr.field().isAggregatable(),
-                false, attr.parent().name(), multiValue);
+                false, attr.parent().name(), asMultiValue);
 
         return new Tuple<>(
                 new QueryContainer(q, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, includeFrozen,
@@ -440,8 +440,8 @@ public class QueryContainer {
         return new Tuple<>(qContainer, new ComputedRef(proc));
     }
 
-    private Tuple<QueryContainer, FieldExtraction> asFieldAttributeExtraction(FieldAttribute fa, boolean multiValue) {
-        return fa.isNested() ? nestedHitFieldRef(fa, multiValue) : new Tuple<>(this, topHitFieldRef(fa, multiValue));
+    private Tuple<QueryContainer, FieldExtraction> asFieldAttributeExtraction(FieldAttribute fa, boolean asMultiValue) {
+        return fa.isNested() ? nestedHitFieldRef(fa, asMultiValue) : new Tuple<>(this, topHitFieldRef(fa, asMultiValue));
     }
 
     public QueryContainer addColumn(Attribute attr) {

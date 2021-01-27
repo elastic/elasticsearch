@@ -6,8 +6,6 @@
 
 package org.elasticsearch.xpack.ql.type;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-
 import java.util.Locale;
 import java.util.Objects;
 
@@ -36,21 +34,11 @@ public class DataType {
      */
     private final boolean docValues;
 
-    /**
-     * The base type of an array type.
-     */
-    private final DataType arrayBaseType;
-
     public DataType(String esName, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
         this(null, esName, size, isInteger, isRational, hasDocValues);
     }
 
     public DataType(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues) {
-        this(typeName, esType, size, isInteger, isRational, hasDocValues, null);
-    }
-
-    private DataType(String typeName, String esType, int size, boolean isInteger, boolean isRational, boolean hasDocValues,
-                    DataType arrayBaseType) {
         String typeString = typeName != null ? typeName : esType;
         this.typeName = typeString.toLowerCase(Locale.ROOT);
         this.name = typeString.toUpperCase(Locale.ROOT);
@@ -59,12 +47,6 @@ public class DataType {
         this.isInteger = isInteger;
         this.isRational = isRational;
         this.docValues = hasDocValues;
-        this.arrayBaseType = arrayBaseType;
-    }
-
-    private DataType(DataType baseType) {
-        this(baseType.name + "_ARRAY", baseType.esType, baseType.size, baseType.isInteger, baseType.isRational, baseType.docValues,
-            baseType);
     }
 
     public String name() {
@@ -99,17 +81,9 @@ public class DataType {
         return docValues;
     }
 
-    public boolean isArray() {
-        return arrayBaseType != null;
-    }
-
-    public DataType arrayBaseType() {
-        return arrayBaseType;
-    }
-
     @Override
     public int hashCode() {
-        return Objects.hash(typeName, esType, size, isInteger, isRational, docValues, arrayBaseType);
+        return Objects.hash(typeName, esType, size, isInteger, isRational, docValues);
     }
 
     @Override
@@ -128,20 +102,11 @@ public class DataType {
                 && size == other.size
                 && isInteger == other.isInteger
                 && isRational == other.isRational
-                && docValues == other.docValues
-                && arrayBaseType == other.arrayBaseType;
+                && docValues == other.docValues;
     }
 
     @Override
     public String toString() {
         return name;
-    }
-
-    public static DataType arrayOf(DataType baseType) {
-        // no multidimensional arrays supported
-        if (baseType.isArray()) {
-            throw new QlIllegalArgumentException("the base type of an array type cannot be itself an array type; provided: " + baseType);
-        }
-        return new DataType(baseType);
     }
 }

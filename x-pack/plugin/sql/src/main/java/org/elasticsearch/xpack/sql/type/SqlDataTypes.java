@@ -6,6 +6,7 @@
 
 package org.elasticsearch.xpack.sql.type;
 
+import org.elasticsearch.xpack.ql.type.ArrayDataType;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.expression.literal.geo.GeoShape;
@@ -26,7 +27,7 @@ import java.util.stream.Stream;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.stream.Collectors.toUnmodifiableList;
 import static java.util.stream.Collectors.toUnmodifiableMap;
-import static org.elasticsearch.xpack.ql.type.DataType.arrayOf;
+import static org.elasticsearch.xpack.ql.type.ArrayDataType.of;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BINARY;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -86,30 +87,30 @@ public class SqlDataTypes {
     public static final DataType SHAPE =     new DataType("shape",     Integer.MAX_VALUE, false, false, false);
 
     // arrays
-    public static final DataType BOOLEAN_ARRAY      = arrayOf(BOOLEAN);
+    public static final DataType BOOLEAN_ARRAY      = of(BOOLEAN);
     // integer numeric
-    public static final DataType BYTE_ARRAY         = arrayOf(BYTE);
-    public static final DataType SHORT_ARRAY        = arrayOf(SHORT);
-    public static final DataType INTEGER_ARRAY      = arrayOf(INTEGER);
-    public static final DataType LONG_ARRAY         = arrayOf(LONG);
+    public static final DataType BYTE_ARRAY         = of(BYTE);
+    public static final DataType SHORT_ARRAY        = of(SHORT);
+    public static final DataType INTEGER_ARRAY      = of(INTEGER);
+    public static final DataType LONG_ARRAY         = of(LONG);
     // decimal numeric
-    public static final DataType DOUBLE_ARRAY       = arrayOf(DOUBLE);
-    public static final DataType FLOAT_ARRAY        = arrayOf(FLOAT);
-    public static final DataType HALF_FLOAT_ARRAY   = arrayOf(HALF_FLOAT);
-    public static final DataType SCALED_FLOAT_ARRAY = arrayOf(SCALED_FLOAT);
+    public static final DataType DOUBLE_ARRAY       = of(DOUBLE);
+    public static final DataType FLOAT_ARRAY        = of(FLOAT);
+    public static final DataType HALF_FLOAT_ARRAY   = of(HALF_FLOAT);
+    public static final DataType SCALED_FLOAT_ARRAY = of(SCALED_FLOAT);
     // string
-    public static final DataType KEYWORD_ARRAY      = arrayOf(KEYWORD);
-    public static final DataType TEXT_ARRAY         = arrayOf(TEXT);
+    public static final DataType KEYWORD_ARRAY      = of(KEYWORD);
+    public static final DataType TEXT_ARRAY         = of(TEXT);
     // date
-    public static final DataType DATETIME_ARRAY     = arrayOf(DATETIME);
+    public static final DataType DATETIME_ARRAY     = of(DATETIME);
     // ip
-    public static final DataType IP_ARRAY           = arrayOf(IP);
+    public static final DataType IP_ARRAY           = of(IP);
     // binary
-    public static final DataType BINARY_ARRAY       = arrayOf(BINARY);
+    public static final DataType BINARY_ARRAY       = of(BINARY);
     // geo
-    public static final DataType GEO_SHAPE_ARRAY    = arrayOf(GEO_SHAPE);
-    public static final DataType GEO_POINT_ARRAY    = arrayOf(GEO_POINT);
-    public static final DataType SHAPE_ARRAY        = arrayOf(SHAPE);
+    public static final DataType GEO_SHAPE_ARRAY    = of(GEO_SHAPE);
+    public static final DataType GEO_POINT_ARRAY    = of(GEO_POINT);
+    public static final DataType SHAPE_ARRAY        = of(SHAPE);
     // @formatter:on
 
     private static final Map<String, DataType> ODBC_TO_ES = new HashMap<>(mapSize(38));
@@ -209,12 +210,12 @@ public class SqlDataTypes {
 
     private static final Map<String, DataType> ES_TO_TYPE = TYPES.stream()
         .filter(e -> e.esType() != null)
-        .filter(e -> e.isArray() == false)
+        .filter(e -> e instanceof ArrayDataType == false)
         .collect(toUnmodifiableMap(DataType::esType, t -> t));
 
     private static final Map<DataType, DataType> TYPE_TO_ARRAY = TYPES.stream()
-        .filter(DataType::isArray)
-        .collect(toUnmodifiableMap(DataType::arrayBaseType, t -> t));
+        .filter(e -> e instanceof ArrayDataType)
+        .collect(toUnmodifiableMap(e -> ((ArrayDataType) e).baseType(), t -> t));
 
     private static final Map<String, DataType> SQL_TO_ES;
 
@@ -463,7 +464,7 @@ public class SqlDataTypes {
         if (dataType == INTERVAL_MINUTE_TO_SECOND) {
             return ExtTypes.INTERVAL_MINUTE_TO_SECOND;
         }
-        if (dataType.isArray()) {
+        if (dataType instanceof ArrayDataType) {
             return JDBCType.ARRAY;
         }
 
@@ -674,8 +675,8 @@ public class SqlDataTypes {
         if (SqlDataTypes.isInterval(dataType)) {
             return defaultPrecision(dataType);
         }
-        if (dataType.isArray()) {
-            return displaySize(dataType.arrayBaseType());
+        if (dataType instanceof ArrayDataType) {
+            return displaySize(((ArrayDataType) dataType).baseType());
         }
 
         return 0;
@@ -690,7 +691,7 @@ public class SqlDataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATETIME || (t.isArray() && t.arrayBaseType() == DATETIME)) {
+        if (t == DATETIME || (t instanceof ArrayDataType && ((ArrayDataType) t).baseType() == DATETIME)) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -710,8 +711,8 @@ public class SqlDataTypes {
         } else if (t == TIME) {
             // ODBC SQL_CODE_TIME
             return Integer.valueOf(2);
-        } else if (t.isArray()) {
-            return metaSqlDateTimeSub(t.arrayBaseType());
+        } else if (t instanceof ArrayDataType) {
+            return metaSqlDateTimeSub(((ArrayDataType) t).baseType());
         }
         // ODBC null
         return 0;
@@ -730,8 +731,8 @@ public class SqlDataTypes {
     // since the scale is fixed, minimum and maximum should return the same value
     // hence why this method exists
     private static Short metaSqlSameScale(DataType t) {
-        if (t.isArray()) {
-            return metaSqlSameScale(t.arrayBaseType());
+        if (t instanceof ArrayDataType) {
+            return metaSqlSameScale(((ArrayDataType) t).baseType());
         }
         // TODO: return info for SCALED_FLOATS (should be based on field not type)
         if (t.isInteger()) {

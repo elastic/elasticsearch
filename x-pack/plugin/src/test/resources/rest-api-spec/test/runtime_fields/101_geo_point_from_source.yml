@@ -28,6 +28,8 @@ setup:
           {"index":{}}
           {"timestamp": "1998-04-30T14:30:53-05:00", "location" : "-7.9, 120.78"}
           {"index":{}}
+           {"timestamp": "1998-04-30T14:30:54-05:00"}
+          {"index":{}}
           {"timestamp": "1998-04-30T14:30:55-05:00", "location" : ["-8, 120", "-7, 121.0"]}
           {"index":{}}
           {"timestamp": "1998-04-30T14:31:12-05:00", "location" : [-173.45, 45.78]}
@@ -59,7 +61,7 @@ setup:
         body:
           sort: timestamp
           fields: [location]
-  - match: {hits.total.value: 10}
+  - match: {hits.total.value: 11}
   - match: {hits.hits.0.fields.location: ["13.499999991618097, 34.889999935403466"] }
 
 ---
@@ -174,7 +176,7 @@ setup:
               geo_bounds:
                 field: "location"
                 wrap_longitude: false
-  - match: {hits.total.value: 10}
+  - match: {hits.total.value: 11}
   - match: {aggregations.bounds.bounds.top_left.lat: 46.77999998442829 }
   - match: {aggregations.bounds.bounds.top_left.lon: -174.45000001229346 }
   - match: {aggregations.bounds.bounds.bottom_right.lat: -63.240000014193356 }
@@ -191,7 +193,7 @@ setup:
               location:
                 lat: 0.0
                 lon: 0.0
-  - match: {hits.total.value: 10}
+  - match: {hits.total.value: 11}
   - match: {hits.hits.0._source.location.lat: 0.0 }
   - match: {hits.hits.0._source.location.lon: 0.0 }
   - match: {hits.hits.1._source.location.0.0: -174.45 }

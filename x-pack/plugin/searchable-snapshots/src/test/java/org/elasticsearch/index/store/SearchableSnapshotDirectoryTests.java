@@ -119,7 +119,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_CACHE_PREWARM_ENABLED_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
+import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
@@ -740,7 +740,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
 
     public void testRequiresAdditionalSettings() {
         final List<Setting<String>> requiredSettings = List.of(
-            SNAPSHOT_REPOSITORY_SETTING,
+            SNAPSHOT_REPOSITORY_NAME_SETTING,
             SNAPSHOT_INDEX_NAME_SETTING,
             SNAPSHOT_INDEX_ID_SETTING,
             SNAPSHOT_SNAPSHOT_NAME_SETTING,

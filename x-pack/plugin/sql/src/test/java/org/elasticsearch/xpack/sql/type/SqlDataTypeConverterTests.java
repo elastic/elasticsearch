@@ -6,19 +6,6 @@
 
 package org.elasticsearch.xpack.sql.type;
 
-import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.tree.Location;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.Converter;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.sql.util.DateUtils;
-
-import java.time.OffsetTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
-
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BOOLEAN;
 import static org.elasticsearch.xpack.ql.type.DataTypes.BYTE;
@@ -49,6 +36,19 @@ import static org.elasticsearch.xpack.sql.type.SqlDataTypes.types;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateOnly;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asDateTimeWithNanos;
 import static org.elasticsearch.xpack.sql.util.DateUtils.asTimeOnly;
+
+import java.time.OffsetTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
+
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
+import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.tree.Location;
+import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.Converter;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.sql.util.DateUtils;
 
 public class SqlDataTypeConverterTests extends ESTestCase {
 
@@ -552,7 +552,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals(-123456789, conversion.convert(DateUtils.asDateTimeWithMillis(-123456789L)));
             // Nanos are ignored, only millis are used
             assertEquals(62123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:01:02.123456789Z")));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(DateUtils.asDateTimeWithMillis(Long.MAX_VALUE)));
+            Exception e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> conversion.convert(DateUtils.asDateTimeWithMillis(Long.MAX_VALUE))
+            );
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
         }
     }
@@ -591,7 +594,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals((short) -12345, conversion.convert(DateUtils.asDateTimeWithMillis(-12345L)));
             // Nanos are ignored, only millis are used
             assertEquals((short) 1123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:00:01.123456789Z")));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE)));
+            Exception e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE))
+            );
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
         }
     }
@@ -630,7 +636,10 @@ public class SqlDataTypeConverterTests extends ESTestCase {
             assertEquals((byte) -123, conversion.convert(DateUtils.asDateTimeWithMillis(-123L)));
             // Nanos are ignored, only millis are used
             assertEquals((byte) 123, conversion.convert(asDateTimeWithNanos("1970-01-01T00:00:00.123456789Z")));
-            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE)));
+            Exception e = expectThrows(
+                QlIllegalArgumentException.class,
+                () -> conversion.convert(DateUtils.asDateTimeWithMillis(Integer.MAX_VALUE))
+            );
             assertEquals("[" + Integer.MAX_VALUE + "] out of [byte] range", e.getMessage());
         }
     }

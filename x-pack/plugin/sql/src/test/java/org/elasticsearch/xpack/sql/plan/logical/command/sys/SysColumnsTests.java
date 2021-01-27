@@ -5,6 +5,26 @@
  */
 package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 
+import static java.util.Collections.emptyList;
+import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.ActionListener.wrap;
+import static org.elasticsearch.xpack.ql.TestUtils.UTC;
+import static org.elasticsearch.xpack.sql.proto.Mode.isDriver;
+import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
+import static org.mockito.Matchers.any;
+import static org.mockito.Matchers.anyBoolean;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+import java.sql.Types;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.function.Consumer;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.collect.Tuple;
@@ -29,25 +49,6 @@ import org.elasticsearch.xpack.sql.session.SqlSession;
 import org.elasticsearch.xpack.sql.stats.Metrics;
 import org.elasticsearch.xpack.sql.util.DateUtils;
 
-import java.sql.Types;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.function.Consumer;
-
-import static java.util.Collections.emptyList;
-import static java.util.Collections.singletonList;
-import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.TestUtils.UTC;
-import static org.elasticsearch.xpack.sql.types.SqlTypesTests.loadMapping;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyBoolean;
-import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 public class SysColumnsTests extends ESTestCase {
 
     private static final String CLUSTER_NAME = "cluster";
@@ -57,104 +58,7 @@ public class SysColumnsTests extends ESTestCase {
 
     private final SqlParser parser = new SqlParser();
 
-    public void testSysColumns() {
-        List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null,
-                randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values())), SqlVersion.fromId(Version.CURRENT.id));
-        // nested fields are ignored
-        assertEquals(FIELD_COUNT, rows.size());
-        assertEquals(24, rows.get(0).size());
-
-        int index = 0;
-
-        List<?> row = rows.get(index++);
-        assertEquals("bool", name(row));
-        assertEquals(Types.BOOLEAN, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(1, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("int", name(row));
-        assertEquals(Types.INTEGER, sqlType(row));
-        assertEquals(10, radix(row));
-        assertEquals(4, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("text", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("keyword", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("date", name(row));
-        assertEquals(Types.TIMESTAMP, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(34, precision(row));
-        assertEquals(8, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("date_nanos", name(row));
-        assertEquals(Types.TIMESTAMP, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(34, precision(row));
-        assertEquals(8, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.dotted.field", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.string", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.string.normalized", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.string.typical", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.ambiguous", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.ambiguous.one", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index++);
-        assertEquals("some.ambiguous.two", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-
-        row = rows.get(index);
-        assertEquals("some.ambiguous.normalized", name(row));
-        assertEquals(Types.VARCHAR, sqlType(row));
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-    }
-
-    public void sysColumnsInDriverMode(Mode mode) {
+    private void sysColumnsInMode(Mode mode) {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
         SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode,
@@ -162,153 +66,63 @@ public class SysColumnsTests extends ESTestCase {
         assertEquals(FIELD_COUNT, rows.size());
         assertEquals(24, rows.get(0).size());
 
-        int index = 0;
+        List<?> row = rows.get(0);
+        assertDriverType("bool", Types.BOOLEAN, false, 1, 1, typeClass, row);
 
-        List<?> row = rows.get(index++);
-        assertEquals("bool", name(row));
-        assertEquals(Types.BOOLEAN, typeClass.cast(sqlType(row)).intValue());
-        assertNull(null, radix(row));
-        assertEquals(1, bufferLength(row));
+        row = rows.get(1);
+        assertDriverType("int", Types.INTEGER, true, 11, 4, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("int", name(row));
-        assertEquals(Types.INTEGER, typeClass.cast(sqlType(row)).intValue());
-        assertEquals(typeClass, radix(row).getClass());
-        assertEquals(4, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(2);
+        assertDriverType("text", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("text", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(3);
+        assertDriverType("keyword", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("keyword", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(null, radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(4);
+        assertDriverType("date", Types.TIMESTAMP, false, 34, 8, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("date", name(row));
-        assertEquals(Types.TIMESTAMP, typeClass.cast(sqlType(row)).intValue());
-        assertNull(null, radix(row));
-        assertEquals(34, precision(row));
-        assertEquals(8, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(5);
+        assertDriverType("date_nanos", Types.TIMESTAMP, false, 34, 8, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("date_nanos", name(row));
-        assertEquals(Types.TIMESTAMP, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(34, precision(row));
-        assertEquals(8, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(6);
+        assertDriverType("some.dotted.field", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.dotted.field", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(7);
+        assertDriverType("some.string", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.string", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(8);
+        assertDriverType("some.string.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.string.normalized", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(9);
+        assertDriverType("some.string.typical", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.string.typical", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(10);
+        assertDriverType("some.ambiguous", Types.VARCHAR, false, Integer.MAX_VALUE, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.ambiguous", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(11);
+        assertDriverType("some.ambiguous.one", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.ambiguous.one", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(12);
+        assertDriverType("some.ambiguous.two", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
 
-        row = rows.get(index++);
-        assertEquals("some.ambiguous.two", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
-
-        row = rows.get(index);
-        assertEquals("some.ambiguous.normalized", name(row));
-        assertEquals(Types.VARCHAR, typeClass.cast(sqlType(row)).intValue());
-        assertNull(radix(row));
-        assertEquals(Integer.MAX_VALUE, bufferLength(row));
-        assertNull(decimalPrecision(row));
-        assertEquals(typeClass, nullable(row).getClass());
-        assertEquals(typeClass, sqlDataType(row).getClass());
-        assertEquals(typeClass, sqlDataTypeSub(row).getClass());
+        row = rows.get(13);
+        assertDriverType("some.ambiguous.normalized", Types.VARCHAR, false, Short.MAX_VALUE - 1, Integer.MAX_VALUE, typeClass, row);
     }
 
     public void testSysColumnsInJdbcMode() {
-        sysColumnsInDriverMode(Mode.JDBC);
+        sysColumnsInMode(Mode.JDBC);
     }
 
     public void testSysColumnsInOdbcMode() {
-        sysColumnsInDriverMode(Mode.ODBC);
+        sysColumnsInMode(Mode.ODBC);
+    }
+
+    public void testInNonDriverMode() {
+        for (Mode mode : Mode.values()) {
+            if (isDriver(mode) == false) {
+                sysColumnsInMode(mode);
+            }
+        }
     }
 
     private static Object name(List<?> list) {
@@ -479,6 +293,32 @@ public class SysColumnsTests extends ESTestCase {
         List<Integer> cols = Arrays.asList(4, 8, 9, 10, 13, 14);
         for (Integer i: cols) {
             assertEquals("short", r.schema().get(i).type().name().toLowerCase(Locale.ROOT));
+        }
+    }
+
+    private void assertDriverType(
+        String colName,
+        int type,
+        boolean hasRadix,
+        int precision,
+        int bufferLength,
+        Class<? extends Number> typeClass,
+        List<?> row
+    ) {
+        assertEquals(colName, name(row));
+        if (hasRadix) {
+            assertEquals(typeClass, radix(row).getClass());
+        } else {
+            assertNull(radix(row));
+        }
+        assertEquals(precision, precision(row));
+        assertEquals(bufferLength, bufferLength(row));
+        assertNull(decimalPrecision(row));
+        if (typeClass != null) {
+            assertEquals(type, typeClass.cast(sqlType(row)).intValue());
+            assertEquals(typeClass, nullable(row).getClass());
+            assertEquals(typeClass, sqlDataType(row).getClass());
+            assertEquals(typeClass, sqlDataTypeSub(row).getClass());
         }
     }
 }

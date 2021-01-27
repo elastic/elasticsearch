@@ -60,13 +60,8 @@ subprojects {
           'field_caps/30_filter/Field caps with index filter', // We don't support filtering field caps on runtime fields. What should we do?
           'search.aggregation/220_filters_bucket/cache', // runtime keyword does not support split_queries_on_whitespace
           'search/140_pre_filter_search_shards/pre_filter_shard_size with shards that have no hit',
-          //geo_hash and geo_tile grid aggs don't work with geo_point runtime fields: https://github.com/elastic/elasticsearch/issues/67907
-          'search.aggregation/280_geohash_grid/Basic test',
-          'search.aggregation/290_geotile_grid/Basic test',
           //distance feature query needs to be implemented for geo_point runtime field: https://github.com/elastic/elasticsearch/issues/67910
           'search/250_distance_feature/test distance_feature query on geo_point type',
-          //Exists query does not work against geo_point runtime field? https://github.com/elastic/elasticsearch/issues/67911
-          'search/160_exists_query/Test exists query on mapped geo_point field',
           //completion suggester does not return options when the context field is a geo_point runtime field
           'suggest/30_context/Multi contexts should work',
           /////// TO FIX ///////

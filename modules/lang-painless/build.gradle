@@ -40,7 +40,6 @@ dependencies {
   api 'org.ow2.asm:asm-commons:7.2'
   api 'org.ow2.asm:asm-analysis:7.2'
   api 'org.ow2.asm:asm:7.2'
-  api 'com.github.javaparser:javaparser-core:3.18.0'
   api project('spi')
 }
 
@@ -88,6 +87,7 @@ sourceSets {
 dependencies {
   docImplementation project(':server')
   docImplementation project(':modules:lang-painless')
+  docImplementation 'com.github.javaparser:javaparser-core:3.18.0'
 }
 
 testClusters {

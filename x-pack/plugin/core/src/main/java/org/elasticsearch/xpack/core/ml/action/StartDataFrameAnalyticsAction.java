@@ -25,10 +25,8 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
@@ -176,9 +174,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public TaskParams(StreamInput in) throws IOException {
             this.id = in.readString();
             this.version = Version.readVersion(in);
-            if (in.getVersion().before(Version.V_8_0_0)) {
-                in.readList(PhaseProgress::new);
-            }
             this.allowLazyStart = in.readBoolean();
         }
 
@@ -208,10 +203,6 @@ public class StartDataFrameAnalyticsAction extends ActionType<NodeAcknowledgedRe
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(id);
             Version.writeVersion(version, out);
-            if (out.getVersion().before(Version.V_8_0_0)) {
-                // Previous versions expect a list of phase progress objects.
-                out.writeList(Collections.emptyList());
-            }
             out.writeBoolean(allowLazyStart);
         }
 

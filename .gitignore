@@ -32,6 +32,9 @@ build/
 # vscode stuff
 .vscode/
 
+# vs stuff
+.vs/
+
 # testing stuff
 **/.local*
 .vagrant/

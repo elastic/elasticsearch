@@ -4,7 +4,7 @@
  * you may not use this file except in compliance with the Elastic License.
  */
 
-package org.elasticsearch.xpack.spatial.index.query;
+package org.elasticsearch.xpack.spatial.index.mapper;
 
 import org.apache.lucene.document.ShapeField;
 import org.apache.lucene.geo.Component2D;

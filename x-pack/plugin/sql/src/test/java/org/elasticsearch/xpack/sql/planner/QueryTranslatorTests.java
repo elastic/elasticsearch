@@ -627,6 +627,22 @@ public class QueryTranslatorTests extends ESTestCase {
         assertEquals("[{v=date}, {v=YYYY_MM_dd}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
     }
 
+    public void testTranslateToChar_WhereClause_Painless() {
+        LogicalPlan p = plan("SELECT int FROM test WHERE TO_CHAR(date, 'YYYY_MM_DD') = '2018_09_04'");
+        assertTrue(p instanceof Project);
+        assertTrue(p.children().get(0) instanceof Filter);
+        Expression condition = ((Filter) p.children().get(0)).condition();
+        assertFalse(condition.foldable());
+        QueryTranslation translation = translate(condition);
+        assertNull(translation.aggFilter);
+        assertTrue(translation.query instanceof ScriptQuery);
+        ScriptQuery sc = (ScriptQuery) translation.query;
+        assertEquals("InternalQlScriptUtils.nullSafeFilter(InternalQlScriptUtils.eq(InternalSqlScriptUtils.toChar(" +
+                "InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2),params.v3))",
+            sc.script().toString());
+        assertEquals("[{v=date}, {v=YYYY_MM_DD}, {v=Z}, {v=2018_09_04}]", sc.script().params().toString());
+    }
+
     public void testLikeOnInexact() {
         LogicalPlan p = plan("SELECT * FROM test WHERE some.string LIKE '%a%'");
         assertTrue(p instanceof Project);

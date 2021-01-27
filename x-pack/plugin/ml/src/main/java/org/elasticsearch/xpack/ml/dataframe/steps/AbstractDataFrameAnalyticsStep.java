@@ -57,7 +57,7 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
     @Override
     public final void execute(ActionListener<StepResponse> listener) {
         logger.debug(() -> new ParameterizedMessage("[{}] Executing step [{}]", config.getId(), name()));
-        if (task.isStopping()) {
+        if (task.isStopping() && shouldSkipIfTaskIsStopping()) {
             logger.debug(() -> new ParameterizedMessage("[{}] task is stopping before starting [{}] step", config.getId(), name()));
             listener.onResponse(new StepResponse(true));
             return;
@@ -75,5 +75,9 @@ abstract class AbstractDataFrameAnalyticsStep implements DataFrameAnalyticsStep 
         ParentTaskAssigningClient parentTaskClient = parentTaskClient();
         executeWithHeadersAsync(config.getHeaders(), ML_ORIGIN, parentTaskClient, RefreshAction.INSTANCE,
             new RefreshRequest(config.getDest().getIndex()), refreshListener);
+    }
+
+    protected boolean shouldSkipIfTaskIsStopping() {
+        return true;
     }
 }

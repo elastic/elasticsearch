@@ -32,19 +32,19 @@ public class FunctionRegistryTests extends ESTestCase {
 
     public void testNoArgFunction() {
         UnresolvedFunction ur = uf(DEFAULT);
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION"));
+        FunctionRegistry r = new FunctionRegistry(defineDummyNoArgFunction());
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
     }
 
+    public static FunctionDefinition defineDummyNoArgFunction() {
+        return def(DummyFunction.class, DummyFunction::new, "DUMMY_FUNCTION");
+    }
+
     public void testUnaryFunction() {
         UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class));
-        FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression e) -> {
-            assertSame(e, ur.children().get(0));
-            return new DummyFunction(l);
-        }, "DUMMY_FUNCTION"));
+        FunctionRegistry r = new FunctionRegistry(defineDummyUnaryFunction(ur));
         FunctionDefinition def = r.resolveFunction(ur.name());
-        assertFalse(def.extractViable());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
 
         // No children aren't supported
@@ -58,6 +58,13 @@ public class FunctionRegistryTests extends ESTestCase {
         assertThat(e.getMessage(), endsWith("expects exactly one argument"));
     }
 
+    public static FunctionDefinition defineDummyUnaryFunction(UnresolvedFunction ur) {
+        return def(DummyFunction.class, (Source l, Expression e) -> {
+            assertSame(e, ur.children().get(0));
+            return new DummyFunction(l);
+        }, "DUMMY_FUNCTION");
+    }
+
     public void testBinaryFunction() {
         UnresolvedFunction ur = uf(DEFAULT, mock(Expression.class), mock(Expression.class));
         FunctionRegistry r = new FunctionRegistry(def(DummyFunction.class, (Source l, Expression lhs, Expression rhs) -> {
@@ -67,7 +74,6 @@ public class FunctionRegistryTests extends ESTestCase {
         }, "DUMMY_FUNCTION"));
         FunctionDefinition def = r.resolveFunction(ur.name());
         assertEquals(ur.source(), ur.buildResolved(randomConfiguration(), def).source());
-        assertFalse(def.extractViable());
 
         // No children aren't supported
         ParsingException e = expectThrows(ParsingException.class, () ->

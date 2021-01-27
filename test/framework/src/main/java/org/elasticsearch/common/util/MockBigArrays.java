@@ -101,7 +101,7 @@ public class MockBigArrays extends BigArrays {
 
     public static void ensureAllArraysAreReleased() throws Exception {
         final Map<Object, Object> masterCopy = new HashMap<>(ACQUIRED_ARRAYS);
-        if (!masterCopy.isEmpty()) {
+        if (masterCopy.isEmpty() == false) {
             // not empty, we might be executing on a shared cluster that keeps on obtaining
             // and releasing arrays, lets make sure that after a reasonable timeout, all master
             // copy (snapshot) have been released
@@ -110,7 +110,7 @@ public class MockBigArrays extends BigArrays {
             } catch (AssertionError ex) {
                 masterCopy.keySet().retainAll(ACQUIRED_ARRAYS.keySet());
                 ACQUIRED_ARRAYS.keySet().removeAll(masterCopy.keySet()); // remove all existing master copy we will report on
-                if (!masterCopy.isEmpty()) {
+                if (masterCopy.isEmpty() == false) {
                     Iterator<Object> causes = masterCopy.values().iterator();
                     Object firstCause = causes.next();
                     RuntimeException exception = new RuntimeException(masterCopy.size() + " arrays have not been released",
@@ -170,7 +170,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public ByteArray newByteArray(long size, boolean clearOnResize) {
         final ByteArrayWrapper array = new ByteArrayWrapper(super.newByteArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -187,7 +187,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new ByteArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -196,7 +196,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public IntArray newIntArray(long size, boolean clearOnResize) {
         final IntArrayWrapper array = new IntArrayWrapper(super.newIntArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -213,7 +213,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new IntArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -222,7 +222,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public LongArray newLongArray(long size, boolean clearOnResize) {
         final LongArrayWrapper array = new LongArrayWrapper(super.newLongArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -239,7 +239,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new LongArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -248,7 +248,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public FloatArray newFloatArray(long size, boolean clearOnResize) {
         final FloatArrayWrapper array = new FloatArrayWrapper(super.newFloatArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -265,7 +265,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new FloatArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;
@@ -274,7 +274,7 @@ public class MockBigArrays extends BigArrays {
     @Override
     public DoubleArray newDoubleArray(long size, boolean clearOnResize) {
         final DoubleArrayWrapper array = new DoubleArrayWrapper(super.newDoubleArray(size, clearOnResize), clearOnResize);
-        if (!clearOnResize) {
+        if (clearOnResize == false) {
             array.randomizeContent(0, size);
         }
         return array;
@@ -291,7 +291,7 @@ public class MockBigArrays extends BigArrays {
         } else {
             arr = new DoubleArrayWrapper(array, arr.clearOnResize);
         }
-        if (!arr.clearOnResize) {
+        if (arr.clearOnResize == false) {
             arr.randomizeContent(originalSize, size);
         }
         return arr;

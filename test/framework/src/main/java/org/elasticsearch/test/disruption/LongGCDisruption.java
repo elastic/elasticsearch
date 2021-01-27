@@ -284,7 +284,7 @@ public class LongGCDisruption extends SingleNodeDisruption {
                         }
                         safe = definitelySafe;
                     } finally {
-                        if (!safe) {
+                        if (safe == false) {
                             /*
                              * Do not log before resuming as we might be interrupted while logging in which case we will throw an
                              * interrupted exception and never resume the suspended thread that is in a critical section. Also, logging

@@ -19,12 +19,17 @@
 
 package org.elasticsearch.action;
 
+import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.common.CheckedConsumer;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
 
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.BiFunction;
+import java.util.function.BinaryOperator;
 import java.util.function.Consumer;
 
 /**
@@ -76,6 +81,19 @@ public final class StepListener<Response> extends NotifyOnceListener<Response> {
      */
     public void whenComplete(CheckedConsumer<Response, Exception> onResponse, Consumer<Exception> onFailure) {
         delegate.addListener(ActionListener.wrap(onResponse, onFailure), EsExecutors.newDirectExecutorService(), null);
+    }
+
+    public StepListener<Response> thenCombine(StepListener<Response> other, BinaryOperator<Response> fn) {
+        final StepListener<Response> res = new StepListener<>();
+        final GroupedActionListener<Response> groupedActionListener = new GroupedActionListener<>(
+            res.map(coll -> coll.stream().reduce(fn).get()), 2);
+        delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
+        other.delegate.addListener(groupedActionListener, EsExecutors.newDirectExecutorService(), null);
+        return res;
+    }
+
+    public Future<Response> asFuture() {
+        return delegate;
     }
 
     /**

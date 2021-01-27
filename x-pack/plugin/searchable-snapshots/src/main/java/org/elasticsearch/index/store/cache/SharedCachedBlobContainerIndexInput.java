@@ -16,6 +16,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.StepListener;
 import org.elasticsearch.blobstore.cache.BlobStoreCacheService;
 import org.elasticsearch.blobstore.cache.CachedBlob;
 import org.elasticsearch.common.SuppressForbidden;
@@ -38,7 +39,6 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.util.Locale;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Consumer;
@@ -159,7 +159,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         try {
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
-            final Future<Integer> waitingForRead = sharedCacheFile.readIfAvailableOrPending(
+            final StepListener<Integer> waitingForRead = sharedCacheFile.readIfAvailableOrPending(
                 Tuple.tuple(position, position + length),
                 (channel, pos, relativePos, len) -> {
                     final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
@@ -169,7 +169,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             );
 
             if (waitingForRead != null) {
-                final Integer read = waitingForRead.get();
+                final Integer read = waitingForRead.asFuture().get();
                 assert read == length;
                 assert luceneByteBufLock.getReadHoldCount() == 0;
                 b.position(read); // mark all bytes as accounted for
@@ -300,12 +300,20 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                 + rangeToWrite;
             final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final Future<Integer> populateCacheFuture = sharedCacheFile.populateAndRead(
+            final StepListener<Integer> populateCacheFuture = sharedCacheFile.populateAndRead(
                 rangeToWrite,
                 rangeToRead,
-                (channel, pos, relativePos, len) -> {
-                    return readCacheFile(channel, pos, relativePos, len, b, rangeToRead.v1(), false, luceneByteBufLock, stopAsyncReads);
-                },
+                (channel, pos, relativePos, len) -> readCacheFile(
+                    channel,
+                    pos,
+                    relativePos,
+                    len,
+                    b,
+                    rangeToRead.v1(),
+                    false,
+                    luceneByteBufLock,
+                    stopAsyncReads
+                ),
                 (channel, channelPos, relativePos, l, progressUpdater) -> this.writeCacheFile(
                     channel,
                     channelPos,
@@ -319,7 +327,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final Future<Integer> readFuture = sharedCacheFile.readIfAvailableOrPending(
+                final StepListener<Integer> readFuture = sharedCacheFile.readIfAvailableOrPending(
                     indexCacheMiss,
                     (channel, channelPos, relativePos, len) -> {
                         // TODO: build up byte buffer until it has all elements
@@ -362,7 +370,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                 }
             }
 
-            final int bytesRead = populateCacheFuture.get();
+            final int bytesRead = populateCacheFuture.asFuture().get();
             assert bytesRead == length : bytesRead + " vs " + length;
             assert luceneByteBufLock.getReadHoldCount() == 0;
             b.position(bytesRead); // mark all bytes as accounted for

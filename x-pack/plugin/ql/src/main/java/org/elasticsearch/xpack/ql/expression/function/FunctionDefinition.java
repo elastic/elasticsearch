@@ -14,10 +14,14 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 public class FunctionDefinition {
     /**
      * Converts an {@link UnresolvedFunction} into the a proper {@link Function}.
+     * <p>
+     * Provides the basic signature (unresolved function + runtime configuration object) while
+     * allowing extensions through the vararg extras which subclasses should expand for their
+     * own purposes.
      */
     @FunctionalInterface
     public interface Builder {
-        Function build(UnresolvedFunction uf, boolean distinct, Configuration configuration);
+        Function build(UnresolvedFunction uf, Configuration configuration, Object... extras);
     }
 
     private final String name;
@@ -25,20 +29,11 @@ public class FunctionDefinition {
     private final Class<? extends Function> clazz;
     private final Builder builder;
 
-    /**
-     * Is this a datetime function compatible with {@code EXTRACT}.
-     */
-    // TODO: needs refactoring so that specific function properties (per language) are isolated from QL
-    private final boolean extractViable;
-
-
-    protected FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, boolean dateTime, Builder builder) {
+    protected FunctionDefinition(String name, List<String> aliases, Class<? extends Function> clazz, Builder builder) {
         this.name = name;
         this.aliases = aliases;
         this.clazz = clazz;
         this.builder = builder;
-
-        this.extractViable = dateTime;
     }
 
     public String name() {
@@ -53,15 +48,8 @@ public class FunctionDefinition {
         return clazz;
     }
 
-    public Builder builder() {
+    protected Builder builder() {
         return builder;
-    }
-
-    /**
-     * Is this a datetime function compatible with {@code EXTRACT}.
-     */
-    public boolean extractViable() {
-        return extractViable;
     }
 
     @Override

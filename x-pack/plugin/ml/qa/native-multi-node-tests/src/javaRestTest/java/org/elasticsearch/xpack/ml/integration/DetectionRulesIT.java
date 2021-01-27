@@ -122,7 +122,6 @@ public class DetectionRulesIT extends MlNativeAutodetectIntegTestCase {
         assertThat(records.get(0).getByFieldValue(), equalTo("low"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/ml-cpp/issues/1253")
     public void testScope() throws Exception {
         MlFilter safeIps = MlFilter.builder("safe_ips").setItems("111.111.111.111", "222.222.222.222").build();
         assertThat(putMlFilter(safeIps).getFilter(), equalTo(safeIps));

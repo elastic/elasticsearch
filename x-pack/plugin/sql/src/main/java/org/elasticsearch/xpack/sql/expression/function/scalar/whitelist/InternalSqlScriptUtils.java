@@ -300,6 +300,10 @@ public class InternalSqlScriptUtils extends InternalQlScriptUtils {
         return (String) Formatter.FORMAT.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
     }
 
+    public static String toChar(Object dateTime, String pattern, String tzId) {
+        return (String) Formatter.TO_CHAR.format(asDateTime(dateTime), pattern, ZoneId.of(tzId));
+    }
+
     public static Object timeParse(String dateField, String pattern, String tzId) {
         return Parser.TIME.parse(dateField, pattern, ZoneId.of(tzId));
     }

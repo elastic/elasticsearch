@@ -103,7 +103,7 @@ The API response returns the top 10 documents matching the query in the
 [[run-search-runtime-fields]]
 == Define fields that exist only in a query
 Instead of indexing your data and then searching it, you can define
-<<runtime-search-request,runtime fields>> that only exist as part of your
+<<runtime-search-request,runtime fields>>beta:[] that only exist as part of your
 search query. You specify a `runtime_mappings` section in your search request
 to define the runtime field, which can optionally include a Painless script.
 

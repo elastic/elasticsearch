@@ -75,6 +75,17 @@ public class ObjectMapperMergeTests extends ESTestCase {
         assertEquals("the [enabled] parameter can't be updated for the object mapping [foo]", e.getMessage());
     }
 
+    public void testMergeDisabledField() {
+        // GIVEN a mapping with "foo" field disabled
+        Map<String, Mapper> mappers = new HashMap<>();
+        //the field is disabled, and we are not trying to re-enable it, hence merge should work
+        mappers.put("disabled", new ObjectMapper.Builder("disabled", Version.CURRENT).build(new ContentPath()));
+        RootObjectMapper mergeWith = createRootObjectMapper("type1", true, Collections.unmodifiableMap(mappers));
+
+        RootObjectMapper merged = (RootObjectMapper)rootObjectMapper.merge(mergeWith);
+        assertFalse(((ObjectMapper)merged.getMapper("disabled")).isEnabled());
+    }
+
     public void testMergeEnabled() {
         ObjectMapper mergeWith = createMapping(true, true, true, false);
 
@@ -95,6 +106,20 @@ public class ObjectMapperMergeTests extends ESTestCase {
 
         ObjectMapper result = firstMapper.merge(secondMapper, MapperService.MergeReason.INDEX_TEMPLATE);
         assertFalse(result.isEnabled());
+    }
+
+    public void testMergeDisabledRootMapper() {
+        String type = MapperService.SINGLE_MAPPING_NAME;
+        final RootObjectMapper rootObjectMapper =
+            (RootObjectMapper) new RootObjectMapper.Builder(type, Version.CURRENT).enabled(false).build(new ContentPath());
+        //the root is disabled, and we are not trying to re-enable it, but we do want to be able to add runtime fields
+        final RootObjectMapper mergeWith =
+            new RootObjectMapper.Builder(type, Version.CURRENT).addRuntime(new TestRuntimeField("test", "long")).build(new ContentPath());
+
+        RootObjectMapper merged = (RootObjectMapper) rootObjectMapper.merge(mergeWith);
+        assertFalse(merged.isEnabled());
+        assertEquals(1, merged.runtimeFieldTypes().size());
+        assertEquals("test", merged.runtimeFieldTypes().iterator().next().name());
     }
 
     public void testMergeNested() {

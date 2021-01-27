@@ -49,8 +49,8 @@ public class CoreTestsWithSearchRuntimeFieldsIT extends ESClientYamlSuiteTestCas
      */
     private static class SearchRequestRuntimeFieldTranslater extends CoreTestTranslater {
         @Override
-        protected Map<String, Object> dynamicTemplateFor(String type) {
-            return dynamicTemplateToDisableRuntimeCompatibleFields(type);
+        protected Map<String, Object> dynamicTemplateFor() {
+            return dynamicTemplateToDisableRuntimeCompatibleFields();
         }
 
         @Override

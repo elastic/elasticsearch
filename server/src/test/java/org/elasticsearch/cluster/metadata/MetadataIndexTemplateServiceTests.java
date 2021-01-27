@@ -1114,10 +1114,42 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             List.of("ct_low", "ct_high"), 0L, 1L, null, null, null);
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template");
+        List<Map<String, AliasMetadata>> resolvedAliases =
+            MetadataIndexTemplateService.resolveAliases(state.metadata(), "my-template", true);
 
         // These should be order of precedence, so the index template (a3), then ct_high (a1), then ct_low (a2)
         assertThat(resolvedAliases, equalTo(List.of(a3, a1, a2)));
+    }
+
+    public void testResolveAliasesDataStreams() throws Exception {
+        Map<String, AliasMetadata> a1 = new HashMap<>();
+        a1.put("logs", AliasMetadata.newAliasMetadataBuilder("logs").build());
+
+        // index template can't have data streams and aliases
+        ComposableIndexTemplate it = new ComposableIndexTemplate(List.of("logs-*"),
+            new Template(null, null, a1), null, 0L, 1L, null, new ComposableIndexTemplate.DataStreamTemplate(), null);
+        ClusterState state1 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("1", it).build())
+            .build();
+        Exception e =
+            expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", true));
+        assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
+        // Ignoring validation
+        assertThat(MetadataIndexTemplateService.resolveAliases(state1.metadata(), "1", false), equalTo(List.of(a1)));
+        assertWarnings("template [1] has alias and data stream definitions");
+
+        // index template can't have data streams and a component template with an aliases
+        ComponentTemplate componentTemplate = new ComponentTemplate(new Template(null, null, a1), null, null);
+        it = new ComposableIndexTemplate(List.of("logs-*"), null, List.of("c1"), 0L, 1L, null,
+            new ComposableIndexTemplate.DataStreamTemplate(), null);
+        ClusterState state2 = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put("1", it).put("c1", componentTemplate).build())
+            .build();
+        e = expectThrows(IllegalArgumentException.class, () -> MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", true));
+        assertThat(e.getMessage(), equalTo("template [1] has alias and data stream definitions"));
+        // Ignoring validation
+        assertThat(MetadataIndexTemplateService.resolveAliases(state2.metadata(), "1", false), equalTo(List.of(a1)));
+        assertWarnings("template [1] has alias and data stream definitions");
     }
 
     public void testAddInvalidTemplate() throws Exception {

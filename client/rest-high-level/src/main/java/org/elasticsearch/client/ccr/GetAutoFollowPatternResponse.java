@@ -158,7 +158,7 @@ public final class GetAutoFollowPatternResponse {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            if (!super.equals(o)) return false;
+            if (super.equals(o) == false) return false;
             Pattern pattern = (Pattern) o;
             return Objects.equals(remoteCluster, pattern.remoteCluster) &&
                 Objects.equals(leaderIndexPatterns, pattern.leaderIndexPatterns) &&

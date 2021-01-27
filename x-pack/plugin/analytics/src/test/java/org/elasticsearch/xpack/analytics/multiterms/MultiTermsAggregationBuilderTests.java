@@ -6,14 +6,22 @@
 
 package org.elasticsearch.xpack.analytics.multiterms;
 
+import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDocValueFormat;
+import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTermsTests.randomBucketOrder;
+import static org.hamcrest.Matchers.hasSize;
+
+import java.io.IOException;
+import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -22,16 +30,6 @@ import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfi
 import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.junit.Before;
-
-import java.io.IOException;
-import java.time.ZoneId;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-
-import static org.elasticsearch.test.InternalAggregationTestCase.randomNumericDocValueFormat;
-import static org.elasticsearch.xpack.analytics.multiterms.InternalMultiTermsTests.randomBucketOrder;
-import static org.hamcrest.Matchers.hasSize;
 
 public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCase<MultiTermsAggregationBuilder> {
     String aggregationName;

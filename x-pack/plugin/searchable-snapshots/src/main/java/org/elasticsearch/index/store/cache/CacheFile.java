@@ -40,6 +40,15 @@ public class CacheFile {
         void onEviction(CacheFile evictedCacheFile);
     }
 
+    /**
+     * {@link ModificationListener} can be used to be notified when a {@link CacheFile} needs to be fsynced or is deleted.
+     */
+    public interface ModificationListener {
+        void onCacheFileNeedsFsync(CacheFile cacheFile);
+
+        void onCacheFileDelete(CacheFile cacheFile);
+    }
+
     private static final StandardOpenOption[] OPEN_OPTIONS = new StandardOpenOption[] {
         StandardOpenOption.READ,
         StandardOpenOption.WRITE,
@@ -60,6 +69,8 @@ public class CacheFile {
                 Files.deleteIfExists(file);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
+            } finally {
+                listener.onCacheFileDelete(CacheFile.this);
             }
         }
     };
@@ -78,10 +89,9 @@ public class CacheFile {
     private final AtomicBoolean needsFsync = new AtomicBoolean();
 
     /**
-     * A runnable that is executed every time the {@link #needsFsync} flag is toggled to {@code true}, which indicates that the cache file
-     * has been updated. See {@link #markAsNeedsFSync()} method.
+     * A {@link ModificationListener} that can be used to be notified when the cache file is updated or deleted.
      */
-    private final Runnable needsFsyncRunnable;
+    private final ModificationListener listener;
 
     /**
      * A reference counted holder for the current channel to the physical file backing this cache file instance.
@@ -123,19 +133,19 @@ public class CacheFile {
     @Nullable
     private volatile FileChannelReference channelRef;
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, Runnable onNeedFSync) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length), file, onNeedFSync);
+    public CacheFile(CacheKey cacheKey, long length, Path file, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length), file, listener);
     }
 
-    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, Runnable onNeedFSync) {
-        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, onNeedFSync);
+    public CacheFile(CacheKey cacheKey, long length, Path file, SortedSet<Tuple<Long, Long>> ranges, ModificationListener listener) {
+        this(cacheKey, new SparseFileTracker(file.toString(), length, ranges), file, listener);
     }
 
-    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, Runnable onNeedFSync) {
+    private CacheFile(CacheKey cacheKey, SparseFileTracker tracker, Path file, ModificationListener listener) {
         this.cacheKey = Objects.requireNonNull(cacheKey);
         this.tracker = Objects.requireNonNull(tracker);
         this.file = Objects.requireNonNull(file);
-        this.needsFsyncRunnable = Objects.requireNonNull(onNeedFSync);
+        this.listener = Objects.requireNonNull(listener);
         assert invariant();
     }
 
@@ -361,11 +371,11 @@ public class CacheFile {
                         try {
                             ensureOpen();
                             writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                            gap.onCompletion();
+                            markAsNeedsFSync();
                         } finally {
                             reference.decRef();
                         }
-                        gap.onCompletion();
-                        markAsNeedsFSync();
                     }
 
                     @Override
@@ -469,8 +479,9 @@ public class CacheFile {
      * Marks the current cache file as "fsync needed" and notifies the corresponding listener.
      */
     private void markAsNeedsFSync() {
+        assert refCounter.refCount() > 0 : "file should not be fully released";
         if (needsFsync.getAndSet(true) == false) {
-            needsFsyncRunnable.run();
+            listener.onCacheFileNeedsFsync(this);
         }
     }
 

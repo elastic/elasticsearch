@@ -43,6 +43,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -1448,6 +1449,31 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                             "] could create backing indices that conflict with " + conflicts.size() + " existing index(s) or alias(s)" +
                             " including '" + conflicts.iterator().next() + "'");
                     }
+                }
+
+                // Sanity check, because elsewhere a more user friendly error should have occurred:
+                List<String> conflictingAliases = indicesLookup.values().stream()
+                    .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
+                    .filter(ia -> {
+                        for (IndexMetadata index : ia.getIndices()) {
+                            if (indicesLookup.get(index.getIndex().getName()).getParentDataStream() != null) {
+                                return true;
+                            }
+                        }
+
+                        return false;
+                    })
+                    .map(IndexAbstraction::getName)
+                    .collect(Collectors.toList());
+                if (conflictingAliases.isEmpty() == false) {
+                    // After backporting throw an IllegalStateException instead of logging a warning:
+                    // (in 7.x there might be aliases that refer to backing indices of a data stream and
+                    // throwing an exception here would avoid the cluster from functioning)
+                    String warning = "aliases " + conflictingAliases + " cannot refer to backing indices of data streams";
+                    // log as debug, this method is executed each time a new cluster state is created and could result
+                    // in many logs:
+                    logger.debug(warning);
+                    HeaderWarning.addWarning(warning);
                 }
             }
         }

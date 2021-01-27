@@ -46,7 +46,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
-* Translates cluster privilege names into concrete implementations
+ * Translates cluster privilege names into concrete implementations
  */
 public class ClusterPrivilegeResolver {
     private static final Logger logger = LogManager.getLogger(ClusterPrivilegeResolver.class);

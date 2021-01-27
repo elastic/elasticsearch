@@ -657,7 +657,7 @@ public class IndicesRequestConvertersTests extends ESTestCase {
             resizeRequest.setSettings(Settings.builder().put("index.number_of_shards", 2).build());
         }
         if (resizeType == ResizeType.SHRINK) {
-            resizeRequest.setMaxSingleShardSize(new ByteSizeValue(randomIntBetween(1, 100)));
+            resizeRequest.setMaxSinglePrimarySize(new ByteSizeValue(randomIntBetween(1, 100)));
         }
 
         Request request = function.apply(resizeRequest);

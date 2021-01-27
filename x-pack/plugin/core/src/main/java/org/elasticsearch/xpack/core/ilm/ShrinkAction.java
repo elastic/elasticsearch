@@ -38,7 +38,7 @@ public class ShrinkAction implements LifecycleAction {
     public static final String NAME = "shrink";
     public static final String SHRUNKEN_INDEX_PREFIX = "shrink-";
     public static final ParseField NUMBER_OF_SHARDS_FIELD = new ParseField("number_of_shards");
-    private static final ParseField MAX_SINGLE_SHARD_SIZE = new ParseField("max_single_shard_size");
+    private static final ParseField MAX_SINGLE_PRIMARY_SIZE = new ParseField("max_single_primary_size");
     public static final String CONDITIONAL_SKIP_SHRINK_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
 
@@ -48,29 +48,29 @@ public class ShrinkAction implements LifecycleAction {
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_SHARDS_FIELD);
         PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_SHARD_SIZE.getPreferredName()),
-            MAX_SINGLE_SHARD_SIZE, ObjectParser.ValueType.STRING);
+            (p, c) -> ByteSizeValue.parseBytesSizeValue(p.text(), MAX_SINGLE_PRIMARY_SIZE.getPreferredName()),
+            MAX_SINGLE_PRIMARY_SIZE, ObjectParser.ValueType.STRING);
     }
 
     private Integer numberOfShards;
-    private ByteSizeValue maxSingleShardSize;
+    private ByteSizeValue maxSinglePrimarySize;
 
     public static ShrinkAction parse(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
     }
 
-    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxSingleShardSize) {
-        if (numberOfShards != null && maxSingleShardSize != null) {
-            throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_single_shard_size]");
+    public ShrinkAction(@Nullable Integer numberOfShards, @Nullable ByteSizeValue maxSinglePrimarySize) {
+        if (numberOfShards != null && maxSinglePrimarySize != null) {
+            throw new IllegalArgumentException("Cannot set both [number_of_shards] and [max_single_primary_size]");
         }
-        if (numberOfShards == null && maxSingleShardSize == null) {
-            throw new IllegalArgumentException("Either [number_of_shards] or [max_single_shard_size] must be set");
+        if (numberOfShards == null && maxSinglePrimarySize == null) {
+            throw new IllegalArgumentException("Either [number_of_shards] or [max_single_primary_size] must be set");
         }
-        if (maxSingleShardSize != null) {
-            if (maxSingleShardSize.getBytes() <= 0) {
-                throw new IllegalArgumentException("[max_single_shard_size] must be greater than 0");
+        if (maxSinglePrimarySize != null) {
+            if (maxSinglePrimarySize.getBytes() <= 0) {
+                throw new IllegalArgumentException("[max_single_primary_size] must be greater than 0");
             }
-            this.maxSingleShardSize = maxSingleShardSize;
+            this.maxSinglePrimarySize = maxSinglePrimarySize;
         } else {
             if (numberOfShards <= 0) {
                 throw new IllegalArgumentException("[" + NUMBER_OF_SHARDS_FIELD.getPreferredName() + "] must be greater than 0");
@@ -83,14 +83,14 @@ public class ShrinkAction implements LifecycleAction {
         if (in.getVersion().onOrAfter(Version.V_8_0_0)) {
             if (in.readBoolean()) {
                 this.numberOfShards = in.readVInt();
-                this.maxSingleShardSize = null;
+                this.maxSinglePrimarySize = null;
             } else {
                 this.numberOfShards = null;
-                this.maxSingleShardSize = new ByteSizeValue(in);
+                this.maxSinglePrimarySize = new ByteSizeValue(in);
             }
         } else {
             this.numberOfShards = in.readVInt();
-            this.maxSingleShardSize = null;
+            this.maxSinglePrimarySize = null;
         }
     }
 
@@ -98,8 +98,8 @@ public class ShrinkAction implements LifecycleAction {
         return numberOfShards;
     }
 
-    ByteSizeValue getMaxSingleShardSize() {
-        return maxSingleShardSize;
+    ByteSizeValue getMaxSinglePrimarySize() {
+        return maxSinglePrimarySize;
     }
 
     @Override
@@ -110,7 +110,7 @@ public class ShrinkAction implements LifecycleAction {
             if (hasNumberOfShards) {
                 out.writeVInt(numberOfShards);
             } else {
-                maxSingleShardSize.writeTo(out);
+                maxSinglePrimarySize.writeTo(out);
             }
         } else {
             out.writeVInt(numberOfShards);
@@ -128,8 +128,8 @@ public class ShrinkAction implements LifecycleAction {
         if (numberOfShards != null) {
             builder.field(NUMBER_OF_SHARDS_FIELD.getPreferredName(), numberOfShards);
         }
-        if (maxSingleShardSize != null) {
-            builder.field(MAX_SINGLE_SHARD_SIZE.getPreferredName(), maxSingleShardSize);
+        if (maxSinglePrimarySize != null) {
+            builder.field(MAX_SINGLE_PRIMARY_SIZE.getPreferredName(), maxSinglePrimarySize);
         }
         builder.endObject();
         return builder;
@@ -179,7 +179,7 @@ public class ShrinkAction implements LifecycleAction {
         UpdateSettingsStep readOnlyStep = new UpdateSettingsStep(readOnlyKey, setSingleNodeKey, client, readOnlySettings);
         SetSingleNodeAllocateStep setSingleNodeStep = new SetSingleNodeAllocateStep(setSingleNodeKey, allocationRoutedKey, client);
         CheckShrinkReadyStep checkShrinkReadyStep = new CheckShrinkReadyStep(allocationRoutedKey, shrinkKey);
-        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxSingleShardSize,
+        ShrinkStep shrink = new ShrinkStep(shrinkKey, enoughShardsKey, client, numberOfShards, maxSinglePrimarySize,
             SHRUNKEN_INDEX_PREFIX);
         ShrunkShardsAllocatedStep allocated = new ShrunkShardsAllocatedStep(enoughShardsKey, copyMetadataKey, SHRUNKEN_INDEX_PREFIX);
         CopyExecutionStateStep copyMetadata = new CopyExecutionStateStep(copyMetadataKey, dataStreamCheckBranchingKey,
@@ -211,12 +211,12 @@ public class ShrinkAction implements LifecycleAction {
         if (o == null || getClass() != o.getClass()) return false;
         ShrinkAction that = (ShrinkAction) o;
         return Objects.equals(numberOfShards, that.numberOfShards) &&
-            Objects.equals(maxSingleShardSize, that.maxSingleShardSize);
+            Objects.equals(maxSinglePrimarySize, that.maxSinglePrimarySize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(numberOfShards, maxSingleShardSize);
+        return Objects.hash(numberOfShards, maxSinglePrimarySize);
     }
 
     @Override

@@ -138,26 +138,26 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         targetIndexSettingsBuilder.remove(IndexMetadata.SETTING_HISTORY_UUID);
         final Settings targetIndexSettings = targetIndexSettingsBuilder.build();
         final int numShards;
-        ByteSizeValue maxSingleShardSize = resizeRequest.getMaxSingleShardSize();
+        ByteSizeValue maxSinglePrimarySize = resizeRequest.getMaxSinglePrimarySize();
         if (IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.exists(targetIndexSettings)) {
-            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxSingleShardSize != null) {
-                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_single_shard_size" +
+            if (resizeRequest.getResizeType() == ResizeType.SHRINK && maxSinglePrimarySize != null) {
+                throw new IllegalArgumentException("Cannot set both index.number_of_shards and max_single_primary_size" +
                     " for the target index");
             }
             numShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(targetIndexSettings);
         } else {
             assert resizeRequest.getResizeType() != ResizeType.SPLIT : "split must specify the number of shards explicitly";
             if (resizeRequest.getResizeType() == ResizeType.SHRINK) {
-                if (maxSingleShardSize != null) {
+                if (maxSinglePrimarySize != null) {
                     int sourceIndexShardsNum = sourceMetadata.getNumberOfShards();
                     long sourceIndexStorageBytes = indexStoreStats.getSizeInBytes();
-                    long maxSingleShardSizeBytes = maxSingleShardSize.getBytes();
-                    long minShardsNum = sourceIndexStorageBytes / maxSingleShardSizeBytes;
-                    if (minShardsNum * maxSingleShardSizeBytes < sourceIndexStorageBytes) {
+                    long maxSinglePrimarySizeBytes = maxSinglePrimarySize.getBytes();
+                    long minShardsNum = sourceIndexStorageBytes / maxSinglePrimarySizeBytes;
+                    if (minShardsNum * maxSinglePrimarySizeBytes < sourceIndexStorageBytes) {
                         minShardsNum = minShardsNum + 1;
                     }
                     if (minShardsNum > sourceIndexShardsNum) {
-                        logger.info("By setting max_single_shard_size to [" + maxSingleShardSize.toString() +
+                        logger.info("By setting max_single_primary_size to [" + maxSinglePrimarySize.toString() +
                             "], the target index [" + targetIndexName + "] will contain [" + minShardsNum +
                             "] shards, which will be greater than [" + sourceIndexShardsNum +
                             "] shards of the source index [" + sourceMetadata.getIndex().getName() +

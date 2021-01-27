@@ -82,10 +82,10 @@ public class ResizeRequestBuilder extends AcknowledgedRequestBuilder<ResizeReque
     }
 
     /**
-     * Sets the max single shard size of the target index.
+     * Sets the max single primary shard size of the target index.
      */
-    public ResizeRequestBuilder setMaxSingleShardSize(ByteSizeValue maxSingleShardSize) {
-        this.request.setMaxSingleShardSize(maxSingleShardSize);
+    public ResizeRequestBuilder setMaxSinglePrimarySize(ByteSizeValue maxSinglePrimarySize) {
+        this.request.setMaxSinglePrimarySize(maxSinglePrimarySize);
         return this;
     }
 }

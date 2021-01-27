@@ -10,7 +10,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotAction;
@@ -67,12 +66,6 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseSearchab
             .indices()
             .prepareUpdateSettings(indexName)
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true))
-            .get();
-
-        client().admin()
-            .indices()
-            .prepareUpdateSettings(indexName)
-            .setSettings(Settings.builder().put(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey(), "bla"))
             .get();
     }
 

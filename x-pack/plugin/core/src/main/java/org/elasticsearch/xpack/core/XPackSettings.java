@@ -60,7 +60,7 @@ public class XPackSettings {
     /** Setting for enabling or disabling machine learning. Defaults to true. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",
-        _settings -> Boolean.toString(IS_DARWIN_AARCH64 == false),
+        IS_DARWIN_AARCH64 == false,
         value -> {
             if (value && IS_DARWIN_AARCH64) {
                 throw new IllegalArgumentException("[xpack.ml.enabled] can not be set to [true] on [Mac OS X/aarch64]");

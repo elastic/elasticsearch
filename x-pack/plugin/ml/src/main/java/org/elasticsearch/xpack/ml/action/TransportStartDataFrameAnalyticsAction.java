@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.ml.dataframe.StoredProgress;
 import org.elasticsearch.xpack.ml.dataframe.extractor.DataFrameDataExtractorFactory;
 import org.elasticsearch.xpack.ml.dataframe.extractor.ExtractedFieldsDetectorFactory;
 import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfigProvider;
+import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.extractor.ExtractedFields;
 import org.elasticsearch.xpack.ml.job.JobNodeSelector;
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
@@ -185,7 +186,6 @@ public class TransportStartDataFrameAnalyticsAction
                     new TaskParams(
                         request.getId(),
                         startContext.config.getVersion(),
-                        startContext.progressOnStart,
                         startContext.config.isAllowLazyStart());
                 persistentTasksService.sendStartRequest(
                     MlTasks.dataFrameAnalyticsTaskId(request.getId()),
@@ -484,13 +484,11 @@ public class TransportStartDataFrameAnalyticsAction
 
     private static class StartContext {
         private final DataFrameAnalyticsConfig config;
-        private final List<PhaseProgress> progressOnStart;
         private final DataFrameAnalyticsTask.StartingState startingState;
         private volatile ExtractedFields extractedFields;
 
         private StartContext(DataFrameAnalyticsConfig config, List<PhaseProgress> progressOnStart) {
             this.config = config;
-            this.progressOnStart = progressOnStart;
             this.startingState = DataFrameAnalyticsTask.determineStartingState(config.getId(), progressOnStart);
         }
     }
@@ -671,26 +669,21 @@ public class TransportStartDataFrameAnalyticsAction
                 return;
             }
 
-            ActionListener<StoredProgress> progressListener = ActionListener.wrap(
-                storedProgress -> {
-                    if (storedProgress != null) {
-                        dfaTask.getStatsHolder().setProgressTracker(storedProgress.get());
-                    }
+            // Execute task
+            ActionListener<GetDataFrameAnalyticsStatsAction.Response> statsListener = ActionListener.wrap(
+                statsResponse -> {
+                    GetDataFrameAnalyticsStatsAction.Response.Stats stats = statsResponse.getResponse().results().get(0);
+                    dfaTask.setStatsHolder(
+                        new StatsHolder(stats.getProgress(), stats.getMemoryUsage(), stats.getAnalysisStats(), stats.getDataCounts()));
                     executeTask(dfaTask);
                 },
                 dfaTask::setFailed
             );
 
+            // Get stats to initialize in memory stats tracking
             ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
-                ok -> {
-                    if (analyticsState != DataFrameAnalyticsState.STOPPED) {
-                        // If the state is not stopped it means the task is reassigning and
-                        // we need to update the progress from the last stored progress doc.
-                        searchProgressFromIndex(params.getId(), progressListener);
-                    } else {
-                        progressListener.onResponse(null);
-                    }
-                },
+                ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
+                    new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
                 error -> {
                     Throwable cause = ExceptionsHelper.unwrapCause(error);
                     logger.error(

@@ -47,7 +47,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.INTEGER;
 import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_POINT;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
-import static org.elasticsearch.xpack.sql.type.SqlDataTypes.LONG_ARRAY;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
 import static org.hamcrest.Matchers.is;

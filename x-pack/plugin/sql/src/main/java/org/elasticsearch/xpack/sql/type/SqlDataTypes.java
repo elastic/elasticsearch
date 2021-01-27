@@ -46,6 +46,8 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SCALED_FLOAT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
+import static org.elasticsearch.xpack.ql.type.DataTypes.baseType;
+import static org.elasticsearch.xpack.ql.type.DataTypes.isArray;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
 public class SqlDataTypes {
@@ -300,7 +302,7 @@ public class SqlDataTypes {
     }
 
     public static boolean isDateBased(DataType type) {
-        return type == DATE || type == DATETIME;
+        return type == DATE || baseType(type) == DATETIME;
     }
 
     public static boolean isTimeBased(DataType type) {
@@ -308,15 +310,16 @@ public class SqlDataTypes {
     }
 
     public static boolean isDateOrTimeBased(DataType type) {
-        return isDateBased(type) || isTimeBased(type);
+        return isDateBased(baseType(type)) || isTimeBased(type);
     }
 
     public static boolean isDateOrIntervalBased(DataType type) {
-        return isDateBased(type) || isInterval(type);
+        return isDateBased(baseType(type)) || isInterval(type);
     }
 
     public static boolean isGeo(DataType type) {
-        return type == GEO_POINT || type == GEO_SHAPE || type == SHAPE;
+        DataType dt = baseType(type);
+        return dt == GEO_POINT || dt == GEO_SHAPE || dt == SHAPE;
     }
 
     public static String format(DataType type) {
@@ -324,12 +327,13 @@ public class SqlDataTypes {
     }
 
     public static boolean isFromDocValuesOnly(DataType dataType) {
-        return dataType == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
-                || dataType == DATE         // because of date formats
-                || dataType == DATETIME
-                || dataType == SCALED_FLOAT // because of scaling_factor
-                || dataType == GEO_POINT
-                || dataType == SHAPE;
+        DataType dt = baseType(dataType);
+        return dt == KEYWORD // because of ignore_above. Extracting this from _source wouldn't make sense
+                || dt == DATE         // because of date formats
+                || dt == DATETIME
+                || dt == SCALED_FLOAT // because of scaling_factor
+                || dt == GEO_POINT
+                || dt == SHAPE;
     }
 
     public static boolean areCompatible(DataType left, DataType right) {
@@ -464,7 +468,7 @@ public class SqlDataTypes {
         if (dataType == INTERVAL_MINUTE_TO_SECOND) {
             return ExtTypes.INTERVAL_MINUTE_TO_SECOND;
         }
-        if (dataType instanceof ArrayDataType) {
+        if (isArray(dataType)) {
             return JDBCType.ARRAY;
         }
 
@@ -478,7 +482,8 @@ public class SqlDataTypes {
      * data, this is the length in characters. For datetime datatypes, this is the length in characters of the
      * String representation (assuming the maximum allowed defaultPrecision of the fractional seconds component).
      */
-    public static int defaultPrecision(DataType dataType) {
+    public static int defaultPrecision(DataType dt) {
+        DataType dataType = baseType(dt);
         if (dataType == UNSUPPORTED) {
             return dataType.size();
         }
@@ -598,7 +603,8 @@ public class SqlDataTypes {
         return 0;
     }
 
-    public static int displaySize(DataType dataType) {
+    public static int displaySize(DataType dt) {
+        DataType dataType = baseType(dt);
         if (dataType == UNSUPPORTED) {
             return dataType.size();
         }
@@ -675,9 +681,6 @@ public class SqlDataTypes {
         if (SqlDataTypes.isInterval(dataType)) {
             return defaultPrecision(dataType);
         }
-        if (dataType instanceof ArrayDataType) {
-            return displaySize(((ArrayDataType) dataType).baseType());
-        }
 
         return 0;
     }
@@ -691,7 +694,7 @@ public class SqlDataTypes {
     // https://docs.microsoft.com/en-us/sql/relational-databases/native-client-odbc-date-time/metadata-catalog
     // https://github.com/elastic/elasticsearch/issues/30386
     public static Integer metaSqlDataType(DataType t) {
-        if (t == DATETIME || (t instanceof ArrayDataType && ((ArrayDataType) t).baseType() == DATETIME)) {
+        if (baseType(t) == DATETIME) {
             // ODBC SQL_DATETME
             return Integer.valueOf(9);
         }
@@ -701,7 +704,8 @@ public class SqlDataTypes {
 
     // https://github.com/elastic/elasticsearch/issues/30386
     // https://docs.microsoft.com/en-us/sql/odbc/reference/syntax/sqlgettypeinfo-function
-    public static Integer metaSqlDateTimeSub(DataType t) {
+    public static Integer metaSqlDateTimeSub(DataType dt) {
+        DataType t = baseType(dt);
         if (t == DATETIME) {
             // ODBC SQL_CODE_TIMESTAMP
             return Integer.valueOf(3);
@@ -711,8 +715,6 @@ public class SqlDataTypes {
         } else if (t == TIME) {
             // ODBC SQL_CODE_TIME
             return Integer.valueOf(2);
-        } else if (t instanceof ArrayDataType) {
-            return metaSqlDateTimeSub(((ArrayDataType) t).baseType());
         }
         // ODBC null
         return 0;
@@ -731,14 +733,11 @@ public class SqlDataTypes {
     // since the scale is fixed, minimum and maximum should return the same value
     // hence why this method exists
     private static Short metaSqlSameScale(DataType t) {
-        if (t instanceof ArrayDataType) {
-            return metaSqlSameScale(((ArrayDataType) t).baseType());
-        }
         // TODO: return info for SCALED_FLOATS (should be based on field not type)
         if (t.isInteger()) {
             return Short.valueOf((short) 0);
         }
-        if (t == DATETIME || t == TIME || t.isRational()) {
+        if (baseType(t) == DATETIME || t == TIME || t.isRational()) {
             return Short.valueOf((short) defaultPrecision(t));
         }
         return null;

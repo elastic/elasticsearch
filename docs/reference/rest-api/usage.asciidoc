@@ -64,16 +64,20 @@ GET /_xpack/usage
     }
   },
   "watcher" : {
-    "available" : true,
-    "enabled" : true,
-    "execution" : {
-      "actions" : {
-        "_all" : {
-          "total" : 0,
-          "total_time_in_ms" : 0
+      "available" : true,
+      "enabled" : true,
+      "execution" : {
+        "actions" : {
+          "logging" : {
+            "total" : 0,
+            "total_time_in_ms" : 0
+          },
+          "_all" : {
+            "total" : 0,
+            "total_time_in_ms" : 0
+          }
         }
-      }
-    },
+      },
     "watch" : {
       "input" : {
         "_all" : {
@@ -364,6 +368,7 @@ GET /_xpack/usage
 // TESTRESPONSE[s/ : true/ : $body.$_path/]
 // TESTRESPONSE[s/ : false/ : $body.$_path/]
 // TESTRESPONSE[s/ : (\-)?[0-9]+/ : $body.$_path/]
+// TESTRESPONSE[s/"total" : 0/"total" : $body.watcher.execution.actions.logging.total/]
 // These replacements do a few things:
 // 1. Ignore the contents of the `policy_stats` object because we don't know all
 //    of the policies that will be in it. And because we figure folks don't need

@@ -249,13 +249,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
 
-            indexModule.getIndexSettings()
-                .getScopedSettings()
-                .addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
-                    if (write == false) {
-                        throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
-                    }
-                });
+            indexModule.addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                if (write == false) {
+                    throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
+                }
+            });
         }
     }
 

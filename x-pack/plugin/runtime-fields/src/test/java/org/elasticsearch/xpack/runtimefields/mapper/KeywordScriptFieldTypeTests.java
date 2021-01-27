@@ -178,11 +178,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
-    public void testFuzzyQueryIsExpensive() throws IOException {
+    public void testFuzzyQueryIsExpensive() {
         checkExpensiveQuery(this::randomFuzzyQuery);
     }
 
-    public void testFuzzyQueryInLoop() throws IOException {
+    public void testFuzzyQueryInLoop() {
         checkLoop(this::randomFuzzyQuery);
     }
 
@@ -209,11 +209,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
-    public void testPrefixQueryIsExpensive() throws IOException {
+    public void testPrefixQueryIsExpensive() {
         checkExpensiveQuery(this::randomPrefixQuery);
     }
 
-    public void testPrefixQueryInLoop() throws IOException {
+    public void testPrefixQueryInLoop() {
         checkLoop(this::randomPrefixQuery);
     }
 
@@ -233,17 +233,31 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
                     searcher.count(simpleMappedFieldType().rangeQuery("cat", "d", false, false, null, null, null, mockContext())),
                     equalTo(1)
                 );
+                assertThat(
+                    searcher.count(simpleMappedFieldType().rangeQuery(null, "d", true, false, null, null, null, mockContext())),
+                    equalTo(2)
+                );
+                assertThat(
+                    searcher.count(simpleMappedFieldType().rangeQuery("cat", null, false, true, null, null, null, mockContext())),
+                    equalTo(2)
+                );
+                assertThat(
+                    searcher.count(simpleMappedFieldType().rangeQuery(null, null, true, true, null, null, null, mockContext())),
+                    equalTo(3)
+                );
             }
         }
     }
 
     @Override
     protected Query randomRangeQuery(MappedFieldType ft, QueryShardContext ctx) {
+        boolean lowerNull = randomBoolean();
+        boolean upperNull = randomBoolean();
         return ft.rangeQuery(
-            randomAlphaOfLengthBetween(0, 1000),
-            randomAlphaOfLengthBetween(0, 1000),
-            randomBoolean(),
-            randomBoolean(),
+            lowerNull ? null : randomAlphaOfLengthBetween(0, 1000),
+            upperNull ? null : randomAlphaOfLengthBetween(0, 1000),
+            lowerNull || randomBoolean(),
+            upperNull || randomBoolean(),
             null,
             null,
             null,
@@ -327,11 +341,11 @@ public class KeywordScriptFieldTypeTests extends AbstractScriptFieldTypeTestCase
         }
     }
 
-    public void testWildcardQueryIsExpensive() throws IOException {
+    public void testWildcardQueryIsExpensive() {
         checkExpensiveQuery(this::randomWildcardQuery);
     }
 
-    public void testWildcardQueryInLoop() throws IOException {
+    public void testWildcardQueryInLoop() {
         checkLoop(this::randomWildcardQuery);
     }
 

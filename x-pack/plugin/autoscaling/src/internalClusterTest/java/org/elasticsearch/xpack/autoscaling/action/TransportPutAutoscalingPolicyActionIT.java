@@ -42,7 +42,7 @@ public class TransportPutAutoscalingPolicyActionIT extends AutoscalingIntegTestC
         final AutoscalingPolicy policy = putRandomAutoscalingPolicy();
         final AutoscalingPolicy updatedPolicy = new AutoscalingPolicy(
             policy.name(),
-            new TreeSet<>(randomSubsetOf(List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))),
+            new TreeSet<>(randomSubsetOf(randomIntBetween(1, 5), List.of("data", "data_content", "data_hot", "data_warm", "data_cold"))),
             mutateAutoscalingDeciders(policy.deciders())
         );
         putAutoscalingPolicy(updatedPolicy);

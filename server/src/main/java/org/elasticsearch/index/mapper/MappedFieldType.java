@@ -55,7 +55,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.List;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -198,7 +198,7 @@ public abstract class MappedFieldType {
     /** Build a constant-scoring query that matches all values. The default implementation uses a
      * {@link ConstantScoreQuery} around a {@link BooleanQuery} whose {@link Occur#SHOULD} clauses
      * are generated with {@link #termQuery}. */
-    public Query termsQuery(List<?> values, @Nullable SearchExecutionContext context) {
+    public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (Object value : values) {
             builder.add(termQuery(value, context), Occur.SHOULD);

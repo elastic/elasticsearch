@@ -81,10 +81,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
             });
         }
         assert directory.listAll().length > 0 : "expecting directory listing to be non-empty";
-        assert success
-            || indexShard.routingEntry()
-                .recoverySource()
-                .getType() == RecoverySource.Type.PEER : "loading snapshot must not be called twice unless we are retrying a peer recovery";
+        assert success || indexShard.routingEntry().recoverySource().getType() == RecoverySource.Type.PEER
+            : "loading snapshot must not be called twice unless we are retrying a peer recovery";
     }
 
     private static void associateNewEmptyTranslogWithIndex(IndexShard indexShard) {

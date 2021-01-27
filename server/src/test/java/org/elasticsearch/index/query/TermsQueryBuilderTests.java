@@ -46,7 +46,6 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -216,7 +215,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new int[]{1, 3, 4});
             TermsQueryBuilder copy = (TermsQueryBuilder) assertSerialization(builder);
             List<Object> values = copy.values();
-            assertEquals(Arrays.asList(1L, 3L, 4L), values);
+            assertEquals(Arrays.asList(1, 3, 4), values);
         }
         {
             TermsQueryBuilder builder = new TermsQueryBuilder("foo", new double[]{1, 3, 4});
@@ -295,28 +294,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         builder.writeTo(new BytesStreamOutput(10));
     }
 
-    public void testConversion() {
-        List<Object> list = Arrays.asList();
-        assertSame(Collections.emptyList(), TermsQueryBuilder.convert(list));
-        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList("abc");
-        assertEquals(Arrays.asList(new BytesRef("abc")), TermsQueryBuilder.convert(list));
-        assertEquals(list, TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList("abc", new BytesRef("def"));
-        assertEquals(Arrays.asList(new BytesRef("abc"), new BytesRef("def")), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList("abc", "def"), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42L);
-        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5L, 42L), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-
-        list = Arrays.asList(5, 42d);
-        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convert(list));
-        assertEquals(Arrays.asList(5, 42d), TermsQueryBuilder.convertBack(TermsQueryBuilder.convert(list)));
-    }
-
     public void testTypeField() throws IOException {
         TermsQueryBuilder builder = QueryBuilders.termsQuery("_type", "value1", "value2");
         builder.doToQuery(createSearchExecutionContext());
@@ -344,5 +321,4 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertThat(query, CoreMatchers.instanceOf(TermsQueryBuilder.class));
         return query;
     }
-
 }

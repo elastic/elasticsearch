@@ -39,7 +39,7 @@ public class IcuAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer>
         super(indexSettings, name, settings);
         String method = settings.get("method", "nfkc_cf");
         String mode = settings.get("mode", "compose");
-        if (!"compose".equals(mode) && !"decompose".equals(mode)) {
+        if ("compose".equals(mode) == false && "decompose".equals(mode) == false) {
             throw new IllegalArgumentException("Unknown mode [" + mode + "] in analyzer [" + name +
                 "], expected one of [compose, decompose]");
         }

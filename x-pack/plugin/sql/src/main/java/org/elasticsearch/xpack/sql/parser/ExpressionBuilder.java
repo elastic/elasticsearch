@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.ql.expression.UnresolvedAlias;
 import org.elasticsearch.xpack.ql.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.UnresolvedStar;
 import org.elasticsearch.xpack.ql.expression.function.Function;
+import org.elasticsearch.xpack.ql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction;
-import org.elasticsearch.xpack.ql.expression.function.UnresolvedFunction.ResolutionType;
 import org.elasticsearch.xpack.ql.expression.predicate.Range;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.ql.expression.predicate.fulltext.MultiMatchQueryPredicate;
@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.expression.Exists;
 import org.elasticsearch.xpack.sql.expression.ScalarSubquery;
+import org.elasticsearch.xpack.sql.expression.function.SqlFunctionResolution;
 import org.elasticsearch.xpack.sql.expression.function.scalar.Cast;
 import org.elasticsearch.xpack.sql.expression.literal.interval.Interval;
 import org.elasticsearch.xpack.sql.expression.literal.interval.IntervalDayTime;
@@ -428,7 +429,7 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         ExtractTemplateContext template = ctx.extractTemplate();
         String fieldString = visitIdentifier(template.field);
         return new UnresolvedFunction(source(template), fieldString,
-                UnresolvedFunction.ResolutionType.EXTRACT, singletonList(expression(template.valueExpression())));
+            SqlFunctionResolution.EXTRACT, singletonList(expression(template.valueExpression())));
     }
 
     @Override
@@ -440,11 +441,9 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
 
         switch (ctx.name.getType()) {
             case SqlBaseLexer.CURRENT_TIMESTAMP:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_DATE:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
             case SqlBaseLexer.CURRENT_TIME:
-                return new UnresolvedFunction(source, functionName, ResolutionType.STANDARD, emptyList());
+                return new UnresolvedFunction(source, functionName, FunctionResolutionStrategy.DEFAULT, emptyList());
             default:
                 throw new ParsingException(source, "Unknown function [{}]", functionName);
         }
@@ -455,9 +454,8 @@ abstract class ExpressionBuilder extends IdentifierBuilder {
         FunctionTemplateContext template = ctx.functionTemplate();
         String name = template.functionName().getText();
         boolean isDistinct = template.setQuantifier() != null && template.setQuantifier().DISTINCT() != null;
-        UnresolvedFunction.ResolutionType resolutionType =
-                isDistinct ? UnresolvedFunction.ResolutionType.DISTINCT : UnresolvedFunction.ResolutionType.STANDARD;
-        return new UnresolvedFunction(source(ctx), name, resolutionType, expressions(template.expression()));
+        FunctionResolutionStrategy resolutionStrategy = isDistinct ? SqlFunctionResolution.DISTINCT : FunctionResolutionStrategy.DEFAULT;
+        return new UnresolvedFunction(source(ctx), name, resolutionStrategy, expressions(template.expression()));
     }
 
     @Override

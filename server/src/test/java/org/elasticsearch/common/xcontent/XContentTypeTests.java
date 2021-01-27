@@ -20,8 +20,11 @@ package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -153,5 +156,19 @@ public class XContentTypeTests extends ESTestCase {
         // TODO do not allow parsing unrecognized parameter value https://github.com/elastic/elasticsearch/issues/63080
         // assertThat(XContentType.parseVersion("application/json;compatible-with=123"),
         //   is(nullValue()));
+    }
+
+    public void testParsedMediaTypeImmutability() {
+        ParsedMediaType xContentTypeJson = XContentType.JSON.toParsedMediaType();
+        assertThat(xContentTypeJson.getParameters(), is(anEmptyMap()));
+
+        ParsedMediaType parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, Map.of("charset", "utf-8"));
+        assertThat(xContentTypeJson.getParameters(), is(anEmptyMap()));
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
+
+        Map<String, String> parameters = new HashMap<>(Map.of("charset", "utf-8"));
+        parsedMediaType = ParsedMediaType.parseMediaType(XContentType.JSON, parameters);
+        parameters.clear();
+        assertThat(parsedMediaType.getParameters(), equalTo(Map.of("charset","utf-8")));
     }
 }

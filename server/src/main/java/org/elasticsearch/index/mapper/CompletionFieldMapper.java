@@ -31,6 +31,7 @@ import org.apache.lucene.search.suggest.document.RegexCompletionQuery;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.set.Sets;
@@ -197,7 +198,7 @@ public class CompletionFieldMapper extends FieldMapper {
                     throw new IllegalArgumentException(
                         "Limit of completion field contexts [" + COMPLETION_CONTEXTS_LIMIT + "] has been exceeded");
                 } else {
-                    deprecationLogger.deprecate("excessive_completion_contexts",
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, "excessive_completion_contexts",
                         "You have defined more than [" + COMPLETION_CONTEXTS_LIMIT + "] completion contexts" +
                             " in the mapping for field [" + name() + "]. " +
                             "The maximum allowed number of completion contexts in a mapping will be limited to " +

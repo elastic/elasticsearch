@@ -53,9 +53,6 @@ public abstract class ThreeArgsDateTimeFunction extends ScalarFunction {
 
     @Override
     public final ThreeArgsDateTimeFunction replaceChildren(List<Expression> newChildren) {
-        if (newChildren.size() != 3) {
-            throw new IllegalArgumentException("expected [3] children but received [" + newChildren.size() + "]");
-        }
         return replaceChildren(newChildren.get(0), newChildren.get(1), newChildren.get(2));
     }
 

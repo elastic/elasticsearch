@@ -25,6 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase.HitContext;
@@ -151,6 +152,9 @@ public class FetchSourcePhaseTests extends ESTestCase {
         FetchContext fetchContext = mock(FetchContext.class);
         when(fetchContext.fetchSourceContext()).thenReturn(fetchSourceContext);
         when(fetchContext.getIndexName()).thenReturn("index");
+        SearchExecutionContext sec = mock(SearchExecutionContext.class);
+        when(sec.isSourceEnabled()).thenReturn(source != null);
+        when(fetchContext.getSearchExecutionContext()).thenReturn(sec);
 
         final SearchHit searchHit = new SearchHit(1, null, nestedIdentity, null, null);
 

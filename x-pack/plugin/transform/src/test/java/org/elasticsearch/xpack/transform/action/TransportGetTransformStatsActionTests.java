@@ -45,6 +45,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
             new TransformCheckpointStats(1, null, null, 1, 1),
             new TransformCheckpointStats(2, null, null, 2, 5),
             2,
+            Instant.now(),
             Instant.now()
         );
 
@@ -81,6 +82,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
             new TransformCheckpointStats(1, null, null, 1, 1),
             new TransformCheckpointStats(2, null, null, 2, 5),
             2,
+            Instant.now(),
             Instant.now()
         );
 
@@ -126,6 +128,7 @@ public class TransportGetTransformStatsActionTests extends ESTestCase {
             new TransformCheckpointStats(1, null, null, 1, 1),
             new TransformCheckpointStats(2, null, null, 2, 5),
             2,
+            Instant.now(),
             Instant.now()
         );
 

@@ -80,7 +80,7 @@ public class MultiTests extends AbstractXContentTestCase<Multi> {
                     OneHotEncodingTests.createRandom(),
                     NGramTests.createRandom()
                 )
-            ).limit(randomIntBetween(1, 10)).collect(Collectors.toList());
+            ).limit(randomIntBetween(2, 10)).collect(Collectors.toList());
         }
         return new Multi(processors, isCustom);
     }

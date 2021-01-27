@@ -77,7 +77,7 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isTypeSupportedInVersion;
+import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isAvailable;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
     /**
@@ -437,7 +437,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
 
         private List<NamedExpression> filterUnsupportedProjections(List<NamedExpression> projections) {
             return projections.stream()
-                .filter(p -> p.resolved() == false || isTypeSupportedInVersion(p.dataType(), configuration.version()))
+                .filter(p -> p.resolved() == false || isAvailable(p.dataType(), configuration.version()))
                 .collect(toList());
         }
 

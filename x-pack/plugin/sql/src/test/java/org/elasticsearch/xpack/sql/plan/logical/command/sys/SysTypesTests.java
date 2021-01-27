@@ -52,15 +52,15 @@ public class SysTypesTests extends ESTestCase {
         return sql(sql, randomFrom(Mode.values()), randomBoolean() ? null : SqlVersion.fromId(Version.CURRENT.id));
     }
 
-    static final List<String> ALL_TYPES = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT",
-        "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
-        "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
-        "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
-        "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
-        "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
-
     public void testSysTypes() {
         Tuple<Command, SqlSession> cmd = sql("SYS TYPES");
+
+        List<String> names = asList("BYTE", "LONG", "BINARY", "NULL", "INTEGER", "SHORT", "HALF_FLOAT",
+                "FLOAT", "DOUBLE", "SCALED_FLOAT", "IP", "KEYWORD", "TEXT", "BOOLEAN", "DATE", "TIME", "DATETIME",
+                "INTERVAL_YEAR", "INTERVAL_MONTH", "INTERVAL_DAY", "INTERVAL_HOUR", "INTERVAL_MINUTE", "INTERVAL_SECOND",
+                "INTERVAL_YEAR_TO_MONTH", "INTERVAL_DAY_TO_HOUR", "INTERVAL_DAY_TO_MINUTE", "INTERVAL_DAY_TO_SECOND",
+                "INTERVAL_HOUR_TO_MINUTE", "INTERVAL_HOUR_TO_SECOND", "INTERVAL_MINUTE_TO_SECOND",
+                "GEO_POINT", "GEO_SHAPE", "SHAPE", "UNSUPPORTED", "NESTED", "OBJECT");
 
         cmd.v1().execute(cmd.v2(), wrap(p -> {
             SchemaRowSet r = (SchemaRowSet) p.rowSet();
@@ -75,7 +75,7 @@ public class SysTypesTests extends ESTestCase {
             assertFalse(r.column(11, Boolean.class));
 
             for (int i = 0; i < r.size(); i++) {
-                assertEquals(ALL_TYPES.get(i), r.column(0));
+                assertEquals(names.get(i), r.column(0));
                 r.advanceRow();
             }
 

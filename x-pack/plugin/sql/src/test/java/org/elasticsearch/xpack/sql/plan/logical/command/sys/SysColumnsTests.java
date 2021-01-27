@@ -50,15 +50,16 @@ import static org.mockito.Mockito.when;
 
 public class SysColumnsTests extends ESTestCase {
 
-    static final String CLUSTER_NAME = "cluster";
+    private static final String CLUSTER_NAME = "cluster";
+    private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
+    private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
+    private static final int FIELD_COUNT = 16;
 
     private final SqlParser parser = new SqlParser();
-    private final Map<String, EsField> mapping = loadMapping("mapping-multi-field-with-nested.json", true);
-    private static final int FIELD_COUNT = 16;
 
     public void testSysColumns() {
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null,
+        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null,
                 randomValueOtherThanMany(Mode::isDriver, () -> randomFrom(Mode.values())), SqlVersion.fromId(Version.CURRENT.id));
         // nested fields are ignored
         assertEquals(FIELD_COUNT, rows.size());
@@ -156,7 +157,7 @@ public class SysColumnsTests extends ESTestCase {
     public void sysColumnsInDriverMode(Mode mode) {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", loadMapping("mapping-multi-field-variation.json", true), null, rows, null, mode,
+        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode,
                 SqlVersion.fromId(Version.CURRENT.id));
         assertEquals(FIELD_COUNT, rows.size());
         assertEquals(24, rows.get(0).size());
@@ -358,7 +359,7 @@ public class SysColumnsTests extends ESTestCase {
             // no index specified
             assertEquals("test", r.column(2));
             assertEquals("int", r.column(3));
-        }, mapping);
+        }, MAPPING1);
     }
 
     public void testSysColumnsWithCatalogWildcard() {
@@ -371,7 +372,7 @@ public class SysColumnsTests extends ESTestCase {
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("int", r.column(3));
-        }, mapping);
+        }, MAPPING1);
     }
 
     public void testSysColumnsWithMissingCatalog() {
@@ -384,7 +385,7 @@ public class SysColumnsTests extends ESTestCase {
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("int", r.column(3));
-        }, mapping);
+        }, MAPPING1);
     }
 
     public void testSysColumnsWithNullCatalog() {
@@ -397,12 +398,12 @@ public class SysColumnsTests extends ESTestCase {
             assertEquals(CLUSTER_NAME, r.column(0));
             assertEquals("test", r.column(2));
             assertEquals("int", r.column(3));
-        }, mapping);
+        }, MAPPING1);
     }
 
     public void testSysColumnsTypesInOdbcMode() {
-        executeCommand("SYS COLUMNS", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
-        executeCommand("SYS COLUMNS TABLE LIKE 'test'", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, mapping);
+        executeCommand("SYS COLUMNS", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, MAPPING1);
+        executeCommand("SYS COLUMNS TABLE LIKE 'test'", emptyList(), Mode.ODBC, SysColumnsTests::checkOdbcShortTypes, MAPPING1);
     }
 
     public void testSysColumnsPaginationInOdbcMode() {
@@ -413,7 +414,7 @@ public class SysColumnsTests extends ESTestCase {
     private int executeCommandInOdbcModeAndCountRows(String sql) {
         final SqlConfiguration config = new SqlConfiguration(DateUtils.UTC, randomIntBetween(1, 15), Protocol.REQUEST_TIMEOUT,
             Protocol.PAGE_TIMEOUT, null, Mode.ODBC, null, SqlVersion.fromId(Version.CURRENT.id), null, null, false, false);
-        Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, mapping);
+        Tuple<Command, SqlSession> tuple = sql(sql, emptyList(), config, MAPPING1);
 
         int[] rowCount = {0};
         tuple.v1().execute(tuple.v2(), new ActionListener<>() {

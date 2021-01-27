@@ -447,7 +447,7 @@ public class QueryTranslatorTests extends ESTestCase {
     }
 
     private void testDateRangeWithCurrentFunctions(String function, String pattern, Integer nanoPrecision, ZonedDateTime now) {
-        String operator = randomFrom(new String[] {">", ">=", "<", "<=", "=", "!="});
+        String operator = randomFrom(">", ">=", "<", "<=", "=", "!=");
         LogicalPlan p = plan("SELECT some.string FROM test WHERE date" + operator + function);
         assertTrue(p instanceof Project);
         p = ((Project) p).child();
@@ -489,8 +489,8 @@ public class QueryTranslatorTests extends ESTestCase {
             ZonedDateTime lowerValue,
             ZonedDateTime upperValue
     ) {
-        String lowerOperator = randomFrom(new String[] {"<", "<="});
-        String upperOperator = randomFrom(new String[] {">", ">="});
+        String lowerOperator = randomFrom("<", "<=");
+        String upperOperator = randomFrom(">", ">=");
         // use both date-only interval (1 DAY) and time-only interval (1 second) to cover CURRENT_TIMESTAMP and TODAY scenarios
         String interval = "(INTERVAL 1 DAY + INTERVAL 1 SECOND)";
 

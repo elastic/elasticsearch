@@ -153,7 +153,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
-    public void testDatetime_DateNanos() throws IOException, SQLException {
+    public void testDatetimeWithNanos() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
 
@@ -182,7 +182,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
-    public void testDatetime_DateNanos_OldDrivers() throws IOException, SQLException {
+    public void testDateTimeWithNanosAgainstDriverWithoutSupport() throws IOException, SQLException {
         assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
                 versionSupportsDateNanos());
 

@@ -28,7 +28,7 @@ public final class VersionCompatibilityChecks {
     /**
      * Is the provided {@code dataType} being supported in the provided {@code version}?
      */
-    public static boolean isTypeSupportedInVersion(DataType dataType, SqlVersion version) {
+    public static boolean isAvailable(DataType dataType, SqlVersion version) {
         return true;
     }
 }

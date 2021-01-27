@@ -11,11 +11,16 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Predicate;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toMap;
+import static org.hamcrest.Matchers.anEmptyMap;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class SourceConfigTests extends AbstractSerializingTransformTestCase<SourceConfig> {
 
@@ -71,6 +76,37 @@ public class SourceConfigTests extends AbstractSerializingTransformTestCase<Sour
     @Override
     protected Reader<SourceConfig> instanceReader() {
         return SourceConfig::new;
+    }
+
+    public void testGetRuntimeMappings_EmptyRuntimeMappings() {
+        SourceConfig sourceConfig =
+            new SourceConfig(
+                generateRandomStringArray(10, 10, false, false),
+                QueryConfigTests.randomQueryConfig(),
+                emptyMap());
+        assertThat(sourceConfig.getRuntimeMappings(), is(anEmptyMap()));
+        assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(anEmptyMap()));
+    }
+
+    public void testGetRuntimeMappings_NonEmptyRuntimeMappings() {
+        Map<String, Object> runtimeMappings =
+            new HashMap<>() {{
+                put("field-A", singletonMap("type", "keyword"));
+                put("field-B", singletonMap("script", "some script"));
+                put("field-C", singletonMap("script", "some other script"));
+            }};
+        Map<String, Object> scriptBasedRuntimeMappings =
+            new HashMap<>() {{
+                put("field-B", singletonMap("script", "some script"));
+                put("field-C", singletonMap("script", "some other script"));
+            }};
+        SourceConfig sourceConfig =
+            new SourceConfig(
+                generateRandomStringArray(10, 10, false, false),
+                QueryConfigTests.randomQueryConfig(),
+                runtimeMappings);
+        assertThat(sourceConfig.getRuntimeMappings(), is(equalTo(runtimeMappings)));
+        assertThat(sourceConfig.getScriptBasedRuntimeMappings(), is(equalTo(scriptBasedRuntimeMappings)));
     }
 
     public void testRequiresRemoteCluster() {

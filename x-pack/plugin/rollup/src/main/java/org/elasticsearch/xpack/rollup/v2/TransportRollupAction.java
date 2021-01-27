@@ -320,8 +320,11 @@ public class TransportRollupAction
                 DataStream dataStream = null;
                 if (originalIndex.getParentDataStream() != null) {
                     DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
-                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices());
+                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size() + 1);
+                    // adding rollup indices to the beginning of the list will prevent rollup indices from ever being
+                    // considered a write index
                     backingIndices.add(rollupIndex);
+                    backingIndices.addAll(originalDataStream.getIndices());
                     dataStream = new DataStream(originalDataStream.getName(), originalDataStream.getTimeStampField(),
                         backingIndices, originalDataStream.getGeneration(), null);
                 }

@@ -66,7 +66,7 @@ public class ClusterPrivilegeResolver {
     private static final Set<String> MONITOR_WATCHER_PATTERN = Set.of("cluster:monitor/xpack/watcher/*");
     private static final Set<String> MONITOR_ROLLUP_PATTERN = Set.of("cluster:monitor/xpack/rollup/*");
     private static final Set<String> ALL_CLUSTER_PATTERN = Set.of("cluster:*", "indices:admin/template/*", "indices:admin/index_template/*",
-        "indices:admin/data_stream/*", "indices:admin/xpack/rollup");
+        "indices:admin/data_stream/*");
     private static final Set<String> MANAGE_ML_PATTERN = Set.of("cluster:admin/xpack/ml/*", "cluster:monitor/xpack/ml/*");
     private static final Set<String> MANAGE_TRANSFORM_PATTERN = Set.of("cluster:admin/data_frame/*", "cluster:monitor/data_frame/*",
             "cluster:monitor/transform/*", "cluster:admin/transform/*");
@@ -76,8 +76,7 @@ public class ClusterPrivilegeResolver {
         "cluster:admin/component_template/*");
     private static final Set<String> MANAGE_INGEST_PIPELINE_PATTERN = Set.of("cluster:admin/ingest/pipeline/*");
     private static final Set<String> READ_PIPELINE_PATTERN = Set.of(GetPipelineAction.NAME, SimulatePipelineAction.NAME);
-    private static final Set<String> MANAGE_ROLLUP_PATTERN = Set.of("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*",
-        "indices:admin/xpack/rollup");
+    private static final Set<String> MANAGE_ROLLUP_PATTERN = Set.of("cluster:admin/xpack/rollup/*", "cluster:monitor/xpack/rollup/*");
     private static final Set<String> MANAGE_CCR_PATTERN =
         Set.of("cluster:admin/xpack/ccr/*", ClusterStateAction.NAME, HasPrivilegesAction.NAME);
     private static final Set<String> CREATE_SNAPSHOT_PATTERN = Set.of(CreateSnapshotAction.NAME, SnapshotsStatusAction.NAME + "*",
@@ -223,8 +222,7 @@ public class ClusterPrivilegeResolver {
     public static boolean isClusterAction(String actionName) {
         return actionName.startsWith("cluster:") ||
             actionName.startsWith("indices:admin/template/") ||
-            actionName.startsWith("indices:admin/index_template/") ||
-            actionName.startsWith("indices:admin/xpack/rollup");
+            actionName.startsWith("indices:admin/index_template/");
     }
 
     private static String actionToPattern(String text) {

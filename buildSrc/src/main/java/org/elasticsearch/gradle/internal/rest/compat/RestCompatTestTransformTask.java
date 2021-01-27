@@ -67,7 +67,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         "application/vnd.elasticsearch+json;compatible-with=7"
     );
 
-    private String sourceSetName;
+    private SourceSet sourceSet;
     private static final String REST_TEST_PREFIX = "rest-api-spec/test";
 
     private final PatternFilterable testPatternSet;
@@ -86,15 +86,11 @@ public class RestCompatTestTransformTask extends DefaultTask {
         throw new UnsupportedOperationException();
     }
 
-    @Input
-    public String getSourceSetName() {
-        return sourceSetName;
-    }
 
     @OutputDirectory
     public File getOutputDir() {
         return new File(
-            getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
+            sourceSet
                 .getOutput()
                 .getResourcesDir(),
             REST_TEST_PREFIX
@@ -107,8 +103,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
         return getProject().files(
             new File(
                 new File(
-                    getSourceSet().orElseThrow(() -> new IllegalArgumentException("could not find source set [" + sourceSetName + "]"))
-                        .getOutput()
+                    sourceSet                        .getOutput()
                         .getResourcesDir(),
                     inputResourceParent
                 ),
@@ -138,15 +133,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
         }
     }
 
-    private Optional<SourceSet> getSourceSet() {
-        Project project = getProject();
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
-            ? Optional.empty()
-            : Optional.ofNullable(GradleUtils.getJavaSourceSets(project).findByName(getSourceSetName()));
-    }
-
-    public void setSourceSetName(String sourceSetName) {
-        this.sourceSetName = sourceSetName;
+    public void setSourceSet(SourceSet sourceSet) {
+        this.sourceSet = sourceSet;
     }
 
     public void setInputResourceParent(String inputResourceParent) {

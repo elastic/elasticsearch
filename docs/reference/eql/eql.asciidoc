@@ -497,7 +497,7 @@ To check the progress of an async search, use the <<get-async-eql-search-api,get
 async EQL search API>> with the search ID. Specify how long you'd like for
 complete results in the `wait_for_completion_timeout` parameter. If the {es}
 {security-features} are enabled, only the user who first submitted the EQL
-search can retrieve the search.
+search can retrieve the search using this API.
 
 [source,console]
 ----
@@ -559,7 +559,7 @@ Use the <<delete-async-eql-search-api,delete async EQL search API>> to
 manually delete an async EQL search before the `keep_alive` period ends. If the
 search is still ongoing, {es} cancels the search request. If the {es}
 {security-features} are enabled, only the user who first submitted the EQL
-search can delete the search.
+search can delete the search using this API.
 
 [source,console]
 ----

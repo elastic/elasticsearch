@@ -347,7 +347,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     }
 
     public List<RestHandler> getRestHandlers(
-        Settings nodeSettings,
+        Settings settings,
         RestController restController,
         ClusterSettings clusterSettings,
         IndexScopedSettings indexScopedSettings,

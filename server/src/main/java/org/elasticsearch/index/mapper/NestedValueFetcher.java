@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-public class NestedFieldValueFetcher implements ValueFetcher {
+public class NestedValueFetcher implements ValueFetcher {
 
     private final String nestedFieldPath;
     private final FieldFetcher nestedFieldFetcher;
@@ -41,7 +41,7 @@ public class NestedFieldValueFetcher implements ValueFetcher {
     private final String nestedFieldName;
     private final String[] nestedPathParts;
 
-    public NestedFieldValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher) {
+    public NestedValueFetcher(String nestedField, FieldFetcher nestedFieldFetcher) {
         assert nestedField != null && nestedField.isEmpty() == false;
         this.nestedFieldPath = nestedField;
         this.nestedFieldFetcher = nestedFieldFetcher;

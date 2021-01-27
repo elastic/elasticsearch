@@ -27,7 +27,7 @@ import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NestedFieldValueFetcher;
+import org.elasticsearch.index.mapper.NestedValueFetcher;
 import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -96,7 +96,7 @@ public class FieldFetcher {
                 // add a special ValueFetcher that filters source and collects its subfields
                 fieldContexts.put(
                     nestedFieldPath,
-                    new FieldContext(nestedFieldPath, new NestedFieldValueFetcher(nestedFieldPath, nestedSubFieldFetcher))
+                    new FieldContext(nestedFieldPath, new NestedValueFetcher(nestedFieldPath, nestedSubFieldFetcher))
                 );
             }
         }

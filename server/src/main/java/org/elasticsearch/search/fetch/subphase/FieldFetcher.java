@@ -28,6 +28,7 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedFieldValueFetcher;
+import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -42,6 +43,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * A helper class to {@link FetchFieldsPhase} that's initialized with a list of field patterns to fetch.
@@ -51,7 +53,8 @@ public class FieldFetcher {
 
     public static FieldFetcher create(SearchExecutionContext context,
         Collection<FieldAndFormat> fieldAndFormats) {
-        return create(context, fieldAndFormats, context.nestedMappings());
+        List<String> nestedMappingPaths = context.nestedMappings().stream().map(ObjectMapper::name).collect(Collectors.toList());
+        return create(context, fieldAndFormats, nestedMappingPaths);
     }
 
     static FieldFetcher create(SearchExecutionContext context,

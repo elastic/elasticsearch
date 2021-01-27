@@ -81,7 +81,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * The context used to execute a search request on a shard. It provides access
@@ -297,15 +296,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mappingLookup.hasMappings();
     }
 
-    public List<String> nestedMappings() {
-        if (mappingLookup.objectMappers() == null) {
-            return Collections.emptyList();
-        }
-        return mappingLookup.objectMappers()
-            .keySet()
-            .stream()
-            .filter(s -> getObjectMapper(s).nested().isNested())
-            .collect(Collectors.toList());
+    public List<ObjectMapper> nestedMappings() {
+        return mappingLookup.getNestedMappers();
     }
 
     /**

@@ -30,9 +30,9 @@ public interface AsyncTask {
     boolean isCancelled();
 
     /**
-     * Update the expiration time of the (partial) response.
+     * Extends the expiration time of the (partial) response if needed
      */
-    void setExpirationTime(long expirationTimeMillis);
+    void extendExpirationTime(long newExpirationTimeMillis);
 
     /**
      * Performs necessary checks, cancels the task and calls the runnable upon completion

@@ -62,6 +62,8 @@ public class InferenceStep extends AbstractDataFrameAnalyticsStep {
             return;
         }
 
+        task.getStatsHolder().getDataCountsTracker().resetTestDocsCount();
+
         ActionListener<String> modelIdListener = ActionListener.wrap(
             modelId -> runInference(modelId, listener),
             listener::onFailure

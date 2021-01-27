@@ -3053,6 +3053,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
                     .addOneHot("cat", "cat_column")
                     .build()))
+                .setAlpha(1.0) // <14>
+                .setEtaGrowthRatePerTree(1.0) // <15>
+                .setSoftTreeDepthLimit(1.0) // <16>
+                .setSoftTreeDepthTolerance(1.0) // <17>
+                .setDownsampleFactor(0.5) // <18>
+                .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
                 .build();
             // end::put-data-frame-analytics-classification
 
@@ -3072,6 +3078,12 @@ public class MlClientDocumentationIT extends ESRestHighLevelClientTestCase {
                 .setFeatureProcessors(Arrays.asList(OneHotEncoding.builder("categorical_feature") // <13>
                     .addOneHot("cat", "cat_column")
                     .build()))
+                .setAlpha(1.0) // <14>
+                .setEtaGrowthRatePerTree(1.0) // <15>
+                .setSoftTreeDepthLimit(1.0) // <16>
+                .setSoftTreeDepthTolerance(1.0) // <17>
+                .setDownsampleFactor(0.5) // <18>
+                .setMaxOptimizationRoundsPerHyperparameter(3) // <19>
                 .build();
             // end::put-data-frame-analytics-regression
 

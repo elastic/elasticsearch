@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
+
 /**
  * Helper for dealing with destructive operations and wildcard usage.
  */
@@ -59,21 +61,14 @@ public final class DestructiveOperations {
             if (hasWildcardUsage(aliasesOrIndices[0])) {
                 throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
+        } else if (Arrays.equals(aliasesOrIndices, new String[]{"*", "-*"})) {
+            // do nothing, allowing the use of the "matchNone" pattern, "*,-*",
+            // which will never actually be destructive as it operates on no indices
         } else {
-            boolean matchNoneFound = false;
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
-                    if (aliasesOrIndex.equals("-*")) {
-                        matchNoneFound = true;
-                    } else if (aliasesOrIndex.equals("*")) {
-                        // do nothing
-                    } else {
-                        throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
-                    }
+                    throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
                 }
-            }
-            if (matchNoneFound == false) {
-                throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
         }
     }

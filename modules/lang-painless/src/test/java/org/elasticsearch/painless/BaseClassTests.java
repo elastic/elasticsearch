@@ -131,7 +131,7 @@ public class BaseClassTests extends ScriptTestCase {
                 scriptEngine.compile("testNoArgs3", "_score", NoArgs.CONTEXT, emptyMap()));
         assertEquals("cannot resolve symbol [_score]", e.getMessage());
 
-        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings());
+        String debug = Debugger.toString(NoArgs.class, "int i = 0", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("ACONST_NULL"));
         assertThat(debug, containsString("ARETURN"));
     }
@@ -317,7 +317,7 @@ public class BaseClassTests extends ScriptTestCase {
         scriptEngine.compile("testReturnsVoid1", "map.remove('a')", ReturnsVoid.CONTEXT, emptyMap()).newInstance().execute(map);
         assertEquals(emptyMap(), map);
 
-        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsVoid.class, "int i = 0", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         // The important thing is that this contains the opcode for returning void
         assertThat(debug, containsString(" RETURN"));
         // We shouldn't contain any weird "default to null" logic
@@ -358,7 +358,7 @@ public class BaseClassTests extends ScriptTestCase {
                 scriptEngine.compile("testReturnsPrimitiveBoolean6", "true || false", ReturnsPrimitiveBoolean.CONTEXT, emptyMap())
                         .newInstance().execute());
 
-        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveBoolean.class, "false", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("ICONST_0"));
         // The important thing here is that we have the bytecode for returning an integer instead of an object. booleans are integers.
         assertThat(debug, containsString("IRETURN"));
@@ -426,7 +426,7 @@ public class BaseClassTests extends ScriptTestCase {
         assertEquals(2,
                 scriptEngine.compile("testReturnsPrimitiveInt7", "1 + 1", ReturnsPrimitiveInt.CONTEXT, emptyMap()).newInstance().execute());
 
-        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveInt.class, "1", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("ICONST_1"));
         // The important thing here is that we have the bytecode for returning an integer instead of an object
         assertThat(debug, containsString("IRETURN"));
@@ -493,7 +493,7 @@ public class BaseClassTests extends ScriptTestCase {
                 "testReturnsPrimitiveFloat7", "def d = Double.valueOf(1.1); d", ReturnsPrimitiveFloat.CONTEXT, emptyMap())
                 .newInstance().execute());
 
-        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveFloat.class, "1f", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         assertThat(debug, containsString("FCONST_1"));
         // The important thing here is that we have the bytecode for returning a float instead of an object
         assertThat(debug, containsString("FRETURN"));
@@ -556,7 +556,7 @@ public class BaseClassTests extends ScriptTestCase {
                 scriptEngine.compile("testReturnsPrimitiveDouble12", "1.1 + 6.7", ReturnsPrimitiveDouble.CONTEXT, emptyMap())
                         .newInstance().execute(), 0);
 
-        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings());
+        String debug = Debugger.toString(ReturnsPrimitiveDouble.class, "1", new CompilerSettings(), Whitelist.BASE_WHITELISTS);
         // The important thing here is that we have the bytecode for returning a double instead of an object
         assertThat(debug, containsString("DRETURN"));
 

@@ -16,8 +16,8 @@ with `rollup-`.
 ==== Rollup options
 `config`::
 (Required, integer)
-The Rollup configuration, a more detailed description of the
-Rollup configuration specification can be found <<rollup-api-request-body,here>>.
+The rollup configuration, a more detailed description of the
+rollup configuration specification can be found <<rollup-api-request-body,here>>.
 
 `rollup_policy`::
 (Optional, string)

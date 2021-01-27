@@ -75,8 +75,10 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         }
 
         private void parsePoint(Object point) {
-            GeoUtils.parseGeoPoint(point, scratch, true);
-            emit(scratch.lat(), scratch.lon());
+            if (point != null) {
+                GeoUtils.parseGeoPoint(point, scratch, true);
+                emit(scratch.lat(), scratch.lon());
+            }
         }
     };
 

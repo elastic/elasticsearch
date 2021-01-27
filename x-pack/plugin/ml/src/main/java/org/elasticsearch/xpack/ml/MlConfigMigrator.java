@@ -495,7 +495,7 @@ public class MlConfigMigrator {
                     Settings.builder()
                             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                             .put(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS, "0-1")
-                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), AnomalyDetectorsIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
+                            .put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), MlConfigIndex.CONFIG_INDEX_MAX_RESULTS_WINDOW)
             );
             createIndexRequest.mapping(MlConfigIndex.mapping());
         } catch (Exception e) {

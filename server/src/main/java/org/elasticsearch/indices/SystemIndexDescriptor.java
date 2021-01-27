@@ -242,7 +242,7 @@ public class SystemIndexDescriptor {
         private String indexPattern;
         private String primaryIndex;
         private String description;
-        private XContentBuilder mappingsBuilder = null;
+        private String mappings = null;
         private Settings settings = null;
         private String aliasName = null;
         private int indexFormat = 0;
@@ -267,7 +267,12 @@ public class SystemIndexDescriptor {
         }
 
         public Builder setMappings(XContentBuilder mappingsBuilder) {
-            this.mappingsBuilder = mappingsBuilder;
+            mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
+            return this;
+        }
+
+        public Builder setMappings(String mappings) {
+            this.mappings = mappings;
             return this;
         }
 
@@ -297,7 +302,6 @@ public class SystemIndexDescriptor {
         }
 
         public SystemIndexDescriptor build() {
-            String mappings = mappingsBuilder == null ? null : Strings.toString(mappingsBuilder);
 
             return new SystemIndexDescriptor(
                 indexPattern,

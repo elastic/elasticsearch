@@ -67,9 +67,7 @@ import org.elasticsearch.xpack.core.ml.dataframe.analyses.RequiredField;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.ml.utils.MlIndexAndAlias;
 import org.elasticsearch.xpack.core.ml.utils.PhaseProgress;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsManager;
 import org.elasticsearch.xpack.ml.dataframe.DataFrameAnalyticsTask;
@@ -592,13 +590,11 @@ public class TransportStartDataFrameAnalyticsAction
         private final Client client;
         private final DataFrameAnalyticsManager manager;
         private final DataFrameAnalyticsAuditor auditor;
-        private final IndexTemplateConfig inferenceIndexTemplate;
 
         private volatile ClusterState clusterState;
 
         public TaskExecutor(Settings settings, Client client, ClusterService clusterService, DataFrameAnalyticsManager manager,
-                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver,
-                            IndexTemplateConfig inferenceIndexTemplate) {
+                            DataFrameAnalyticsAuditor auditor, MlMemoryTracker memoryTracker, IndexNameExpressionResolver resolver) {
             super(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
                 MachineLearning.UTILITY_THREAD_POOL_NAME,
                 settings,
@@ -608,7 +604,6 @@ public class TransportStartDataFrameAnalyticsAction
             this.client = Objects.requireNonNull(client);
             this.manager = Objects.requireNonNull(manager);
             this.auditor = Objects.requireNonNull(auditor);
-            this.inferenceIndexTemplate = Objects.requireNonNull(inferenceIndexTemplate);
             clusterService.addListener(event -> clusterState = event.state());
         }
 
@@ -681,22 +676,8 @@ public class TransportStartDataFrameAnalyticsAction
             );
 
             // Get stats to initialize in memory stats tracking
-            ActionListener<Boolean> templateCheckListener = ActionListener.wrap(
-                ok -> executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
-                    new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener),
-                error -> {
-                    Throwable cause = ExceptionsHelper.unwrapCause(error);
-                    logger.error(
-                        new ParameterizedMessage(
-                            "[{}] failed to create internal index template [{}]",
-                            params.getId(),
-                            inferenceIndexTemplate.getTemplateName()),
-                        cause);
-                    dfaTask.setFailed(error);
-                }
-            );
-
-            MlIndexAndAlias.installIndexTemplateIfRequired(clusterState, client, inferenceIndexTemplate, templateCheckListener);
+            executeAsyncWithOrigin(client, ML_ORIGIN, GetDataFrameAnalyticsStatsAction.INSTANCE,
+                new GetDataFrameAnalyticsStatsAction.Request(params.getId()), statsListener);
         }
 
         private void searchProgressFromIndex(String jobId, ActionListener<StoredProgress> listener) {

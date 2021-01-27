@@ -54,6 +54,30 @@ public class IndexMappingTemplateAsserter {
      * @throws IOException On error
      */
     public static void assertMlMappingsMatchTemplates(RestClient client) throws IOException {
+        // Excluding those from stats index as some have been renamed and other removed.
+        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
+        Set<String> statsIndexException = new HashSet<>();
+        statsIndexException.add("properties.hyperparameters.properties.regularization_depth_penalty_multiplier.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_leaf_weight_penalty_multiplier.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_limit.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_tolerance.type");
+        statsIndexException.add("properties.hyperparameters.properties.regularization_tree_size_penalty_multiplier.type");
+
+        // Excluding this from notifications index as `ignore_above` has been added to the `message.raw` field.
+        // The exception is necessary for Full Cluster Restart tests.
+        Set<String> notificationsIndexExceptions = new HashSet<>();
+        notificationsIndexExceptions.add("properties.message.fields.raw.ignore_above");
+
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
+        assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
+        // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
+        assertLegacyTemplateMatchesIndexMappings(client,
+            ".ml-notifications-000001", ".ml-notifications-000001", true, notificationsIndexExceptions, false);
+        // .ml-annotations-6 does not use a template
+        // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
+
+        // TODO - add an endpoint to validate system index mappings - this will have to be done inside the cluster, not by REST calls
+        /*
         // Keys that have been dynamically mapped in the .ml-config index
         // but are not in the template. These can only be fixed with
         // re-index and should be addressed at the next major upgrade.
@@ -69,36 +93,16 @@ public class IndexMappingTemplateAsserter {
         configIndexExceptions.add("properties.model_memory_limit.type");
 
         // renamed to max_trees in 7.7.
-        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
+        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.7
         configIndexExceptions.add("properties.analysis.properties.classification.properties.maximum_number_trees.type");
         configIndexExceptions.add("properties.analysis.properties.regression.properties.maximum_number_trees.type");
-
-        // Excluding those from stats index as some have been renamed and other removed.
-        // These exceptions are necessary for Full Cluster Restart tests where the upgrade version is < 7.x
-        Set<String> statsIndexException = new HashSet<>();
-        statsIndexException.add("properties.hyperparameters.properties.regularization_depth_penalty_multiplier.type");
-        statsIndexException.add("properties.hyperparameters.properties.regularization_leaf_weight_penalty_multiplier.type");
-        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_limit.type");
-        statsIndexException.add("properties.hyperparameters.properties.regularization_soft_tree_depth_tolerance.type");
-        statsIndexException.add("properties.hyperparameters.properties.regularization_tree_size_penalty_multiplier.type");
-
-        // Excluding this from notifications index as `ignore_above` has been added to the `message.raw` field.
-        // The exception is necessary for Full Cluster Restart tests.
-        Set<String> notificationsIndexExceptions = new HashSet<>();
-        notificationsIndexExceptions.add("properties.message.fields.raw.ignore_above");
 
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-config", ".ml-config", false, configIndexExceptions, true);
         // the true parameter means the index may not have been created
         assertLegacyTemplateMatchesIndexMappings(client, ".ml-meta", ".ml-meta", true, Collections.emptySet(), true);
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-stats", ".ml-stats-000001", true, statsIndexException, false);
-        assertLegacyTemplateMatchesIndexMappings(client, ".ml-state", ".ml-state-000001", true, Collections.emptySet(), false);
-        // Depending on the order Full Cluster restart tests are run there may not be an notifications index yet
-        assertLegacyTemplateMatchesIndexMappings(client,
-            ".ml-notifications-000001", ".ml-notifications-000001", true, notificationsIndexExceptions, false);
         assertLegacyTemplateMatchesIndexMappings(client,
             ".ml-inference-000003", ".ml-inference-000003", true, Collections.emptySet(), true);
-        // .ml-annotations-6 does not use a template
-        // .ml-anomalies-shared uses a template but will have dynamically updated mappings as new jobs are opened
+        */
     }
 
     /**

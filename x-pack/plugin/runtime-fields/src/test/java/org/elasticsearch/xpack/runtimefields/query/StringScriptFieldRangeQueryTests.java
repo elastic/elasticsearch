@@ -32,10 +32,30 @@ public class StringScriptFieldRangeQueryTests extends AbstractStringScriptFieldQ
     }
 
     public void testValidate() {
-        expectThrows(IllegalArgumentException.class, () -> new StringScriptFieldRangeQuery(
-            randomScript(), leafFactory, randomAlphaOfLength(5), null, randomAlphaOfLength(3), false, randomBoolean()));
-        expectThrows(IllegalArgumentException.class, () -> new StringScriptFieldRangeQuery(
-            randomScript(), leafFactory, randomAlphaOfLength(5), randomAlphaOfLength(3), null, randomBoolean(), false));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new StringScriptFieldRangeQuery(
+                randomScript(),
+                leafFactory,
+                randomAlphaOfLength(5),
+                null,
+                randomAlphaOfLength(3),
+                false,
+                randomBoolean()
+            )
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new StringScriptFieldRangeQuery(
+                randomScript(),
+                leafFactory,
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(3),
+                null,
+                randomBoolean(),
+                false
+            )
+        );
     }
 
     @Override

@@ -77,7 +77,8 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
                         lowerValue == null ? null : new BytesRef(lowerValue),
                         includeLower,
                         upperValue == null ? null : new BytesRef(upperValue),
-                        includeUpper)
+                        includeUpper
+                    )
                 )
             );
         }

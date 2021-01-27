@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,11 +36,17 @@ public class CommunityIdProcessorTests extends ESTestCase {
     // https://github.com/elastic/beats/blob/master/libbeat/processors/communityid/communityid_test.go
 
     private Map<String, Object> event;
-    private MessageDigest messageDigest;
+    private ThreadLocal<MessageDigest> messageDigest;
 
     @Before
     public void setup() throws Exception {
-        messageDigest = MessageDigest.getInstance("SHA-1");
+        messageDigest = ThreadLocal.withInitial(() -> {
+            try {
+                return MessageDigest.getInstance("SHA-1");
+            } catch (NoSuchAlgorithmException e) {
+                throw new IllegalStateException("unable to obtain SHA-1 hasher", e);
+            }
+        });
         event = buildEvent();
     }
 

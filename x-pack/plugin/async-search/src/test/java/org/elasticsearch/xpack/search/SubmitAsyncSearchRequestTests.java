@@ -98,7 +98,7 @@ public class SubmitAsyncSearchRequestTests extends AbstractWireSerializingTransf
 
     public void testValidateKeepAlive() {
         SubmitAsyncSearchRequest req = new SubmitAsyncSearchRequest();
-        req.setKeepAlive(TimeValue.timeValueSeconds(randomIntBetween(1, 59)));
+        req.setKeepAlive(TimeValue.timeValueMillis(randomIntBetween(1, 999)));
         ActionRequestValidationException exc = req.validate();
         assertNotNull(exc);
         assertThat(exc.validationErrors().size(), equalTo(1));

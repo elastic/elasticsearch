@@ -84,7 +84,7 @@ public class GetUsersResponse {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof GetUsersResponse)) return false;
+        if ((o instanceof GetUsersResponse) == false) return false;
         GetUsersResponse that = (GetUsersResponse) o;
         return Objects.equals(users, that.users);
     }

@@ -1348,7 +1348,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         PainlessMethod getterPainlessMethod = irDotSubShortcutNode.getDecorationValue(IRDMethod.class);
         methodWriter.invokeMethodCall(getterPainlessMethod);
 
-        if (!getterPainlessMethod.returnType.equals(getterPainlessMethod.javaMethod.getReturnType())) {
+        if (getterPainlessMethod.returnType.equals(getterPainlessMethod.javaMethod.getReturnType()) == false) {
             methodWriter.checkCast(MethodWriter.getType(getterPainlessMethod.returnType));
         }
     }

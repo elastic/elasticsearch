@@ -64,8 +64,9 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory implemen
     private void parseRules(List<String> rules, NormalizeCharMap.Builder map) {
         for (String rule : rules) {
             Matcher m = rulePattern.matcher(rule);
-            if (!m.find())
+            if (m.find() == false) {
                 throw new RuntimeException("Invalid Mapping Rule : [" + rule + "]");
+            }
             String lhs = parseString(m.group(1).trim());
             String rhs = parseString(m.group(2).trim());
             if (lhs == null || rhs == null)

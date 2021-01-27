@@ -88,7 +88,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
-                } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
+                } else if (token(aggregationName, currentFieldName, token, parser, otherOptions) == false) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
@@ -103,7 +103,7 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "]. " +
                             "Multi-field aggregations do not support scripts.");
 
-                } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
+                } else if (token(aggregationName, currentFieldName, token, parser, otherOptions) == false) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
@@ -122,11 +122,11 @@ public abstract class ArrayValuesSourceParser<VS extends ValuesSource> implement
                                 "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                         }
                     }
-                } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
+                } else if (token(aggregationName, currentFieldName, token, parser, otherOptions) == false) {
                     throw new ParsingException(parser.getTokenLocation(),
                         "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
                 }
-            } else if (!token(aggregationName, currentFieldName, token, parser, otherOptions)) {
+            } else if (token(aggregationName, currentFieldName, token, parser, otherOptions) == false) {
                 throw new ParsingException(parser.getTokenLocation(),
                     "Unexpected token " + token + " [" + currentFieldName + "] in [" + aggregationName + "].");
             }

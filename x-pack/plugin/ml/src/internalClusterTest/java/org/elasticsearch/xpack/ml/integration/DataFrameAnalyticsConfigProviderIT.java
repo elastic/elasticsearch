@@ -354,7 +354,7 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         builder.addTask(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),
             MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME,
-            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, emptyList(), false),
+            new StartDataFrameAnalyticsAction.TaskParams(analyticsId, Version.CURRENT, false),
             new PersistentTasksCustomMetadata.Assignment("node", "test assignment"));
         builder.updateTaskState(
             MlTasks.dataFrameAnalyticsTaskId(analyticsId),

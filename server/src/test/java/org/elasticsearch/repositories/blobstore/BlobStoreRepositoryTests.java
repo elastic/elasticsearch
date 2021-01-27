@@ -242,6 +242,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
             client.admin().cluster().preparePutRepository(repositoryName)
                                     .setType(REPO_TYPE)
                                     .setSettings(repoSettings)
+                                    .setVerify(false) // prevent eager reading of repo data
                                     .get();
         assertThat(putRepositoryResponse.isAcknowledged(), equalTo(true));
 

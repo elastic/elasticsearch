@@ -22,29 +22,25 @@ import java.util.List;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.watcher.transform.chain.ChainTransform.TYPE;
 
+@SuppressWarnings("rawtypes")
 public class ExecutableChainTransform extends ExecutableTransform<ChainTransform, ChainTransform.Result> {
 
-    @SuppressWarnings("rawtypes")
     private final List<ExecutableTransform> transforms;
 
-    @SuppressWarnings("rawtypes")
     public ExecutableChainTransform(ChainTransform transform, Logger logger, ExecutableTransform... transforms) {
         this(transform, logger, Arrays.asList(transforms));
     }
 
-    @SuppressWarnings("rawtypes")
     public ExecutableChainTransform(ChainTransform transform, Logger logger, List<ExecutableTransform> transforms) {
         super(transform, logger);
         this.transforms = Collections.unmodifiableList(transforms);
     }
 
-    @SuppressWarnings("rawtypes")
     public List<ExecutableTransform> executableTransforms() {
         return transforms;
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
     public ChainTransform.Result execute(WatchExecutionContext ctx, Payload payload) {
         List<Transform.Result> results = new ArrayList<>();
         try {
@@ -55,7 +51,6 @@ public class ExecutableChainTransform extends ExecutableTransform<ChainTransform
         }
     }
 
-    @SuppressWarnings("rawtypes")
     ChainTransform.Result doExecute(WatchExecutionContext ctx, Payload payload, List<Transform.Result> results) throws IOException {
         for (ExecutableTransform transform : transforms) {
             Transform.Result result = transform.execute(ctx, payload);

@@ -77,8 +77,8 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a map
      */
-    public Map<?, ?> getAsMap() {
-        return (Map<?, ?>) data();
+    public Map<String, Object> getAsMap() {
+        return (Map<String, Object>) data();
     }
 
     /**
@@ -91,7 +91,7 @@ public class XContentSource implements ToXContent {
     /**
      * @return The source as a list
      */
-    public List<?> getAsList() { return ((List<?>) data());
+    public List<Object> getAsList() { return ((List<Object>) data());
     }
 
     /**

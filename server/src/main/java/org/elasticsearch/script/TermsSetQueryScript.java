@@ -51,7 +51,7 @@ public abstract class TermsSetQueryScript {
                                 + "is deprecated in favor of directly accessing [doc].");
                 return value;
             },
-            "_source", value -> ((SourceLookup)value).loadSourceIfNeeded()
+            "_source", value -> ((SourceLookup)value).source()
     );
 
     /**

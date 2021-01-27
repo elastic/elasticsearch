@@ -122,7 +122,7 @@ public abstract class AbstractAsyncBulkByScrollAction<Request extends AbstractBu
         this.task = task;
         this.scriptService = scriptService;
         this.sslConfig = sslConfig;
-        if (!task.isWorker()) {
+        if (task.isWorker() == false) {
             throw new IllegalArgumentException("Given task [" + task.getId() + "] must have a child worker");
         }
         this.worker = task.getWorkerState();

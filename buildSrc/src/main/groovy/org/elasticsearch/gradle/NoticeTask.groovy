@@ -124,7 +124,7 @@ class NoticeTask extends DefaultTask {
                     if (line.contains('*/')) {
                         inNotice = false
 
-                        if (!isPackageInfo) {
+                        if (isPackageInfo == false) {
                             break
                         }
                     } else if (inNotice) {

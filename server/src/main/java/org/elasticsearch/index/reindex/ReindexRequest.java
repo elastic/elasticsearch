@@ -28,6 +28,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
@@ -373,7 +374,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             }
             String[] types = extractStringArray(source, "type");
             if (types != null) {
-                deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.TYPES, "reindex_with_types", TYPES_DEPRECATION_MESSAGE);
                 request.getSearchRequest().types(types);
             }
             request.setRemoteInfo(buildRemoteInfo(source));
@@ -389,7 +390,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         ObjectParser<IndexRequest, Void> destParser = new ObjectParser<>("dest");
         destParser.declareString(IndexRequest::index, new ParseField("index"));
         destParser.declareString((request, type) -> {
-            deprecationLogger.deprecate("reindex_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "reindex_with_types", TYPES_DEPRECATION_MESSAGE);
             request.type(type);
         }, new ParseField("type"));
         destParser.declareString(IndexRequest::routing, new ParseField("routing"));

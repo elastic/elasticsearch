@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -103,7 +104,7 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             final Map<String, Object> source = parser.map();
 
             if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.deprecate("deprecated_settings", DEPRECATED_USAGE);
+                deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_settings", DEPRECATED_USAGE);
 
                 settings = (List<String>) source.get("deprecated_settings");
             } else {

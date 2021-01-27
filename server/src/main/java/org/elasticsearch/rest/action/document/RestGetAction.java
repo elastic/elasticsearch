@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -66,7 +67,7 @@ public class RestGetAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         GetRequest getRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("get_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "get_with_types", TYPES_DEPRECATION_MESSAGE);
             getRequest = new GetRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
             getRequest = new GetRequest(request.param("index"), request.param("id"));

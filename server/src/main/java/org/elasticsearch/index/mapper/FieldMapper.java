@@ -19,6 +19,23 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.document.Field;
+import org.elasticsearch.Version;
+import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
+import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
+import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,22 +53,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
-
-import org.apache.lucene.document.Field;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.TriFunction;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.support.AbstractXContentParser;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.FieldNamesFieldMapper.FieldNamesFieldType;
-import org.elasticsearch.index.mapper.Mapper.TypeParser.ParserContext;
 
 public abstract class FieldMapper extends Mapper implements Cloneable {
     public static final Setting<Boolean> IGNORE_MALFORMED_SETTING =
@@ -969,14 +970,15 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
-                    deprecationLogger.deprecate(propName, "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
+                        "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName, name, parameter.name);
                 } else {
                     parameter = paramsMap.get(propName);
                 }
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
-                        deprecationLogger.deprecate(propName,
+                        deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future", propName, type);
                         iterator.remove();
                         continue;
@@ -986,12 +988,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (Objects.equals("boost", propName)) {
                     deprecationLogger.deprecate(
+                        DeprecationCategory.MAPPINGS,
                         "boost",
                         "Parameter [boost] on field [{}] is deprecated and will be removed in 8.0",
                         name);
                 }
                 if (parameter.deprecated) {
-                    deprecationLogger.deprecate(propName,
+                    deprecationLogger.deprecate(DeprecationCategory.MAPPINGS, propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName);
                 }

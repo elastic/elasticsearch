@@ -25,6 +25,7 @@ import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService;
@@ -87,7 +88,7 @@ public class RestBulkAction extends BaseRestHandler {
         if (defaultType == null) {
             defaultType = MapperService.SINGLE_MAPPING_NAME;
         } else {
-            deprecationLogger.deprecate("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
         }
         String defaultRouting = request.param("routing");
         FetchSourceContext defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);

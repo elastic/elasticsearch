@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.watcher.rest.action;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.RestRequest;
@@ -60,7 +61,8 @@ public class RestWatcherStatsAction extends WatcherRestHandler {
         }
 
         if (metrics.contains("pending_watches")) {
-            deprecationLogger.deprecate("pending_watches", "The pending_watches parameter is deprecated, use queued_watches instead");
+            deprecationLogger.deprecate(DeprecationCategory.API, "pending_watches",
+                "The pending_watches parameter is deprecated, use queued_watches instead");
         }
 
 

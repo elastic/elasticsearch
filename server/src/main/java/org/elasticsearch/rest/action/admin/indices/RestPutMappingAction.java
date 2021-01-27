@@ -23,6 +23,7 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -77,7 +78,7 @@ public class RestPutMappingAction extends BaseRestHandler {
         final boolean includeTypeName = request.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER,
             DEFAULT_INCLUDE_TYPE_NAME_POLICY);
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "put_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         PutMappingRequest putMappingRequest = putMappingRequest(Strings.splitStringByCommaToArray(request.param("index")));

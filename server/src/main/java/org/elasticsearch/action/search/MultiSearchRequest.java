@@ -28,6 +28,7 @@ import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
@@ -195,7 +196,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             // support first line with \n
             if (nextMarker == 0) {
                 from = nextMarker + 1;
-                deprecationLogger.deprecate("multi_search_empty_first_line",
+                deprecationLogger.deprecate(DeprecationCategory.API, "multi_search_empty_first_line",
                     "support for empty first line before any action metadata in msearch API is deprecated and " +
                     "will be removed in the next major version");
                 continue;

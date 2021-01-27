@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -122,7 +123,8 @@ public class PercentilesAggregationBuilder extends AbstractPercentilesAggregatio
             }
 
             if (percent == previousPercent) {
-                deprecationLogger.deprecate("percents", "percent [{}] has been specified more than once, percents must be unique", percent);
+                deprecationLogger.deprecate(DeprecationCategory.AGGREGATIONS, "percents",
+                   "percent [{}] has been specified more than once, percents must be unique", percent);
             }
             previousPercent = percent;
         }

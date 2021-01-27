@@ -33,6 +33,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.joda.Joda;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.time.DateFormatter;
@@ -277,7 +278,8 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return fieldType.parse(nullValue.getValue());
             } catch (Exception e) {
-                DEPRECATION_LOGGER.deprecate("date_mapper_null_field", "Error parsing [" + nullValue.getValue()
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "date_mapper_null_field",
+                    "Error parsing [" + nullValue.getValue()
                         + "] as date in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                 return null;
             }

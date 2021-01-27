@@ -30,6 +30,7 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.parsers.ShapeParser;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -253,7 +254,7 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
         GeoShapeQueryBuilder builder;
         if (pgsqp.type != null) {
-            deprecationLogger.deprecate("geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "geo_share_query_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         if (pgsqp.shape != null) {

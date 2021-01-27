@@ -24,6 +24,7 @@ import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -60,7 +61,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
         String unicodeSetFilter = settings.get("unicodeSetFilter");
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             if (unicodeSetFilter != null) {
-                deprecationLogger.deprecate("icu_normalizer_unicode_set_filter",
+                deprecationLogger.deprecate(DeprecationCategory.ANALYSIS, "icu_normalizer_unicode_set_filter",
                     "[unicodeSetFilter] has been deprecated in favor of [unicode_set_filter]");
             } else {
                 unicodeSetFilter = settings.get("unicode_set_filter");

@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsRespon
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -80,7 +81,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
                 " is set to true.");
         }
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)) {
-            deprecationLogger.deprecate("get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "get_field_mapping_with_types", TYPES_DEPRECATION_MESSAGE);
         }
 
         GetFieldMappingsRequest getMappingsRequest = new GetFieldMappingsRequest();
@@ -88,7 +89,7 @@ public class RestGetFieldMappingAction extends BaseRestHandler {
         getMappingsRequest.indicesOptions(IndicesOptions.fromRequest(request, getMappingsRequest.indicesOptions()));
 
         if (request.hasParam("local")) {
-            deprecationLogger.deprecate("get_field_mapping_local",
+            deprecationLogger.deprecate(DeprecationCategory.API, "get_field_mapping_local",
                 "Use [local] in get field mapping requests is deprecated. "
                     + "The parameter will be removed in the next major version");
         }

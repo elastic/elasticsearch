@@ -83,7 +83,7 @@ public class JsonLoggerTests extends ESTestCase {
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "someId");
             final DeprecationLogger testLogger = DeprecationLogger.getLogger("test");
-            testLogger.deprecate("someKey", "deprecated message1");
+            testLogger.deprecate(DeprecationCategory.OTHER, "someKey", "deprecated message1");
 
             final Path path = PathUtils.get(
                 System.getProperty("es.logs.base_path"),
@@ -116,10 +116,10 @@ public class JsonLoggerTests extends ESTestCase {
 
     public void testDeprecatedMessageWithoutXOpaqueId() throws IOException {
         final Logger testLogger = LogManager.getLogger("test");
-        testLogger.info(new DeprecatedMessage("key", "someId", "deprecated message1"));
-        testLogger.info(new DeprecatedMessage("key", "", "deprecated message2"));
+        testLogger.info(new DeprecatedMessage(DeprecationCategory.OTHER, "key", "someId", "deprecated message1"));
+        testLogger.info(new DeprecatedMessage(DeprecationCategory.OTHER, "key", "", "deprecated message2"));
         // This message will be filtered out by the RateLimitingFilter because an empty ID is the same as a null one.
-        testLogger.info(new DeprecatedMessage("key", null, "deprecated message3"));
+        testLogger.info(new DeprecatedMessage(DeprecationCategory.OTHER, "key", null, "deprecated message3"));
         testLogger.info("deprecated message4");
 
         final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -279,8 +279,8 @@ public class JsonLoggerTests extends ESTestCase {
         // For the same key and X-Opaque-ID deprecation should be once
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID1");
-            deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(System.getProperty("es.logs.base_path"),
@@ -307,8 +307,8 @@ public class JsonLoggerTests extends ESTestCase {
         //continuing with message1-ID1 in logs already, adding a new deprecation log line with message2-ID2
         withThreadContext(threadContext -> {
             threadContext.putHeader(Task.X_OPAQUE_ID, "ID2");
-            deprecationLogger.deprecate("key", "message1");
-            deprecationLogger.deprecate("key", "message2");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message1");
+            deprecationLogger.deprecate(DeprecationCategory.OTHER, "key", "message2");
             assertWarnings("message1", "message2");
 
             final Path path = PathUtils.get(

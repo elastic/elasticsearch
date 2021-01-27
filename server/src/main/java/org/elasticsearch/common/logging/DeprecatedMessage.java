@@ -22,7 +22,9 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 
+import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * A logger message used by {@link DeprecationLogger}.
@@ -31,12 +33,18 @@ import java.util.Map;
 public class DeprecatedMessage extends ESLogMessage {
     public static final String X_OPAQUE_ID_FIELD_NAME = "x-opaque-id";
 
-    public DeprecatedMessage(String key, String xOpaqueId, String messagePattern, Object... args) {
-        super(fieldMap(key, xOpaqueId), messagePattern, args);
+    public DeprecatedMessage(DeprecationCategory category, String key, String xOpaqueId, String messagePattern, Object... args) {
+        super(fieldMap(category, key, xOpaqueId), messagePattern, args);
     }
 
-    private static Map<String, Object> fieldMap(String key, String xOpaqueId) {
+    private static Map<String, Object> fieldMap(DeprecationCategory category, String key, String xOpaqueId) {
         final MapBuilder<String, Object> builder = MapBuilder.newMapBuilder();
+
+        // The fields below are emitted using ECS keys in `EcsJsonLayout`
+
+        Objects.requireNonNull(category, "category cannot be null");
+        builder.put("category", category.name().toLowerCase(Locale.ROOT));
+
         if (Strings.isNullOrEmpty(key) == false) {
             builder.put("key", key);
         }

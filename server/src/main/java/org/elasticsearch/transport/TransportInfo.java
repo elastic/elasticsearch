@@ -22,6 +22,7 @@ package org.elasticsearch.transport;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.transport.BoundTransportAddress;
@@ -102,7 +103,7 @@ public class TransportInfo implements ReportingService.Info {
             if (cnameInPublishAddress) {
                 publishAddressString = hostString + '/' + publishAddress.toString();
             } else {
-                deprecationLogger.deprecate("cname_in_publish_address",
+                deprecationLogger.deprecate(DeprecationCategory.SETTINGS, "cname_in_publish_address",
                         propertyName + " was printed as [ip:port] instead of [hostname/ip:port]. "
                                 + "This format is deprecated and will change to [hostname/ip:port] in a future version. "
                                 + "Use -Des.transport.cname_in_publish_address=true to enforce non-deprecated formatting."

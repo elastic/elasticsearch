@@ -33,6 +33,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.DeprecationHandler;
@@ -336,7 +337,7 @@ public class PutIndexTemplateRequest extends MasterNodeRequest<PutIndexTemplateR
             if (name.equals("template")) {
                 // This is needed to allow for bwc (beats, logstash) with pre-5.0 templates (#21009)
                 if(entry.getValue() instanceof String) {
-                    deprecationLogger.deprecate("put_index_template_field",
+                    deprecationLogger.deprecate(DeprecationCategory.API, "put_index_template_field",
                         "Deprecated field [template] used, replaced by [index_patterns]");
                     patterns(Collections.singletonList((String) entry.getValue()));
                 }

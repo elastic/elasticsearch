@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -63,7 +64,7 @@ public class RestUpdateAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         UpdateRequest updateRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("update_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "update_with_types", TYPES_DEPRECATION_MESSAGE);
             updateRequest = new UpdateRequest(request.param("index"),
                 request.param("type"),
                 request.param("id"));

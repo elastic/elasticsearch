@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
@@ -257,7 +258,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         if (S3ClientSettings.checkDeprecatedCredentials(metadata.settings())) {
             // provided repository settings
-            deprecationLogger.deprecate("s3_repository_secret_settings",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "s3_repository_secret_settings",
                     "Using s3 access/secret key from repository settings. Instead "
                     + "store these in named clients and the elasticsearch keystore for secure settings.");
         }

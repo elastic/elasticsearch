@@ -13,6 +13,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -75,7 +76,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser((n, c) -> {
-        deprecationLogger.deprecate("sparse_vector", DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.API, "sparse_vector", DEPRECATION_MESSAGE);
         return new Builder(n, c.indexVersionCreated());
     });
 

@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -101,7 +102,7 @@ public class RestIndicesAction extends AbstractCatAction {
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final IndicesOptions indicesOptions = IndicesOptions.fromRequest(request, IndicesOptions.strictExpand());
         if (request.hasParam("local")) {
-            DEPRECATION_LOGGER.deprecate("local", LOCAL_DEPRECATED_MESSAGE);
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "local", LOCAL_DEPRECATED_MESSAGE);
         }
         final boolean local = request.paramAsBoolean("local", false);
         final TimeValue masterNodeTimeout = request.paramAsTime("master_timeout", DEFAULT_MASTER_NODE_TIMEOUT);

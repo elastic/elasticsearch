@@ -21,6 +21,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.LazyInitializable;
 
@@ -1662,7 +1663,8 @@ public class DateFormatters {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             deprecationLogger.getOrCompute()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate(DeprecationCategory.PARSING, "camelCaseDateFormat", msg, formatName.getCamelCaseName(),
+                    formatName.getSnakeCaseName());
         }
 
         if (FormatNames.ISO8601.matches(input)) {
@@ -1743,7 +1745,8 @@ public class DateFormatters {
             return WEEK_DATE_TIME_NO_MILLIS;
         } else if (FormatNames.WEEK_YEAR.matches(input)) {
             deprecationLogger.getOrCompute()
-                .deprecate("week_year_format_name", "Format name \"week_year\" is deprecated and will be removed in a future version. " +
+                .deprecate(DeprecationCategory.PARSING,
+                    "week_year_format_name", "Format name \"week_year\" is deprecated and will be removed in a future version. " +
                     "Use \"weekyear\" format instead");
             return WEEK_YEAR;
         } else if (FormatNames.WEEKYEAR.matches(input)) {

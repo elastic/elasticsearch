@@ -66,8 +66,9 @@ public class EcsJsonLayout extends AbstractStringLayout {
         map.put("ecs.version", inQuotes(ECS_VERSION));
 
         Map<String, String> ecsKeyReplacements = new HashMap<>();
-        ecsKeyReplacements.put("x-opaque-id", "elasticsearch.http.request.x_opaque_id");
+        ecsKeyReplacements.put("category", "elasticsearch.event.category");
         ecsKeyReplacements.put("key", "event.code");
+        ecsKeyReplacements.put("x-opaque-id", "elasticsearch.http.request.x_opaque_id");
 
         for (String key : esMessageFields) {
             map.put(ecsKeyReplacements.getOrDefault(key, key), inQuotes("%ESMessageField{" + key + "}"));

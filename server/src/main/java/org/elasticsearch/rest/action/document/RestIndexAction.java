@@ -25,6 +25,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -129,7 +130,7 @@ public class RestIndexAction extends BaseRestHandler {
         IndexRequest indexRequest;
         final String type = request.param("type");
         if (type != null && type.equals(MapperService.SINGLE_MAPPING_NAME) == false) {
-            deprecationLogger.deprecate("index_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "index_with_types", TYPES_DEPRECATION_MESSAGE);
             indexRequest = new IndexRequest(request.param("index"), type, request.param("id"));
         } else {
             indexRequest = new IndexRequest(request.param("index"));

@@ -24,6 +24,7 @@ import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -72,7 +73,7 @@ public class RestGetIndicesAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         // starting with 7.0 we don't include types by default in the response to GET requests
         if (request.hasParam(INCLUDE_TYPE_NAME_PARAMETER) && request.method().equals(GET)) {
-            deprecationLogger.deprecate("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
         }
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);

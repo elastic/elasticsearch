@@ -22,6 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
@@ -130,7 +131,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                         throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                     }
                     else {
-                        DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
+                        DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, name(), "Token filter [" + name()
                             + "] will not be usable to parse synonyms after v7.0");
                         return this;
                     }
@@ -157,7 +158,7 @@ public final class PreConfiguredTokenFilter extends PreConfiguredAnalysisCompone
                     throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
                 }
                 else {
-                    DEPRECATION_LOGGER.deprecate(name(), "Token filter [" + name()
+                    DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, name(), "Token filter [" + name()
                         + "] will not be usable to parse synonyms after v7.0");
                     return this;
                 }

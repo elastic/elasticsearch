@@ -27,6 +27,7 @@ import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -71,7 +72,7 @@ public abstract class RestResizeHandler extends BaseRestHandler {
                     throw new IllegalArgumentException("parameter [copy_settings] can not be explicitly set to [false]");
                 }
             }
-            deprecationLogger.deprecate("resize_deprecated_parameter",
+            deprecationLogger.deprecate(DeprecationCategory.API, "resize_deprecated_parameter",
                 "parameter [copy_settings] is deprecated and will be removed in 8.0.0");
         }
         resizeRequest.setCopySettings(copySettings);

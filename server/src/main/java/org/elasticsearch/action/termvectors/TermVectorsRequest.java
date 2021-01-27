@@ -32,6 +32,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
@@ -613,7 +614,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
                     termVectorsRequest.index = parser.text();
                 } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                     termVectorsRequest.type = parser.text();
-                    deprecationLogger.deprecate("termvectors_with_types",
+                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "termvectors_with_types",
                         RestTermVectorsAction.TYPES_DEPRECATION_MESSAGE);
                 } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                     if (termVectorsRequest.doc != null) {

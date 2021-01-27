@@ -22,6 +22,7 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -58,7 +59,7 @@ public class RestDeleteAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         DeleteRequest deleteRequest;
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("delete_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "delete_with_types", TYPES_DEPRECATION_MESSAGE);
             deleteRequest = new DeleteRequest(request.param("index"), request.param("type"), request.param("id"));
         } else {
             deleteRequest = new DeleteRequest(request.param("index"), request.param("id"));

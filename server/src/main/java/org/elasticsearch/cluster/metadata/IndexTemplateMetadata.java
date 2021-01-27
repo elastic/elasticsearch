@@ -31,6 +31,7 @@ import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -102,7 +103,7 @@ public class IndexTemplateMetadata extends AbstractDiffable<IndexTemplateMetadat
         this.settings = settings;
         this.mappings = mappings;
         if (this.mappings.size() > 1) {
-            deprecationLogger.deprecate("index-templates",
+            deprecationLogger.deprecate(DeprecationCategory.TEMPLATES, "index-templates",
                 "Index template {} contains multiple typed mappings; templates in 8x will only support a single mapping",
                 name);
         }

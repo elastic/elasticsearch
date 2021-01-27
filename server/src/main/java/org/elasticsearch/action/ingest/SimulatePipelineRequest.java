@@ -24,6 +24,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.ToXContentObject;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -183,7 +184,7 @@ public class SimulatePipelineRequest extends ActionRequest implements ToXContent
             String index = ConfigurationUtils.readStringOrIntProperty(null, null,
                 dataMap, Metadata.INDEX.getFieldName(), "_index");
             if (dataMap.containsKey(Metadata.TYPE.getFieldName())) {
-                deprecationLogger.deprecate("simulate_pipeline_with_types",
+                deprecationLogger.deprecate(DeprecationCategory.TYPES, "simulate_pipeline_with_types",
                     "[types removal] specifying _type in pipeline simulation requests is deprecated");
             }
             String type = ConfigurationUtils.readStringOrIntProperty(null, null,

@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
@@ -66,7 +67,7 @@ class ReindexValidator {
             state);
         SearchSourceBuilder searchSource = request.getSearchRequest().source();
         if (searchSource != null && searchSource.sorts() != null && searchSource.sorts().isEmpty() == false) {
-            deprecationLogger.deprecate("reindex_sort", SORT_DEPRECATED_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.API, "reindex_sort", SORT_DEPRECATED_MESSAGE);
         }
     }
 

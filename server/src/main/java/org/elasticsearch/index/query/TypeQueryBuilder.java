@@ -27,6 +27,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -128,7 +129,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        deprecationLogger.deprecate("type_query", TYPES_DEPRECATION_MESSAGE);
+        deprecationLogger.deprecate(DeprecationCategory.TYPES, "type_query", TYPES_DEPRECATION_MESSAGE);
         if (context.getType().equals(type)) {
             return Queries.newNonNestedFilter(context.indexVersionCreated());
         } else {

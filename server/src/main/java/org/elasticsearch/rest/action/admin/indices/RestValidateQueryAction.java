@@ -26,6 +26,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -72,7 +73,7 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
 
         if (request.hasParam("type")) {
-            deprecationLogger.deprecate("validate_query_with_types", TYPES_DEPRECATION_MESSAGE);
+            deprecationLogger.deprecate(DeprecationCategory.TYPES, "validate_query_with_types", TYPES_DEPRECATION_MESSAGE);
             validateQueryRequest.types(Strings.splitStringByCommaToArray(request.param("type")));
         }
 

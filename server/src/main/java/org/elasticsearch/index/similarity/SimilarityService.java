@@ -34,6 +34,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -66,7 +67,7 @@ public final class SimilarityService extends AbstractIndexComponent {
             } else {
                 final ClassicSimilarity similarity = SimilarityProviders.createClassicSimilarity(Settings.EMPTY, version);
                 return () -> {
-                    deprecationLogger.deprecate("classic_similarity",
+                    deprecationLogger.deprecate(DeprecationCategory.QUERIES, "classic_similarity",
                         "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                             + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                             + "instead.");
@@ -90,7 +91,7 @@ public final class SimilarityService extends AbstractIndexComponent {
                         throw new IllegalArgumentException("The [classic] similarity may not be used anymore. Please use the [BM25] "
                                 + "similarity or build a custom [scripted] similarity instead.");
                     } else {
-                        deprecationLogger.deprecate("classic_similarity",
+                        deprecationLogger.deprecate(DeprecationCategory.QUERIES, "classic_similarity",
                             "The [classic] similarity is now deprecated in favour of BM25, which is generally "
                                 + "accepted as a better alternative. Use the [BM25] similarity or build a custom [scripted] similarity "
                                 + "instead.");
@@ -155,7 +156,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         defaultSimilarity = (providers.get("default") != null) ? providers.get("default").get()
                                                               : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
-            deprecationLogger.deprecate("base_similarity_ignored",
+            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed");
         }
     }
@@ -272,7 +273,7 @@ public final class SimilarityService extends AbstractIndexComponent {
         if (indexCreatedVersion.onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException(message);
         } else if (indexCreatedVersion.onOrAfter(Version.V_6_5_0)) {
-            deprecationLogger.deprecate("similarity_failure", message);
+            deprecationLogger.deprecate(DeprecationCategory.QUERIES, "similarity_failure", message);
         }
     }
 

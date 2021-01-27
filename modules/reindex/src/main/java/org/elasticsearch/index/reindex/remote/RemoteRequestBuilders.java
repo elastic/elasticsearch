@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -184,7 +185,7 @@ final class RemoteRequestBuilders {
     private static String encodeIndex(String s) {
         if (s.contains("%")) { // already encoded, pass-through to allow this in mixed version clusters
             checkIndexOrType("Index", s);
-            DEPRECATION_LOGGER.deprecate("reindex_url_encoded_index", DEPRECATED_URL_ENCODED_INDEX_WARNING);
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.API, "reindex_url_encoded_index", DEPRECATED_URL_ENCODED_INDEX_WARNING);
             return s;
         }
         try {

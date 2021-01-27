@@ -30,6 +30,7 @@ import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.ConstructingObjectParser;
@@ -280,12 +281,12 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareString((fieldSortBuilder, nestedPath) -> {
-            deprecationLogger.deprecate("script_nested_path",
+            deprecationLogger.deprecate(DeprecationCategory.API, "script_nested_path",
                 "[nested_path] has been deprecated in favor of the [nested] parameter");
             fieldSortBuilder.setNestedPath(nestedPath);
         }, NESTED_PATH_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedFilter, (p, c) -> {
-            deprecationLogger.deprecate("script_nested_filter",
+            deprecationLogger.deprecate(DeprecationCategory.API, "script_nested_filter",
                 "[nested_filter] has been deprecated in favour for the [nested] parameter");
             return SortBuilder.parseNestedFilter(p);
         }, NESTED_FILTER_FIELD);

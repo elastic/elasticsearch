@@ -20,6 +20,7 @@
 package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -84,7 +85,7 @@ public class RestMultiSearchTemplateAction extends BaseRestHandler {
         // Emit a single deprecation message if any search template contains types.
         for (SearchTemplateRequest searchTemplateRequest : multiRequest.requests()) {
             if (searchTemplateRequest.getRequest().types().length > 0) {
-                deprecationLogger.deprecate("msearch_with_types", TYPES_DEPRECATION_MESSAGE);
+                deprecationLogger.deprecate(DeprecationCategory.TYPES, "msearch_with_types", TYPES_DEPRECATION_MESSAGE);
                 break;
             }
         }

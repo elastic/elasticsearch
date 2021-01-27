@@ -21,6 +21,7 @@ package org.elasticsearch.common.joda;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
@@ -75,7 +76,8 @@ public class Joda {
             String msg = "Camel case format name {} is deprecated and will be removed in a future version. " +
                 "Use snake case name {} instead.";
             getDeprecationLogger()
-                .deprecate("camelCaseDateFormat", msg, formatName.getCamelCaseName(), formatName.getSnakeCaseName());
+                .deprecate(DeprecationCategory.PARSING,"camelCaseDateFormat", msg, formatName.getCamelCaseName(),
+                    formatName.getSnakeCaseName());
         }
 
         DateTimeFormatter formatter;
@@ -159,8 +161,8 @@ public class Joda {
             formatter = ISODateTimeFormat.weekDateTimeNoMillis();
         } else if (FormatNames.WEEKYEAR.matches(input)) {
             getDeprecationLogger()
-                .deprecate("week_year_format_name", "Format name \"week_year\" is deprecated and will be removed in a future version. " +
-                    "Use \"weekyear\" format instead");
+                .deprecate(DeprecationCategory.PARSING, "week_year_format_name",
+                    "Format name \"week_year\" is deprecated and will be removed in a future version. Use \"weekyear\" format instead");
             formatter = ISODateTimeFormat.weekyear();
         } else if (FormatNames.WEEK_YEAR.matches(input)) {
             formatter = ISODateTimeFormat.weekyear();
@@ -289,7 +291,7 @@ public class Joda {
     private static void maybeLogJodaDeprecation(String format) {
         if (JodaDeprecationPatterns.isDeprecatedPattern(format)) {
             String suggestion = JodaDeprecationPatterns.formatSuggestion(format);
-            getDeprecationLogger().deprecate("joda-pattern-deprecation",
+            getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "joda-pattern-deprecation",
                 suggestion + " " + JodaDeprecationPatterns.USE_NEW_FORMAT_SPECIFIERS);
         }
     }
@@ -399,11 +401,11 @@ public class Joda {
                 long millis = new BigDecimal(text).longValue() * factor;
                 // check for deprecations, but after it has parsed correctly so invalid values aren't counted as deprecated
                 if (millis < 0) {
-                    getDeprecationLogger().deprecate("epoch-negative", "Use of negative values" +
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-negative", "Use of negative values" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 if (scientificNotation.matcher(text).find()) {
-                    getDeprecationLogger().deprecate("epoch-scientific-notation", "Use of scientific notation" +
+                    getDeprecationLogger().deprecate(DeprecationCategory.PARSING, "epoch-scientific-notation", "Use of scientific notation" +
                         " in epoch time formats is deprecated and will not be supported in the next major version of Elasticsearch.");
                 }
                 DateTime dt = new DateTime(millis, DateTimeZone.UTC);

@@ -30,6 +30,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -98,7 +99,7 @@ public class IpFieldMapper extends FieldMapper {
             try {
                 return InetAddresses.forString(nullValueAsString);
             } catch (Exception e) {
-                DEPRECATION_LOGGER.deprecate("ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.MAPPINGS, "ip_mapper_null_field", "Error parsing [" + nullValue.getValue()
                     + "] as IP in [null_value] on field [" + name() + "]); [null_value] will be ignored");
                 return null;
             }

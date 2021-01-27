@@ -27,6 +27,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -207,7 +208,8 @@ public final class BulkRequestParser {
                                 index = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());
                             } else if (TYPE.match(currentFieldName, parser.getDeprecationHandler())) {
                                 if (warnOnTypeUsage && typesDeprecationLogged == false) {
-                                    deprecationLogger.deprecate("bulk_with_types", RestBulkAction.TYPES_DEPRECATION_MESSAGE);
+                                    deprecationLogger.deprecate(DeprecationCategory.TYPES, "bulk_with_types",
+                                        RestBulkAction.TYPES_DEPRECATION_MESSAGE);
                                     typesDeprecationLogged = true;
                                 }
                                 type = stringDeduplicator.computeIfAbsent(parser.text(), Function.identity());

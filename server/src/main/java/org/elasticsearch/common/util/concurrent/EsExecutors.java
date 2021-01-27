@@ -21,6 +21,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -75,6 +76,7 @@ public class EsExecutors {
             final int availableProcessors = Runtime.getRuntime().availableProcessors();
             if (value > availableProcessors) {
                 deprecationLogger.deprecate(
+                    DeprecationCategory.SETTINGS,
                     "processors",
                     "setting [{}] to value [{}] which is more than available processors [{}] is deprecated",
                     name,

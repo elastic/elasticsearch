@@ -35,6 +35,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.PidFile;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.inject.CreationException;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
@@ -366,7 +367,7 @@ final class Bootstrap {
                     + "requirement. Consider switching to a distribution of Elasticsearch with a bundled JDK. "
                     + "If you are already using a distribution with a bundled JDK, ensure the JAVA_HOME environment variable is not set.",
                 System.getProperty("java.home"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate("java_version_11_required", message);
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.OTHER, "java_version_11_required", message);
         }
         if (BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection") != null) {
             final String message = String.format(
@@ -374,7 +375,8 @@ final class Bootstrap {
                 "The Java option es.xcontent.strict_duplicate_detection is set to [%s]; " +
                     "this option is deprecated and non-functional and should be removed from Java configuration.",
                 BootstrapInfo.getSystemProperties().get("es.xcontent.strict_duplicate_detection"));
-            DeprecationLogger.getLogger(Bootstrap.class).deprecate("strict_duplicate_detection_setting_removed", message);
+            DeprecationLogger.getLogger(Bootstrap.class).deprecate(DeprecationCategory.OTHER, "strict_duplicate_detection_setting_removed",
+                message);
         }
         if (environment.pidFile() != null) {
             try {

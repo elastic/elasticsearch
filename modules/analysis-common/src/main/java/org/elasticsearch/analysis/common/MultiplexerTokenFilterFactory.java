@@ -26,6 +26,7 @@ import org.apache.lucene.analysis.miscellaneous.RemoveDuplicatesTokenFilter;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -66,8 +67,8 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
         }
         else {
             if (preserveOriginal) {
-                DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
-                    + "] will not be usable to parse synonyms after v7.0");
+                DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
+                    "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
                 return IDENTITY_FILTER;
             }
             throw new IllegalArgumentException("Token filter [" + name()
@@ -129,8 +130,8 @@ public class MultiplexerTokenFilterFactory extends AbstractTokenFilterFactory {
                 }
                 else {
                     if (preserveOriginal) {
-                        DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
-                            + "] will not be usable to parse synonyms after v7.0");
+                        DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters",
+                            "Token filter [" + name() + "] will not be usable to parse synonyms after v7.0");
                         return IDENTITY_FILTER;
                     }
                     throw new IllegalArgumentException("Token filter [" + name()

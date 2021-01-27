@@ -41,6 +41,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -101,9 +102,13 @@ public class DiskThresholdMonitor {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
         this.client = client;
         if (diskThresholdSettings.isAutoReleaseIndexEnabled() == false) {
-            deprecationLogger.deprecate(DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
+            deprecationLogger.deprecate(
+                DeprecationCategory.SETTINGS,
+                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                 "[{}] will be removed in version {}",
-                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+                DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY,
+                Version.V_7_4_0.major + 1
+            );
         }
     }
 
@@ -312,9 +317,12 @@ public class DiskThresholdMonitor {
                 updateIndicesReadOnly(indicesToAutoRelease, listener, false);
             } else {
                 deprecationLogger.deprecate(
+                    DeprecationCategory.SETTINGS,
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY.replace(".", "_"),
                     "[{}] will be removed in version {}",
-                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, Version.V_7_4_0.major + 1);
+                    DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY,
+                    Version.V_7_4_0.major + 1
+                );
                 logger.debug("[{}] disabled, not releasing read-only-allow-delete block on indices: [{}]",
                     DiskThresholdSettings.AUTO_RELEASE_INDEX_ENABLED_KEY, indicesToAutoRelease);
                 listener.onResponse(null);

@@ -29,6 +29,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContentFragment;
@@ -1202,7 +1203,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                         scriptFields.add(new ScriptField(parser));
                     }
                 } else if (INDICES_BOOST_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                    deprecationLogger.deprecate("indices_boost_object_format",
+                    deprecationLogger.deprecate(DeprecationCategory.API, "indices_boost_object_format",
                         "Object format in indices_boost is deprecated, please use array format instead");
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {

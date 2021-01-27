@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
@@ -348,8 +349,8 @@ public class Realms implements Iterable<Realm> {
 
     private void logDeprecationIfFound(Set<String> missingOrderRealmSettingKeys, Map<String, Set<String>> orderToRealmOrderSettingKeys) {
         if (missingOrderRealmSettingKeys.size() > 0) {
-            deprecationLogger.deprecate("unordered_realm_config", "Found realms without order config: [{}]. " +
-                    "In next major release, node will fail to start with missing realm order.",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "unordered_realm_config",
+                "Found realms without order config: [{}]. In next major release, node will fail to start with missing realm order.",
                 String.join("; ", missingOrderRealmSettingKeys)
             );
         }
@@ -360,7 +361,7 @@ public class Realms implements Iterable<Realm> {
             .sorted()
             .collect(Collectors.toList());
         if (false == duplicatedRealmOrderSettingKeys.isEmpty()) {
-            deprecationLogger.deprecate("duplicate_realm_order",
+            deprecationLogger.deprecate(DeprecationCategory.SECURITY, "duplicate_realm_order",
                     "Found multiple realms configured with the same order: [{}]. " +
                     "In next major release, node will fail to start with duplicated realm order.",
                 String.join("; ", duplicatedRealmOrderSettingKeys));

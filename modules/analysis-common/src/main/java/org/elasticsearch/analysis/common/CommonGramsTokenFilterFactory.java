@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.commongrams.CommonGramsFilter;
 import org.apache.lucene.analysis.commongrams.CommonGramsQueryFilter;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -69,7 +70,7 @@ public class CommonGramsTokenFilterFactory extends AbstractTokenFilterFactory {
         if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_7_0_0)) {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         } else {
-            DEPRECATION_LOGGER.deprecate("synonym_tokenfilters", "Token filter [" + name()
+            DEPRECATION_LOGGER.deprecate(DeprecationCategory.ANALYSIS, "synonym_tokenfilters", "Token filter [" + name()
                 + "] will not be usable to parse synonyms after v7.0");
         }
 

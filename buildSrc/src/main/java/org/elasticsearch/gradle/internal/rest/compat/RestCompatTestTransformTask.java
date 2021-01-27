@@ -20,6 +20,8 @@
 package org.elasticsearch.gradle.internal.rest.compat;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.ObjectReader;
+import com.fasterxml.jackson.databind.ObjectWriter;
 import com.fasterxml.jackson.databind.SequenceWriter;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
@@ -53,8 +55,10 @@ import java.util.Optional;
 
 public class RestCompatTestTransformTask extends DefaultTask {
 
-    private static final YAMLFactory yaml = new YAMLFactory();
-    private static final ObjectMapper mapper = new ObjectMapper(yaml);
+    private static final YAMLFactory YAML_FACTORY = new YAMLFactory();
+    private static final ObjectMapper MAPPER = new ObjectMapper(YAML_FACTORY);
+    private static final ObjectReader READER = MAPPER.readerFor(ObjectNode.class);
+    private static final ObjectWriter WRITER = MAPPER.writerFor(ObjectNode.class);
 
     private static final Map<String, String> headers = Map.of(
         "Content-Type",
@@ -117,8 +121,8 @@ public class RestCompatTestTransformTask extends DefaultTask {
     public void transform() throws IOException {
         RestTestTransformer transformer = new RestTestTransformer();
         for (File file : getTestFiles().getFiles()) {
-            YAMLParser yamlParser = yaml.createParser(file);
-            List<ObjectNode> tests = mapper.readValues(yamlParser, ObjectNode.class).readAll();
+            YAMLParser yamlParser = YAML_FACTORY.createParser(file);
+            List<ObjectNode> tests = READER.<ObjectNode>readValues(yamlParser).readAll();
             List<ObjectNode> transformRestTests = transformer.transformRestTests(new LinkedList<>(tests), transformations);
             // convert to url to ensure forward slashes
             String[] testFileParts = file.toURI().toURL().getPath().split(REST_TEST_PREFIX);
@@ -126,7 +130,7 @@ public class RestCompatTestTransformTask extends DefaultTask {
             File output = new File(getOutputDir(), testFileParts[1]);
             boolean mkdirs = output.getParentFile().mkdirs();
             assert mkdirs : "could not make directories for " + output;
-            try (SequenceWriter sequenceWriter = mapper.writer().writeValues(output)) {
+            try (SequenceWriter sequenceWriter = WRITER.writeValues(output)) {
                 for (ObjectNode transformedTest : transformRestTests) {
                     sequenceWriter.write(transformedTest);
                 }

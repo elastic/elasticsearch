@@ -345,7 +345,7 @@ public class FetchPhase {
 
             if (needSource) {
                 SourceLookup rootLookup = innerHitsContext.getRootLookup();
-                rootSourceAsMap = rootLookup.loadSourceIfNeeded();
+                rootSourceAsMap = rootLookup.source();
                 rootSourceContentType = rootLookup.sourceContentType();
             }
         } else {

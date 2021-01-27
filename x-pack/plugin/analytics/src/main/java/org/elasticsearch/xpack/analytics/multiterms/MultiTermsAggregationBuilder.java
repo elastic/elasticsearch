@@ -61,7 +61,7 @@ public class MultiTermsAggregationBuilder extends AbstractAggregationBuilder<Mul
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> termsParser = MultiValuesSourceFieldConfig.parserBuilder(
             true,
             true,
-            true,
+            false,
             true
         );
 

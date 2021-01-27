@@ -55,6 +55,15 @@ public class MultiValuesSourceFieldConfig implements Writeable, ToXContentObject
 
     public static final ParseField FILTER = new ParseField("filter");
 
+    /**
+     * Creates a parser capable of parsing value sources in different context
+     * @param scriptable - allows specifying script in addition to a field as a values source
+     * @param timezoneAware - allows specifying timezone
+     * @param filtered - allows specifying filters on the values
+     * @param heterogeneous - allows specifying value-source specific format and user value type hint
+     * @param <C> - parser context
+     * @return configured parser
+     */
     public static <C> ObjectParser<MultiValuesSourceFieldConfig.Builder, C> parserBuilder(boolean scriptable,
                                                                                                     boolean timezoneAware,
                                                                                                     boolean filtered,

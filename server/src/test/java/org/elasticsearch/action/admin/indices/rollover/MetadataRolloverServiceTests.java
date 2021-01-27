@@ -669,15 +669,13 @@ public class MetadataRolloverServiceTests extends ESTestCase {
                 }
             };
             MappingLookup mappingLookup = new MappingLookup(
-                "_doc",
+                Mapping.EMPTY,
                 org.elasticsearch.common.collect.List.of(mockedTimestampField, dateFieldMapper),
                 org.elasticsearch.common.collect.List.of(),
                 org.elasticsearch.common.collect.List.of(),
-                org.elasticsearch.common.collect.List.of(),
-                0,
                 null,
-                false
-            );
+                null,
+                null);
             ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool);
             Environment env = mock(Environment.class);
             when(env.sharedDataFile()).thenReturn(null);

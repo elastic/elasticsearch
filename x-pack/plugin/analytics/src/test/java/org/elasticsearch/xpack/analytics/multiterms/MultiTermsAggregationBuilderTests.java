@@ -57,7 +57,6 @@ public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCa
         String field = randomAlphaOfLength(10);
         Object missing = randomBoolean() ? randomAlphaOfLength(10) : null;
         ZoneId timeZone = randomBoolean() ? randomZone() : null;
-        QueryBuilder filter = randomBoolean() ? QueryBuilders.termQuery(randomAlphaOfLength(10), randomAlphaOfLength(10)) : null;
         String format = randomBoolean() ? randomNumericDocValueFormat().toString() : null;
         ValueType userValueTypeHint = randomBoolean()
             ? randomFrom(ValueType.STRING, ValueType.DOUBLE, ValueType.LONG, ValueType.DATE, ValueType.IP, ValueType.BOOLEAN)
@@ -66,7 +65,6 @@ public class MultiTermsAggregationBuilderTests extends AbstractSerializingTestCa
                 .setMissing(missing)
                 .setScript(null)
                 .setTimeZone(timeZone)
-                .setFilter(filter)
                 .setFormat(format)
                 .setUserValueTypeHint(userValueTypeHint)
                 .build();

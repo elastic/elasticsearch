@@ -105,7 +105,7 @@ public class SearchLookup {
         return new LeafSearchLookup(context,
                 new LeafDocLookup(fieldTypeLookup, this::getForField, context),
                 sourceLookup,
-                new LeafStoredFieldsLookup(fieldTypeLookup, context.reader()));
+                new LeafStoredFieldsLookup(fieldTypeLookup, (doc, visitor) -> context.reader().document(doc, visitor)));
     }
 
     public MappedFieldType fieldType(String fieldName) {

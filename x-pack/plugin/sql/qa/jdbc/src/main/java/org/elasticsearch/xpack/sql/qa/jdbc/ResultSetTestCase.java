@@ -74,6 +74,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.jdbc.EsType;
 import org.junit.Before;
 
+@SuppressWarnings("CheckStyle")
 public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
 
     static final Set<String> fieldsNames = Stream.of(
@@ -271,9 +272,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", shortNotByte), sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_long"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", longNotByte), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Byte.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotByte)), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", longNotByte), sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getByte("test_double"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
@@ -524,9 +525,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
 
             SQLException sqle = expectThrows(SQLException.class, () -> results.getInt("test_long"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", longNotInt), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_long", Integer.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Long.toString(longNotInt)), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", longNotInt), sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getInt("test_double"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleErrorMessage), sqle.getMessage());
@@ -638,9 +639,9 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             results.next();
 
             SQLException sqle = expectThrows(SQLException.class, () -> results.getLong("test_double"));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleNotLong), sqle.getMessage());
             sqle = expectThrows(SQLException.class, () -> results.getObject("test_double", Long.class));
-            assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(doubleNotLong)), sqle.getMessage());
+            assertEquals(format(Locale.ROOT, "Numeric %s out of range", doubleNotLong), sqle.getMessage());
 
             sqle = expectThrows(SQLException.class, () -> results.getLong("test_float"));
             assertEquals(format(Locale.ROOT, "Numeric %s out of range", Double.toString(floatNotLong)), sqle.getMessage());
@@ -716,7 +717,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
                     assertEquals(
                         "For field " + e.getKey(),
                         e.getValue(),
-                        Double.valueOf(results.getObject(e.getKey(), Double.class)).floatValue()
+                        results.getObject(e.getKey(), Double.class).floatValue()
                     );
                 } else {
                     assertEquals("For field " + e.getKey(), e.getValue().doubleValue(), results.getDouble(e.getKey()), 0.0d);
@@ -1988,26 +1989,6 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         });
 
         return Arrays.asList(random1, random2, random3);
-    }
-
-    private void createTestDataForBooleanValueTests() throws IOException {
-        createIndex("test");
-        updateMapping("test", builder -> {
-            builder.startObject("test_boolean").field("type", "boolean").endObject();
-            builder.startObject("test_null_boolean").field("type", "boolean").endObject();
-            builder.startObject("test_keyword").field("type", "keyword").endObject();
-        });
-
-        index("test", "1", builder -> {
-            builder.field("test_boolean", Boolean.TRUE);
-            builder.field("test_null_boolean", (Boolean) null);
-            builder.field("test_keyword", "1");
-        });
-        index("test", "2", builder -> {
-            builder.field("test_boolean", Boolean.FALSE);
-            builder.field("test_null_boolean", (Boolean) null);
-            builder.field("test_keyword", "0");
-        });
     }
 
     private void indexSimpleDocumentWithTrueValues(long randomLongDate, Long randomLongNanos) throws IOException {

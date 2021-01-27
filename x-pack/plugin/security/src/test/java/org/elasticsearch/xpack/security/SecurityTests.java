@@ -73,6 +73,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_FORMAT_SETTING;
+import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.INTERNAL_MAIN_INDEX_FORMAT;
 import static org.hamcrest.Matchers.containsString;
@@ -212,6 +213,14 @@ public class SecurityTests extends ESTestCase {
             .build(), true);
         assertFalse(NetworkModule.TRANSPORT_TYPE_SETTING.exists(both4));
         assertFalse(NetworkModule.HTTP_TYPE_SETTING.exists(both4));
+    }
+
+    public void testProbeHandshakeTimeoutSetting() {
+        assertFalse(PROBE_HANDSHAKE_TIMEOUT_SETTING.exists(Security.additionalSettings(Settings.EMPTY, false)));
+
+        final Settings settings = Security.additionalSettings(Settings.EMPTY, true);
+        assertTrue(PROBE_HANDSHAKE_TIMEOUT_SETTING.exists(settings));
+        assertThat(PROBE_HANDSHAKE_TIMEOUT_SETTING.get(settings), equalTo(TimeValue.timeValueSeconds(11)));
     }
 
     public void testTransportSettingValidation() {

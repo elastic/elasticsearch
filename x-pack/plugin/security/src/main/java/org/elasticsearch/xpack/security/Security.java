@@ -32,12 +32,14 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.discovery.HandshakingTransportAddressConnector;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
@@ -291,6 +293,7 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.discovery.HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.API_KEY_SERVICE_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.XPackSettings.HTTP_SSL_ENABLED;
 import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
@@ -608,11 +611,16 @@ public class Security extends Plugin implements SystemIndexPlugin, IngestPlugin,
         return additionalSettings(settings, enabled);
     }
 
+    private static final long SSL_HANDSHAKE_TIMEOUT_MILLIS = 10000; // See io.netty.handler.ssl.SslHandler#handshakeTimeoutMillis
+
     // visible for tests
     static Settings additionalSettings(final Settings settings, final boolean enabled) {
         if (enabled) {
             final Settings.Builder builder = Settings.builder();
 
+            builder.put(
+                    PROBE_HANDSHAKE_TIMEOUT_SETTING.getKey(),
+                    TimeValue.timeValueMillis(PROBE_HANDSHAKE_TIMEOUT_SETTING.get(Settings.EMPTY).millis() + SSL_HANDSHAKE_TIMEOUT_MILLIS));
             builder.put(SecuritySettings.addTransportSettings(settings));
 
             if (NetworkModule.HTTP_TYPE_SETTING.exists(settings)) {

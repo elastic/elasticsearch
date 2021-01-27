@@ -51,13 +51,13 @@ POST /my-index-000001/_rollup/rollup-my-index-000001
 [[rollup-api-prereqs]]
 ==== {api-prereq-title}
 
-* If the {es} {security-features} are enabled, you must have the `manage` or
-`manage_rollup` cluster privilege to use this API. See <<security-privileges>>.
+* If the {es} {security-features} are enabled, you must have the `manage_rollup`
+or `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 * You can only roll up an index that contains:
 
 ** A <<date,`date`>> or <<date_nanos,`date_nanos`>> timestamp field
-** One or more <<number,numeric>> fields
+** One or more <<number,numeric>> fields to store as `metrics`
 
 [[rollup-api-path-params]]
 ==== {api-path-parms-title}

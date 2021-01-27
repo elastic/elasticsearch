@@ -30,9 +30,14 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.xcontent.MediaType;
 import org.elasticsearch.common.xcontent.ParsedMediaType;
 
-public class CompatibleVersionHelper {
+/**
+ * A helper that is responsible for parsing a Compatible REST API version from RestRequest.
+ * It also performs a validation of allowed combination of versions provided on those headers.
+ * Package scope as it is only aimed to be used by RestRequest
+ */
+class CompatibleVersionHelper {
 
-    public static Version getCompatibleVersion(
+    static Version getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,
         boolean hasContent
@@ -100,7 +105,6 @@ public class CompatibleVersionHelper {
         return Version.CURRENT;
     }
 
-    // scope for testing
     static Byte parseVersion(ParsedMediaType parsedMediaType) {
         if (parsedMediaType != null) {
             String version = parsedMediaType.getParameters().get(MediaType.COMPATIBLE_WITH_PARAMETER_NAME);

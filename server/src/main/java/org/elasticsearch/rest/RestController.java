@@ -327,7 +327,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final String uri = request.uri();
         final RestRequest.Method requestMethod;
 
-        Version compatibleVersion = request.compatibleVersion();
+        Version compatibleVersion = request.getCompatibleVersion();
         try {
             // Resolves the HTTP method and fails if the method is invalid
             requestMethod = request.method();

@@ -21,6 +21,13 @@ POST /my-index-000001/_reload_search_analyzers
 
 `GET /<target>/_reload_search_analyzers`
 
+[discrete]
+[[indices-reload-analyzers-api-prereqs]]
+=== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or index alias.
 
 [discrete]
 [[indices-reload-analyzers-api-desc]]

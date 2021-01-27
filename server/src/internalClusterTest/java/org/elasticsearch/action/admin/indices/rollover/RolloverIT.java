@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.rollover;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -30,6 +31,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AutoExpandReplicas;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
@@ -47,6 +49,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -197,7 +203,7 @@ public class RolloverIT extends ESIntegTestCase {
         indexDoc("test_index-2", "1", "field", "value");
         flush("test_index-2");
         final Settings settings = Settings.builder()
-            .put("number_of_shards", 1) 
+            .put("number_of_shards", 1)
             .put("number_of_replicas", 0)
             .build();
         final RolloverResponse response = client().admin().indices().prepareRolloverIndex("test_alias")
@@ -445,13 +451,12 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareCreate("logs-000001").get());
         ensureYellow("logs-write");
         final IllegalArgumentException error = expectThrows(IllegalArgumentException.class,
-            () -> client().admin().indices().prepareRolloverIndex("logs-write").addMaxIndexSizeCondition(new ByteSizeValue(1)).get());
+            () -> client().admin().indices().prepareRolloverIndex("logs-write").get());
         assertThat(error.getMessage(), equalTo(
             "Rollover alias [logs-write] can point to multiple indices, found duplicated alias [[logs-write]] in index template [logs]"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/64921")
-    public void testRolloverWithClosedIndexInAlias() throws Exception {
+    public void testRolloverWithClosedIndexInAlias() {
         final String aliasName = "alias";
         final String openNonwriteIndex = "open-index-nonwrite";
         final String closedIndex = "closed-index-nonwrite";
@@ -459,13 +464,14 @@ public class RolloverIT extends ESIntegTestCase {
         assertAcked(prepareCreate(openNonwriteIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(closedIndex).addAlias(new Alias(aliasName)).get());
         assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        ensureGreen();
 
         index(closedIndex, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         index(aliasName, null, "{\"foo\": \"bar\"}");
         refresh(aliasName);
 
-        assertAcked(client().admin().indices().prepareClose(closedIndex).get());
+        assertAcked(client().admin().indices().prepareClose(closedIndex).setTimeout(TimeValue.timeValueSeconds(60)).get());
 
         RolloverResponse rolloverResponse = client().admin().indices().prepareRolloverIndex(aliasName)
             .addMaxIndexDocsCondition(1)
@@ -561,5 +567,69 @@ public class RolloverIT extends ESIntegTestCase {
         assertThat(oldIndex.getRolloverInfos().get(aliasName).getMetConditions(), is(empty()));
         assertThat(oldIndex.getRolloverInfos().get(aliasName).getTime(),
             is(both(greaterThanOrEqualTo(beforeTime)).and(lessThanOrEqualTo(client().threadPool().absoluteTimeInMillis() + 1000L))));
+    }
+
+    /**
+     * Tests that multiple threads all racing to rollover based on a condition trigger one and only one rollover
+     */
+    public void testMultiThreadedRollover() throws Exception {
+        final String aliasName = "alias";
+        final String writeIndexPrefix = "tt-";
+        assertAcked(prepareCreate(writeIndexPrefix + "000001").addAlias(new Alias(aliasName).writeIndex(true)).get());
+        ensureGreen();
+
+        final int threadCount = randomIntBetween(5, 10);
+        final CyclicBarrier barrier = new CyclicBarrier(threadCount + 1);
+        final AtomicBoolean running = new AtomicBoolean(true);
+        Set<Thread> threads = IntStream.range(0, threadCount)
+            .mapToObj(i -> new Thread(() -> {
+                try {
+                    logger.info("--> [{}] waiting for all the other threads before starting", i);
+                    barrier.await();
+                    while (running.get()) {
+                        RolloverResponse resp = client().admin().indices().prepareRolloverIndex(aliasName).
+                            addMaxIndexDocsCondition(1).get();
+                        if (resp.isRolledOver()) {
+                            logger.info("--> thread [{}] successfully rolled over: {}", i, Strings.toString(resp));
+                            assertThat(resp.getOldIndex(), equalTo(writeIndexPrefix + "000001"));
+                            assertThat(resp.getNewIndex(), equalTo(writeIndexPrefix + "000002"));
+                        }
+                    }
+                } catch (Exception e) {
+                    logger.error(new ParameterizedMessage("thread [{}] encountered unexpected exception", i), e);
+                    fail("we should not encounter unexpected exceptions");
+                }
+            }, "rollover-thread-" + i))
+            .collect(Collectors.toSet());
+
+        threads.forEach(Thread::start);
+
+        // Okay, signal the floodgates to open
+        barrier.await();
+
+        index(aliasName, null, "{\"foo\": \"bar\"}");
+
+        assertBusy(() -> {
+            try {
+                client().admin().indices().prepareGetIndex().addIndices(writeIndexPrefix + "000002").get();
+            } catch (Exception e) {
+                logger.info("--> expecting second index to be created but it has not yet been created");
+                fail("expecting second index to exist");
+            }
+        });
+
+        // Tell everyone to stop trying to roll over
+        running.set(false);
+
+        threads.forEach(thread -> {
+            try {
+                thread.join(1000);
+            } catch (Exception e) {
+                logger.warn("expected thread to be stopped, but got", e);
+            }
+        });
+
+        // We should *NOT* have a third index, it should have rolled over *exactly* once
+        expectThrows(Exception.class, () -> client().admin().indices().prepareGetIndex().addIndices(writeIndexPrefix + "000003").get());
     }
 }

@@ -98,7 +98,8 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                             return false;
                         }
                     }
-                    return true;
+                    // return true iff there is at least one point
+                    return count > 0;
                 };
             }
             case WITHIN: {
@@ -114,7 +115,8 @@ public class GeoPointScriptFieldGeoShapeQuery extends AbstractGeoPointScriptFiel
                             return false;
                         }
                     }
-                    return true;
+                    // return true iff there is at least one point
+                    return count > 0;
                 };
             }
             case CONTAINS: {

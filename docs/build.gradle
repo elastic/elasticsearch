@@ -1320,7 +1320,7 @@ setups['seats'] = '''
                 play:
                   type: keyword
                 actors:
-                  type: text
+                  type: keyword
                 date:
                   type: keyword
                 time:

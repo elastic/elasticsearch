@@ -43,7 +43,7 @@ PUT /seats
     "properties": {
       "theatre":  { "type": "keyword" },
       "play":     { "type": "keyword" },
-      "actors":   { "type": "text"    },
+      "actors":   { "type": "keyword" },
       "date":     { "type": "keyword" },
       "time":     { "type": "keyword" },
       "cost":     { "type": "double"  },

@@ -16,7 +16,7 @@ import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 /**
  * Multiplication function ({@code a * b}).
  */
-public class Mul extends ArithmeticOperation implements BinaryComparisonInvertible {
+public class Mul extends ArithmeticOperation implements BinaryComparisonInversible {
 
     public Mul(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.MUL);

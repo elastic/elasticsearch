@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
  * For instance the division is multiplication's inverse, substitution addition's, log exponentiation's a.s.o.
  * Not all operations - like modulo - are invertible.
  */
-public interface BinaryComparisonInvertible {
+public interface BinaryComparisonInversible {
 
     interface ArithmeticOperationFactory {
         ArithmeticOperation create(Source source, Expression left, Expression right);

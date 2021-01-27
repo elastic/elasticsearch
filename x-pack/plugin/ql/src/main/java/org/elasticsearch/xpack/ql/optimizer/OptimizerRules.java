@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.xpack.ql.optimizer;
 
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
@@ -22,7 +21,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.ql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.ArithmeticOperation;
-import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInvertible;
+import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.BinaryComparisonInversible;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.arithmetic.Sub;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.BinaryComparison;
@@ -57,6 +56,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 
+import static java.lang.Math.signum;
+import static java.util.Arrays.asList;
 import static org.elasticsearch.xpack.ql.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.ql.expression.Literal.TRUE;
 import static org.elasticsearch.xpack.ql.expression.predicate.Predicates.combineAnd;
@@ -1152,7 +1153,7 @@ public final class OptimizerRules {
         }
     }
 
-    // Simplifies arithmetic expressions with fixed point fields in BinaryComparisons.
+    // Simplifies arithmetic expressions with BinaryComparisons and fixed point fields, such as: (int + 2) / 3 > 4 => int > 10
     public static final class SimplifyComparisonsArithmetics extends OptimizerExpressionRule {
         BiFunction<DataType, DataType, Boolean> typesCompatible;
 
@@ -1170,21 +1171,44 @@ public final class OptimizerRules {
             // optimize only once the expression has a literal on the right side of the binary comparison
             if (bc.right() instanceof Literal) {
                 if (bc.left() instanceof ArithmeticOperation) {
-                    return SimplifyOperation.simplify(bc, typesCompatible);
-                } else if (bc.left() instanceof Neg) {
-                    return reduceNegation(bc);
+                    return simplifyBinaryComparison(bc);
+                }
+                if (bc.left() instanceof Neg) {
+                    return foldNegation(bc);
                 }
             }
             return bc;
         }
 
-        private static Expression reduceNegation(BinaryComparison bc) {
-            Literal bcLiteral = (Literal) bc.right();
-            Expression literalNeg = safeMaybeFold(new Neg(bcLiteral.source(), bcLiteral));
-            return literalNeg == null ? bc : bc.reverse().replaceChildren(List.of(((Neg) bc.left()).field(), literalNeg));
+        private Expression simplifyBinaryComparison(BinaryComparison comparison) {
+            ArithmeticOperation operation = (ArithmeticOperation) comparison.left();
+            // Use symbol comp: SQL operations aren't available in this package (as dependencies)
+            String opSymbol = operation.symbol();
+            // Modulo can't be simplified.
+            if (opSymbol == MOD.symbol()) {
+                return comparison;
+            }
+            OperationSimplifier simplification = null;
+            if (isMulOrDiv(opSymbol)) {
+                simplification = new MulDivSimplifier(comparison);
+            } else if (opSymbol == ADD.symbol() || opSymbol == SUB.symbol()) {
+                simplification = new AddSubSimplifier(comparison);
+            }
+
+            return (simplification == null || simplification.isUnsafe(typesCompatible)) ? comparison : simplification.apply();
         }
 
-        static Expression safeMaybeFold(Expression expression) {
+        private static boolean isMulOrDiv(String opSymbol) {
+            return opSymbol == MUL.symbol() || opSymbol == DIV.symbol();
+        }
+
+        private static Expression foldNegation(BinaryComparison bc) {
+            Literal bcLiteral = (Literal) bc.right();
+            Expression literalNeg = tryFolding(new Neg(bcLiteral.source(), bcLiteral));
+            return literalNeg == null ? bc : bc.reverse().replaceChildren(asList(((Neg) bc.left()).field(), literalNeg));
+        }
+
+        private static Expression tryFolding(Expression expression) {
             if (expression.foldable()) {
                 try {
                     expression = new Literal(expression.source(), expression.fold(), expression.dataType());
@@ -1195,7 +1219,7 @@ public final class OptimizerRules {
             return expression;
         }
 
-        private static class SimplifyOperation {
+        private abstract static class OperationSimplifier {
             final BinaryComparison comparison;
             final Literal bcLiteral;
             final ArithmeticOperation operation;
@@ -1203,7 +1227,7 @@ public final class OptimizerRules {
             final Expression opRight;
             final Literal opLiteral;
 
-            SimplifyOperation(BinaryComparison comparison) {
+            OperationSimplifier(BinaryComparison comparison) {
                 this.comparison = comparison;
                 operation = (ArithmeticOperation) comparison.left();
                 bcLiteral = (Literal) comparison.right();
@@ -1221,7 +1245,7 @@ public final class OptimizerRules {
             }
 
             // can it be quickly fast-tracked that the operation can't be reduced?
-            boolean cannotSimplify(BiFunction<DataType, DataType, Boolean> typesCompatible) {
+            boolean isUnsafe(BiFunction<DataType, DataType, Boolean> typesCompatible) {
                 if (opLiteral == null) {
                     // one of the arithm. operands must be a literal, otherwise the operation wouldn't simplify anything
                     return true;
@@ -1237,109 +1261,97 @@ public final class OptimizerRules {
                 }
 
                 // the Literal will be moved to the right of the comparison, but only if data-compatible with what's there
-                return typesCompatible.apply(bcLiteral.dataType(), opLiteral.dataType()) == false;
+                if (typesCompatible.apply(bcLiteral.dataType(), opLiteral.dataType()) == false) {
+                    return true;
+                }
+
+                return opSpecificIsUnsafe();
             }
 
-            Expression doSimplify() {
+            Expression apply() {
                 // force float point folding for FlP field
                 Literal bcl = operation.dataType().isRational()
                     ? Literal.of(bcLiteral, ((Number) bcLiteral.value()).doubleValue())
                     : bcLiteral;
 
-                if (operation instanceof BinaryComparisonInvertible == false) { // should be an assertion?
-                    throw new QlIllegalArgumentException("Unexpected [" + operation.symbol() + "] operation object");
-                }
-                Expression bcRightExpression = ((BinaryComparisonInvertible) operation).binaryComparisonInverse()
+                Expression bcRightExpression = ((BinaryComparisonInversible) operation).binaryComparisonInverse()
                     .create(bcl.source(), bcl, opRight);
-                bcRightExpression = safeMaybeFold(bcRightExpression);
-                return bcRightExpression == null ? comparison : comparison.replaceChildren(List.of(opLeft, bcRightExpression));
+                bcRightExpression = tryFolding(bcRightExpression);
+                return bcRightExpression != null
+                    ? opSpecificPostApply((BinaryComparison) comparison.replaceChildren(List.of(opLeft, bcRightExpression)))
+                    : comparison;
             }
 
-            static Expression simplify(BinaryComparison comparison, BiFunction<DataType, DataType, Boolean> typesCompatible) {
-                ArithmeticOperation operation = (ArithmeticOperation) comparison.left();
-                // Use symbol comp: SQL operations aren't available in this package (as dependencies)
-                String opSymbol = operation.symbol();
-                // Modulo can't be simplified.
-                if (MOD.symbol().equals(opSymbol)) {
-                    return comparison;
-                }
-                SimplifyOperation simplify = null;
-                if (isMulOrDiv(opSymbol)) {
-                    simplify = new SimplifyMulDiv(comparison);
-                } else if (ADD.symbol().equals(opSymbol) || SUB.symbol().equals(opSymbol)) {
-                    simplify = new SimplifyAddSub(comparison);
-                }
+            // operation-specific operations:
+            //  - fast-tracking of simplification unsafety
+            abstract boolean opSpecificIsUnsafe();
 
-                return (simplify == null || simplify.cannotSimplify(typesCompatible)) ? comparison : simplify.doSimplify();
-            }
-
-            static boolean isMulOrDiv(String opSymbol) {
-                return MUL.symbol().equals(opSymbol) || DIV.symbol().equals(opSymbol);
+            //  - post adjustments
+            Expression opSpecificPostApply(BinaryComparison binaryComparison) {
+                return binaryComparison;
             }
         }
 
-        private static class SimplifyAddSub extends SimplifyOperation {
+        private static class AddSubSimplifier extends OperationSimplifier {
 
-            SimplifyAddSub(BinaryComparison comparison) {
+            AddSubSimplifier(BinaryComparison comparison) {
                 super(comparison);
             }
 
             @Override
-            boolean cannotSimplify(BiFunction<DataType, DataType, Boolean> typesCompatible) {
+            boolean opSpecificIsUnsafe() {
                 // no ADD/SUB with floating fields
-                return operation.dataType().isRational() || super.cannotSimplify(typesCompatible);
-            }
-
-            @Override
-            Expression doSimplify() {
-                if (SUB.symbol().equals(operation.symbol()) && opRight instanceof Literal == false) {
-                    // if next simplification step would fail on overflow anyways, skip the optimisation already
-                    if (safeMaybeFold(new Sub(EMPTY, opLeft, bcLiteral)) == null) {
-                        return comparison;
-                    }
+                if (operation.dataType().isRational()) {
+                    return true;
                 }
-                return super.doSimplify();
+
+                if (operation.symbol() == SUB.symbol() && opRight instanceof Literal == false) { // such as: 1 - x > -MAX
+                    // if next simplification step would fail on overflow anyways, skip the optimisation already
+                    return tryFolding(new Sub(EMPTY, opLeft, bcLiteral)) == null;
+                }
+
+                return false;
             }
         }
 
-        private static class SimplifyMulDiv extends SimplifyOperation {
+        private static class MulDivSimplifier extends OperationSimplifier {
 
             private final boolean isDiv; // and not MUL.
+            private final int opRightSign; // sign of the right operand in: (left) (op) (right) (comp) (literal)
 
-            SimplifyMulDiv(BinaryComparison comparison) {
+            MulDivSimplifier(BinaryComparison comparison) {
                 super(comparison);
-                isDiv = DIV.symbol().equals(operation.symbol());
+                isDiv = operation.symbol() == DIV.symbol();
+                opRightSign = sign(opRight);
             }
 
             @Override
-            boolean cannotSimplify(BiFunction<DataType, DataType, Boolean> typesCompatible) {
+            boolean opSpecificIsUnsafe() {
                 // Integer divisions are not safe to optimise: x / 5 > 1 <=/=> x > 5 for x in [6, 9]; same for the `==` comp
-                return operation.dataType().isInteger() && isDiv || super.cannotSimplify(typesCompatible);
-            }
+                if (operation.dataType().isInteger() && isDiv) {
+                    return true;
+                }
 
-            @Override
-            Expression doSimplify() {
                 // If current operation is a multiplication, it's inverse will be a division: safe only if outcome is still integral.
                 if (isDiv == false && opLeft.dataType().isInteger()) {
                     long opLiteralValue = ((Number) opLiteral.value()).longValue();
-                    if (opLiteralValue == 0 || ((Number) bcLiteral.value()).longValue() % opLiteralValue != 0) {
-                        return comparison;
-                    }
+                    return opLiteralValue == 0 || ((Number) bcLiteral.value()).longValue() % opLiteralValue != 0;
                 }
-                // negative multiplication/division changes the direction of the comparison
-                int sign = sign(opRight);
-                if (sign == 0) {
-                    return comparison;
-                }
-                BinaryComparison bc = (BinaryComparison) super.doSimplify();
-                return sign < 0 ? bc.reverse() : bc;
+
+                // can't move a 0 in Mul/Div comparisons
+                return opRightSign == 0;
             }
 
-            private int sign(Object obj) {
+            @Override
+            Expression opSpecificPostApply(BinaryComparison binaryComparison) {
+                // negative multiplication/division changes the direction of the comparison
+                return opRightSign < 0 ? binaryComparison.reverse() : binaryComparison;
+            }
+
+            private static int sign(Object obj) {
                 int sign = 1;
                 if (obj instanceof Number) {
-                    double d = ((Number) obj).doubleValue();
-                    sign = d == 0 ? 0 : (d < 0 ? -1 : 1);
+                    sign = (int) signum(((Number) obj).doubleValue());
                 } else if (obj instanceof Literal) {
                     sign = sign(((Literal) obj).value());
                 } else if (obj instanceof Neg) {

@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.ql.tree.Source;
 /**
  * Subtraction function ({@code a - b}).
  */
-public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInvertible {
+public class Sub extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
 
     public Sub(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.SUB);

@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.ql.type.DataTypeConverter;
 /**
  * Division function ({@code a / b}).
  */
-public class Div extends ArithmeticOperation implements BinaryComparisonInvertible {
+public class Div extends ArithmeticOperation implements BinaryComparisonInversible {
 
     public Div(Source source, Expression left, Expression right) {
         super(source, left, right, DefaultBinaryArithmeticOperation.DIV);

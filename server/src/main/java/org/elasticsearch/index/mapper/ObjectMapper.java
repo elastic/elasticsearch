@@ -494,12 +494,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
             this.dynamic = mergeWith.dynamic;
         }
 
-        if (reason == MergeReason.INDEX_TEMPLATE) {
-            if (mergeWith.enabled.explicit()) {
+        if (mergeWith.enabled.explicit()) {
+            if (reason == MergeReason.INDEX_TEMPLATE) {
                 this.enabled = mergeWith.enabled;
+            } else if (isEnabled() != mergeWith.isEnabled()){
+                throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
             }
-        } else if (isEnabled() != mergeWith.isEnabled()) {
-            throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + name() + "]");
         }
 
         for (Mapper mergeWithMapper : mergeWith) {

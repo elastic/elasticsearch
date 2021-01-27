@@ -31,7 +31,7 @@ import org.elasticsearch.index.store.BaseSearchableSnapshotIndexInput;
 import org.elasticsearch.index.store.IndexInputStats;
 import org.elasticsearch.index.store.SearchableSnapshotDirectory;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
-import org.elasticsearch.xpack.searchablesnapshots.cache.SearchableSnapshotsLFUCache.SharedCacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
 
 import java.io.EOFException;
 import java.io.IOException;
@@ -47,15 +47,15 @@ import java.util.function.Predicate;
 import static org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput.checksumToBytesArray;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsUtils.toIntBytes;
 
-public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotIndexInput {
+public class FrozenIndexInput extends BaseSearchableSnapshotIndexInput {
 
     public static final IOContext CACHE_WARMING_CONTEXT = new IOContext();
 
-    private static final Logger logger = LogManager.getLogger(SharedCachedBlobContainerIndexInput.class);
+    private static final Logger logger = LogManager.getLogger(FrozenIndexInput.class);
     private static final int COPY_BUFFER_SIZE = ByteSizeUnit.KB.toIntBytes(8);
 
     private final SearchableSnapshotDirectory directory;
-    private final SharedCacheFile sharedCacheFile;
+    private final FrozenCacheFile frozenCacheFile;
     private final int defaultRangeSize;
     private final int recoveryRangeSize;
 
@@ -64,7 +64,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
     // last seek position is kept around in order to detect forward/backward seeks for stats
     private long lastSeekPosition;
 
-    public SharedCachedBlobContainerIndexInput(
+    public FrozenIndexInput(
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
         IOContext context,
@@ -80,7 +80,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             stats,
             0L,
             fileInfo.length(),
-            directory.getSharedCacheFile(fileInfo.physicalName(), fileInfo.length()),
+            directory.getFrozenCacheFile(fileInfo.physicalName(), fileInfo.length()),
             rangeSize,
             recoveryRangeSize
         );
@@ -88,7 +88,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         stats.incrementOpenCount();
     }
 
-    private SharedCachedBlobContainerIndexInput(
+    private FrozenIndexInput(
         String resourceDesc,
         SearchableSnapshotDirectory directory,
         FileInfo fileInfo,
@@ -96,13 +96,13 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         IndexInputStats stats,
         long offset,
         long length,
-        SharedCacheFile sharedCacheFile,
+        FrozenCacheFile frozenCacheFile,
         int rangeSize,
         int recoveryRangeSize
     ) {
         super(resourceDesc, directory.blobContainer(), fileInfo, context, stats, offset, length);
         this.directory = directory;
-        this.sharedCacheFile = sharedCacheFile;
+        this.frozenCacheFile = frozenCacheFile;
         this.lastReadPosition = this.offset;
         this.lastSeekPosition = this.offset;
         this.defaultRangeSize = rangeSize;
@@ -159,7 +159,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         try {
             // Can we serve the read directly from disk? If so, do so and don't worry about anything else.
 
-            final StepListener<Integer> waitingForRead = sharedCacheFile.readIfAvailableOrPending(
+            final StepListener<Integer> waitingForRead = frozenCacheFile.readIfAvailableOrPending(
                 Tuple.tuple(position, position + length),
                 (channel, pos, relativePos, len) -> {
                     final int read = readCacheFile(channel, pos, relativePos, len, b, position, true, luceneByteBufLock, stopAsyncReads);
@@ -224,7 +224,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
 
                     try {
                         final Tuple<Long, Long> cachedRange = Tuple.tuple(cachedBlob.from(), cachedBlob.to());
-                        sharedCacheFile.populateAndRead(
+                        frozenCacheFile.populateAndRead(
                             cachedRange,
                             cachedRange,
                             (channel, channelPos, relativePos, len) -> cachedBlob.length(),
@@ -300,7 +300,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                 + rangeToWrite;
             final Tuple<Long, Long> rangeToRead = Tuple.tuple(position, position + length);
 
-            final StepListener<Integer> populateCacheFuture = sharedCacheFile.populateAndRead(
+            final StepListener<Integer> populateCacheFuture = frozenCacheFile.populateAndRead(
                 rangeToWrite,
                 rangeToRead,
                 (channel, pos, relativePos, len) -> readCacheFile(
@@ -327,7 +327,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
 
             if (indexCacheMiss != null) {
                 final Releasable onCacheFillComplete = stats.addIndexCacheFill();
-                final StepListener<Integer> readFuture = sharedCacheFile.readIfAvailableOrPending(
+                final StepListener<Integer> readFuture = frozenCacheFile.readIfAvailableOrPending(
                     indexCacheMiss,
                     (channel, channelPos, relativePos, len) -> {
                         // TODO: build up byte buffer until it has all elements
@@ -414,7 +414,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                         "direct reading of range [{}-{}] for cache file [{}]",
                         position,
                         position + length,
-                        sharedCacheFile
+                        frozenCacheFile
                     )
                 );
 
@@ -433,7 +433,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                                     position,
                                     position + length,
                                     remaining,
-                                    sharedCacheFile
+                                    frozenCacheFile
                                 )
                             );
                         }
@@ -491,7 +491,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
         long rangeStart,
         long rangeEnd,
         long remaining,
-        SharedCacheFile sharedCacheFile
+        FrozenCacheFile frozenCacheFile
     ) throws IOException {
         final int len = (remaining < copyBuffer.length) ? toIntBytes(remaining) : copyBuffer.length;
         final int bytesRead = inputStream.read(copyBuffer, 0, len);
@@ -503,7 +503,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                     rangeStart,
                     rangeEnd,
                     remaining,
-                    sharedCacheFile
+                    frozenCacheFile
                 )
             );
         }
@@ -549,7 +549,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             channelPos,
             relativePos,
             length,
-            sharedCacheFile
+            frozenCacheFile
         );
         if (length == 0L) {
             return 0;
@@ -578,7 +578,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                             "unexpected EOF reading [%d-%d] from %s",
                             channelPos,
                             channelPos + dup.remaining(),
-                            this.sharedCacheFile
+                            this.frozenCacheFile
                         )
                     );
                 }
@@ -610,18 +610,18 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             fileChannelPos,
             relativePos,
             length,
-            sharedCacheFile
+            frozenCacheFile
         );
         final long end = relativePos + length;
         final byte[] copyBuffer = new byte[toIntBytes(Math.min(COPY_BUFFER_SIZE, length))];
-        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos, end, sharedCacheFile));
+        logger.trace(() -> new ParameterizedMessage("writing range [{}-{}] to cache file [{}]", relativePos, end, frozenCacheFile));
 
         long bytesCopied = 0L;
         long remaining = length;
         final long startTimeNanos = stats.currentTimeNanos();
         try (InputStream input = openInputStreamFromBlobStore(logicalPos + relativePos, length)) {
             while (remaining > 0L) {
-                final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, sharedCacheFile);
+                final int bytesRead = readSafe(input, copyBuffer, relativePos, end, remaining, frozenCacheFile);
                 positionalWrite(fc, fileChannelPos + bytesCopied, ByteBuffer.wrap(copyBuffer, 0, bytesRead));
                 bytesCopied += bytesRead;
                 remaining -= bytesRead;
@@ -725,8 +725,8 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
     }
 
     @Override
-    public SharedCachedBlobContainerIndexInput clone() {
-        return (SharedCachedBlobContainerIndexInput) super.clone();
+    public FrozenIndexInput clone() {
+        return (FrozenIndexInput) super.clone();
     }
 
     @Override
@@ -745,7 +745,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
                     + this
             );
         }
-        final SharedCachedBlobContainerIndexInput slice = new SharedCachedBlobContainerIndexInput(
+        final FrozenIndexInput slice = new FrozenIndexInput(
             getFullSliceDescription(sliceDescription),
             directory,
             fileInfo,
@@ -753,7 +753,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
             stats,
             this.offset + offset,
             length,
-            sharedCacheFile,
+            frozenCacheFile,
             defaultRangeSize,
             recoveryRangeSize
         );
@@ -765,7 +765,7 @@ public class SharedCachedBlobContainerIndexInput extends BaseSearchableSnapshotI
     public String toString() {
         return "CachedBlobContainerIndexInput{"
             + "sharedCacheFile="
-            + sharedCacheFile
+            + frozenCacheFile
             + ", offset="
             + offset
             + ", length="

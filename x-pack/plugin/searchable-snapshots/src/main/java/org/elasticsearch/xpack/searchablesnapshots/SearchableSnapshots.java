@@ -74,7 +74,7 @@ import org.elasticsearch.xpack.searchablesnapshots.action.TransportSearchableSna
 import org.elasticsearch.xpack.searchablesnapshots.action.cache.TransportSearchableSnapshotCacheStoresAction;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.PersistentCache;
-import org.elasticsearch.xpack.searchablesnapshots.cache.SearchableSnapshotsLFUCache;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestClearSearchableSnapshotsCacheAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestMountSearchableSnapshotAction;
 import org.elasticsearch.xpack.searchablesnapshots.rest.RestSearchableSnapshotsStatsAction;
@@ -187,7 +187,7 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     private volatile Supplier<RepositoriesService> repositoriesServiceSupplier;
     private final SetOnce<BlobStoreCacheService> blobStoreCacheService = new SetOnce<>();
     private final SetOnce<CacheService> cacheService = new SetOnce<>();
-    private final SetOnce<SearchableSnapshotsLFUCache> sharedLfuCache = new SetOnce<>();
+    private final SetOnce<FrozenCacheService> sharedLfuCache = new SetOnce<>();
     private final SetOnce<ThreadPool> threadPool = new SetOnce<>();
     private final SetOnce<FailShardsOnInvalidLicenseClusterListener> failShardsListener = new SetOnce<>();
     private final SetOnce<SearchableSnapshotAllocator> allocator = new SetOnce<>();
@@ -224,11 +224,11 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
             CacheService.SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING,
             CacheService.SNAPSHOT_CACHE_SYNC_SHUTDOWN_TIMEOUT,
             SearchableSnapshotEnableAllocationDecider.SEARCHABLE_SNAPSHOTS_ALLOCATE_ON_ROLLING_RESTART,
-            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_SIZE_SETTING,
-            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
-            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
-            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
-            SearchableSnapshotsLFUCache.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING
+            FrozenCacheService.SNAPSHOT_CACHE_SIZE_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_REGION_SIZE_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_MAX_FREQ_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_DECAY_INTERVAL_SETTING,
+            FrozenCacheService.SNAPSHOT_CACHE_MIN_TIME_DELTA_SETTING
         );
     }
 
@@ -253,9 +253,9 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (DiscoveryNode.isDataNode(settings)) {
             final CacheService cacheService = new CacheService(settings, clusterService, threadPool, new PersistentCache(nodeEnvironment));
             this.cacheService.set(cacheService);
-            final SearchableSnapshotsLFUCache sharedLfuCache;
+            final FrozenCacheService sharedLfuCache;
             try {
-                sharedLfuCache = new SearchableSnapshotsLFUCache(settings, threadPool);
+                sharedLfuCache = new FrozenCacheService(settings, threadPool);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

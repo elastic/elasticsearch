@@ -44,7 +44,7 @@ import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.cache.CacheFile;
 import org.elasticsearch.index.store.cache.CacheKey;
 import org.elasticsearch.index.store.cache.CachedBlobContainerIndexInput;
-import org.elasticsearch.index.store.cache.SharedCachedBlobContainerIndexInput;
+import org.elasticsearch.index.store.cache.FrozenIndexInput;
 import org.elasticsearch.index.store.checksum.ChecksumBlobContainerIndexInput;
 import org.elasticsearch.index.store.direct.DirectBlobContainerIndexInput;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -59,8 +59,8 @@ import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 import org.elasticsearch.xpack.searchablesnapshots.cache.CacheService;
-import org.elasticsearch.xpack.searchablesnapshots.cache.SearchableSnapshotsLFUCache;
-import org.elasticsearch.xpack.searchablesnapshots.cache.SearchableSnapshotsLFUCache.SharedCacheFile;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService;
+import org.elasticsearch.xpack.searchablesnapshots.cache.FrozenCacheService.FrozenCacheFile;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -134,7 +134,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     private final ShardPath shardPath;
     private final AtomicBoolean closed;
     private final boolean partial;
-    private final SearchableSnapshotsLFUCache sharedLfuCache;
+    private final FrozenCacheService sharedLfuCache;
 
     // volatile fields are updated once under `this` lock, all together, iff loaded is not true.
     private volatile BlobStoreIndexShardSnapshot snapshot;
@@ -156,7 +156,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Path cacheDir,
         ShardPath shardPath,
         ThreadPool threadPool,
-        SearchableSnapshotsLFUCache sharedLfuCache
+        FrozenCacheService sharedLfuCache
     ) {
         super(new SingleInstanceLockFactory());
         this.snapshotSupplier = Objects.requireNonNull(snapshot);
@@ -387,7 +387,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         final IndexInputStats inputStats = stats.computeIfAbsent(name, n -> createIndexInputStats(fileInfo.length()));
         if (useCache && isExcludedFromCache(name) == false) {
             if (partial) {
-                return new SharedCachedBlobContainerIndexInput(
+                return new FrozenIndexInput(
                     this,
                     fileInfo,
                     context,
@@ -557,7 +557,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         LongSupplier currentTimeNanosSupplier,
         ThreadPool threadPool,
         BlobStoreCacheService blobStoreCacheService,
-        SearchableSnapshotsLFUCache sharedLfuCache
+        FrozenCacheService sharedLfuCache
     ) throws IOException {
 
         if (SNAPSHOT_REPOSITORY_NAME_SETTING.exists(indexSettings.getSettings()) == false
@@ -678,8 +678,8 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
     }
 
-    public SharedCacheFile getSharedCacheFile(String fileName, long length) {
-        return sharedLfuCache.getSharedCacheFile(createCacheKey(fileName), length);
+    public FrozenCacheFile getFrozenCacheFile(String fileName, long length) {
+        return sharedLfuCache.getFrozenCacheFile(createCacheKey(fileName), length);
     }
 
     private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {

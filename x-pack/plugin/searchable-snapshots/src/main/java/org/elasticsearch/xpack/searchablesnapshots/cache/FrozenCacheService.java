@@ -42,9 +42,9 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
 
-public class SearchableSnapshotsLFUCache {
+public class FrozenCacheService {
 
-    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.shared-cache.";
+    private static final String SETTINGS_PREFIX = "xpack.searchable.snapshot.frozen-cache.";
 
     public static final Setting<ByteSizeValue> SNAPSHOT_CACHE_SIZE_SETTING = Setting.byteSizeSetting(
         SETTINGS_PREFIX + "size",
@@ -81,7 +81,7 @@ public class SearchableSnapshotsLFUCache {
         Setting.Property.NodeScope
     );
 
-    private static final Logger logger = LogManager.getLogger(SearchableSnapshotsLFUCache.class);
+    private static final Logger logger = LogManager.getLogger(FrozenCacheService.class);
 
     private final ConcurrentHashMap<RegionKey, Entry<CacheFileRegion>> keyMapping;
 
@@ -101,7 +101,7 @@ public class SearchableSnapshotsLFUCache {
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     @SuppressForbidden(reason = "Use temp dir for now")
-    public SearchableSnapshotsLFUCache(Settings settings, ThreadPool threadPool) throws IOException {
+    public FrozenCacheService(Settings settings, ThreadPool threadPool) throws IOException {
         this.currentTimeSupplier = threadPool::relativeTimeInMillis;
         final long cacheSize = SNAPSHOT_CACHE_SIZE_SETTING.get(settings).getBytes();
         final long regionSize = SNAPSHOT_CACHE_REGION_SIZE_SETTING.get(settings).getBytes();
@@ -580,12 +580,12 @@ public class SearchableSnapshotsLFUCache {
         }
     }
 
-    public class SharedCacheFile {
+    public class FrozenCacheFile {
 
         private final CacheKey cacheKey;
         private final long length;
 
-        public SharedCacheFile(CacheKey cacheKey, long length) {
+        public FrozenCacheFile(CacheKey cacheKey, long length) {
             this.cacheKey = cacheKey;
             this.length = length;
         }
@@ -674,8 +674,8 @@ public class SearchableSnapshotsLFUCache {
         }
     }
 
-    public SharedCacheFile getSharedCacheFile(CacheKey cacheKey, long length) {
-        return new SharedCacheFile(cacheKey, length);
+    public FrozenCacheFile getFrozenCacheFile(CacheKey cacheKey, long length) {
+        return new FrozenCacheFile(cacheKey, length);
     }
 
     @FunctionalInterface

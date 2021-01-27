@@ -32,21 +32,32 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
         boolean includeUpper
     ) {
         super(script, leafFactory, fieldName);
-        this.lowerValue = Objects.requireNonNull(lowerValue);
-        this.upperValue = Objects.requireNonNull(upperValue);
+        if (lowerValue == null && includeLower == false) {
+            throw new IllegalArgumentException("includeLower must be true when lowerValue is null (open ended)");
+        }
+        if (upperValue == null && includeUpper == false) {
+            throw new IllegalArgumentException("includeUpper must be true when upperValue is null (open ended)");
+        }
+        this.lowerValue = lowerValue;
+        this.upperValue = upperValue;
         this.includeLower = includeLower;
         this.includeUpper = includeUpper;
-        assert lowerValue.compareTo(upperValue) <= 0;
     }
 
     @Override
     protected boolean matches(List<String> values) {
         for (String value : values) {
-            int lct = lowerValue.compareTo(value);
-            boolean lowerOk = includeLower ? lct <= 0 : lct < 0;
+            boolean lowerOk = true;
+            if (lowerValue != null) {
+                int lct = lowerValue.compareTo(value);
+                lowerOk = includeLower ? lct <= 0 : lct < 0;
+            }
             if (lowerOk) {
-                int uct = upperValue.compareTo(value);
-                boolean upperOk = includeUpper ? uct >= 0 : uct > 0;
+                boolean upperOk = true;
+                if (upperValue != null) {
+                    int uct = upperValue.compareTo(value);
+                    upperOk = includeUpper ? uct >= 0 : uct > 0;
+                }
                 if (upperOk) {
                     return true;
                 }
@@ -62,7 +73,12 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
                 this,
                 fieldName(),
                 () -> new ByteRunAutomaton(
-                    Automata.makeBinaryInterval(new BytesRef(lowerValue), includeLower, new BytesRef(upperValue), includeUpper)
+                    Automata.makeBinaryInterval(
+                        lowerValue == null ? null : new BytesRef(lowerValue),
+                        includeLower,
+                        upperValue == null ? null : new BytesRef(upperValue),
+                        includeUpper
+                    )
                 )
             );
         }
@@ -75,7 +91,9 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
             b.append(fieldName()).append(':');
         }
         b.append(includeLower ? '[' : '{');
-        b.append(lowerValue).append(" TO ").append(upperValue);
+        b.append(lowerValue == null ? "*" : lowerValue);
+        b.append(" TO ");
+        b.append(upperValue == null ? "*" : upperValue);
         b.append(includeUpper ? ']' : '}');
         return b.toString();
     }
@@ -91,8 +109,8 @@ public class StringScriptFieldRangeQuery extends AbstractStringScriptFieldQuery 
             return false;
         }
         StringScriptFieldRangeQuery other = (StringScriptFieldRangeQuery) obj;
-        return lowerValue.equals(other.lowerValue)
-            && upperValue.equals(other.upperValue)
+        return Objects.equals(lowerValue, other.lowerValue)
+            && Objects.equals(upperValue, other.upperValue)
             && includeLower == other.includeLower
             && includeUpper == other.includeUpper;
     }

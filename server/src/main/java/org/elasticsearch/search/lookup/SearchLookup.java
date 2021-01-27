@@ -51,7 +51,6 @@ public class SearchLookup {
      */
     private final Set<String> fieldChain;
     private final SourceLookup sourceLookup;
-    private final StoredFieldsLookup storedFieldsLookup;
     private final Function<String, MappedFieldType> fieldTypeLookup;
     private final BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup;
 
@@ -63,8 +62,7 @@ public class SearchLookup {
                         BiFunction<MappedFieldType, Supplier<SearchLookup>, IndexFieldData<?>> fieldDataLookup) {
         this.fieldTypeLookup = fieldTypeLookup;
         this.fieldChain = Collections.emptySet();
-        sourceLookup = new SourceLookup();
-        storedFieldsLookup = new StoredFieldsLookup(fieldTypeLookup);
+        this.sourceLookup = new SourceLookup();
         this.fieldDataLookup = fieldDataLookup;
     }
 
@@ -78,7 +76,6 @@ public class SearchLookup {
     private SearchLookup(SearchLookup searchLookup, Set<String> fieldChain) {
         this.fieldChain = Collections.unmodifiableSet(fieldChain);
         this.sourceLookup = searchLookup.sourceLookup;
-        this.storedFieldsLookup = searchLookup.storedFieldsLookup;
         this.fieldTypeLookup = searchLookup.fieldTypeLookup;
         this.fieldDataLookup = searchLookup.fieldDataLookup;
     }
@@ -108,7 +105,7 @@ public class SearchLookup {
         return new LeafSearchLookup(context,
                 new LeafDocLookup(fieldTypeLookup, this::getForField, context),
                 sourceLookup,
-                storedFieldsLookup.getLeafFieldsLookup(context));
+                new LeafStoredFieldsLookup(fieldTypeLookup, context.reader()));
     }
 
     public MappedFieldType fieldType(String fieldName) {

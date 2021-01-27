@@ -248,6 +248,14 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexModule.getSettings())) {
             indexModule.addIndexEventListener(new SearchableSnapshotIndexEventListener(settings, cacheService.get()));
             indexModule.addIndexEventListener(failShardsListener.get());
+
+            indexModule.getIndexSettings()
+                .getScopedSettings()
+                .addSettingsUpdateConsumer(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING, s -> {}, write -> {
+                    if (write == false) {
+                        throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
+                    }
+                });
         }
     }
 
@@ -347,13 +355,6 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<DiscoveryNodes> nodesInCluster
     ) {
-        indexScopedSettings.addSettingsUpdateConsumer(s -> {}, List.of(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING), settings -> {
-            if (SearchableSnapshotsConstants.isSearchableSnapshotStore(settings)) {
-                if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(settings) == false) {
-                    throw new IllegalArgumentException("Cannot remove write block from searchable snapshot index");
-                }
-            }
-        });
         return List.of(
             new RestSearchableSnapshotsStatsAction(),
             new RestClearSearchableSnapshotsCacheAction(),

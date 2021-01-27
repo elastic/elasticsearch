@@ -60,7 +60,12 @@ public class SearchableSnapshotsSettingValidationIntegTests extends BaseSearchab
                 .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), false))
                 .get()
         );
-        assertThat(iae.getMessage(), containsString("Cannot remove write block from searchable snapshot index"));
+        assertThat(
+            iae.getMessage(),
+            containsString("illegal value can't update [" + IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey() + "] from [true] to [false]")
+        );
+        assertNotNull(iae.getCause());
+        assertThat(iae.getCause().getMessage(), containsString("Cannot remove write block from searchable snapshot index"));
 
         client().admin()
             .indices()

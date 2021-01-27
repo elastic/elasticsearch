@@ -19,6 +19,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
@@ -38,7 +39,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
-import org.elasticsearch.xpack.core.search.action.AsyncStatusResponse;
+import org.elasticsearch.xpack.core.search.action.SearchStatusResponse;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
@@ -50,7 +51,6 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiFunction;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
@@ -312,16 +312,17 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
 
 
     /**
-     * Gets the status response of the async search from the index
-     * @param asyncExecutionId – id of the async search
-     * @param statusProducer – a producer of the status from the stored async search response and expirationTime
+     * Gets the status response of the stored search from the index
+     * @param asyncExecutionId – id of the stored search (async search or stored eql search)
+     * @param statusProducer – a producer of a status from the stored search and expirationTime
      * @param listener – listener to report result to
      */
     public void getStatusResponse(
         AsyncExecutionId asyncExecutionId,
-            BiFunction<R, Long, AsyncStatusResponse> statusProducer, ActionListener<AsyncStatusResponse> listener) {
+        TriFunction<R, Long, String, SearchStatusResponse> statusProducer, ActionListener<SearchStatusResponse> listener) {
+        String asyncId = asyncExecutionId.getEncoded();
         GetRequest internalGet = new GetRequest(index)
-            .preference(asyncExecutionId.getEncoded())
+            .preference(asyncId)
             .id(asyncExecutionId.getDocId());
         client.get(internalGet, ActionListener.wrap(
             get -> {
@@ -332,7 +333,7 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 String encoded = (String) get.getSource().get(RESULT_FIELD);
                 if (encoded != null) {
                     Long expirationTime = (Long) get.getSource().get(EXPIRATION_TIME_FIELD);
-                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime));
+                    listener.onResponse(statusProducer.apply(decodeResponse(encoded), expirationTime, asyncId));
                 } else {
                     listener.onResponse(null);
                 }

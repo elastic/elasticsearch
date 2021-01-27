@@ -20,9 +20,9 @@ import java.io.IOException;
 import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
- * A response of an async search request.
+ * A response of an async search status request.
  */
-public class AsyncStatusResponse extends ActionResponse implements StatusToXContentObject {
+public class AsyncStatusResponse extends ActionResponse implements SearchStatusResponse, StatusToXContentObject {
     private final String id;
     private final boolean isRunning;
     private final boolean isPartial;
@@ -56,8 +56,15 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
         this.completionStatus = completionStatus;
     }
 
-    public static AsyncStatusResponse getStatusFromAsyncSearchResponseWithExpirationTime(AsyncSearchResponse asyncSearchResponse,
-            long expirationTimeMillis) {
+    /**
+     * Get status from the stored async search response
+     * @param asyncSearchResponse stored async search response
+     * @param expirationTimeMillis – expiration time in milliseconds
+     * @param id – encoded async search id
+     * @return status response
+     */
+    public static AsyncStatusResponse getStatus(AsyncSearchResponse asyncSearchResponse,
+            long expirationTimeMillis, String id) {
         int totalShards = 0;
         int successfulShards = 0;
         int skippedShards = 0;
@@ -81,7 +88,7 @@ public class AsyncStatusResponse extends ActionResponse implements StatusToXCont
             }
         }
         return new AsyncStatusResponse(
-            asyncSearchResponse.getId(),
+            id,
             asyncSearchResponse.isRunning(),
             asyncSearchResponse.isPartial(),
             asyncSearchResponse.getStartTime(),

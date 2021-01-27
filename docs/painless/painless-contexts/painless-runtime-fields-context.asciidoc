@@ -33,7 +33,7 @@ Both the standard <<painless-api-reference-shared, Painless API>> and
 
 *Example*
 
-To run this example, first follow the steps in
+To run the examples, first follow the steps in
 <<painless-context-examples, context examples>>.
 
 Then, run the following request to define a runtime field named `day_of_week`.

@@ -125,4 +125,4 @@ POST /_snapshot/my_repository/my_snapshot/_mount?wait_for_completion=true
 <1> The name of the index in the snapshot to mount
 <2> The name of the index to create
 <3> Any index settings to add to the new index
-<4> List of indices to ignore when mounting the snapshotted index
+<4> List of index settings to ignore when mounting the snapshotted index

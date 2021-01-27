@@ -64,7 +64,7 @@ public class ExceptionsHelperTests extends ESTestCase {
         for (int i = 0; i < depth; i++) {
             final int length = randomIntBetween(1, 4);
             for (int j = 0; j < length; j++) {
-                if (!fatal && rarely()) {
+                if (fatal == false && rarely()) {
                     error = new Error();
                     cause.addSuppressed(error);
                     fatal = true;
@@ -72,7 +72,7 @@ public class ExceptionsHelperTests extends ESTestCase {
                     cause.addSuppressed(new Exception());
                 }
             }
-            if (!fatal && rarely()) {
+            if (fatal == false && rarely()) {
                 cause = error = new Error(cause);
                 fatal = true;
             } else {

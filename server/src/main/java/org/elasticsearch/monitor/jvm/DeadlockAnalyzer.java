@@ -80,7 +80,7 @@ public class DeadlockAnalyzer {
                 cycle.add(t);
             }
 
-            if (!cycles.contains(cycle)) {
+            if (cycles.contains(cycle) == false) {
                 cycles.add(cycle);
             }
         }
@@ -100,7 +100,7 @@ public class DeadlockAnalyzer {
                     if (cycle.contains(threadInfoMap.get(Long.valueOf(threadInfo.getLockOwnerId())))) {
                         LinkedHashSet<ThreadInfo> chain = new LinkedHashSet<>();
                         ThreadInfo node = threadInfo;
-                        while (!chain.contains(node)) {
+                        while (chain.contains(node) == false) {
                             chain.add(node);
                             node = threadInfoMap.get(Long.valueOf(node.getLockOwnerId()));
                         }

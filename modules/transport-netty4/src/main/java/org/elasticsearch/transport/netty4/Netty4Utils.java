@@ -49,7 +49,7 @@ public class Netty4Utils {
     public static void setAvailableProcessors(final int availableProcessors) {
         // we set this to false in tests to avoid tests that randomly set processors from stepping on each other
         final boolean set = Booleans.parseBoolean(System.getProperty("es.set.netty.runtime.available.processors", "true"));
-        if (!set) {
+        if (set == false) {
             return;
         }
 

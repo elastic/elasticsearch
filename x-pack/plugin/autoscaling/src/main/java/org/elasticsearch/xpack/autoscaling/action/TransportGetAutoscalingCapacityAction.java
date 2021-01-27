@@ -6,6 +6,8 @@
 
 package org.elasticsearch.xpack.autoscaling.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
@@ -30,6 +32,8 @@ import java.util.Objects;
 public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAction<
     GetAutoscalingCapacityAction.Request,
     GetAutoscalingCapacityAction.Response> {
+
+    private static final Logger logger = LogManager.getLogger(TransportGetAutoscalingCapacityAction.class);
 
     private final AutoscalingCalculateCapacityService capacityService;
     private final ClusterInfoService clusterInfoService;
@@ -82,16 +86,16 @@ public class TransportGetAutoscalingCapacityAction extends TransportMasterNodeAc
             return;
         }
 
-        listener.onResponse(
-            new GetAutoscalingCapacityAction.Response(
-                capacityService.calculate(
-                    state,
-                    clusterInfoService.getClusterInfo(),
-                    snapshotsInfoService.snapshotShardSizes(),
-                    memoryInfoService.snapshot()
-                )
+        GetAutoscalingCapacityAction.Response response = new GetAutoscalingCapacityAction.Response(
+            capacityService.calculate(
+                state,
+                clusterInfoService.getClusterInfo(),
+                snapshotsInfoService.snapshotShardSizes(),
+                memoryInfoService.snapshot()
             )
         );
+        logger.debug("autoscaling capacity response [{}]", response);
+        listener.onResponse(response);
     }
 
     @Override

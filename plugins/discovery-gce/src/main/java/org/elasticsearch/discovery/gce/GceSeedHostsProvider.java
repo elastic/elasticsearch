@@ -49,7 +49,7 @@ import java.util.function.Function;
 import static java.util.Collections.emptyList;
 
 public class GceSeedHostsProvider implements SeedHostsProvider {
-    
+
     private static final Logger logger = LogManager.getLogger(GceSeedHostsProvider.class);
 
     /**
@@ -171,7 +171,7 @@ public class GceSeedHostsProvider implements SeedHostsProvider {
                                     break;
                                 }
                             }
-                            if (!found) {
+                            if (found == false) {
                                 filterByTag = true;
                                 break;
                             }

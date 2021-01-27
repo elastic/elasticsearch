@@ -66,6 +66,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * Service responsible for maintaining and providing access to snapshot repositories on nodes.
  */
@@ -454,7 +456,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             for (Repository repo : builder.values()) {
                 repo.updateState(state);
             }
-            repositories = Collections.unmodifiableMap(builder);
+            repositories = unmodifiableMap(builder);
         } catch (Exception ex) {
             assert false : new AssertionError(ex);
             logger.warn("failure updating cluster state ", ex);
@@ -497,17 +499,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     /**
-     * Return repository with the given UUID
-     *
-     * @throws RepositoryMissingException if a repository with that UUID is not registered
+     * @return the current collection of registered repositories, keyed by name.
      */
-    public Repository repositoryByUuid(String repositoryUuid, String originalName) {
-        for (Repository repository : repositories.values()) {
-            if (repository.getMetadata().uuid().equals(repositoryUuid)) {
-                return repository;
-            }
-        }
-        throw new RepositoryMissingException("uuid [" + repositoryUuid + "], original name [" + originalName + "]");
+    public Map<String, Repository> getRepositories() {
+        return unmodifiableMap(repositories);
     }
 
     public List<RepositoryStatsSnapshot> repositoriesStats() {

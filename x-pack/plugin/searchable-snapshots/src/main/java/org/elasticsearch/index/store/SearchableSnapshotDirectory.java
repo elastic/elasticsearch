@@ -51,6 +51,7 @@ import org.elasticsearch.indices.recovery.SearchableSnapshotRecoveryState;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SourceOnlySnapshotRepository;
@@ -567,8 +568,11 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
         Repository repository;
         final String repositoryName;
         if (SNAPSHOT_REPOSITORY_UUID_SETTING.exists(indexSettings.getSettings())) {
-            final String repositoryUuid = SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings.getSettings());
-            repository = repositories.repositoryByUuid(repositoryUuid, SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings()));
+            repository = repositoryByUuid(
+                repositories.getRepositories(),
+                SNAPSHOT_REPOSITORY_UUID_SETTING.get(indexSettings.getSettings()),
+                SNAPSHOT_REPOSITORY_NAME_SETTING.get(indexSettings.getSettings())
+            );
             repositoryName = repository.getMetadata().name();
         } else {
             // repository containing pre-7.12 snapshots has no UUID so we assume it matches by name
@@ -650,6 +654,15 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
 
     public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
         blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
+    }
+
+    private static Repository repositoryByUuid(Map<String, Repository> repositories, String repositoryUuid, String originalName) {
+        for (Repository repository : repositories.values()) {
+            if (repository.getMetadata().uuid().equals(repositoryUuid)) {
+                return repository;
+            }
+        }
+        throw new RepositoryMissingException("uuid [" + repositoryUuid + "], original name [" + originalName + "]");
     }
 
     /**

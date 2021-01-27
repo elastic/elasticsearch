@@ -57,7 +57,7 @@ public class RolloverRequestTests extends ESTestCase {
         rolloverRequest.addMaxIndexAgeCondition(maxAgeCondition.value());
         rolloverRequest.addMaxIndexDocsCondition(maxDocsCondition.value());
         rolloverRequest.addMaxIndexSizeCondition(maxSizeCondition.value());
-        rolloverRequest.addMaxIndexSinglePrimarySizeCondition(maxSinglePrimarySizeCondition.value());
+        rolloverRequest.addMaxSinglePrimarySizeCondition(maxSinglePrimarySizeCondition.value());
         List<Condition<?>> requestConditions = new ArrayList<>(rolloverRequest.getConditions().values());
         assertThat(requestConditions, containsInAnyOrder(expectedConditions));
     }

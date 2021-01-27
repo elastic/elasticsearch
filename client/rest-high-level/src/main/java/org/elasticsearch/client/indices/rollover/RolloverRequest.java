@@ -122,7 +122,7 @@ public class RolloverRequest extends TimedRequest implements ToXContentObject {
     /**
      * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
-    public RolloverRequest addMaxIndexSinglePrimarySizeCondition(ByteSizeValue size) {
+    public RolloverRequest addMaxSinglePrimarySizeCondition(ByteSizeValue size) {
         MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(size);
         if (this.conditions.containsKey(maxSinglePrimarySizeCondition.name())) {
             throw new IllegalArgumentException(maxSinglePrimarySizeCondition + " condition is already set");

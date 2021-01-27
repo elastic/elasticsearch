@@ -217,7 +217,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
     /**
      * Adds a size-based condition to check if the size of the largest primary shard is at least <code>size</code>.
      */
-    public void addMaxIndexSinglePrimarySizeCondition(ByteSizeValue size) {
+    public void addMaxSinglePrimarySizeCondition(ByteSizeValue size) {
         MaxSinglePrimarySizeCondition maxSinglePrimarySizeCondition = new MaxSinglePrimarySizeCondition(size);
         if (this.conditions.containsKey(maxSinglePrimarySizeCondition.name)) {
             throw new IllegalArgumentException(maxSinglePrimarySizeCondition + " condition is already set");

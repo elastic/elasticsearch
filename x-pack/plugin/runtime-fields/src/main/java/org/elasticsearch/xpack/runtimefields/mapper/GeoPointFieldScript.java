@@ -56,12 +56,27 @@ public abstract class GeoPointFieldScript extends AbstractLongFieldScript {
         @Override
         public void execute() {
             try {
-                Object v = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
-                GeoUtils.parseGeoPoint(v, scratch, true);
-                emit(scratch.lat(), scratch.lon());
+                Object value = XContentMapValues.extractValue(field, leafSearchLookup.source().loadSourceIfNeeded());
+                if (value instanceof List<?>) {
+                    List<?> values = (List<?>) value;
+                    if (values.size() > 0 && values.get(0) instanceof Number) {
+                        parsePoint(value);
+                    } else {
+                        for (Object point : values) {
+                            parsePoint(point);
+                        }
+                    }
+                } else {
+                    parsePoint(value);
+                }
             } catch (Exception e) {
                 // ignore
             }
+        }
+
+        private void parsePoint(Object point) {
+            GeoUtils.parseGeoPoint(point, scratch, true);
+            emit(scratch.lat(), scratch.lon());
         }
     };
 

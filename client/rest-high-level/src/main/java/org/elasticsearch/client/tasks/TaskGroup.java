@@ -54,7 +54,7 @@ public class TaskGroup {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (!(o instanceof TaskGroup)) return false;
+        if ((o instanceof TaskGroup) == false) return false;
         TaskGroup taskGroup = (TaskGroup) o;
         return Objects.equals(task, taskGroup.task) &&
             Objects.equals(getChildTasks(), taskGroup.getChildTasks());

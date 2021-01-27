@@ -91,7 +91,6 @@ import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SN
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_PARTIAL_SETTING;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_REPOSITORY_UUID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -678,7 +677,7 @@ public class SearchableSnapshotDirectory extends BaseDirectory {
     public void putCachedBlob(String name, long offset, BytesReference content, ActionListener<Void> listener) {
         blobStoreCacheService.putAsync(repository, name, blobStoreCachePath, offset, content, listener);
     }
-    
+
     public SharedCacheFile getSharedCacheFile(String fileName, long length) {
         return sharedLfuCache.getSharedCacheFile(createCacheKey(fileName), length);
     }

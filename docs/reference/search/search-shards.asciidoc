@@ -1,5 +1,8 @@
 [[search-shards]]
-=== Search Shards API
+=== Search shards API
+++++
+<titleabbrev>Search shards</titleabbrev>
+++++
 
 Returns the indices and shards that a search request would be executed against.
 

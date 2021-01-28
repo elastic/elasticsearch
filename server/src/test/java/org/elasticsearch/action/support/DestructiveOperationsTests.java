@@ -19,11 +19,10 @@
 
 package org.elasticsearch.action.support;
 
+import org.elasticsearch.common.collect.Set;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-
-import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 

@@ -45,12 +45,12 @@ public class ClusterStatsIndices implements ToXContentFragment {
     private QueryCacheStats queryCache;
     private CompletionStats completion;
     private SegmentsStats segments;
-    private AnalysisStats analysis;
-    private MappingStats mappings;
+    private final AnalysisStats analysis;
+    private final MappingStats mappings;
+    private final VersionStats versions;
 
-    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses,
-            MappingStats mappingStats,
-            AnalysisStats analysisStats) {
+    public ClusterStatsIndices(List<ClusterStatsNodeResponse> nodeResponses, MappingStats mappingStats,
+                               AnalysisStats analysisStats, VersionStats versionStats) {
         ObjectObjectHashMap<String, ShardStats> countsPerIndex = new ObjectObjectHashMap<>();
 
         this.docs = new DocsStats();
@@ -92,6 +92,7 @@ public class ClusterStatsIndices implements ToXContentFragment {
 
         this.mappings = mappingStats;
         this.analysis = analysisStats;
+        this.versions = versionStats;
     }
 
     public int getIndexCount() {
@@ -134,6 +135,10 @@ public class ClusterStatsIndices implements ToXContentFragment {
         return analysis;
     }
 
+    public VersionStats getVersions() {
+        return versions;
+    }
+
     static final class Fields {
         static final String COUNT = "count";
     }
@@ -153,6 +158,9 @@ public class ClusterStatsIndices implements ToXContentFragment {
         }
         if (analysis != null) {
             analysis.toXContent(builder, params);
+        }
+        if (versions != null) {
+            versions.toXContent(builder, params);
         }
         return builder;
     }

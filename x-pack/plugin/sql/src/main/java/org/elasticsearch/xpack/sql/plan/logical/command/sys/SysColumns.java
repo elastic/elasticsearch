@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.ql.type.EsField;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.plan.logical.command.Command;
 import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
 import org.elasticsearch.xpack.sql.session.Cursor.Page;
 import org.elasticsearch.xpack.sql.session.ListCursor;
 import org.elasticsearch.xpack.sql.session.Rows;
@@ -38,7 +37,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.NESTED;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isAvailable;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
@@ -134,8 +132,7 @@ public class SysColumns extends Command {
                 ActionListener.wrap(esIndices -> {
                     List<List<?>> rows = new ArrayList<>();
                     for (EsIndex esIndex : esIndices) {
-                        fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode,
-                            session.configuration().version());
+                        fillInRows(cluster, esIndex.name(), esIndex.mapping(), null, rows, columnMatcher, mode);
                     }
                 listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
@@ -148,8 +145,7 @@ public class SysColumns extends Command {
                     // populate the data only when a target is found
                     if (r.isValid()) {
                         EsIndex esIndex = r.get();
-                        fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode,
-                            session.configuration().version());
+                        fillInRows(cluster, indexName, esIndex.mapping(), null, rows, columnMatcher, mode);
                     }
                 listener.onResponse(ListCursor.of(Rows.schema(output), rows, session.configuration().pageSize()));
             }, listener::onFailure));
@@ -157,12 +153,12 @@ public class SysColumns extends Command {
     }
 
     static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
-            Pattern columnMatcher, Mode mode, SqlVersion version) {
-        fillInRows(clusterName, indexName, mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode, version);
+            Pattern columnMatcher, Mode mode) {
+        fillInRows(clusterName, indexName, mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
     }
 
     private static void fillInRows(String clusterName, String indexName, Map<String, EsField> mapping, String prefix, List<List<?>> rows,
-            Pattern columnMatcher, Counter position, Mode mode, SqlVersion version) {
+            Pattern columnMatcher, Counter position, Mode mode) {
         boolean isOdbcClient = mode == Mode.ODBC;
         for (Map.Entry<String, EsField> entry : mapping.entrySet()) {
             position.addAndGet(1); // JDBC is 1-based so we start with 1 here
@@ -173,7 +169,7 @@ public class SysColumns extends Command {
             DataType type = field.getDataType();
 
             // skip the nested, object and unsupported types
-            if (isPrimitive(type) && isAvailable(type, version)) {
+            if (isPrimitive(type)) {
                 if (columnMatcher == null || columnMatcher.matcher(name).matches()) {
                     rows.add(asList(clusterName,
                             // schema is not supported
@@ -214,7 +210,7 @@ public class SysColumns extends Command {
             }
             // skip nested fields
             if (field.getProperties() != null && type != NESTED) {
-                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode, version);
+                fillInRows(clusterName, indexName, field.getProperties(), name, rows, columnMatcher, position, mode);
             }
         }
     }

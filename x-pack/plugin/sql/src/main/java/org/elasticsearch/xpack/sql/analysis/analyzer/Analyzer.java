@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.ql.plan.logical.Project;
 import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
+import org.elasticsearch.xpack.ql.session.Configuration;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.type.InvalidMappedField;
@@ -57,7 +58,6 @@ import org.elasticsearch.xpack.sql.plan.logical.LocalRelation;
 import org.elasticsearch.xpack.sql.plan.logical.Pivot;
 import org.elasticsearch.xpack.sql.plan.logical.SubQueryAlias;
 import org.elasticsearch.xpack.sql.plan.logical.With;
-import org.elasticsearch.xpack.sql.session.SqlConfiguration;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 
 import java.util.ArrayList;
@@ -77,7 +77,6 @@ import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.AnalyzerRule;
 import static org.elasticsearch.xpack.ql.analyzer.AnalyzerRules.BaseAnalyzerRule;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
-import static org.elasticsearch.xpack.sql.session.VersionCompatibilityChecks.isAvailable;
 
 public class Analyzer extends RuleExecutor<LogicalPlan> {
     /**
@@ -92,13 +91,13 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
      * Per-request specific settings needed in some of the functions (timezone, username and clustername),
      * to which they are attached.
      */
-    private final SqlConfiguration configuration;
+    private final Configuration configuration;
     /**
      * The verifier has the role of checking the analyzed tree for failures and build a list of failures.
      */
     private final Verifier verifier;
 
-    public Analyzer(SqlConfiguration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
+    public Analyzer(Configuration configuration, FunctionRegistry functionRegistry, IndexResolution results, Verifier verifier) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.indexResolution = results;
@@ -318,7 +317,7 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    private class ResolveRefs extends BaseAnalyzerRule {
+    private static class ResolveRefs extends BaseAnalyzerRule {
 
         @Override
         protected LogicalPlan doRule(LogicalPlan plan) {
@@ -432,16 +431,10 @@ public class Analyzer extends RuleExecutor<LogicalPlan> {
                 }
             }
 
-            return filterUnsupportedProjections(result);
+            return result;
         }
 
-        private List<NamedExpression> filterUnsupportedProjections(List<NamedExpression> projections) {
-            return projections.stream()
-                .filter(p -> p.resolved() == false || isAvailable(p.dataType(), configuration.version()))
-                .collect(toList());
-        }
-
-        List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
+        private List<NamedExpression> expandStar(UnresolvedStar us, List<Attribute> output) {
             List<NamedExpression> expanded = new ArrayList<>();
 
             // a qualifier is specified - since this is a star, it should be a CompoundDataType

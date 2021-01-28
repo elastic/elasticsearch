@@ -61,8 +61,7 @@ public class SysColumnsTests extends ESTestCase {
     private void sysColumnsInMode(Mode mode) {
         Class<? extends Number> typeClass = mode == Mode.ODBC ? Short.class : Integer.class;
         List<List<?>> rows = new ArrayList<>();
-        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode,
-                SqlVersion.fromId(Version.CURRENT.id));
+        SysColumns.fillInRows("test", "index", MAPPING2, null, rows, null, mode);
         assertEquals(FIELD_COUNT, rows.size());
         assertEquals(24, rows.get(0).size());
 
@@ -267,8 +266,7 @@ public class SysColumnsTests extends ESTestCase {
     private Tuple<Command, SqlSession> sql(String sql, List<SqlTypedParamValue> params, SqlConfiguration config,
                                            Map<String, EsField> mapping) {
         EsIndex test = new EsIndex("test", mapping);
-        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics(),
-            config.version()));
+        Analyzer analyzer = new Analyzer(config, new FunctionRegistry(), IndexResolution.valid(test), new Verifier(new Metrics()));
         Command cmd = (Command) analyzer.analyze(parser.createStatement(sql, params, UTC), true);
 
         IndexResolver resolver = mock(IndexResolver.class);

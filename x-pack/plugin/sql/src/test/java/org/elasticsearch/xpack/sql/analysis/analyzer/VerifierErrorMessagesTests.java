@@ -50,8 +50,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private String error(IndexResolution getIndexResult, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics(),
-            SqlTestUtils.TEST_CFG.version()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), getIndexResult, new Verifier(new Metrics()));
         VerificationException e = expectThrows(VerificationException.class, () -> analyzer.analyze(parser.createStatement(sql), true));
         String message = e.getMessage();
         assertTrue(message.startsWith("Found "));
@@ -71,8 +70,7 @@ public class VerifierErrorMessagesTests extends ESTestCase {
     }
 
     private LogicalPlan accept(IndexResolution resolution, String sql) {
-        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution,
-            new Verifier(new Metrics(), SqlTestUtils.TEST_CFG.version()));
+        Analyzer analyzer = new Analyzer(SqlTestUtils.TEST_CFG, new SqlFunctionRegistry(), resolution, new Verifier(new Metrics()));
         return analyzer.analyze(parser.createStatement(sql), true);
     }
 
@@ -384,23 +382,6 @@ public class VerifierErrorMessagesTests extends ESTestCase {
         assertEquals(
             "1:8: second argument of [FORMAT(date, int)] must be [string], found value [int] type [integer]",
             error("SELECT FORMAT(date, int) FROM test")
-        );
-    }
-
-    public void testToCharValidArgs() {
-        accept("SELECT TO_CHAR(date, 'HH:MI:SS.FF3 OF') FROM test");
-        accept("SELECT TO_CHAR(date::date, 'MM/DD/YYYY') FROM test");
-        accept("SELECT TO_CHAR(date::time, 'HH:MI:SS OF') FROM test");
-    }
-
-    public void testToCharInvalidArgs() {
-        assertEquals(
-            "1:8: first argument of [TO_CHAR(int, keyword)] must be [date, time or datetime], found value [int] type [integer]",
-            error("SELECT TO_CHAR(int, keyword) FROM test")
-        );
-        assertEquals(
-            "1:8: second argument of [TO_CHAR(date, int)] must be [string], found value [int] type [integer]",
-            error("SELECT TO_CHAR(date, int) FROM test")
         );
     }
 

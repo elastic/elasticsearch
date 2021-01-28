@@ -36,6 +36,15 @@ public final class DestructiveOperations {
      */
     public static final Setting<Boolean> REQUIRES_NAME_SETTING =
         Setting.boolSetting("action.destructive_requires_name", false, Property.Dynamic, Property.NodeScope);
+    /**
+     * The "match none" pattern, "*,-*", will never actually be destructive
+     * because it operates on no indices. If plugins or other components add
+     * their own index resolution layers, they can pass this pattern to the
+     * core code in order to indicate that an operation won't run on any
+     * indices, relying on the core code to handle this situation.
+     */
+    private static final String[] MATCH_NONE_PATTERN = {"*", "-*"};
+
     private volatile boolean destructiveRequiresName;
 
     public DestructiveOperations(Settings settings, ClusterSettings clusterSettings) {
@@ -61,10 +70,7 @@ public final class DestructiveOperations {
             if (hasWildcardUsage(aliasesOrIndices[0])) {
                 throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
             }
-        } else if (Arrays.equals(aliasesOrIndices, new String[]{"*", "-*"})) {
-            // do nothing, allowing the use of the "matchNone" pattern, "*,-*",
-            // which will never actually be destructive as it operates on no indices
-        } else {
+        } else if (Arrays.equals(aliasesOrIndices, MATCH_NONE_PATTERN) == false) {
             for (String aliasesOrIndex : aliasesOrIndices) {
                 if (hasWildcardUsage(aliasesOrIndex)) {
                     throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");

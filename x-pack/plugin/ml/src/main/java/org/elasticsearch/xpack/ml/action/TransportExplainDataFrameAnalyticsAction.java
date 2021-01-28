@@ -66,7 +66,6 @@ public class TransportExplainDataFrameAnalyticsAction
     private final MemoryUsageEstimationProcessManager processManager;
     private final SecurityContext securityContext;
     private final ThreadPool threadPool;
-    private volatile int numLazyMLNodes;
 
     @Inject
     public TransportExplainDataFrameAnalyticsAction(TransportService transportService,
@@ -84,15 +83,9 @@ public class TransportExplainDataFrameAnalyticsAction
         this.licenseState = licenseState;
         this.processManager = Objects.requireNonNull(processManager);
         this.threadPool = threadPool;
-        this.numLazyMLNodes = MachineLearning.MAX_LAZY_ML_NODES.get(settings);
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
             new SecurityContext(settings, threadPool.getThreadContext()) :
             null;
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(MachineLearning.MAX_LAZY_ML_NODES, this::setNumLazyMLNodes);
-    }
-
-    private void setNumLazyMLNodes(int value) {
-        this.numLazyMLNodes = value;
     }
 
     @Override
@@ -104,11 +97,19 @@ public class TransportExplainDataFrameAnalyticsAction
             return;
         }
 
+        // Since the data_frame_analyzer program will be so short-lived and use so little memory when
+        // run purely for memory estimation we are happy to run it on nodes that might not be ML nodes.
+        // This also helps with the case where there are no ML nodes in the cluster, but lazy ML nodes
+        // can be added.
         DiscoveryNode localNode = clusterService.localNode();
-        if (MachineLearning.isMlNode(localNode)) {
+        boolean isMlNode = MachineLearning.isMlNode(localNode);
+        if (isMlNode || localNode.isDataNode() || localNode.isIngestNode()) {
+            if (isMlNode == false) {
+                logger.debug("estimating data frame analytics memory on non-ML node");
+            }
             explain(task, request, true, listener);
         } else {
-            redirectToMlNode(task, request, listener);
+            redirectToSuitableNode(request, listener);
         }
     }
 
@@ -144,7 +145,6 @@ public class TransportExplainDataFrameAnalyticsAction
                 )
             );
         }
-
     }
 
     private void explain(Task task,
@@ -206,28 +206,31 @@ public class TransportExplainDataFrameAnalyticsAction
     }
 
     /**
-     * Finds the first available ML node in the cluster and redirects the request to this node.
+     * Finds the a suitable node in the cluster we can run on, and redirects the request to this node.
      */
-    private void redirectToMlNode(Task task,
-                                  PutDataFrameAnalyticsAction.Request request,
-                                  ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
-        Optional<DiscoveryNode> node = findMlNode(clusterService.state());
+    private void redirectToSuitableNode(PutDataFrameAnalyticsAction.Request request,
+                                        ActionListener<ExplainDataFrameAnalyticsAction.Response> listener) {
+        Optional<DiscoveryNode> node = findSuitableNode(clusterService.state());
         if (node.isPresent()) {
             transportService.sendRequest(node.get(), actionName, request,
                 new ActionListenerResponseHandler<>(listener, ExplainDataFrameAnalyticsAction.Response::new));
-        } else if (numLazyMLNodes > 0 || request.getConfig().isAllowLazyStart()) {
-            explain(task, request, false, listener);
         } else {
-            listener.onFailure(ExceptionsHelper.badRequestException("No ML node to run on"));
+            listener.onFailure(ExceptionsHelper.badRequestException("No ML, data or ingest node to run on"));
         }
     }
 
     /**
-     * Finds the first available ML node in the cluster state.
+     * Prefer the first available ML node in the cluster state.
+     * If there isn't one, find the first data or ingest node.
      */
-    private static Optional<DiscoveryNode> findMlNode(ClusterState clusterState) {
+    private static Optional<DiscoveryNode> findSuitableNode(ClusterState clusterState) {
         for (DiscoveryNode node : clusterState.getNodes()) {
             if (MachineLearning.isMlNode(node)) {
+                return Optional.of(node);
+            }
+        }
+        for (DiscoveryNode node : clusterState.getNodes()) {
+            if (node.isDataNode() || node.isIngestNode()) {
                 return Optional.of(node);
             }
         }

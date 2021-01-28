@@ -247,7 +247,7 @@ public class DefaultRestChannelTests extends ESTestCase {
             }
         } else {
             httpRequest = new TestHttpRequest(HttpRequest.HttpVersion.HTTP_1_0, RestRequest.Method.GET, "/");
-            if (!close) {
+            if (close == false) {
                 httpRequest.getHeaders().put(DefaultRestChannel.CONNECTION, Collections.singletonList(DefaultRestChannel.KEEP_ALIVE));
             }
         }

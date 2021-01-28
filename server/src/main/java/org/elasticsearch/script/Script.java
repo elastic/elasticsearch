@@ -652,7 +652,7 @@ public final class Script implements ToXContentObject, Writeable {
             builder.field(OPTIONS_PARSE_FIELD.getPreferredName(), options);
         }
 
-        if (!params.isEmpty()) {
+        if (params.isEmpty() == false) {
             builder.field(PARAMS_PARSE_FIELD.getPreferredName(), params);
         }
 
@@ -709,7 +709,7 @@ public final class Script implements ToXContentObject, Writeable {
 
         if (type != script.type) return false;
         if (lang != null ? !lang.equals(script.lang) : script.lang != null) return false;
-        if (!idOrCode.equals(script.idOrCode)) return false;
+        if (idOrCode.equals(script.idOrCode) == false) return false;
         if (options != null ? !options.equals(script.options) : script.options != null) return false;
         return params.equals(script.params);
 

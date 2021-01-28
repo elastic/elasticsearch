@@ -89,9 +89,7 @@ public class OperatorPrivileges {
                 return;
             }
             if (request instanceof RestoreSnapshotRequest) {
-                final boolean isOperatorInContext = AuthenticationField.PRIVILEGE_CATEGORY_VALUE_OPERATOR.equals(
-                    threadContext.getHeader(AuthenticationField.PRIVILEGE_CATEGORY_KEY));
-                ((RestoreSnapshotRequest) request).filterOperatorSettings(false == isOperatorInContext);
+                ((RestoreSnapshotRequest) request).skipOperatorSettings(true);
             }
         }
 

@@ -445,11 +445,8 @@ public class RestoreService implements ClusterStateApplier {
                             if (metadata.persistentSettings() != null) {
                                 Settings settings = metadata.persistentSettings();
                                 clusterSettings.validateUpdate(settings);
-                                // Filter out operator only settings if required so that the behaviour is as follows:
-                                // * normal setting, will be either overridden from snapshot or wiped if snapshot does not contain it
-                                // * operator setting, any value from the snapshot is ignored and any value from current cluster state
-                                //   is retained
-                                if (request.filterOperatorSettings()) {
+                                if (request.skipOperatorSettings()) {
+                                    // Skip any operator-only settings from the snapshot. This happens when operator privileges are enabled
                                     Set<String> operatorSettingKeys = Stream.concat(
                                         settings.keySet().stream(), currentState.metadata().persistentSettings().keySet().stream())
                                         .filter(k -> {

@@ -99,9 +99,9 @@ public class Setting<T> implements ToXContentObject {
         Dynamic,
 
         /**
-         * Dynamic and operator only
+         * Operator only Dynamic setting
          */
-        DynamicOperator,
+        OperatorDynamic,
 
         /**
          * mark this setting as final, not updateable even when the context is not dynamic
@@ -173,11 +173,11 @@ public class Setting<T> implements ToXContentObject {
             this.properties = EMPTY_PROPERTIES;
         } else {
             final EnumSet<Property> propertiesAsSet = EnumSet.copyOf(Arrays.asList(properties));
-            if ((propertiesAsSet.contains(Property.Dynamic) || propertiesAsSet.contains(Property.DynamicOperator))
+            if ((propertiesAsSet.contains(Property.Dynamic) || propertiesAsSet.contains(Property.OperatorDynamic))
                 && propertiesAsSet.contains(Property.Final)) {
                 throw new IllegalArgumentException("final setting [" + key + "] cannot be dynamic");
             }
-            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.DynamicOperator)) {
+            if (propertiesAsSet.contains(Property.Dynamic) && propertiesAsSet.contains(Property.OperatorDynamic)) {
                 throw new IllegalArgumentException("setting [" + key + "] cannot be both dynamic and dynamic operator");
             }
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.NotCopyableOnResize);
@@ -304,14 +304,14 @@ public class Setting<T> implements ToXContentObject {
      * Returns <code>true</code> if this setting is dynamically updateable, otherwise <code>false</code>
      */
     public final boolean isDynamic() {
-        return properties.contains(Property.Dynamic) || properties.contains(Property.DynamicOperator);
+        return properties.contains(Property.Dynamic) || properties.contains(Property.OperatorDynamic);
     }
 
     /**
      * Returns <code>true</code> if this setting is dynamically updateable by operators, otherwise <code>false</code>
      */
     public final boolean isDynamicOperator() {
-        return properties.contains(Property.DynamicOperator);
+        return properties.contains(Property.OperatorDynamic);
     }
 
     /**

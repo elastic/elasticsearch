@@ -23,7 +23,7 @@ import org.elasticsearch.xpack.core.ml.job.config.Job;
 public class MlConfigMigrationEligibilityCheck {
 
     public static final Setting<Boolean> ENABLE_CONFIG_MIGRATION = Setting.boolSetting(
-        "xpack.ml.enable_config_migration", true, Setting.Property.DynamicOperator, Setting.Property.NodeScope);
+        "xpack.ml.enable_config_migration", true, Setting.Property.OperatorDynamic, Setting.Property.NodeScope);
 
     private volatile boolean isConfigMigrationEnabled;
 

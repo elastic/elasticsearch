@@ -160,22 +160,14 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
             OPERATOR_AUTH_HEADER
         );
 
-        // Restore with non-operator and the operator settings will not be touched
-        restoreSnapshot(repoName, snapshotName, null);
+        // Restore with either operator or non-operator and the operator settings will not be touched
+        restoreSnapshot(repoName, snapshotName, randomFrom(OPERATOR_AUTH_HEADER, null));
         Map<String, Object> persistentSettings = getPersistentSettings();
         assertNull(persistentSettings.get("xpack.security.http.filter.enabled"));
         assertThat(persistentSettings.get("xpack.security.transport.filter.enabled"), equalTo("true"));
         assertThat(persistentSettings.get("xpack.security.http.filter.allow"), equalTo("tutorial.com"));
         assertThat(persistentSettings.get("search.default_keep_alive"), equalTo("10m"));
         assertNull(persistentSettings.get("search.allow_expensive_queries"));
-
-        // Now restore with operator user and the operator settings will also be restored
-        restoreSnapshot(repoName, snapshotName, OPERATOR_AUTH_HEADER);
-        persistentSettings = getPersistentSettings();
-        assertThat(persistentSettings.get("xpack.security.http.filter.enabled"), equalTo("false"));
-        assertNull(persistentSettings.get("xpack.security.transport.filter.enabled"));
-        assertThat(persistentSettings.get("xpack.security.http.filter.allow"), equalTo("example.com"));
-        assertThat(persistentSettings.get("search.default_keep_alive"), equalTo("10m"));
     }
 
     private void createSnapshotRepo(String repoName) throws IOException {

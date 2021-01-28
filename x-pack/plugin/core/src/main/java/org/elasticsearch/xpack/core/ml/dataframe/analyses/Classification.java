@@ -76,13 +76,13 @@ public class Classification implements DataFrameAnalysis {
             a -> new Classification(
                 (String) a[0],
                 new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
-                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
-                (String) a[13],
-                (ClassAssignmentObjective) a[14],
-                (Integer) a[15],
-                (Double) a[16],
-                (Long) a[17],
-                (List<PreProcessor>) a[18]));
+                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12], (Boolean) a[13]),
+                (String) a[14],
+                (ClassAssignmentObjective) a[15],
+                (Integer) a[16],
+                (Double) a[17],
+                (Long) a[18],
+                (List<PreProcessor>) a[19]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);

@@ -41,7 +41,8 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     public static final ParseField SOFT_TREE_DEPTH_TOLERANCE = new ParseField("soft_tree_depth_tolerance");
     public static final ParseField DOWNSAMPLE_FACTOR = new ParseField("downsample_factor");
     public static final ParseField MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER =
-        new ParseField("max_optimization_rounds_per_hyperparameter");
+    new ParseField("max_optimization_rounds_per_hyperparameter");
+    public static final ParseField EARLY_STOPPING_ENABLED = new ParseField("early_stopping_enabled");
 
     static void declareFields(AbstractObjectParser<?, Void> parser) {
         parser.declareDouble(optionalConstructorArg(), LAMBDA);
@@ -56,6 +57,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         parser.declareDouble(optionalConstructorArg(), SOFT_TREE_DEPTH_TOLERANCE);
         parser.declareDouble(optionalConstructorArg(), DOWNSAMPLE_FACTOR);
         parser.declareInt(optionalConstructorArg(), MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER);
+        parser.declareInt(optionalConstructorArg(), EARLY_STOPPING_ENABLED);
     }
 
     private final Double lambda;
@@ -70,6 +72,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
     private final Double softTreeDepthTolerance;
     private final Double downsampleFactor;
     private final Integer maxOptimizationRoundsPerHyperparameter;
+    private final Boolean earlyStoppingEnabled;
 
     public BoostedTreeParams(@Nullable Double lambda,
                              @Nullable Double gamma,
@@ -82,7 +85,8 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
                              @Nullable Double softTreeDepthLimit,
                              @Nullable Double softTreeDepthTolerance,
                              @Nullable Double downsampleFactor,
-                             @Nullable Integer maxOptimizationRoundsPerHyperparameter) {
+                             @Nullable Integer maxOptimizationRoundsPerHyperparameter,
+                             @Nullable Boolean earlyStoppingEnabled) {
         if (lambda != null && lambda < 0) {
             throw ExceptionsHelper.badRequestException("[{}] must be a non-negative double", LAMBDA.getPreferredName());
         }
@@ -135,6 +139,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         this.softTreeDepthTolerance = softTreeDepthTolerance;
         this.downsampleFactor = downsampleFactor;
         this.maxOptimizationRoundsPerHyperparameter = maxOptimizationRoundsPerHyperparameter;
+        this.earlyStoppingEnabled = earlyStoppingEnabled;
     }
 
     BoostedTreeParams(StreamInput in) throws IOException {
@@ -150,6 +155,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         softTreeDepthTolerance = in.readOptionalDouble();
         downsampleFactor = in.readOptionalDouble();
         maxOptimizationRoundsPerHyperparameter = in.readOptionalVInt();
+        earlyStoppingEnabled = in.readOptionalBoolean();
     }
 
     public Double getLambda() {
@@ -200,6 +206,10 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         return maxOptimizationRoundsPerHyperparameter;
     }
 
+    public Boolean getEarlyStoppingEnabled() {
+        return earlyStoppingEnabled;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalDouble(lambda);
@@ -214,6 +224,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         out.writeOptionalDouble(softTreeDepthTolerance);
         out.writeOptionalDouble(downsampleFactor);
         out.writeOptionalVInt(maxOptimizationRoundsPerHyperparameter);
+        out.writeOptionalBoolean(earlyStoppingEnabled);
     }
 
     @Override
@@ -253,6 +264,9 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         }
         if (maxOptimizationRoundsPerHyperparameter != null) {
             builder.field(MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(), maxOptimizationRoundsPerHyperparameter);
+        }
+        if (earlyStoppingEnabled!= null) {
+            builder.field(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
         }
         return builder;
     }
@@ -295,6 +309,9 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         if (maxOptimizationRoundsPerHyperparameter != null) {
             params.put(MAX_OPTIMIZATION_ROUNDS_PER_HYPERPARAMETER.getPreferredName(), maxOptimizationRoundsPerHyperparameter);
         }
+        if (earlyStoppingEnabled != null) {
+            params.put(EARLY_STOPPING_ENABLED.getPreferredName(), earlyStoppingEnabled);
+        }
         return params;
     }
 
@@ -314,13 +331,14 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
             && Objects.equals(softTreeDepthLimit, that.softTreeDepthLimit)
             && Objects.equals(softTreeDepthTolerance, that.softTreeDepthTolerance)
             && Objects.equals(downsampleFactor, that.downsampleFactor)
-            && Objects.equals(maxOptimizationRoundsPerHyperparameter, that.maxOptimizationRoundsPerHyperparameter);
+            && Objects.equals(maxOptimizationRoundsPerHyperparameter, that.maxOptimizationRoundsPerHyperparameter)
+            && Objects.equals(earlyStoppingEnabled, that.earlyStoppingEnabled);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues, alpha, etaGrowthRatePerTree,
-            softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter);
+            softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter, earlyStoppingEnabled);
     }
 
     public static Builder builder() {
@@ -341,6 +359,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
         private Double softTreeDepthTolerance;
         private Double downsampleFactor;
         private Integer maxOptimizationRoundsPerHyperparameter;
+        private Boolean earlyStoppingEnabled;
 
         private Builder() {}
 
@@ -357,6 +376,7 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
             this.softTreeDepthTolerance = params.softTreeDepthTolerance;
             this.downsampleFactor = params.downsampleFactor;
             this.maxOptimizationRoundsPerHyperparameter = params.maxOptimizationRoundsPerHyperparameter;
+            this.earlyStoppingEnabled = params.earlyStoppingEnabled;
         }
 
         public Builder setLambda(Double lambda) {
@@ -419,9 +439,15 @@ public class BoostedTreeParams implements ToXContentFragment, Writeable {
             return this;
         }
 
+        public Builder setEarlyStoppingEnabled(Boolean earlyStoppingEnabled) {
+            this.earlyStoppingEnabled = earlyStoppingEnabled;
+            return this;
+        }
+
         public BoostedTreeParams build() {
             return new BoostedTreeParams(lambda, gamma, eta, maxTrees, featureBagFraction, numTopFeatureImportanceValues, alpha,
-                etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter);
+                etaGrowthRatePerTree, softTreeDepthLimit, softTreeDepthTolerance, downsampleFactor, maxOptimizationRoundsPerHyperparameter,
+                earlyStoppingEnabled);
         }
     }
 }

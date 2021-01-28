@@ -66,13 +66,13 @@ public class Regression implements DataFrameAnalysis {
             a -> new Regression(
                 (String) a[0],
                 new BoostedTreeParams((Double) a[1], (Double) a[2], (Double) a[3], (Integer) a[4], (Double) a[5], (Integer) a[6],
-                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12]),
-                (String) a[13],
-                (Double) a[14],
-                (Long) a[15],
-                (LossFunction) a[16],
-                (Double) a[17],
-                (List<PreProcessor>) a[18]));
+                    (Double) a[7], (Double) a[8], (Double) a[9], (Double) a[10], (Double) a[11], (Integer) a[12], (Boolean) a[13]),
+                (String) a[14],
+                (Double) a[15],
+                (Long) a[16],
+                (LossFunction) a[17],
+                (Double) a[18],
+                (List<PreProcessor>) a[19]));
         parser.declareString(constructorArg(), DEPENDENT_VARIABLE);
         BoostedTreeParams.declareFields(parser);
         parser.declareString(optionalConstructorArg(), PREDICTION_FIELD_NAME);

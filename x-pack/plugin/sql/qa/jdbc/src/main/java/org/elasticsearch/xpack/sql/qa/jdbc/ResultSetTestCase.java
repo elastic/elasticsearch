@@ -1112,7 +1112,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             assertEquals(false, results.getObject("test_keyword", Boolean.class));
         });
     }
-    
+
     public void testGettingDateWithoutCalendar() throws IOException, SQLException {
         createIndex("test");
         updateMappingForNumericValuesTests("test");

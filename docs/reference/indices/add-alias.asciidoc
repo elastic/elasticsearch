@@ -26,6 +26,11 @@ PUT /my-index-000001/_alias/alias1
 
 `POST /<index>/_aliases/<alias>`
 
+[[add-alias-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `manage`
+<<privileges-list-indices,index privilege>> for both the index and index alias.
 
 [[add-alias-api-path-params]]
 ==== {api-path-parms-title}

@@ -50,7 +50,7 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
     @Override
     public void start() {
         synchronized (lifecycle) {
-            if (!lifecycle.canMoveToStarted()) {
+            if (lifecycle.canMoveToStarted() == false) {
                 return;
             }
             for (LifecycleListener listener : listeners) {
@@ -69,7 +69,7 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
     @Override
     public void stop() {
         synchronized (lifecycle) {
-            if (!lifecycle.canMoveToStopped()) {
+            if (lifecycle.canMoveToStopped() == false) {
                 return;
             }
             for (LifecycleListener listener : listeners) {
@@ -91,7 +91,7 @@ public abstract class AbstractLifecycleComponent implements LifecycleComponent {
             if (lifecycle.started()) {
                 stop();
             }
-            if (!lifecycle.canMoveToClosed()) {
+            if (lifecycle.canMoveToClosed() == false) {
                 return;
             }
             for (LifecycleListener listener : listeners) {

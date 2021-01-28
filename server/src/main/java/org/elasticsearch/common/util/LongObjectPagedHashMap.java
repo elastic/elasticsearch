@@ -140,7 +140,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public boolean hasNext() {
-                if (!cached) {
+                if (cached == false) {
                     while (true) {
                         ++cursor.index;
                         if (cursor.index >= capacity()) {
@@ -158,7 +158,7 @@ public class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implements I
 
             @Override
             public Cursor<T> next() {
-                if (!hasNext()) {
+                if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
                 cached = false;

@@ -296,11 +296,11 @@ public class Build {
 
         Build build = (Build) o;
 
-        if (!flavor.equals(build.flavor)) {
+        if (flavor.equals(build.flavor) == false) {
             return false;
         }
 
-        if (!type.equals(build.type)) {
+        if (type.equals(build.type) == false) {
             return false;
         }
 
